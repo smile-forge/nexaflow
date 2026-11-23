@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Serial.Services;
 using Nexaflow.Features.Serial.ViewModels;
-using Nexaflow.Features.Serial.Views;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -35,7 +34,7 @@ public sealed class SerialPageRegistration(IShellServices shell) : IPageRegistra
             Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("Serial.Page.Title") } },
         };
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new SerialViewModel(new SystemSerialLink(), SerialPortCatalog.List, shell, port);
             vm.PortChanged += () =>
@@ -46,8 +45,7 @@ public sealed class SerialPageRegistration(IShellServices shell) : IPageRegistra
                 page.Breadcrumbs.Add(new BreadcrumbSegment { Label = Str.Get("Serial.Page.Title") });
                 if (vm.Port.Length > 0) page.Breadcrumbs.Add(new BreadcrumbSegment { Label = vm.Port });
             };
-            page.Closed += (_, _) => vm.Dispose();
-            return new SerialView(vm);
+            return vm;
         };
         return page;
     }

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Rtf.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Rtf.Views;
 
@@ -11,11 +12,10 @@ namespace Nexaflow.Features.Rtf.Views;
 /// search fills beside it. The view-model reads the file; this hands the surface's own search to it, sends the links the
 /// document holds to the shell, and tells it when the page is off screen so a change to the file waits until it is back.
 /// </summary>
-public partial class RtfView : UserControl, IPageView
+[ViewFor(typeof(RtfViewModel))]
+public partial class RtfView : UserControl
 {
     private readonly RtfViewModel _vm;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     public RtfView(RtfViewModel vm)
     {

@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.ViewModels;
-using Nexaflow.Features.Images.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Visuals.Common.Localization;
@@ -71,7 +70,7 @@ public sealed class ArtistTabRegistration : IPageRegistration
             : ((string Path, string? Offered)?)null;
         var page = new Page { Icon = "🎨" };
         NameAfter(page, path, isDraft: draft is not null);
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             ArtistViewModel? artist = null;
             artist = new ArtistViewModel(path, _shell, _editing, _ai, _pictures, _selection, _erasing, _config)
@@ -81,7 +80,7 @@ public sealed class ArtistTabRegistration : IPageRegistration
             if (draft is var (draftPath, draftFolder)) artist.Draft = Drafted(page, artist, draftPath, draftFolder);
             if (ParseTool(pageParams?.GetValueOrDefault("tool")) is { } tool) artist.Editor.Tool = tool;
             artist.PictureReplaced += shown => Follow(page, shown);
-            return new ArtistView(artist);
+            return artist;
         };
         return page;
     }

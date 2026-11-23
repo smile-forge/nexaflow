@@ -1,7 +1,6 @@
 ﻿using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsSearch.ViewModels;
-using Nexaflow.Features.WindowsSearch.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsSearch;
@@ -50,7 +49,7 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : IPageR
             }
         };
         vm.Tab = tab;
-        tab.ContentFactory = () => new SearchView(vm);
+        tab.ViewModelFactory = () => vm;
         return tab;
     }
 }

@@ -6,6 +6,7 @@ using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Layout;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;
 using System.Globalization;
@@ -19,7 +20,8 @@ namespace Nexaflow.Features.Scratchpad.Views;
 /// <summary>
 /// The board. Anything dropped on it that no note took becomes a note where it was let go.
 /// </summary>
-public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget, IPageView
+[ViewFor(typeof(ScratchpadViewModel))]
+public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget
 {
     private ScratchpadViewModel Vm => (ScratchpadViewModel)DataContext;
 
@@ -346,10 +348,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private static Brush NoteColorToBrush(string color)
         => (Brush)_fillConverter.Convert(color, typeof(Brush), null!, CultureInfo.InvariantCulture);
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => Vm;
 
     // ── Coordinate helpers ────────────────────────────────────────────────
 

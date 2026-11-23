@@ -70,6 +70,21 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// <summary>Raised, with the new file, once the document is saved as another file and is that file from then on.</summary>
     public event Action<string>? Moved;
 
+    /// <summary>Raised when the tab, already showing its document, is asked to land at a saved reference in it (<c>heading:getting-started</c>).</summary>
+    public event Action<string>? PlaceRequested;
+
+    /// <summary>Raised when the tab, already showing its document, is asked to land at a heading in it, named by its titles, outermost first.</summary>
+    public event Action<IReadOnlyList<string>>? HeadingRequested;
+
+    /// <summary>Shown again with a saved reference or a heading: lands there, a reference before a heading.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.GetValueOrDefault(MarkdownTabRegistration.PlaceParameter) is { Length: > 0 } place)
+            PlaceRequested?.Invoke(place);
+        else if (pageParams.GetValueOrDefault("heading") is { Length: > 0 } heading)
+            HeadingRequested?.Invoke(heading.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+    }
+
     /// <summary>Heading title-path to scroll to once rendered (set when opened from a snaplink), or null.</summary>
     public IReadOnlyList<string>? InitialHeading { get; }
 

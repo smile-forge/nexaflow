@@ -2,7 +2,6 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
 using Nexaflow.Features.Projects.ViewModels;
-using Nexaflow.Features.Projects.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects;
@@ -59,15 +58,14 @@ public sealed class ProjectDetailTabRegistration : IPageRegistration
             },
         };
 
-        tab.ContentFactory = () =>
+        tab.ViewModelFactory = () =>
         {
-            var ops  = new ProjectOperations(_config, root);
-            var vm   = new ProjectDetailViewModel(ops, _config, folder, _shellServices, _aiService);
-            var page = new ProjectDetailView(vm);
+            var ops = new ProjectOperations(_config, root);
+            var vm  = new ProjectDetailViewModel(ops, _config, folder, _shellServices, _aiService);
             tab.Closed += (_, _) => vm.Release();
             vm.OpenFilesRequested += p =>
-                _shellServices.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = p }, page);
-            return page;
+                _shellServices.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = p }, tab);
+            return vm;
         };
 
         return tab;

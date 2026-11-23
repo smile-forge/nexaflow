@@ -1,4 +1,6 @@
+using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using NSubstitute;
 using System;
 using System.IO;
 using System.Linq;
@@ -43,7 +45,7 @@ public class WebAiTests
     {
         var path = Path.Combine(_tempDir, fileName);
         File.WriteAllText(path, $"[InternetShortcut]\r\nURL={url}\r\n");
-        var vm = new HtmlViewModel(path, VirtualFileSystem.Instance);   // ctor takes only a file path — no IShellServices seam to stub.
+        var vm = new HtmlViewModel(path, VirtualFileSystem.Instance, Substitute.For<IShellServices>());
         await vm.Loaded;
         return vm;
     }

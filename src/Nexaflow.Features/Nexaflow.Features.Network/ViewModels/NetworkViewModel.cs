@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -127,7 +128,7 @@ public sealed partial class ActionRow(IDeviceAction action, Func<IDeviceAction, 
 /// here can widen that, and neither can a probe or an action.
 /// </para>
 /// </remarks>
-public sealed partial class NetworkViewModel : ObservableObject
+public sealed partial class NetworkViewModel : ObservableObject, IPageViewModel
 {
     private readonly IReadOnlyList<ISubfeatureHandle<INetworkProbe>> _layers;
     private readonly IReadOnlyList<ISubfeatureHandle<IDeviceAction>> _actions;
@@ -228,6 +229,59 @@ public sealed partial class NetworkViewModel : ObservableObject
     [ObservableProperty] private GridLength _panelWidth = new(0);
     [ObservableProperty] private string _status = "";
     [ObservableProperty] private bool _isSweeping;
+
+    /// <summary>The most devices the assistant is told about one by one; past this it is told how many more there are.</summary>
+    private const int ListedDevices = 200;
+
+    /// <summary>
+    /// What the page shows, for the assistant: the adapters it looks through, where discovery stands, each device found with
+    /// its addresses, how it was found and whether it is still there, and the device open in the panel with what is known of it.
+    /// </summary>
+    public string GetContext()
+    {
+        var context = new StringBuilder();
+        context.AppendLine("Network discovery page: the devices on this computer's network segments.");
+        context.AppendLine(IsSweeping ? $"A discovery sweep is running. {Status}" : Status);
+        if (Adapters.Count > 0)
+            context.AppendLine("Adapters looked through: " + string.Join(", ", Adapters.Select(adapter => adapter.Name)));
+
+        if (Devices.Count == 0)
+        {
+            context.AppendLine("No devices found yet.");
+        }
+        else
+        {
+            context.AppendLine($"{Devices.Count} device(s):");
+            foreach (var device in Devices.Take(ListedDevices))
+                context.AppendLine($"  - {Described(device)}");
+            if (Devices.Count > ListedDevices) context.AppendLine($"  (+{Devices.Count - ListedDevices} more)");
+        }
+
+        if (Selected is { } open)
+        {
+            context.AppendLine($"Open in the panel: {open.Name}" + (ActiveTab is { } tab ? $" ({tab.Title})" : ""));
+            foreach (var fact in ActiveTab?.Rows ?? [])
+                context.AppendLine($"  {fact.Label}: {fact.Value}" + (fact.Contested ? " (contested)" : ""));
+        }
+        return context.ToString().TrimEnd();
+    }
+
+    private static string Described(DeviceRow device)
+    {
+        var parts = new List<string> { device.Name };
+        if (device.IPv4.Count > 0) parts.Add("IPv4 " + string.Join(" ", device.IPv4));
+        if (device.IPv6.Count > 0) parts.Add("IPv6 " + string.Join(" ", device.IPv6));
+        if (device.Mac.Length > 0) parts.Add("MAC " + device.Mac);
+        if (device.Detail.Length > 0) parts.Add(device.Detail);
+        parts.Add($"found by {device.FoundBy}");
+        parts.Add(device.Presence switch
+        {
+            Presence.Present => "present",
+            Presence.Stale   => "not re-confirmed",
+            _                => "absent",
+        } + (device.IsNew ? ", new" : ""));
+        return string.Join("; ", parts);
+    }
 
     /// <summary>Remembers a layer switch, so the page opens the way it was left.</summary>
     private void OnLayerSwitched(object? sender, PropertyChangedEventArgs e)

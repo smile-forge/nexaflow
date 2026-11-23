@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Email.ViewModels;
-using Nexaflow.Features.Email.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -31,11 +30,10 @@ public sealed class EmailTabRegistration(IShellServices shell, IVirtualFileSyste
         var page = new Page { Icon = "✉️", Title = title };
         page.SetFileBreadcrumbs(path, title);
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new EmailViewModel(path, shell, vfs);
-            page.Closed += (_, _) => vm.Dispose();
-            return new EmailView(vm);
+            return vm;
         };
 
         return page;

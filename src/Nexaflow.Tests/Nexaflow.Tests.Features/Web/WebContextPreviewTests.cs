@@ -1,4 +1,6 @@
+using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using NSubstitute;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -41,7 +43,7 @@ public class WebContextPreviewTests
     {
         var path = Path.Combine(_tempDir, "page.html");
         File.WriteAllText(path, "<html><body>hi</body></html>");
-        var vm = new HtmlViewModel(path, VirtualFileSystem.Instance);
+        var vm = new HtmlViewModel(path, VirtualFileSystem.Instance, Substitute.For<IShellServices>());
         await vm.Loaded;
         return vm;
     }

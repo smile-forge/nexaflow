@@ -1,11 +1,12 @@
 using System;
 using System.Windows.Controls;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Email.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Email.Views;
 
-internal partial class EmailView : UserControl, IPageView
+[ViewFor(typeof(EmailViewModel))]
+internal partial class EmailView : UserControl
 {
     private readonly EmailViewModel _vm;
 
@@ -44,6 +45,4 @@ internal partial class EmailView : UserControl, IPageView
             box.ScrollToLine(box.GetLineIndexFromCharacterIndex(offset));
         }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 }

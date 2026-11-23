@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
-using Nexaflow.Features.WindowsFileSystem.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
@@ -81,7 +80,7 @@ public sealed class FileSystemPageRegistration(
         return list;
     });
 
-    /// <summary>A cheap catalog stub: metadata only, no content factory (the editor reads Title/Icon/params).</summary>
+    /// <summary>A cheap catalog stub: metadata only, no view-model factory (the editor reads Title/Icon/params).</summary>
     private static Page FolderPage(string title, string icon, string path) => new()
     {
         Title      = title,
@@ -111,7 +110,7 @@ public sealed class FileSystemPageRegistration(
                 PageParams  = pageParams,
                 Breadcrumbs = { new BreadcrumbSegment { Label = label } }
             };
-            tab.ContentFactory = () => CreateView(new FileSystemViewModel(path, shell, ai, configs, vfs), tab);
+            tab.ViewModelFactory = () => FollowNavigation(new FileSystemViewModel(path, shell, ai, configs, vfs), tab);
             return tab;
         }
         else
@@ -124,31 +123,28 @@ public sealed class FileSystemPageRegistration(
                 PageParams  = pageParams ?? new() { ["mode"] = "thispc" },
                 Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("WindowsFileSystem.ThisPc.Title") } }
             };
-            tab.ContentFactory = () => CreateView(FileSystemViewModel.CreateThisPc(shell, ai, configs, vfs), tab);
+            tab.ViewModelFactory = () => FollowNavigation(FileSystemViewModel.CreateThisPc(shell, ai, configs, vfs), tab);
             return tab;
         }
     }
 
-    private static FileSystemView CreateView(FileSystemViewModel fsVm, Page tab)
+    /// <summary>Has <paramref name="tab"/>'s title, params and breadcrumb follow the folder <paramref name="fsVm"/> is in.</summary>
+    private static FileSystemViewModel FollowNavigation(FileSystemViewModel fsVm, Page tab)
     {
-        var keyHandler = new FileSystemKeyboardHandler(fsVm);
-        var dropTarget = new FileSystemDropTarget(fsVm);
-        var page       = new FileSystemView(fsVm, keyHandler, dropTarget);
-
         bool applying = false;
-        page.NavigationChanged += segments =>
+        fsVm.NavigationChanged += segments =>
         {
             if (applying) return;
             applying = true;
-            try { ApplyBreadcrumbs(tab, page, segments); }
+            try { ApplyBreadcrumbs(tab, fsVm, segments); }
             finally { applying = false; }
         };
-        return page;
+        return fsVm;
     }
 
     private static void ApplyBreadcrumbs(
         Page tab,
-        FileSystemView page,
+        FileSystemViewModel vm,
         IReadOnlyList<(string Label, string Path)> segments)
     {
         var crumbs = segments.Select((seg, i) =>
@@ -161,8 +157,8 @@ public sealed class FileSystemPageRegistration(
                 // "This PC" is a place, not a path — it has nothing to copy, so the crumb offers no Copy path.
                 Path     = string.IsNullOrEmpty(capturedPath) ? null : capturedPath,
                 Navigate = isLast ? null : (string.IsNullOrEmpty(capturedPath)
-                    ? () => page.ViewModel.GoToThisPc(rebuildTree: true)
-                    : () => _ = page.ViewModel.BrowseToAsync(capturedPath))
+                    ? () => vm.GoToThisPc(rebuildTree: true)
+                    : () => _ = vm.BrowseToAsync(capturedPath))
             };
         }).ToList();
 

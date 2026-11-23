@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.ViewModels;
-using Nexaflow.Features.Processes.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Processes;
@@ -21,12 +20,7 @@ public sealed class ProcessesPageRegistration(IShellServices shellServices) : IP
             Icon        = "⚙",
             Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("Processes.Page.Title") } },
         };
-        page.ContentFactory = () =>
-        {
-            var vm = new ProcessesViewModel(shellServices);
-            page.Closed += (_, _) => vm.Dispose();
-            return new ProcessesView(vm);
-        };
+        page.ViewModelFactory = () => new ProcessesViewModel(shellServices);
         return page;
     }
 }

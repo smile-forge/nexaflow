@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.ViewModels;
-using Nexaflow.Features.Executable.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -35,13 +34,12 @@ public sealed class ExecutableTabRegistration(IShellServices shell, IVirtualFile
             PageParams = pageParams,
         };
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             // Built here rather than above so opening a tab stays cheap: the view-model queues the
             // parse in its constructor, and a page definition may be created without ever being shown.
             var vm = new ExecutableViewModel(path, shell, vfs);
-            page.Closed += (_, _) => vm.Dispose();
-            return new ExecutableView(vm);
+            return vm;
         };
 
         page.SetFileBreadcrumbs(path, title);

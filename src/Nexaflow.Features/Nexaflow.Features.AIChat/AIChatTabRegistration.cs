@@ -1,5 +1,4 @@
 using Nexaflow.Features.AIChat.ViewModels;
-using Nexaflow.Features.AIChat.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
@@ -32,12 +31,12 @@ namespace Nexaflow.Features.AIChat
                 Icon = "💬",
                 Breadcrumbs = {new BreadcrumbSegment { Label = Str.Get("AIChat.Page.Title") }}
             };
-            tab.ContentFactory = () =>
+            tab.ViewModelFactory = () =>
             {
-                var page = new AiChatPage(_aiService, _shell, _config, tab);
+                var vm = new AiChatViewModel(_aiService, _shell, _config, tab);
                 if (pageParams is not null)
-                    page.Reinitialize(pageParams);
-                return page;
+                    vm.Reinitialize(pageParams);
+                return vm;
             };
             return tab;
         }

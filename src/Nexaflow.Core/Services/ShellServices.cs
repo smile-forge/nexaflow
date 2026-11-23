@@ -243,29 +243,22 @@ public sealed class ShellServices : IShellServices
     // ── IShellServices ────────────────────────────────────────────────────
 
     public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
-                        IPageView? caller = null, bool inRightPane = false)
+                        Page? caller = null, bool inRightPane = false)
     {
         _ui.Invoke(() => OpenTabCore(pageKind, pageParams, caller, inRightPane));
     }
 
-    /// <summary>Resolves the window a tab open should target: the one owning <paramref name="caller"/>,
+    /// <summary>Resolves the window a tab open should target: the one showing <paramref name="caller"/>,
     /// else the focused window, else the first.</summary>
-    private IWindowHost? ResolveTargetWindow(IPageView? caller)
+    private IWindowHost? ResolveTargetWindow(Page? caller)
     {
         IWindowHost? targetWindow = null;
-
-        if (caller is UserControl callerControl)
-        {
-            var callerTab = _tabToWindow.Keys.FirstOrDefault(t => t.Content == callerControl);
-            if (callerTab is not null)
-                _tabToWindow.TryGetValue(callerTab, out targetWindow);
-        }
-
+        if (caller is not null) _tabToWindow.TryGetValue(caller, out targetWindow);
         return targetWindow ?? _focused ?? _windows.FirstOrDefault();
     }
 
     private void OpenTabCore(string pageKind, Dictionary<string, string>? pageParams,
-                             IPageView? caller, bool inRightPane)
+                             Page? caller, bool inRightPane)
     {
         // A draft opened is a draft in use: kept from the app's clearing of drafts (DraftLocation.Sweep).
         foreach (var path in DraftLocation.PathsIn(pageParams)) DraftLocation.Touch(path);
@@ -292,7 +285,7 @@ public sealed class ShellServices : IShellServices
                 MoveTabCore(existing, ownerWindow, targetWindow);
 
             UpdateLocationParams(existing, pageParams);
-            (existing.Content as IPageView)?.Reinitialize(pageParams ?? []);
+            existing.Reinitialize(pageParams ?? []);
 
             targetWindow.BringToFront(existing);
             targetWindow.SetActiveTab(existing);
@@ -476,27 +469,8 @@ public sealed class ShellServices : IShellServices
         DisposePage(tab);
     }
 
-    /// <summary>
-    /// Central teardown safety net: disposes a closed tab's materialized content view and its view-model
-    /// when they implement <see cref="IDisposable"/>, so a feature that forgets to wire
-    /// <c>page.Closed += vm.Dispose()</c> still can't leak native handles (file watchers, PTYs, media
-    /// engines, …). Called from the two genuine-close paths (<see cref="CloseTab"/> and
-    /// <see cref="CloseWindowTabs"/>) after <see cref="Page.RaiseClosed"/> — so a feature that DID wire its
-    /// own teardown has already run and this is an idempotent second Dispose (per the IDisposable contract,
-    /// which this file already relies on for double-fired Closed). Tear-off / move re-key the registry and
-    /// never reach here, so a still-live tab is never disposed. Skips a tab never activated (no content).
-    /// Never throws — teardown must not break tab/window close.
-    /// </summary>
-    private static void DisposePage(Page tab)
-    {
-        if (tab.Content is not { } content) return;   // never activated → nothing was created to dispose
-
-        if (content is IPageView { ViewModel: IDisposable vm })
-            try { vm.Dispose(); } catch { }
-
-        if (content is IDisposable view)
-            try { view.Dispose(); } catch { }
-    }
+    /// <summary>Lets go of a closed page's view; the page has already disposed its view-model as it closed.</summary>
+    private static void DisposePage(Page tab) => PageViews.Instance.Release(tab);
 
     /// <summary>
     /// Closes every tab across all of this workspace's windows (windows stay open). Used when the
@@ -845,7 +819,7 @@ public sealed class ShellServices : IShellServices
         Icon        = icon,
         PageKind    = title,
         Breadcrumbs = {new BreadcrumbSegment { Label = title }},
-        ContentFactory = () => new PlaceholderPage(
+        ViewModelFactory = () => new PlaceholderViewModel(
             Str.Format("Shell.Placeholder.MissingFeatureFormat", title),
             Str.Get("Shell.Placeholder.MissingFeatureDetail"))
     };
@@ -1029,8 +1003,7 @@ public sealed class ShellServices : IShellServices
         _ui.Invoke(() =>
         {
             var active = FocusedWindow?.Tabs.FirstOrDefault(t => t.IsActive);
-            if (active?.Content is IPageView view)
-                view.Reinitialize(active.PageParams ?? []);
+            active?.Reinitialize(active.PageParams ?? []);
         });
     }
 

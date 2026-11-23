@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 using Nexaflow.Features.AIChat.ViewModels;
-using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.AIChat.Views;
 
@@ -8,21 +8,12 @@ namespace Nexaflow.Features.AIChat.Views;
 /// Conversation browser page: a list of conversations plus the structured analysis summary of the
 /// selected one, with an Open button that launches a ConversationView tab.
 /// </summary>
-public partial class AiChatPage : UserControl, IPageView
+[ViewFor(typeof(AiChatViewModel))]
+public partial class AiChatPage : UserControl
 {
-    public AiChatViewModel ViewModel { get; }
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    public AiChatPage(IAIService aiService, IShellServices shell, AiChatConfig config, Nexaflow.Features.Common.Page ownerPage)
+    public AiChatPage(AiChatViewModel viewModel)
     {
         InitializeComponent();
-        ViewModel   = new AiChatViewModel(aiService, shell, config, ownerPage);
-        DataContext = ViewModel;
-    }
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        // Re-resolve the list and selected analysis so completed background analyses appear.
-        _ = ViewModel.RefreshAsync();
+        DataContext = viewModel;
     }
 }

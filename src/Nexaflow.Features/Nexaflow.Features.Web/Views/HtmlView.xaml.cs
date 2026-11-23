@@ -1,9 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Web;
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,21 +11,17 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.Web.Views;
 
-public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDisposable
+[ViewFor(typeof(HtmlViewModel))]
+public partial class HtmlView : UserControl, IAirspaceContent, IDisposable
 {
-    private readonly IShellServices _shell;
     private CancellationTokenSource? _snapshotCts;
 
     public HtmlViewModel ViewModel { get; }
 
-    /// <summary>Raised when the URL or page title changes, so the tab title + breadcrumb can refresh.</summary>
-    public event Action? PageChanged;
-
-    public HtmlView(HtmlViewModel viewModel, IShellServices shell)
+    public HtmlView(HtmlViewModel viewModel)
     {
         InitializeComponent();
         ViewModel   = viewModel;
-        _shell      = shell;
         DataContext = viewModel;
 
         // Let the view-model drive the live page on demand for AI visual context: capture a screenshot,
@@ -34,19 +29,16 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
         ViewModel.CaptureScreenshotAsync        = (edge, ct) => Surface.CapturePngAsync(edge, ct);
         ViewModel.GetScrollInfoAsync            = ct => Surface.GetScrollInfoAsync(ct);
         ViewModel.ScrollByViewportFractionAsync = (f, ct) => Surface.ScrollByViewportFractionAsync(f, ct);
+        ViewModel.NavigationRequested          += url => Surface.NavigateTo(url);
 
         Surface.NavigationStarting  += Surface_NavigationStarting;
         Surface.NavigationCompleted += Surface_NavigationCompleted;
-        Surface.DocumentTitleChanged += (_, _) =>
-        {
-            ViewModel.PageTitle = Surface.DocumentTitle;
-            PageChanged?.Invoke();
-        };
+        Surface.DocumentTitleChanged += (_, _) => ViewModel.ReportDocumentTitle(Surface.DocumentTitle);
         // The nav buttons reflect where the user can actually go. WebView2 exposes CanGoBack/Forward as
         // plain properties with no change notification, so they're pushed on HistoryChanged rather than
         // bound.
         Surface.HistoryChanged += (_, _) => UpdateNavButtons();
-        Surface.Unavailable    += (_, e) => HandleWebViewUnavailable(e);
+        Surface.Unavailable    += (_, e) => ViewModel.ReportBrowserUnavailable(e.RuntimeMissing, e.Message);
 
         Loaded += OnLoaded;
     }
@@ -65,24 +57,15 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
         Surface.NavigateTo(ViewModel.NavigationUri.ToString());
     }
 
-    /// <summary>Navigates the embedded browser to <paramref name="url"/> (used by breadcrumb crumbs).</summary>
-    public void NavigateTo(string url) => Surface.NavigateTo(url);
-
     private void Surface_NavigationStarting(object? sender, WebSurfaceNavigationEventArgs e)
     {
         CancelSnapshot();
-        ViewModel.IsLoading  = true;
-        ViewModel.CurrentUrl = e.Uri;
-        ViewModel.PageTitle  = string.Empty;   // old title no longer applies; URL-form shows until the new title arrives
-        PageChanged?.Invoke();
+        ViewModel.ReportNavigationStarting(e.Uri);
     }
 
     private void Surface_NavigationCompleted(object? sender, WebSurfaceNavigationEventArgs e)
     {
-        ViewModel.IsLoading  = false;
-        ViewModel.CurrentUrl = e.Uri;
-        ViewModel.PageTitle  = Surface.DocumentTitle;
-        PageChanged?.Invoke();
+        ViewModel.ReportNavigationCompleted(e.Uri, Surface.DocumentTitle);
         TakeSnapshot();
     }
 
@@ -123,57 +106,12 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
 
     // ── WebView2-unavailable fallback ─────────────────────────────────────
 
-    private void HandleWebViewUnavailable(WebSurfaceUnavailableEventArgs e)
-    {
-        ViewModel.IsLoading        = false;
-        ViewModel.WebViewAvailable = false;
-        ViewModel.RuntimeMissing   = e.RuntimeMissing;
-        ViewModel.FailureMessage   = e.Message;
-        PageChanged?.Invoke();
-
-        // Proactively offer to open it externally; the in-tab panel stays as a fallback if they decline.
-        if (CanOpenExternally())
-            _shell.ShowConfirmation(
-                Str.Get("Web.Fallback.UnavailableTitle"),
-                Str.Format("Web.Fallback.UnavailableFormat", ViewModel.FailureMessage),
-                onConfirm: OpenInDefaultBrowser,
-                onCancel: static () => { });
-    }
-
-    private void OpenExternal_Click(object sender, RoutedEventArgs e) => OpenInDefaultBrowser();
+    private void OpenExternal_Click(object sender, RoutedEventArgs e) => ViewModel.OpenInDefaultBrowser();
 
     private void InstallRuntime_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
     {
         e.Handled = true;
-        try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
-        catch (Exception ex) { _shell.ShowError(Str.Format("Web.Error.OpenDownloadPageFormat", ex.Message)); }
-    }
-
-    private void OpenInDefaultBrowser()
-    {
-        if (!CanOpenExternally())
-        {
-            _shell.ShowError("This page can't be opened in an external browser.");
-            return;
-        }
-
-        try
-        {
-            Process.Start(new ProcessStartInfo(ViewModel.NavigationUri.ToString()) { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            _shell.ShowError(Str.Format("Web.Error.OpenBrowserFormat", ex.Message));
-        }
-    }
-
-    /// <summary>Only hand http(s)/file URLs to the OS shell — never arbitrary schemes from a .url file.</summary>
-    private bool CanOpenExternally()
-    {
-        var scheme = ViewModel.NavigationUri.Scheme;
-        return scheme == Uri.UriSchemeHttp
-            || scheme == Uri.UriSchemeHttps
-            || scheme == Uri.UriSchemeFile;
+        ViewModel.OpenRuntimeDownload(e.Uri);
     }
 
     // ── IAirspaceContent ──────────────────────────────────────────────────
@@ -183,10 +121,6 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
     /// native HWND draws above all WPF content, so without this the overlay would be hidden behind it.
     /// </summary>
     void IAirspaceContent.SetCoveredByOverlay(bool covered) => ViewModel.IsCovered = covered;
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     /// <summary>Ends the embedded browser process when the tab genuinely closes.</summary>
     public void Dispose()

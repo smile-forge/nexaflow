@@ -208,7 +208,7 @@ public class WindowsAppsSurfaceTests
             vm.OpenLocationCommand.Execute(vm.Apps.Single(a => a.Name == "Real"));
             shell.Received(1).OpenTab("FileSystem",
                 Arg.Is<Dictionary<string, string>>(p => p["mode"] == "path" && p["path"] == dir),
-                Arg.Any<IPageView?>());
+                Arg.Any<Page?>());
         }
         finally { Directory.Delete(dir, recursive: true); }
     }

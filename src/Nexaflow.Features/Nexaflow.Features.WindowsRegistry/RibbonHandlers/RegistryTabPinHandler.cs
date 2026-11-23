@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
-using Nexaflow.Features.WindowsRegistry.Views;
+using Nexaflow.Features.WindowsRegistry.ViewModels;
 using Nexaflow.Icons;
 
 namespace Nexaflow.Features.WindowsRegistry.RibbonHandlers;
@@ -15,9 +15,8 @@ public sealed class RegistryTabPinHandler : ITabPinHandler
 
     public RibbonPinResult? Pin(Page tab, int insertIndex = -1)
     {
-        if (tab.Content is RegistryView view)
+        if (tab.ViewModel is RegistryViewModel vm)
         {
-            var vm = view.ViewModel;
             vm.ResetRootToCurrentKey();               // re-root the tree at the current key before pinning
             var (hive, sub) = Split(vm.CurrentKeyPath);
             var leaf = sub.Length == 0 ? hive : sub[(sub.LastIndexOf('\\') + 1)..];
@@ -33,7 +32,7 @@ public sealed class RegistryTabPinHandler : ITabPinHandler
             };
         }
 
-        // Content not yet loaded — snapshot whatever the tab already knows.
+        // View-model not yet made — snapshot whatever the tab already knows.
         return new RibbonPinResult
         {
             PageKind   = RegistryPageRegistration.PageKind,

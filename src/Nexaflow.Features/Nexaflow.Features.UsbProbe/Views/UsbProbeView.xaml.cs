@@ -1,13 +1,14 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
 using Nexaflow.Visuals.Common.Behaviors;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.UsbProbe.Views;
 
-public partial class UsbProbeView : UserControl, IPageView
+[ViewFor(typeof(UsbProbeViewModel))]
+public partial class UsbProbeView : UserControl
 {
     readonly UsbProbeViewModel _vm;
 
@@ -17,14 +18,6 @@ public partial class UsbProbeView : UserControl, IPageView
         DataContext = _vm = viewModel;
         // The machine is read once the tab is first shown, not when the tab is merely defined.
         Loaded += async (_, _) => await _vm.StartAsync();
-    }
-
-    public IPageViewModel? ViewModel => _vm;
-
-    /// <summary>The shell re-pointing this tab: a new <c>location</c> opens there; none leaves the user where they are.</summary>
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue(UsbProbePageRegistration.LocationParam, out var location)) _vm.OpenWhenReady(location);
     }
 
     void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)

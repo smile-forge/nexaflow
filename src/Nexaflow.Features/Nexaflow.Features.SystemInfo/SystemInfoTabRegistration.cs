@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
-using Nexaflow.Features.SystemInfo.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo;
@@ -18,6 +17,6 @@ public sealed class SystemInfoTabRegistration(IShellServices shellServices, IAIS
         Title       = Str.Get("SystemInfo.Page.Title"),
         Icon        = "🖥️",
         Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("SystemInfo.Page.Title") } },
-        ContentFactory = () => new SystemInfoView(new SystemInfoViewModel(shellServices, ai))
+        ViewModelFactory = () => new SystemInfoViewModel(shellServices, ai)
     };
 }

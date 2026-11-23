@@ -165,7 +165,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         set => (value is null ? FocusedPane : OwningPane(value) ?? FocusedPane).ActivePage = value;
     }
 
-    public UserControl? CurrentPage => FocusedPane.ActivePage?.GetOrCreateContent();
+    /// <summary>The focused pane's page view, when it has been shown: what a view itself offers (keys, a selection).</summary>
+    internal FrameworkElement? ActivePageView => ActiveTab is { } tab ? PageViews.Instance.Shown(tab) : null;
 
     private void WireRootPane()
     {
@@ -175,7 +176,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     // The breadcrumb/content bind each Pane directly in PaneView, so the shell only owes a re-notify of its
-    // computed ActiveTab/CurrentPage facades when the *focused* pane's active page changes.
+    // computed ActiveTab facade when the *focused* pane's active page changes.
     private void OnLeafPanePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // Any pane: an open Help tab in the other one follows what this one now shows.
@@ -185,7 +186,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         if (e.PropertyName == nameof(Pane.ActivePage) && ReferenceEquals(sender, FocusedPane))
         {
             OnPropertyChanged(nameof(ActiveTab));
-            OnPropertyChanged(nameof(CurrentPage));
         }
     }
 
@@ -208,7 +208,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     partial void OnFocusedPaneChanged(Pane? oldValue, Pane newValue)
     {
         OnPropertyChanged(nameof(ActiveTab));
-        OnPropertyChanged(nameof(CurrentPage));
     }
 
     // ── Notifications ─────────────────────────────────────────────────────
@@ -649,7 +648,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _pageCoveredByOverlay = covered;
 
         foreach (var page in LeafPanes.SelectMany(p => p.Pages))
-            if (page.Content is IAirspaceContent airspace)
+            if ((PageViews.Instance.Shown(page) as IAirspaceContent ?? page.ViewModel as IAirspaceContent) is { } airspace)
                 airspace.SetCoveredByOverlay(covered);
     }
 
@@ -831,13 +830,15 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (tab.IsActive && tab == ActiveTab)
         {
-            (CurrentPage as IPageView)?.Reinitialize(tab.PageParams ?? []);
+            tab.GetOrCreateViewModel();
+            tab.Reinitialize(tab.PageParams ?? []);
             return;
         }
 
         ((IWindowHost)this).BringToFront(tab);
         ((IWindowHost)this).SetActiveTab(tab);
-        (CurrentPage as IPageView)?.Reinitialize(tab.PageParams ?? []);
+        tab.GetOrCreateViewModel();
+        tab.Reinitialize(tab.PageParams ?? []);
     }
 
     [RelayCommand]
@@ -879,7 +880,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// </summary>
     [RelayCommand]
     private void OpenPage(OpenPageRequest req)
-        => _shellServices.OpenTab(req.PageKind, req.PageParams, CurrentPage as IPageView);
+        => _shellServices.OpenTab(req.PageKind, req.PageParams, ActiveTab);
 
     /// <summary>Closes every tab in <paramref name="tab"/>'s pane except <paramref name="tab"/> itself.</summary>
     [RelayCommand(CanExecute = nameof(CanCloseOthersInPane))]
@@ -986,7 +987,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
             if (executor is not null)
             {
-                var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
+                var paths = (ActivePageView as ISelectionProvider ?? ActivePageViewModel as ISelectionProvider)?.SelectedFilePaths
                             ?? (IReadOnlyList<string>)[];
                 var ctx = new RibbonExecutionContext(
                     paths,
@@ -1016,7 +1017,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             var newHost = _shellServices.CreateAndShowNewWindow();
             if (newHost is null) return;
 
-            var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
+            var paths = (ActivePageView as ISelectionProvider ?? ActivePageViewModel as ISelectionProvider)?.SelectedFilePaths
                         ?? (IReadOnlyList<string>)[];
             var ctx = new RibbonExecutionContext(
                 paths,
@@ -1307,7 +1308,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void EvaluateHandlers(string text, CancellationToken token)
     {
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var pageVm = ActivePageViewModel;
         var (_, clearWinner, effectiveText, prefixed) = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
 
         if (clearWinner?.Symbol is not null)
@@ -1354,7 +1355,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// result (optionally rewriting the bar text), or <see cref="ChatKeyResult.NotHandled"/>.</summary>
     public ChatKeyResult HandleChatKey(ConsoleKey key, KeyModifiers modifiers, string text, int caretIndex)
     {
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var pageVm = ActivePageViewModel;
         foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentRuntime))
         {
             if (!h.CanHandle(pageVm)) continue;
@@ -1367,8 +1368,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>The handlers the AI bar's drops are put to, for this window's runtime.</summary>
     internal IReadOnlyList<IChatDropHandler> ChatDropHandlers => FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime);
 
-    /// <summary>The view-model of the page shown, which handlers gate on.</summary>
-    internal IPageViewModel? ActivePageViewModel => (CurrentPage as IPageView)?.ViewModel;
+    /// <summary>The focused pane's page view-model, made if the page has not been shown yet.</summary>
+    internal IPageViewModel? ActivePageViewModel => FocusedPane.ActivePage?.GetOrCreateViewModel();
 
     /// <summary>
     /// What was dropped on a pane's tabs — files, or a link — each opened in a tab of its own. This window is made the
@@ -1388,7 +1389,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void PushInputPreview(string text)
     {
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var pageVm = ActivePageViewModel;
         foreach (var p in FeatureManager.Instance.GetChatInputPreviews(CurrentRuntime))
             if (p.CanPreview(pageVm)) p.OnInputChanged(text, pageVm);
     }
@@ -1488,7 +1489,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                 AiInputText = originalInput;
         }
 
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var pageVm = ActivePageViewModel;
         var svc    = CurrentRuntime.AiService!;
 
         // Pick the response surface: a page that renders AI itself (e.g. the conversation) uses its own;
@@ -1646,10 +1647,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         string language = SpokenLanguage();
         if (ai is not null && ai.CanConverse(language))
         {
-            var pageVm = (CurrentPage as IPageView)?.ViewModel;
+            var pageVm = ActivePageViewModel;
             try
             {
-                await Voice.StartAsync(ai, () => (CurrentPage as IPageView)?.ViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
+                await Voice.StartAsync(ai, () => ActivePageViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
             }
             catch (Exception ex)
             {

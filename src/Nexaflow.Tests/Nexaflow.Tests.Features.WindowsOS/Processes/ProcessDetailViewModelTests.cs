@@ -87,7 +87,7 @@ public class ProcessDetailViewModelTests
         vm.OpenLocationCommand.Execute(null);
         shell.Received(1).OpenTab("FileSystem",
             Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\Program Files\App"),
-            Arg.Any<IPageView?>());
+            Arg.Any<Page?>());
     }
 
     // ── Priority ──────────────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ public class ProcessDetailViewModelTests
         vm.OpenModuleLocationCommand.Execute(new ModuleInfo { Name = "x.dll", Path = @"C:\libs\x.dll" });
         shell.Received(1).OpenTab("FileSystem",
             Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\libs"),
-            Arg.Any<IPageView?>());
+            Arg.Any<Page?>());
     }
 
     // ── Kill from the details page ────────────────────────────────────────────

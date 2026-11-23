@@ -4,15 +4,16 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Nexaflow.Features.Common;
 using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
 namespace Nexaflow.Visuals.Terminal.Views;
 
-public partial class TerminalView : UserControl, IPageView, IDropTarget
+[ViewFor(typeof(TerminalViewModel))]
+public partial class TerminalView : UserControl, IDropTarget
 {
     public TerminalViewModel ViewModel { get; }
 
@@ -50,10 +51,6 @@ public partial class TerminalView : UserControl, IPageView, IDropTarget
             _sizeSettle.Start();
         };
         Loaded += (_, _) => Dispatcher.BeginInvoke(ApplyTerminalSize, DispatcherPriority.Loaded);
-
-        // Dispose the PTY session when the tab is actually closed.
-        if (vm.Tab is { } t)
-            t.Closed += (_, _) => vm.Dispose();
     }
 
     private readonly DispatcherTimer _sizeSettle;
@@ -198,18 +195,5 @@ public partial class TerminalView : UserControl, IPageView, IDropTarget
     {
         if (e.Key == Key.Enter)  { ViewModel.ConfirmEnvEditCommand.Execute(null); e.Handled = true; }
         if (e.Key == Key.Escape) { ViewModel.CancelEnvEditCommand.Execute(null);  e.Handled = true; }
-    }
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        ScrollToBottom();
-        var newPath = pageParams.GetValueOrDefault("path");
-        var envName = pageParams.GetValueOrDefault("env");
-        if (newPath is not null || envName is not null)
-            ViewModel.ApplyParams(newPath, envName);
     }
 }

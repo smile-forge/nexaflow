@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
-using Nexaflow.Features.SystemInfo.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo;
@@ -22,11 +21,10 @@ public sealed class ServicesPageRegistration(IShellServices shellServices) : IPa
             Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("SystemInfo.Page.Services") } },
         };
         // Capture the page so background work is cancelled when the tab is permanently closed.
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new ServicesViewModel(shellServices);
-            page.Closed += (_, _) => vm.Dispose();
-            return new ServicesView(vm);
+            return vm;
         };
         return page;
     }

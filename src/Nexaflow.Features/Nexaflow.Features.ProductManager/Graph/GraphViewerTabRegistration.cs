@@ -3,7 +3,6 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.Graph.Loaders;
 using Nexaflow.Features.ProductManager.Graph.ViewModels;
-using Nexaflow.Features.ProductManager.Graph.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager.Graph;
@@ -44,7 +43,7 @@ public sealed class GraphViewerTabRegistration : IPageRegistration
         {
             Title = title,
             Icon = "🕸",
-            ContentFactory = () => new GraphView(new GraphViewModel(path, _loader, _shell, focusNode)),
+            ViewModelFactory = () => new GraphViewModel(path, _loader, _shell, focusNode),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;

@@ -1,9 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Svg.ViewModels;
 using Nexaflow.Visuals.Common.Layout;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Svg.Views;
 
@@ -12,7 +12,8 @@ namespace Nexaflow.Features.Svg.Views;
 /// at any scale — the drawing re-tessellates, it isn't a bitmap) and drag-to-pan. The view-model loads the
 /// artwork; this code-behind fits it to the window on first show and drives the zoom/pan transform.
 /// </summary>
-public partial class SvgView : UserControl, IPageView
+[ViewFor(typeof(SvgViewModel))]
+public partial class SvgView : UserControl
 {
     private const double MinScale = 0.05;
     private const double MaxScale = 64.0;
@@ -25,8 +26,6 @@ public partial class SvgView : UserControl, IPageView
     private bool _panning;
     private Point _panStart;
     private double _panOffX, _panOffY;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     public SvgView(SvgViewModel vm)
     {

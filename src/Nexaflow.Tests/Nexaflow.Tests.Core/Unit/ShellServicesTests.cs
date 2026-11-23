@@ -144,17 +144,17 @@ public class ShellServicesTests
             var host = new FakeWindowHost();
             svc.RegisterWindow(host);
 
-            var view = new RecordingPageView();
-            var tab  = HexTab(@"C:\a.exe", "0x400");
-            tab.ContentFactory = () => view;
-            tab.GetOrCreateContent();          // the tab has been activated, so it has live content
+            var vm  = new RecordingVm();
+            var tab = HexTab(@"C:\a.exe", "0x400");
+            tab.ViewModelFactory = () => vm;
+            tab.GetOrCreateViewModel();          // the tab has been activated, so its page is live
             host.AddTab(tab);
             SeedTab(svc, tab, host);
 
             svc.OpenTab("Hex", new() { { "path", @"C:\a.exe" }, { "offset", "0x8C00" } });
 
             Assert.AreEqual(1, host.Tabs.Count, "a second 'view in hex' must not open a second tab");
-            Assert.AreEqual("0x8C00", view.LastParams?.GetValueOrDefault("offset"),
+            Assert.AreEqual("0x8C00", vm.LastParams?.GetValueOrDefault("offset"),
                             "the open tab should have been re-pointed at the new offset");
             Assert.AreEqual("0x8C00", tab.PageParams!["offset"],
                             "and it should record where it is now looking");
@@ -171,14 +171,14 @@ public class ShellServicesTests
             var host = new FakeWindowHost();
             svc.RegisterWindow(host);
 
-            var view = new RecordingPageView();
-            var tab  = new Page
+            var vm  = new RecordingVm();
+            var tab = new Page
             {
-                PageKind       = "Files",
-                PageParams     = new() { { "path", @"C:\foo" } },
-                ContentFactory = () => view,
+                PageKind         = "Files",
+                PageParams       = new() { { "path", @"C:\foo" } },
+                ViewModelFactory = () => vm,
             };
-            tab.GetOrCreateContent();
+            tab.GetOrCreateViewModel();
             host.AddTab(tab);
             SeedTab(svc, tab, host);
 
@@ -187,7 +187,7 @@ public class ShellServicesTests
             Assert.AreEqual(1, host.Tabs.Count);
             CollectionAssert.AreEquivalent(new[] { "path" }, tab.PageParams!.Keys.ToArray(),
                 "a page kind that declares no location params keeps exactly the params it was opened with");
-            Assert.AreEqual("a.txt", view.LastParams?.GetValueOrDefault("selectFile"),
+            Assert.AreEqual("a.txt", vm.LastParams?.GetValueOrDefault("selectFile"),
                 "the extra param still reaches the page through Reinitialize");
         });
     }
@@ -267,8 +267,8 @@ public class ShellServicesTests
             svc.RegisterWindow(host);
 
             var vm   = new DisposableVm();
-            var page = new Page { PageKind = "Files", ContentFactory = () => new FakePageView(vm) };
-            page.GetOrCreateContent();            // simulate the tab having been activated
+            var page = new Page { PageKind = "Files", ViewModelFactory = () => vm };
+            page.GetOrCreateViewModel();            // simulate the tab having been activated
             host.AddTab(page);
             SeedTab(svc, page, host);
 
@@ -288,8 +288,8 @@ public class ShellServicesTests
             svc.RegisterWindow(host);
 
             var vm   = new DisposableVm();
-            var page = new Page { PageKind = "Console", ContentFactory = () => new FakePageView(vm) };
-            page.GetOrCreateContent();
+            var page = new Page { PageKind = "Console", ViewModelFactory = () => vm };
+            page.GetOrCreateViewModel();
             host.AddTab(page);
             SeedTab(svc, page, host);
 
@@ -307,9 +307,9 @@ public class ShellServicesTests
         svc.RegisterWindow(host);
 
         var vm   = new DisposableVm();
-        // Content is never created (tab never activated), so the factory never runs and there is nothing
-        // to dispose — and crucially closing must NOT materialise content just to tear it down.
-        var page = new Page { PageKind = "Files", ContentFactory = () => new FakePageView(vm) };
+        // The view-model is never made (tab never activated), so the factory never runs and there is nothing
+        // to dispose — and crucially closing must NOT make the page just to tear it down.
+        var page = new Page { PageKind = "Files", ViewModelFactory = () => vm };
         SeedTab(svc, page, host);
 
         svc.CloseTab(page);
@@ -353,18 +353,11 @@ public class ShellServicesTests
         public void Dispose() => DisposeCount++;
     }
 
-    // Minimal content view exposing the VM through IPageView (a real UserControl → needs an STA thread).
-    private sealed class FakePageView : UserControl, IPageView
+    // Records the params it was last re-pointed with — stands in for HexViewModel, which re-seeks on these.
+    private sealed class RecordingVm : IPageViewModel
     {
-        public FakePageView(IPageViewModel vm) => ViewModel = vm;
-        public IPageViewModel? ViewModel { get; }
-    }
-
-    // Records the params it was last re-pointed with — stands in for HexView, which re-seeks on these.
-    private sealed class RecordingPageView : UserControl, IPageView
-    {
-        public IPageViewModel? ViewModel => null;
         public Dictionary<string, string>? LastParams { get; private set; }
+        public string GetContext() => string.Empty;
         public void Reinitialize(Dictionary<string, string> pageParams) => LastParams = pageParams;
     }
 

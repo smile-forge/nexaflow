@@ -143,7 +143,7 @@ is always at least one workspace.
 ### Per-window / per-tab
 
 - A **window** (`IWindowHost`) registers into its runtime's `ShellServices`. Several windows can share one runtime (tear-off / "open in new window"); switching the dropdown reconfigures the runtime **in place** for all of its windows (`SwitchWorkspace` — tabs close, providers/AIService rebuilt against the target workspace).
-- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, runtime, params)` → the matching `IPageRegistration.CreatePageDefinition`. Its ViewModel + content are realized lazily by `ContentFactory` and live for the life of the tab.
+- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, runtime, params)` → the matching `IPageRegistration.CreatePageDefinition`. Its view-model is made lazily by `ViewModelFactory` and lives for the life of the tab; the view that draws it is Core's (`PageViews`), found by `[ViewFor]`.
 
 ### Per-feature (assembly)
 
@@ -194,11 +194,11 @@ The contract layer. Every feature depends on this; nothing else does.
 
 | File | Responsibility |
 |------|----------------|
-| `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ContentFactory` delegate, cached `Content`, `Closed` event |
+| `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ViewModelFactory` delegate, the made `ViewModel`, `Reinitialize`, `Closed` event. Holds nothing of the view |
 | `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
 | `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
-| `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
-| `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`) |
+| `IPageViewModel.cs` | What a page is, implemented by its view-model: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`), `Reinitialize` (shown again with parameters) |
+| `PlaceholderViewModel.cs` | A page that only says why it is empty (a missing feature, nothing to open) |
 | `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`), `WatchFolder(path, onChanged)` (a folder's own entries through the shell's change notifications, sync providers' included → `FolderChange`, one registration per folder, torn down with the workspace) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
 | `IFileWatch.cs` (under `Services/`) | Handle from `WatchFile`: `Enabled` (hold + coalesce while false, flush on re-enable), `Dispose` to unwatch |
 | `IAIService.cs` | Per-`WorkspaceRuntime` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
@@ -222,7 +222,7 @@ Each feature assembly follows the same internal structure:
 
 - One or more `*PageRegistration : IPageRegistration` (a few are named `*TabRegistration` but implement the same interface) — factory entry points, injected with `IShellServices` and any `IFeatureConfig` the assembly declares
 - `ViewModels/` — MVVM Toolkit `ObservableObject` view models; never reference Core
-- `Views/` — WPF `UserControl`s; implement `IPageView` to expose context to the AI pipeline
+- `Views/` — WPF `UserControl`s, each marked `[ViewFor(typeof(ItsViewModel))]` and taking that view-model in its one constructor; Core makes them (`Visuals.Common/Viewing/ViewRegistry`)
 - Optional: `IQueryHandler` implementations registered globally or resolved from the active ViewModel
 - Optional: `IFileAction` / `IFolderAction` implementations for file browser context menus
 - Optional: `IFeatureConfig` POCO for persisted settings (auto-discovered by `FeatureManager`)
@@ -328,8 +328,8 @@ Page  (ObservableObject)
   ├── PageKind: string?                 (e.g. "Search", "Projects")
   ├── PageParams: Dict?                 (current params, kept in sync by the page via IShellServices)
   ├── Breadcrumbs: ObservableCollection<BreadcrumbSegment>
-  ├── ContentFactory: Func<UserControl>? (set by IPageRegistration.CreatePageDefinition; lazy-invoked on first activation)
-  ├── Content: UserControl              (cached after GetOrCreateContent() first call)
+  ├── ViewModelFactory: Func<IPageViewModel>? (set by IPageRegistration.CreatePageDefinition; run on first need)
+  ├── ViewModel: IPageViewModel?        (made by GetOrCreateViewModel(); a failing factory is LoadException)
   └── Closed: event                     (raised on permanent close, not deactivation)
 
 BreadcrumbSegment
@@ -364,7 +364,7 @@ ConversationRecord
 
 Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `WorkspaceRuntime`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, `IAIService`, and the runtime's `IVirtualFileSystem`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
 
-`CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model and view **inside the `ContentFactory` closure** so they're built only when the tab is first shown. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
+`CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model **inside the `ViewModelFactory` closure** so it is built only when the page is first needed. The registration never names a view: the view marked `[ViewFor]` the view-model's type draws it. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
 
 ```csharp
 public sealed class MyPageRegistration(MyConfig config, IShellServices shellServices) : IPageRegistration
@@ -384,8 +384,8 @@ public sealed class MyPageRegistration(MyConfig config, IShellServices shellServ
             Icon           = "🔧",
             PageParams     = pageParams,
             Breadcrumbs    = { new BreadcrumbSegment { Label = "My Feature" } }, // get-only collection
-            // built lazily on first activation — keep all heavy work in here, not above
-            ContentFactory = () => new MyView(new MyViewModel(path, config, shellServices))
+            // built lazily on first need — keep all heavy work in here, not above
+            ViewModelFactory = () => new MyViewModel(path, config, shellServices)
         };
     }
 }
@@ -406,27 +406,35 @@ independently shippable. Full model — region tokens, `ThemedRegion` scenes, au
 
 ---
 
-### `IPageView` / `IPageViewModel` — Exposing context to the AI pipeline
+### `IPageViewModel` and `[ViewFor]` — what a page is, and what draws it
 
-`IPageView` is the shell's typed handle to a tab `UserControl` — implement it on your `UserControl`. It exposes the ViewModel and handles shell lifecycle. `Reinitialize` is called on first load and whenever the shell activates the tab with a new param set (including re-clicking the active tab).
+A page **is** its view-model: the shell, the AI pipeline and every other page reach it through `Page.ViewModel`,
+never through a control. `Reinitialize` is called whenever the shell shows the page again with a parameter set
+(routing found it open, or the user re-clicked its tab).
 
-`IPageViewModel` is the AI pipeline contract — implement it on your ViewModel so the shell can query context and expose **client tools** the AI agent may invoke. A client tool is a self-contained `IClientTool` (use `DelegateClientTool` for one-liners) carrying its own metadata and execution. Safe tools (`ToolSafety.SafeOperation` — observers, or changes the user can see / must still save) auto-run; tools with real consequence (`ToolSafety.RequiresApproval`) are approved first. `GetClientTools()` and `GetContextObject()` have defaults, so a page that only supplies context overrides nothing else.
+The view is the UI layer's concern. Mark it `[ViewFor(typeof(MyViewModel))]` and give it one constructor taking the
+view-model; `FeatureCatalog` records it (in feature assemblies and in `Nexaflow.Visuals.*`), `ViewRegistry`
+(`Visuals.Common/Viewing/`) makes it — a view-model no view names is drawn by the view of the type it derives from —
+and Core's `PageViews` keeps one per page until the tab closes, so a tab moved between panes or windows keeps its
+view. A page whose view-model or view cannot be made is drawn by `PageLoadErrorView` saying why. Because nothing in a
+page's contract is WPF's, another toolkit can draw the same view-models with views of its own.
+
+`IPageViewModel` is also the AI pipeline contract: the shell queries context and exposes **client tools** the AI agent may invoke. A client tool is a self-contained `IClientTool` (use `DelegateClientTool` for one-liners) carrying its own metadata and execution. Safe tools (`ToolSafety.SafeOperation` — observers, or changes the user can see / must still save) auto-run; tools with real consequence (`ToolSafety.RequiresApproval`) are approved first. `GetClientTools()` and `GetContextObject()` have defaults, so a page that only supplies context overrides nothing else.
 
 ```csharp
-// The View — thin shell-lifecycle wrapper
-public partial class MyView : UserControl, IPageView
+// The View — draws the view-model, and nothing else knows it exists
+[ViewFor(typeof(MyViewModel))]
+public partial class MyView : UserControl
 {
-    private readonly MyViewModel _vm;
-    public MyView(MyViewModel vm) { _vm = vm; DataContext = vm; InitializeComponent(); }
-
-    public IPageViewModel? ViewModel => _vm;
-    public void Reinitialize(Dictionary<string, string> pageParams) { /* react to new params */ }
+    public MyView(MyViewModel vm) { DataContext = vm; InitializeComponent(); }
 }
 
 // The ViewModel — owns all AI pipeline logic
 public partial class MyViewModel : ObservableObject, IPageViewModel
 {
     public string GetContext() => "User is viewing My Feature";
+
+    public void Reinitialize(Dictionary<string, string> pageParams) { /* react to new params */ }
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -560,7 +568,7 @@ For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]`
 
 Implement on your page's `UserControl` **or** its ViewModel. The shell dispatches it from the window's
 tunneling `PreviewKeyDown` (`MainWindow.xaml.cs`) for the **active page only** — it resolves the handler off
-`CurrentPage` (view first, then `IPageView.ViewModel`) on each keystroke, so the mapping follows the focused
+the active page (its view first, then its view-model) on each keystroke, so the mapping follows the focused
 tab automatically. Because it's the window that dispatches, a page's shortcuts fire whichever shell control
 (ribbon, breadcrumb bar, the view itself) currently has focus — not only when the view is focused.
 
@@ -771,8 +779,8 @@ App.OnStartup
 User clicks ribbon button
   → RibbonControl.InternalRibbonActionCommand → ShellViewModel.OpenRibbonItem(item)
   → _shellServices.OpenTab(item.PageKind, item.PageParams)   ← persisted items carry only PageKind/params
-  → page.GetOrCreateContent()               ← ContentFactory invoked on first activation
-  → CurrentPage = page, breadcrumbs updated
+  → PaneView asks PageViews.ViewOf(page)    ← ViewModelFactory run, then the [ViewFor] view made, on first show
+  → ActiveTab = page, breadcrumbs updated
 
 Feature code calls shellServices.OpenTab("PageKind", params, callerPage)
   (shellServices = the caller's WorkspaceRuntime instance)

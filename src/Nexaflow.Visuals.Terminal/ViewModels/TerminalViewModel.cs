@@ -628,6 +628,16 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         }
     }
 
+    /// <summary>Shown again: scrolls to the newest output, and moves to the path or environment the re-open names.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        ScrollRequested?.Invoke(this, EventArgs.Empty);
+        var newPath = pageParams.GetValueOrDefault("path");
+        var envName = pageParams.GetValueOrDefault("env");
+        if (newPath is not null || envName is not null)
+            ApplyParams(newPath, envName);
+    }
+
     // ── Environment snapshot ──────────────────────────────────────────────
 
     [RelayCommand]

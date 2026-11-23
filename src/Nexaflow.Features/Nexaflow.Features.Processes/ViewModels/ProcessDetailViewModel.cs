@@ -125,6 +125,13 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
         else _timer.Stop();
     }
 
+    /// <summary>Shown again with a pid: inspects that process.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue("pid", out var s) && int.TryParse(s, out var pid))
+            Reinitialize(pid);
+    }
+
     /// <summary>Called by the view when the tab is re-activated with params (possibly a new PID).</summary>
     public void Reinitialize(int pid)
     {

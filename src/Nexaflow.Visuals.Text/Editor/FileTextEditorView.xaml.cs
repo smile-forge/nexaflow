@@ -4,7 +4,6 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using ICSharpCode.AvalonEdit;
-using Nexaflow.Features.Common;
 using Nexaflow.Syntax;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
 
@@ -15,15 +14,13 @@ namespace Nexaflow.Visuals.Text.Editor;
 /// the line-number gutter, and exposes <see cref="OnEditorReady"/> so a structured/code editor subclass can
 /// attach colorizers/renderers without the base knowing about them.
 /// </summary>
-public partial class FileTextEditorView : UserControl, IPageView
+public partial class FileTextEditorView : UserControl
 {
     private readonly FileTextEditorViewModel _vm;
 
     /// <summary>Paints the search matches. Shared with the Text viewer, so a search looks the same wherever
     /// it lands.</summary>
     private readonly SearchHighlightRenderer _searchHighlights = new();
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     public FileTextEditorView(FileTextEditorViewModel vm)
     {

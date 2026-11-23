@@ -13,8 +13,8 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 |------|----------|------|
 | Create project | yes | `net10.0-windows` WPF class library, reference `Features.Common` |
 | `IPageRegistration` | yes | Factory that produces a `Page` (expose `static string StaticPageKind`) |
-| `IPageView` on your `UserControl` | recommended | Shell lifecycle handle: `ViewModel` property + `Reinitialize` |
-| `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` |
+| `IPageViewModel` on your ViewModel | yes | What the page is: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant`, `Reinitialize` |
+| `[ViewFor(typeof(YourViewModel))]` on your view | yes | The view that draws it, with one constructor taking the view-model |
 | Add project reference in `Nexaflow.Core.csproj` | yes | So the feature DLL ships and `FeatureManager` reflection-discovers it at startup |
 | Add a default-button entry in `src/Nexaflow.Core/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
@@ -49,8 +49,8 @@ The one required contract. `FeatureManager.RegisterFeatures()` discovers it by r
 any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`, and its `IAIService`.
 
 - `CreatePageDefinition` must be **cheap and side-effect-free** — the shell builds definitions speculatively
-  just to read `Title`/`Icon` (menus, the AI "add context" list) and may discard them. Build the view-model and
-  view **inside the `ContentFactory` closure**, which runs lazily on first activation.
+  just to read `Title`/`Icon` (menus, the AI "add context" list) and may discard them. Build the view-model
+  **inside the `ViewModelFactory` closure**, which runs lazily on first need. The registration never names a view.
 - Advertise `Parameters` so the shell/AI can describe how to open the page; set
   `CanBeContextItem` / `CreatePageDefinitions` for pages (or page variants) offered in those menus.
 - Canonical examples: `Nexaflow.Features.Text/TextTabRegistration.cs` (plain single-file viewer);
@@ -58,11 +58,14 @@ any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`,
 
 ---
 
-## View & ViewModel — `IPageView` / `IPageViewModel`
+## View & ViewModel — `IPageViewModel` / `[ViewFor]`
 
-`IPageView` on the tab `UserControl` exposes its `ViewModel` and the `Reinitialize(pageParams)` hook — called
-on first activation **and** whenever the shell routes the tab a new param set (including re-clicking the active
-tab). `IPageViewModel` on the ViewModel is the AI-pipeline contract (`GetContext`, `GetClientTools`,
+The page is its view-model. `IPageViewModel.Reinitialize(pageParams)` is called whenever the shell routes the page a
+new param set (including re-clicking the active tab). The view is marked `[ViewFor(typeof(YourViewModel))]`
+(`Nexaflow.Visuals.Common.Viewing`), takes the view-model in its one constructor, and is made by Core when the page is
+first shown; nothing else refers to it, so no contract a page implements is WPF's. Anything a registration or the
+shell needs from the page — navigation, a title change, a page to open — comes from the view-model, never the view.
+`IPageViewModel` is also the AI-pipeline contract (`GetContext`, `GetClientTools`,
 `GetContextObject`, plus security-scope / readiness defaults — see its XML doc). A page that shows files says which
 with `GetContextGrant` — its file, its pictures, the folder it is in — and every assistant tool that takes a path is held
 to it ([Architecture.md → What a tool may reach on disk](Architecture.md#what-a-tool-may-reach-on-disk));
@@ -354,8 +357,8 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | Interface | What it's for |
 |---|---|
 | `IPageRegistration` | Advertises one page kind; the cheap `CreatePageDefinition` factory the shell discovers by reflection. |
-| `IPageView` | Implemented by a tab `UserControl` — exposes its ViewModel and the `Reinitialize` lifecycle hook. |
-| `IPageViewModel` | The AI-pipeline contract on a ViewModel: context string, client tools, typed context, security scope. |
+| `IPageViewModel` | What a page is, on its view-model: context string, client tools, typed context, security scope, `Reinitialize`. |
+| `PlaceholderViewModel` | A page that only says why it is empty. |
 | `IContext` (+ `FileSystemContext`) | Marker for a strongly-typed context object a page offers to query handlers. |
 | `IContextItemReceiver` | A page VM that can receive another open page as a live context item (the conversation page). |
 | `IAirspaceContent` | A page hosting a native HWND child (e.g. WebView2) that must hide itself while a modal overlay covers it. |

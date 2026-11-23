@@ -191,6 +191,19 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         await ExecuteSearch(_lastParsed, externalCt);
     }
 
+    /// <summary>
+    /// Shown again with a query and a root: a different search re-runs here, the same one keeps the results it has.
+    /// </summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        var q = pageParams.GetValueOrDefault("query", string.Empty);
+        var r = pageParams.GetValueOrDefault("root",  string.Empty);
+        if (q == SearchQuery && r == SearchRoot) return;
+        SearchQuery = q;
+        SearchRoot  = r;
+        _ = RunSearchAsync(CancellationToken.None);
+    }
+
     /// <summary>True when the index query is only a superset — a regex, a glob, or several terms — so the
     /// rows it returns still have to be judged against the real query.</summary>
     private static bool NeedsPostFilter(SearchRequest request) =>

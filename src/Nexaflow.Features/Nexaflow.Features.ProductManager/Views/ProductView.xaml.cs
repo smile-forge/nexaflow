@@ -9,10 +9,12 @@ using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Visuals.Common.Controls;
 using System.Windows.Controls.Primitives;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.ProductManager.Views;
 
-public partial class ProductView : UserControl, IPageView
+[ViewFor(typeof(ProductViewModel))]
+public partial class ProductView : UserControl
 {
     public ProductViewModel ViewModel { get; }
 
@@ -25,16 +27,6 @@ public partial class ProductView : UserControl, IPageView
         Sunburst.ArcClicked      += (_, id) => ViewModel.OnArcClicked(id);
         Sunburst.CentreClicked   += (_, _)  => ViewModel.OnCentreClicked();
         Sunburst.ArcRightClicked += (_, e)  => ShowNodeMenu(e.Id);
-    }
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    /// <summary>Deep-link: the Integrity page asks this tab to focus the node owning a broken snaplink.
-    /// (An existing Product tab, whose params are just <c>path</c>, is adopted and re-initialised.)</summary>
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("node", out var nodeId) && !string.IsNullOrWhiteSpace(nodeId))
-            ViewModel.NavigateTo(nodeId);
     }
 
     private void AddRoot_Click(object sender, RoutedEventArgs e) => ViewModel.AddChild(null);

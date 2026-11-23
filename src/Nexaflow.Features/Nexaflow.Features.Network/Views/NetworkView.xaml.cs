@@ -3,9 +3,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Features.Network.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Network.Views;
 
+[ViewFor(typeof(NetworkViewModel))]
 public partial class NetworkView : UserControl
 {
     public NetworkView(NetworkViewModel viewModel)

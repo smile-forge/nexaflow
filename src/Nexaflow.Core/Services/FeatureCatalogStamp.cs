@@ -42,8 +42,11 @@ public static class FeatureCatalogStamp
     /// app finds a protocol by its assembly being there.</summary>
     public const string LocationDllPattern = "Nexaflow.IO.Location.*.dll";
 
+    /// <summary>The shared visual assemblies, catalogued for the views they hold: a view there can draw a feature's model.</summary>
+    public const string VisualsDllPattern = "Nexaflow.Visuals.*.dll";
+
     /// <summary>Every assembly pattern the catalog sweeps.</summary>
-    public static readonly IReadOnlyList<string> CataloguedPatterns = [FeatureDllPattern, LocationDllPattern];
+    public static readonly IReadOnlyList<string> CataloguedPatterns = [FeatureDllPattern, LocationDllPattern, VisualsDllPattern];
 
     /// <summary>
     /// The current stamp for <paramref name="exeDir"/>: every feature and location assembly plus Core, name-ordered so

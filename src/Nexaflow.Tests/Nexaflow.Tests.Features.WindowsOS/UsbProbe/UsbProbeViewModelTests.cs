@@ -288,7 +288,7 @@ public class UsbProbeViewModelTests
         Assert.IsFalse(registration.Parameters.Single(p => p.Name == UsbProbePageRegistration.LocationParam).Identity);
 
         var page = registration.CreatePageDefinition(new() { [UsbProbePageRegistration.LocationParam] = " USB:1-2.4/ " });
-        Assert.IsNull(page.Content, "nothing is read until the tab is shown");
+        Assert.IsNull(page.ViewModel, "nothing is read until the tab is shown");
         Assert.AreEqual("1-2.4", page.PageParams?[UsbProbePageRegistration.LocationParam]);
         Assert.AreEqual(0, registration.CreatePageDefinition().PageParams?.Count);
     }

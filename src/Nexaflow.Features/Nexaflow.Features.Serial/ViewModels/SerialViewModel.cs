@@ -164,6 +164,12 @@ public sealed partial class SerialViewModel : ObservableObject, IPageViewModel, 
         if (keep is not null) SelectedPort = Ports.FirstOrDefault(p => p.Name.Equals(keep, StringComparison.OrdinalIgnoreCase)) ?? SelectedPort;
     }
 
+    /// <summary>Shown again with a port: talks to that port.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue(SerialPageRegistration.PortParam, out var port)) Retarget(port);
+    }
+
     /// <summary>The shell re-pointing the tab at another port.</summary>
     public void Retarget(string port)
     {

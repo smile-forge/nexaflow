@@ -12,16 +12,16 @@ using Nexaflow.Features.Executable.Services;
 using Nexaflow.Features.Executable.ViewModels;
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Visuals.Common.Layout;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Features.Executable.Views;
 
-public partial class ExecutableView : UserControl, IPageView
+[ViewFor(typeof(ExecutableViewModel))]
+public partial class ExecutableView : UserControl
 {
     private readonly ExecutableViewModel _vm;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     public ExecutableView(ExecutableViewModel vm)
     {
@@ -262,6 +262,4 @@ public partial class ExecutableView : UserControl, IPageView
         while (source is not null and not T) source = VisualTreeHelper.GetParent(source);
         return source as T;
     }
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams) { }
 }

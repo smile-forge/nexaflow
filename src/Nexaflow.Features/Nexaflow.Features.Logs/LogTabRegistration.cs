@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Logs.ViewModels;
-using Nexaflow.Features.Logs.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.IO;
@@ -26,7 +25,7 @@ public sealed class LogTabRegistration(IShellServices shell, IVirtualFileSystem 
         {
             Title       = title,
             Icon        = "📋",
-            ContentFactory = () => new LogView(new LogViewModel(path, shell, vfs)),
+            ViewModelFactory = () => new LogViewModel(path, shell, vfs),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;

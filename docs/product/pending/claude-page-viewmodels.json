@@ -1,0 +1,149 @@
+{
+  "branch": "claude/page-viewmodels",
+  "nodes": {
+    "chrome-page-views": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/PageViews.cs",
+          "class": "PageViews"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Page.cs",
+          "class": "Page",
+          "method": "GetOrCreateViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/PaneView.xaml.cs",
+          "class": "PaneView",
+          "method": "UpdateContent"
+        },
+        {
+          "type": "node",
+          "target": "vcommon-view-registry"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/PageViewsTests.cs",
+            "class": "PageViewsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Common/PageViewModelTests.cs",
+            "class": "PageViewModelTests"
+          }
+        ]
+      }
+    },
+    "vcommon-view-registry": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Viewing/ViewRegistry.cs",
+          "class": "ViewRegistry"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Viewing/ViewForAttribute.cs",
+          "class": "ViewForAttribute"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/FeatureCatalog.cs",
+          "class": "FeatureCatalog",
+          "method": "ViewTypeFor"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Viewing/ViewRegistryTests.cs",
+            "class": "ViewRegistryTests"
+          }
+        ]
+      }
+    },
+    "pdf-links": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/ViewModels/PdfViewModel.cs",
+          "class": "PdfViewModel",
+          "method": "FollowLink"
+        }
+      ]
+    },
+    "web-fallback": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/ViewModels/HtmlViewModel.cs",
+          "class": "HtmlViewModel",
+          "method": "ReportBrowserUnavailable"
+        }
+      ]
+    },
+    "win-file-system-ui": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileSystemPageRegistration.cs",
+          "class": "FileSystemPageRegistration",
+          "method": "CreatePageDefinition"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/features.md",
+          "title_path": [
+            "Building a Feature",
+            "View \u0026 ViewModel \u2014 \u0060IPageViewModel\u0060 / \u0060[ViewFor]\u0060"
+          ]
+        }
+      ]
+    },
+    "network-ai": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Network/ViewModels/NetworkViewModel.cs",
+          "class": "NetworkViewModel",
+          "method": "GetContext"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Network/NetworkPageContextTests.cs",
+            "class": "NetworkPageContextTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 9,
+  "touched_nodes": [
+    "chrome-page-views",
+    "network-ai",
+    "pdf-links",
+    "vcommon-view-registry",
+    "web-fallback",
+    "win-file-system-ui"
+  ]
+}

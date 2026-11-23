@@ -18,6 +18,7 @@ using Nexaflow.Visuals.Text.Pages;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -109,6 +110,29 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         return real;
     }
 
+    /// <summary>
+    /// Opens the file in the default PDF application — the file as saved, so with unsaved page edits the reader is asked
+    /// first.
+    /// </summary>
+    public async Task OpenExternalAsync()
+    {
+        if (IsDirty
+            && !await _shell.ConfirmAsync(Str.Get("Pdf.OpenExternal.UnsavedTitle"), Str.Get("Pdf.OpenExternal.UnsavedMessage")))
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(await ExternalPathAsync()) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _shell.ShowError(Str.Format("Pdf.Error.OpenExternalFormat", ex.Message));
+        }
+    }
+
+    /// <summary>Says printing the document failed, and why.</summary>
+    public void ShowPrintFailure(Exception ex) => _shell.ShowError(Str.Format("Pdf.Error.PrintFormat", ex.Message));
+
     /// <summary>Reads what the file system says of the file now — after it is opened, saved or moved.</summary>
     private async Task DescribeFileAsync()
     {
@@ -159,8 +183,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// </summary>
     public bool ShowsScansNotice => HasScans && !ScansNoticeDismissed && !Conversion.HasStatus;
 
-    /// <summary>The tab showing the document, set by its view: what opens beside it opens in its window.</summary>
-    public IPageView? Host { get; set; }
+    /// <summary>The tab showing the document: what opens beside it opens in its window.</summary>
+    private readonly Page? _tab;
 
     /// <summary>How many of the document's pages are scans, for the notice above it.</summary>
     [ObservableProperty] private string _scansSummary = string.Empty;
@@ -232,10 +256,12 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <param name="reading">Page reading, which reads the document's scanned pages into Markdown, where the app has it.</param>
     /// <param name="ai">The workspace's AI, whose image model draws the scanned pages' diagrams again.</param>
     /// <param name="publisher">Where the document's images are published for the image editor; none, and Edit image is not offered.</param>
+    /// <param name="tab">The tab showing the document, which what opens beside it — its scans' Markdown — opens beside.</param>
     public PdfViewModel(string path, IShellServices shell, IVirtualFileSystem vfs, PdfConfig config, IPageReading? reading = null,
-                        IAIService? ai = null, ILocationPublisher? publisher = null)
+                        IAIService? ai = null, ILocationPublisher? publisher = null, Page? tab = null)
     {
         _path    = path;
+        _tab     = tab;
         _shell   = shell;
         _vfs     = vfs;
         _config  = config;
@@ -640,7 +666,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// <summary>Converts the whole document to Markdown with page reading — every page, whether its text is its own or a scan's.</summary>
     [RelayCommand]
     private Task ConvertDocument() =>
-        PageCount == 0 ? Task.CompletedTask : Conversion.ConvertAsync(PagesToRead(Enumerable.Range(1, PageCount).ToList(), "pages"), Host);
+        PageCount == 0 ? Task.CompletedTask : Conversion.ConvertAsync(PagesToRead(Enumerable.Range(1, PageCount).ToList(), "pages"), _tab);
 
     [RelayCommand]
     private void DismissScansNotice() => ScansNoticeDismissed = true;
@@ -783,6 +809,47 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         && source.Arrangement[fromPage].Sheet.Pieces is var pieces && target.Piece >= 0 && target.Piece < pieces.Length
         && source.Locate(pieces[target.Piece].Source, target) is { } at
         && GoToPage(at.Index + 1, at.Offset);
+
+    /// <summary>A link on a page: a place in this document is scrolled to, anything else opened as an address.</summary>
+    public void FollowLink(PageLink link)
+    {
+        if (PdfLinks.TryRead(link.Href, out var target))
+        {
+            GoToTarget(link.Page, target);
+            return;
+        }
+
+        if (!Uri.TryCreate(link.Href, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto"))
+            return;
+
+        try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
+        catch (Exception ex) { _shell.ShowError(Str.Format("Pdf.Error.OpenLinkFormat", ex.Message)); }
+    }
+
+    /// <summary>A page asked for before the pages were ready (an initial "page" param), gone to once they are.</summary>
+    private int? _pendingPage;
+
+    /// <summary>Sets the page the document should open at, once its pages are read.</summary>
+    public void OpenAtPage(int page)
+    {
+        _pendingPage = page > 0 ? page : null;
+        OpenPendingPage();
+    }
+
+    /// <summary>Goes to the page asked for before the pages were ready, once the view can show them.</summary>
+    public void OpenPendingPage()
+    {
+        if (_pendingPage is int page && GoToPage(page)) _pendingPage = null;
+    }
+
+    /// <summary>Showing the tab again with a "page" param jumps to it rather than opening a second tab.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (!pageParams.TryGetValue("page", out var raw) || !int.TryParse(raw, out var page) || page < 1)
+            return;
+
+        OpenAtPage(page);
+    }
 
     [RelayCommand]
     private void TogglePanel() => IsPanelOpen = !IsPanelOpen;

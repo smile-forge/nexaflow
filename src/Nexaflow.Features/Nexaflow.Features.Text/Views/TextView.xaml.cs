@@ -2,7 +2,6 @@ using ICSharpCode.AvalonEdit;
 using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.Rendering;
 using Nexaflow.Visuals.Text.Editor;
 using Nexaflow.Features.Text.ViewModels;
@@ -13,17 +12,17 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Text.Views;
 
-public partial class TextView : UserControl, IPageView
+[ViewFor(typeof(TextViewModel))]
+public partial class TextView : UserControl
 {
     private readonly TextViewModel            _vm;
     private readonly SearchHighlightRenderer  _renderer = new();
     private readonly IReadOnlySectionProvider _windowReadOnly;
     private ScrollViewer? _sv;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     public TextView(TextViewModel vm)
     {

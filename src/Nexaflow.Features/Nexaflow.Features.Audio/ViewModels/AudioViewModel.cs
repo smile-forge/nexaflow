@@ -313,6 +313,21 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         if (!_backgrounded && IsPlaying) _renderTimer.Start();
     }
 
+    /// <summary>A re-open with a play queue loads it here, starting on its <c>index</c>.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        var paths = pageParams.GetValueOrDefault("paths")?
+            .Split('|', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+        if (paths is not { Count: > 0 }) return;
+
+        int index = 0;
+        if (pageParams.GetValueOrDefault("index") is { } raw && int.TryParse(raw, out var i))
+            index = i;
+
+        _ = ReinitializeAsync(paths, index);
+    }
+
     /// <summary>Re-points the tab at a new queue/track (shell tab reuse). A no-op if the queue is unchanged,
     /// so re-selecting the tab never interrupts playback.</summary>
     public async Task ReinitializeAsync(IReadOnlyList<string> paths, int startIndex)

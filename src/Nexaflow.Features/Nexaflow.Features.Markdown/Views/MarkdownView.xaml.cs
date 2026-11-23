@@ -3,6 +3,7 @@ using Nexaflow.Features.Markdown.ViewModels;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Editor;
 using Nexaflow.Visuals.Text.Markdown;
@@ -20,7 +21,8 @@ using System.Windows.Media.Imaging;
 
 namespace Nexaflow.Features.Markdown.Views;
 
-public partial class MarkdownView : UserControl, IPageView
+[ViewFor(typeof(MarkdownViewModel))]
+public partial class MarkdownView : UserControl
 {
     public MarkdownViewModel ViewModel { get; }
 
@@ -41,6 +43,10 @@ public partial class MarkdownView : UserControl, IPageView
 
         // What a block's corner offers to save: its picture, as it is shown on the page, kept where the reader says.
         Editor.BlockSaving += OnBlockSaving;
+
+        // The tab shown again, asked to land somewhere in the document it already shows.
+        viewModel.PlaceRequested   += place => LandAt(() => Editor.GoTo(ContentPath.Read(place)));
+        viewModel.HeadingRequested += heading => LandAt(() => Editor.ScrollToHeading(heading));
 
         // Lay the surfaces out for the mode chosen, and move focus to whichever one that reveals.
         viewModel.PropertyChanged += OnViewModelChanged;
@@ -125,14 +131,9 @@ public partial class MarkdownView : UserControl, IPageView
     /// The tab, already showing its document, asked to land somewhere in it: at a saved reference, or at a heading named by its
     /// titles. Asked before the document is first laid out, it waits for that (see the constructor).
     /// </summary>
-    public void Reinitialize(Dictionary<string, string> pageParams)
+    private void LandAt(Action land)
     {
-        if (!IsLoaded) return;
-
-        if (pageParams.GetValueOrDefault(MarkdownTabRegistration.PlaceParameter) is { Length: > 0 } place)
-            Editor.GoTo(ContentPath.Read(place));
-        else if (pageParams.GetValueOrDefault("heading") is { Length: > 0 } heading)
-            Editor.ScrollToHeading(heading.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+        if (IsLoaded) land();
     }
 
     /// <summary>What a block's picture is drawn on: the page it is shown on, so it reads the same wherever it is pasted.</summary>
@@ -440,8 +441,4 @@ public partial class MarkdownView : UserControl, IPageView
 
     /// <summary>Whether the half of the split the reader moved last is the raw box.</summary>
     private bool _ledBySource;
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 }

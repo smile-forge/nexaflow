@@ -1,11 +1,12 @@
 using System.Windows;
 using System.Windows.Controls;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.UsbProbe.Views;
 
-public partial class UsbDeviceView : UserControl, IPageView
+[ViewFor(typeof(UsbDeviceViewModel))]
+public partial class UsbDeviceView : UserControl
 {
     readonly UsbDeviceViewModel _vm;
 
@@ -21,12 +22,5 @@ public partial class UsbDeviceView : UserControl, IPageView
             await _vm.StartAsync();
         };
         Unloaded += (_, _) => _vm.SetPageShown(false);
-    }
-
-    public IPageViewModel? ViewModel => _vm;
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue(UsbDevicePageRegistration.DeviceParam, out var device)) _vm.Retarget(device);
     }
 }

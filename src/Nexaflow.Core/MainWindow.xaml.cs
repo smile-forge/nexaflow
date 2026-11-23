@@ -16,6 +16,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media;
 using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Core;
 
@@ -126,11 +127,11 @@ public partial class MainWindow : Window
         {
             // Active-page shortcuts. Skipped while a text box is focused so typing keeps its native editing
             // keys (Ctrl+C/V/A, Del, …). A page advertises shortcuts by implementing IKeyboardHandler on its
-            // view or view-model; reading CurrentPage each keystroke is what "swaps" the mapping per tab.
+            // view or view-model; reading the active page each keystroke is what "swaps" the mapping per tab.
             if (Keyboard.FocusedElement is not TextBoxBase)
             {
-                var pageKeys = _vm.CurrentPage as IKeyboardHandler
-                            ?? (_vm.CurrentPage as IPageView)?.ViewModel as IKeyboardHandler;
+                var pageKeys = _vm.ActivePageView as IKeyboardHandler
+                            ?? _vm.ActivePageViewModel as IKeyboardHandler;
                 if (pageKeys is not null)
                 {
                     var (key, held) = (e.Key.ToConsoleKey(), Keyboard.Modifiers.ToKeyModifiers());
@@ -209,7 +210,7 @@ public partial class MainWindow : Window
         => DropRouter.Attach(
             this,
             failed: failure => _shellServices.ShowError(Str.Format("Shell.Drop.FailedFormat", failure.Message)),
-            targetOf: element => (element as IPageView)?.ViewModel as IDropTarget);
+            targetOf: element => ViewRegistry.ModelOf(element) as IDropTarget);
 
     // Opening a tab moves focus to the AI bar (so the user can type a request straight away). Deferred to
     // Background priority — below Loaded/Input — so it runs after the tab's own content has realized and

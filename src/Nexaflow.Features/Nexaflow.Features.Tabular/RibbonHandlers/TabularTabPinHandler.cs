@@ -3,7 +3,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.Tabular.Streaming;
-using Nexaflow.Features.Tabular.Views;
+using Nexaflow.Features.Tabular.ViewModels;
 using Nexaflow.Icons;
 
 namespace Nexaflow.Features.Tabular.RibbonHandlers;
@@ -24,7 +24,7 @@ public sealed class TabularTabPinHandler : ITabPinHandler
             : new Dictionary<string, string>(tab.PageParams);
 
         // Snapshot the live transform chain — overwrites any stale value from PageParams.
-        if (tab.Content is TabularView tv && tv.VM.DataShape is { } shape && shape.Transforms.Count > 0)
+        if (tab.ViewModel is TabularViewModel vm && vm.DataShape is { } shape && shape.Transforms.Count > 0)
         {
             pageParams["transforms"] = TransformSerializer.Serialize(shape.Transforms);
         }

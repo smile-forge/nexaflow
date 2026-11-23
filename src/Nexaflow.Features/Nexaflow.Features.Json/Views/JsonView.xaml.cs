@@ -2,6 +2,7 @@ using ICSharpCode.AvalonEdit;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Data;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,15 +12,14 @@ using System.Windows.Threading;
 
 namespace Nexaflow.Features.Json.Views;
 
-public partial class JsonView : UserControl, IPageView
+[ViewFor(typeof(JsonViewModel))]
+public partial class JsonView : UserControl
 {
     private readonly JsonViewModel _vm;
 
     private JsonNodeModel? _dragSource;
     private Point          _dragStart;
     private const double   DragThreshold = 5.0;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     internal JsonView(JsonViewModel vm)
     {
@@ -41,14 +41,6 @@ public partial class JsonView : UserControl, IPageView
             vm.ScrollToItemRequested -= OnScrollToItem;
             vm.Dispose();
         };
-    }
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        var path = pageParams.GetValueOrDefault("path") ?? string.Empty;
-        if (path == _vm.FilePath) return;
-        _vm.FilePath = path;
-        _ = _vm.LoadAsync(CancellationToken.None);
     }
 
     private void OnScrollToItem(object? sender, JsonDisplayItem item)

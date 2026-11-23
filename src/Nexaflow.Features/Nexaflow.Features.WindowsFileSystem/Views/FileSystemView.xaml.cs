@@ -24,15 +24,14 @@ using Nexaflow.Icons;
 using Nexaflow.Visuals.Icons;
 using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.WindowsFileSystem.Views;
 
-public partial class FileSystemView : UserControl, IDropTarget, IPageView, ISelectionProvider, IKeyboardHandler
+[ViewFor(typeof(FileSystemViewModel))]
+public partial class FileSystemView : UserControl, IDropTarget, ISelectionProvider, IKeyboardHandler
 {
     public FileSystemViewModel ViewModel { get; }
-
-    // ── IPageView ─────────────────────────────────────────────────────────────
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     // ── ISelectionProvider ────────────────────────────────────────────────────
     IReadOnlyList<string> ISelectionProvider.SelectedFilePaths
@@ -76,19 +75,12 @@ public partial class FileSystemView : UserControl, IDropTarget, IPageView, ISele
     private bool _fileViewActive;
     private int  _activeFullIndex;
 
-    /// <summary>
-    /// Raised whenever the current directory changes.
-    /// Subscribers (e.g. ShellViewModel) should update the tab's BreadcrumbSegments.
-    /// Each tuple contains (DisplayLabel, FullPath) — FullPath is empty for "This PC".
-    /// </summary>
-    public event Action<IReadOnlyList<(string Label, string Path)>>? NavigationChanged;
-
-    public FileSystemView(FileSystemViewModel viewModel, IKeyboardHandler keyboardHandler, FileSystemDropTarget dropTarget)
+    public FileSystemView(FileSystemViewModel viewModel)
     {
         InitializeComponent();
         ViewModel        = viewModel;
-        _actionKeys      = keyboardHandler;
-        _dropTarget      = dropTarget;
+        _actionKeys      = new FileSystemKeyboardHandler(viewModel);
+        _dropTarget      = new FileSystemDropTarget(viewModel);
         DataContext = viewModel;
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
@@ -185,24 +177,8 @@ public partial class FileSystemView : UserControl, IDropTarget, IPageView, ISele
         return null;
     }
 
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("path", out var path) && !string.IsNullOrEmpty(path))
-        {
-            if (string.Equals(path, ViewModel.CurrentPath, StringComparison.OrdinalIgnoreCase))
-                ViewModel.Refresh();
-            else
-                _ = ViewModel.BrowseToAsync(path);
-        }
-        else
-        {
-            ViewModel.GoToThisPc(rebuildTree: true);
-        }
-    }
-
     private void OnViewModelNavigationChanged(IReadOnlyList<(string Label, string Path)> segments)
     {
-        NavigationChanged?.Invoke(segments);
         UpdateListViewVisibility();
         RefreshViewlets(ViewModel.CurrentPath, ViewModel.IsThisPcMode);
     }

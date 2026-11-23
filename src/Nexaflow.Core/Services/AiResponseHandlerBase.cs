@@ -237,7 +237,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
 
         // Add the origin tab as a live context item — via the interface, no feature type reference.
         if (_originTab is not null &&
-            (_shell.CurrentPage as IPageView)?.ViewModel is IContextItemReceiver receiver)
+            _shell.ActivePageViewModel is IContextItemReceiver receiver)
             receiver.AddContextItem(_originTab);
     }
 
