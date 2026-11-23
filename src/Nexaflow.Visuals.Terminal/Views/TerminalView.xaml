@@ -188,7 +188,8 @@
                                     BorderThickness="0,0,0,1">
                                 <TabPanel IsItemsHost="True"/>
                             </Border>
-                            <ContentPresenter ContentSource="SelectedContent"/>
+                            <!-- Named as WPF's tab automation looks for it, or nothing in a tab reaches UI Automation. -->
+                            <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"/>
                         </DockPanel>
                     </ControlTemplate>
                 </Setter.Value>
