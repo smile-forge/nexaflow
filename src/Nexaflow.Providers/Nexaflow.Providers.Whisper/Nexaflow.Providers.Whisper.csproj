@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers.Local\Nexaflow.Providers.Local.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -39,7 +39,9 @@ public static class RequiredFixture
 
     /// <summary>
     /// Copies a fixture folder into <paramref name="destination"/> — for the fixtures the app reads from its
-    /// own config dir, which is per-test and throwaway. Staging a built tree, not authoring one.
+    /// own config dir, which is per-test and throwaway. Staging a built tree, not authoring one — apart from a JSON
+    /// file's <see cref="UiFixtures.RootToken"/>, which becomes the corpus root as it is reached here: that is what lets a
+    /// config seeded on the host point at the same folders from inside Windows Sandbox.
     /// </summary>
     public static void CopyInto(string name, string destination, string builtBy)
     {
@@ -47,7 +49,14 @@ public static class RequiredFixture
         foreach (var dir in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
             Directory.CreateDirectory(dir.Replace(source, destination));
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-            System.IO.File.Copy(file, file.Replace(source, destination), overwrite: true);
+        {
+            var target = file.Replace(source, destination);
+            if (string.Equals(System.IO.Path.GetExtension(file), ".json", StringComparison.OrdinalIgnoreCase)
+                && System.IO.File.ReadAllText(file) is var json && json.Contains(UiFixtures.RootToken, StringComparison.Ordinal))
+                System.IO.File.WriteAllText(target, UiFixtures.ResolveRootInJson(json));
+            else
+                System.IO.File.Copy(file, target, overwrite: true);
+        }
     }
 
     private static void Missing(string path, string builtBy) =>

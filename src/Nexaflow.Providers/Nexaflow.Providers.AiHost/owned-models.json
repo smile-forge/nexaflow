@@ -1143,7 +1143,7 @@
       "tier": "highQuality",
       "sampler": { "method": "hiDream", "steps": 50, "shift": 3.0, "guidance": 5.0,
                    "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] },
-                   "editing": { "sources": 4, "masks": true, "pixels": 4194304, "multiple": 32, "sizing": "filled" } },
+                   "editing": { "sources": 4, "masks": true } },
       "parts": [
         {
           "role": "denoiser",
@@ -1359,7 +1359,7 @@
       "tier": "highQuality",
       "sampler": { "method": "hiDream", "steps": 50, "shift": 3.0, "guidance": 5.0,
                    "sizes": { "square": [2048, 2048], "landscape": [2560, 1440], "portrait": [1440, 2560] },
-                   "editing": { "sources": 4, "masks": true, "pixels": 4194304, "multiple": 32, "sizing": "filled" } },
+                   "editing": { "sources": 4, "masks": true } },
       "parts": [
         {
           "role": "denoiser",
@@ -1417,7 +1417,7 @@
       "kind": "imageGeneration",
       "sampler": { "method": "flux2Klein", "steps": 4, "shift": 0, "guidance": 0,
                    "sizes": { "square": [1024, 1024], "landscape": [1360, 768], "portrait": [768, 1360] },
-                   "editing": { "sources": 2, "masks": true, "pixels": 1048576, "multiple": 16 } },
+                   "editing": { "sources": 2, "masks": true } },
       "parts": [
         {
           "role": "promptEncoder",
@@ -1532,7 +1532,7 @@
       "displayName": "Qwen-Image-Edit-2511 (8-bit)",
       "kind": "imageGeneration",
       "sampler": { "method": "qwenImageEdit", "steps": 40, "shift": 0, "guidance": 4.0,
-                   "editing": { "sources": 3, "masks": true, "pixels": 1048576, "multiple": 32, "sizing": "rounded" } },
+                   "editing": { "sources": 3, "masks": true } },
       "parts": [
         {
           "role": "pictureReader",
@@ -1703,7 +1703,7 @@
       "displayName": "Qwen-Image-Edit-2511 (16-bit)",
       "kind": "imageGeneration",
       "sampler": { "method": "qwenImageEdit", "steps": 40, "shift": 0, "guidance": 4.0,
-                   "editing": { "sources": 3, "masks": true, "pixels": 1048576, "multiple": 32, "sizing": "rounded" } },
+                   "editing": { "sources": 3, "masks": true } },
       "parts": [
         {
           "role": "pictureReader",

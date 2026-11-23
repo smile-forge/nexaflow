@@ -1,4 +1,4 @@
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.SceneDepth;
 
@@ -54,7 +54,7 @@ internal static class SceneDepthHandover
         for (int i = 0, n = width * height; i < n; i++)
             for (int c = 0; c < 3; c++)
                 rgb[i * 3 + c] = rgba[i * 4 + c] / 255.0;
-        var resized = PictureResampling.ResizeCubicAsOpenCv(rgb, width, height, 3, w, h);
+        var resized = ReferenceResampling.ResizeCubicAsOpenCv(rgb, width, height, 3, w, h);
         int plane = w * h;
         var planes = new float[3 * plane];
         Parallel.For(0, 3, c =>

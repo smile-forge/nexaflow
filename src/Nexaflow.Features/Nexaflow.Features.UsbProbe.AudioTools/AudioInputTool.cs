@@ -12,6 +12,7 @@ using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.IO.Common;
+using Nexaflow.Media.Audio;
 
 namespace Nexaflow.Features.UsbProbe.AudioTools;
 

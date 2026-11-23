@@ -108,6 +108,7 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Local\Nexaflow.Providers.Local.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Aria\Nexaflow.Providers.Aria.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Claude\Nexaflow.Providers.Claude.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Ollama\Nexaflow.Providers.Ollama.csproj" />
@@ -122,6 +123,7 @@
     <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Media\Nexaflow.Media.csproj" />
 
     <!-- Subfeature metadata. Core reads [Subfeature] during the catalog scan and hands host features their
          plugin sets; the attribute lives in a dependency-free leaf so a plugin assembly stays WPF-free. -->

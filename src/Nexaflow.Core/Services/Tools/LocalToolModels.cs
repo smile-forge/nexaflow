@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;

@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Speech;
+
+
 
 namespace Nexaflow.AiHost.Speech;
 
@@ -139,7 +140,7 @@ internal sealed class ListenSession(
         if (_silentFrames == _nextTurnAsk) Ask(utterance);
         if (utterance.Transcript is { IsCompleted: true } done && utterance.TranscriptOf == utterance.SpeechEnd && utterance.Finishing)
         {
-            if (SpokenTurns.LooksFinished(await done, language)) await EndAsync();
+            if (TurnWords.LooksFinished(await done, language)) await EndAsync();
             else utterance.Finishing = false;   // the words leave it open: the next ask decides again
         }
     }

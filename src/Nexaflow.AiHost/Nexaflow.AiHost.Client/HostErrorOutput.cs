@@ -1,4 +1,3 @@
-using Nexaflow.IO.Common.Logging;
 
 namespace Nexaflow.AiHost.Client;
 
@@ -21,7 +20,7 @@ internal sealed class HostErrorOutput : IDisposable
     private readonly Queue<string> _last = new();
     private readonly string? _directory;
     private readonly int _processId;
-    private SessionLogFile? _file;
+    private AiHostLogFile? _file;
     private bool _closed;
 
     /// <param name="directory">The logs folder; null, and only the last lines are kept, in memory.</param>
@@ -48,7 +47,7 @@ internal sealed class HostErrorOutput : IDisposable
             if (_directory is null || _closed) return;
             if (_file is null)
             {
-                _file = new SessionLogFile(_directory, FilePrefix);
+                _file = new AiHostLogFile(_directory, FilePrefix);
                 _file.Write($"error output of AI host process {_processId}");
             }
             _file.Write(line);

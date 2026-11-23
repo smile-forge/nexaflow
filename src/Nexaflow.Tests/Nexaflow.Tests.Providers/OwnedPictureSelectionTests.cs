@@ -1,9 +1,9 @@
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Providers.Support;
 using Nexaflow.AiHost.Client;
+using Nexaflow.AiHost.Provisioning;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Providers;
 [TestClass]
 public class OwnedPictureSelectionTests
 {
-    private static ComputeHardwareReport Nvidia() => new([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 8L << 30, IsIntegrated: false, IsNpu: false)], CudaRuntimePack.MinimumDriver);
+    private static MachineCards Nvidia() => new([new MachineCard("gpu", 8L << 30)], CudaRuntimePack.MinimumDriver);
 
     private static OwnedPictureSelection Selection(FakeModelStore store, FakeAiHost host)
         => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia());

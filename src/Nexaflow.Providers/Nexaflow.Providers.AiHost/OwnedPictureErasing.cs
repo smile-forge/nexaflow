@@ -1,6 +1,7 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Providers.AiHost;
@@ -14,7 +15,7 @@ public sealed record ErasedPicture(int Regions);
 /// </summary>
 public sealed class OwnedPictureErasing : OwnedToolFront
 {
-    public OwnedPictureErasing(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, ComputeHardwareReport hardware)
+    public OwnedPictureErasing(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
         : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == OwnedToolKind.PictureErasing))
     {
     }

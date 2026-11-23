@@ -30,7 +30,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
 | Input vocabulary | `Nexaflow.Interaction` | WPF-free `net10.0` leaf the contracts speak: `KeyModifiers`, `IDragPayload` + `DragKinds`, `IDropTarget`. Beneath `Features.Common` rather than in it, so a shared control can take a drop without seeing `IShellServices` |
 | Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the `VirtualFileSystem` over archives and mounts, the remote-location contracts and each runtime's `LocationFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
-| Providers | `Nexaflow.Providers.Common` and `Nexaflow.Providers.OpenAICompatible` (the chat-completions wire format OpenAI and xAI share) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
+| Providers | `Nexaflow.Providers.Common` and `Nexaflow.Providers.OpenAICompatible` (the chat-completions wire format OpenAI and xAI share), `Nexaflow.Providers.Local` (what a provider whose models run here offers) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria, Whisper, AiHost) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
 | Languages | `Nexaflow.Language.<code>` under `src/Nexaflow.Languages/` — one resource-only pack per language, gathered from every project's `Localization/<code>/` | Shipped to `Languages\` and loaded by path, never referenced — see [localization.md](localization.md) |
 | Initiatives | `Nexaflow.Services.Initiatives` + `Nexaflow.Services.Initiatives.Cli` (`nfi`) | WPF-free backend for the product tree, the knowledge graph, `SnaplinkValidator` and graph edit plans — never references WPF, Core or a feature. The CLI runs the same validator headlessly for the installer's build gate (exit 1 = broken links) — see [product-graph.md](product-graph.md) |
@@ -48,7 +48,9 @@ and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red b
 - Features depend on `Features.Common` + the shared leaves only — never on Core, never on each other.
   (The `Compressed.*` codec backends reference only `IO.Common`, where the codec contracts live —
   not even the Compressed feature; they're discovered at runtime.)
-- Providers depend on `Providers.Common` only — never on Core, never on each other.
+- Providers depend on `Providers.Common` only — never on Core, never on each other. A provider whose models run on this
+  machine also references `Providers.Local` and the AI host SDK; `Providers.Common` holds nothing of local models, so a
+  cloud provider — and a cloud-only user — carries none of it (`ArchitectureRulesTests`).
 - `Nexaflow.Core` depends on all features and providers (so they ship) but never instantiates feature
   view/view-model types — all tab/viewlet creation goes through `FeatureManager`, all provider
   instances through `ProviderManager`'s pool. Features talk back only via `IShellServices`.
@@ -84,7 +86,7 @@ The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved
 | `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
 | `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
 | `FileMapManager`, `ExternalAppRegistry`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
-| `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume | — |
+| `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`LocalAiFolder`; `NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume by the AI host SDK's store | — |
 
 **Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme, language), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`. Dictation's model is the workspace's: the ability grid's Speech In row.
 
@@ -282,8 +284,9 @@ A provider serves one kind of model (`ModelKind`) through that kind's contract �
 model, `ISpeechToTextProvider` for speech to text — over the `IAiProvider` base every provider shares (name,
 residency, availability, models, warm-up); one backend serving two kinds ships a type per kind under one name, as
 OpenAI does. The ability grid's columns carry their kind, and a row takes only columns of its own. A provider that
-needs model files declares an `IModelAssetStore` in its constructor and describes them in a catalog manifest it
-ships (`ModelCatalog`); the store fetches them. A provider that exposes its catalog (`ILocalModelCatalog`) gets a page
+needs model files declares an `IModelAssetStore` (the AI host SDK's, `AiHost.Provisioning`) in its constructor and
+describes them in a catalog manifest it ships (`ModelCatalog`, `Providers.Local`); the store fetches them. A provider
+that exposes its catalog (`ILocalModelCatalog`) gets a page
 in Configure Workspace listing its models, their size and whether each is here, to fetch, remove, and — when its
 kind serves one ability — choose the one that ability uses. Everything on the page acts at once: the choice is made
 on the ability grid it shares with the AI page and saved straight away, leaving the grid's other edits for Apply.
@@ -318,6 +321,7 @@ All providers implement `IAiProvider` through their kind's contract (and optiona
 | `Nexaflow.Providers.XAI` | xAI's Grok models over its OpenAI-compatible API. Which models it serves, which take pictures and how much each reads come from xAI's own model endpoints (`/language-models`, `/models/{id}`), not from the model's name. |
 | `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine's CPU: Dictation only, with Whisper base, where the machine runs none of Nexaflow's own speech models; its models come from the asset store. |
 | `Nexaflow.Providers.Ollama` | Ollama REST API for locally-hosted models. |
+| `Nexaflow.Providers.Local` | Not a provider: what a provider whose models run on this machine tells the app — its catalog (`ILocalModelCatalog`, `CatalogModel`, the manifest reader `ModelCatalog`), the models this machine cannot run and why, the runtime several share. The files themselves are the AI host SDK's (`Nexaflow.AiHost.Provisioning`: `ModelAsset`, `IModelAssetStore`, `ModelAssetStore`). Shared like `Providers.Common`, so it declares no concrete provider or config. |
 
 ---
 

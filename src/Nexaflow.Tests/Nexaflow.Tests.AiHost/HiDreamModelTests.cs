@@ -69,7 +69,7 @@ public class HiDreamModelTests
         var steps = replies.OfType<Progress>().Where(p => p.Stage == DrawHandler.Drawing && p.Done > 0).Select(p => p.Done).ToArray();
         CollectionAssert.AreEqual(Enumerable.Range(1, Steps).Select(i => (long)i).ToArray(), steps, "each denoising step is reported as it finishes");
 
-        var png = replies.OfType<Drawn>().Single().Png;
+        var png = replies.OfType<Drawn>().Single().AsPng();
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, "drawn-fox-hidream.png");
         File.WriteAllBytes(saved, png);
         TestContext.AddResultFile(saved);   // to look at: the test checks its shape, a person checks what it shows
@@ -99,7 +99,7 @@ public class HiDreamModelTests
         {
             await foreach (var reply in client.SendAsync(id => new Draw(id, drawing, "A red fox asleep in the snow, watercolour.", 2560, 1440, 7, RequestPriority.Job),
                                                          TimeSpan.FromMinutes(5)))
-                if (reply is Drawn drawn) return PngReader.Read(drawn.Png);
+                if (reply is Drawn drawn) return PngReader.Read(drawn.AsPng());
             throw new AssertFailedException("nothing was drawn");
         }
 
@@ -178,14 +178,14 @@ public class HiDreamModelTests
             for (int x = 640; x < 896; x++) mask[y * width + x] = 255;
 
         var replies = new List<HostReply>();
-        await foreach (var reply in client.SendAsync(id => new Draw(id, model, "A red apple on the board.", width, height, 3, RequestPriority.Job)
+        await foreach (var reply in client.SendAsync(id => new Draw(id, model, "A red apple on the board.", 0, 0, 3, RequestPriority.Job)
                                                      {
                                                          Sources = [new DrawingSource(width, height, source)],
                                                          Mask = mask,
                                                      }, TimeSpan.FromMinutes(10)))
             replies.Add(reply);
 
-        var png = replies.OfType<Drawn>().Single().Png;
+        var png = replies.OfType<Drawn>().Single().AsPng();
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, "filled-apple-hidream.png");
         File.WriteAllBytes(saved, png);
         TestContext.AddResultFile(saved);

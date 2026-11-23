@@ -13,7 +13,7 @@ public static class ErasingParts
 /// <summary>The stages an erasure's <see cref="Progress"/> names, each counting done of total.</summary>
 public static class ErasingStages
 {
-    /// <summary>Regions of the picture filled (<c>InpaintRegions</c>).</summary>
+    /// <summary>Regions of the picture filled (<c>ErasingRegions</c>).</summary>
     public const string Filling = "filling";
 }
 

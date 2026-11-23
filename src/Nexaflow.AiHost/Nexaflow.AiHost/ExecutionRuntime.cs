@@ -2,7 +2,7 @@ using Microsoft.ML.OnnxRuntime;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Llama;
 using Nexaflow.AiHost.Models;
-using Nexaflow.IO.Common.Hardware;
+
 
 namespace Nexaflow.AiHost;
 
@@ -34,11 +34,16 @@ internal sealed class ExecutionRuntime : IHostGpus, IDisposable
         Version            = env.GetVersionString();
         ExecutionProviders = env.GetAvailableProviders();
         LlamaBackends.Load(NativeRuntime.Pack, log);
-        Gpus = [.. LlamaBackends.Gpus.Select(g => new HostGpu(g.Number, g.Name, g.BusId, g.TotalBytes, BudgetOf(g.FreeBytes), g.FreeBytes))];
+        _cards = Nvml.Open();
+        Gpus = [.. LlamaBackends.Gpus.Select(g => new HostGpu(g.Number, g.Name, g.BusId, g.TotalBytes, BudgetOf(_cards?.FreeBytes(g.BusId) ?? g.FreeBytes), g.FreeBytes))];
         log.Write($"ONNX Runtime {Version} from {NativeRuntime.Pack ?? "the install"}; models run on "
                   + (Gpus.Count == 0 ? Cpu : string.Join(", ", Gpus.Select(g => $"GPU {g.Device} ({g.Name}, within {g.BudgetBytes >> 20} MiB)")))
-                            + $"; models on the CPU within {Memory.BudgetBytes >> 20} of {Memory.TotalBytes >> 20} MiB");
+                  + (Gpus.Count == 0 ? "" : _cards is null ? ", budgets as they were at start: NVML cannot read the cards" : ", budgets following what is free on each card")
+                  + $"; models on the CPU within {Memory.BudgetBytes >> 20} of {Memory.TotalBytes >> 20} MiB");
     }
+
+    /// <summary>The cards as their driver reads them, across every program; null where it cannot.</summary>
+    private readonly Nvml? _cards;
 
     public string Version { get; }
 
@@ -62,11 +67,24 @@ internal sealed class ExecutionRuntime : IHostGpus, IDisposable
                Gpus.Count == 0 ? $"GPU {device} was asked for, and this host runs models on the CPU."
                                : $"GPU {device} was asked for, and this host has {Gpus.Count}.");
 
+    public long BudgetNow(int device, long heldBytes)
+    {
+        var gpu = Gpu(device);
+        return _cards?.FreeBytes(gpu.BusId) is { } free ? BudgetOf(gpu, free, heldBytes) : gpu.BudgetBytes;
+    }
+
     /// <summary>What models may hold on a GPU that had <paramref name="freeBytes"/> free.</summary>
     internal static long BudgetOf(long freeBytes) => Math.Max(0, freeBytes - HostGpu.ReservedBytes);
 
+    /// <summary>What models may hold on <paramref name="gpu"/> together when <paramref name="freeBytes"/> is free on the card
+    /// and the host's models hold <paramref name="heldBytes"/> of it: the free memory with theirs counted back in, never more
+    /// than the card has, less what the runtime keeps.</summary>
+    internal static long BudgetOf(HostGpu gpu, long freeBytes, long heldBytes)
+        => Math.Max(0, Math.Min(gpu.TotalBytes, freeBytes + heldBytes) - HostGpu.ReservedBytes);
+
     public void Dispose()
     {
+        _cards?.Dispose();
         LlamaBackends.Free();
     }
 }

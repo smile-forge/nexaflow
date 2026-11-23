@@ -1,5 +1,5 @@
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Selecting;
 
@@ -29,7 +29,7 @@ internal static class PictureSelecting
             rgb[j + 2] = rgba[i + 2];
         }
         const int side = PictureEncoder.Side;
-        var squashed = PictureResampling.ResizeBilinearAsPil(rgb, width, height, 3, side, side);
+        var squashed = ReferenceResampling.ResizeBilinearAsPil(rgb, width, height, 3, side, side);
         var planar = new float[3 * side * side];
         Parallel.For(0, side * side, i =>
         {
@@ -79,14 +79,14 @@ internal static class PictureSelecting
     /// the picture: to the encoder's square, then to the size.</summary>
     public static float[] ClickMaskAt(float[] low, int width, int height)
     {
-        var square = PictureResampling.ResizePlaneBilinear(low, ClickDecoder.Side, ClickDecoder.Side, PictureEncoder.Side, PictureEncoder.Side);
-        return PictureResampling.ResizePlaneBilinear(square, PictureEncoder.Side, PictureEncoder.Side, width, height);
+        var square = ReferenceResampling.ResizePlaneBilinear(low, ClickDecoder.Side, ClickDecoder.Side, PictureEncoder.Side, PictureEncoder.Side);
+        return ReferenceResampling.ResizePlaneBilinear(square, PictureEncoder.Side, PictureEncoder.Side, width, height);
     }
 
     /// <summary>A find's mask logits at <paramref name="width"/> × <paramref name="height"/>, as the makers' processor
     /// brings them to the picture: in one step.</summary>
     public static float[] FoundMaskAt(float[] low, int width, int height)
-        => PictureResampling.ResizePlaneBilinear(low, ClickDecoder.Side, ClickDecoder.Side, width, height);
+        => ReferenceResampling.ResizePlaneBilinear(low, ClickDecoder.Side, ClickDecoder.Side, width, height);
 
     /// <summary>Logits as a mask: 255 where above 0 — the makers' sigmoid above a half — and 0 elsewhere.</summary>
     public static void Threshold(ReadOnlySpan<float> logits, Span<byte> into)

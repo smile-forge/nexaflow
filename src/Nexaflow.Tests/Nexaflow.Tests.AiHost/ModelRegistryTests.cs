@@ -12,11 +12,15 @@ public class ModelRegistryTests
 {
     private const long GB = 1L << 30;
 
-    /// <summary>Two GPUs of a 10 GB budget each.</summary>
+    /// <summary>Two GPUs of a 10 GB budget each, less what another program has taken of them since.</summary>
     private sealed class TwoGpus : IHostGpus
     {
+        public long Taken { get; set; }
+
         public HostGpu Gpu(int device) => device is 0 or 1 ? new HostGpu(device, $"GPU {device}", null, 12 * GB, 10 * GB, 11 * GB)
             : throw new HostRequestException(HostErrorKind.Invalid, $"GPU {device} was asked for, and this host has 2.");
+
+        public long BudgetNow(int device, long heldBytes) => Gpu(device).BudgetBytes - Taken;
     }
 
     /// <summary>A model that holds nothing but its spec, and counts its loads.</summary>
@@ -41,11 +45,11 @@ public class ModelRegistryTests
 
     private static readonly Func<string, Task> Quiet = _ => Task.CompletedTask;
 
-    private static (ModelRegistry Registry, Runner Runner) Registry(HostMemory? memory = null)
+    private static (ModelRegistry Registry, Runner Runner) Registry(HostMemory? memory = null, TwoGpus? gpus = null)
     {
         var runner = new Runner();
         var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-registry-").FullName);
-        return (new ModelRegistry(new TwoGpus(), new ModelAdapters([]), new ModelRunners([runner]), log, memory), runner);
+        return (new ModelRegistry(gpus ?? new TwoGpus(), new ModelAdapters([]), new ModelRunners([runner]), log, memory), runner);
     }
 
     [TestMethod]
@@ -59,6 +63,38 @@ public class ModelRegistryTests
         var refused = await Assert.ThrowsExactlyAsync<HostRequestException>(() => registry.AcquireAsync(Spec("more", 4, device: 0), resident: true, Quiet, default));
         Assert.AreEqual(HostErrorKind.Refused, refused.Kind);
         StringAssert.Contains(refused.Message, "GPU 0");
+    }
+
+    [TestMethod]
+    public async Task WhatAnotherProgramTakes_IsLeftItsOwn_AndWhatItGivesBackIsThereToUse()
+    {
+        var gpus = new TwoGpus();
+        var (registry, runner) = Registry(gpus: gpus);
+        using var chat = await registry.AcquireAsync(Spec("chat", 4), resident: true, Quiet, default);
+        (await registry.AcquireAsync(Spec("idle", 2), resident: false, Quiet, default)).Dispose();
+
+        gpus.Taken = 3 * GB;   // a game started on the card
+        (await registry.AcquireAsync(Spec("tagger", 2), resident: false, Quiet, default)).Dispose();
+        (await registry.AcquireAsync(Spec("idle", 2), resident: false, Quiet, default)).Dispose();
+        Assert.AreEqual(2, runner.Loads.Count(id => id == "idle"), "a model nothing used made way in the room left, and loaded again");
+        var refused = await Assert.ThrowsExactlyAsync<HostRequestException>(() => registry.AcquireAsync(Spec("big", 4), resident: false, Quiet, default));
+        Assert.AreEqual(HostErrorKind.Refused, refused.Kind);
+
+        gpus.Taken = 0;   // and closed
+        using var big = await registry.AcquireAsync(Spec("big", 4), resident: false, Quiet, default);
+    }
+
+    [TestMethod]
+    public async Task WhatAGpuHasToSpare_IsItsBudgetNow_LessTheModelsLoadedThere()
+    {
+        var gpus = new TwoGpus();
+        var (registry, _) = Registry(gpus: gpus);
+        using var chat = await registry.AcquireAsync(Spec("chat", 4), resident: true, Quiet, default);
+
+        Assert.AreEqual(6 * GB, registry.SpareOn(0));
+        Assert.AreEqual(10 * GB, registry.SpareOn(1), "each GPU its own");
+        gpus.Taken = 7 * GB;
+        Assert.AreEqual(0, registry.SpareOn(0), "never less than nothing, however much another program takes");
     }
 
     [TestMethod]

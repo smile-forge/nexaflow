@@ -3,7 +3,7 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
 using Nexaflow.AiHost.Speech;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Checking;
 
@@ -20,18 +20,18 @@ internal sealed class PictureSafetyClassifier(ModelSpec spec, InferenceSession s
     public ModelSpec Spec { get; } = spec;
 
     /// <summary>The chances, in the graph's order: gore (NSFL), sexual content (NSFW), neither (SFW).</summary>
-    public (float Gore, float Sexual, float Neither) Check(RgbPicture picture)
+    public (float Gore, float Sexual, float Neither) Check(byte[] rgb, int width, int height)
     {
-        using var results = session.Run([NamedOnnxValue.CreateFromTensor("image", new DenseTensor<float>(Planes(picture), [1, 3, Side, Side]))]);
+        using var results = session.Run([NamedOnnxValue.CreateFromTensor("image", new DenseTensor<float>(Planes(rgb, width, height), [1, 3, Side, Side]))]);
         var chances = results.First().AsTensor<float>().ToArray();
         return (chances[0], chances[1], chances[2]);
     }
 
     /// <summary>The whole picture scaled to <see cref="Side"/> square — squeezed, not cropped, so nothing at its edges
     /// goes unseen — as three planes of 0 to 255.</summary>
-    internal static float[] Planes(RgbPicture picture)
+    internal static float[] Planes(byte[] rgb, int width, int height)
     {
-        var scaled = PictureResampling.ResizeLanczos(picture.Rgb, picture.Width, picture.Height, 3, Side, Side);
+        var scaled = ReferenceResampling.ResizeLanczos(rgb, width, height, 3, Side, Side);
         var planes = new float[3 * Side * Side];
         for (int i = 0; i < Side * Side; i++)
             for (int c = 0; c < 3; c++)

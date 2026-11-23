@@ -12,10 +12,12 @@ using Nexaflow.Core.Localization;
 using System.Diagnostics;
 using Nexaflow.AiHost.Client;
 using Nexaflow.Core.Services.LocalAi;
-using Nexaflow.IO.Common.Hardware;
+
 using System.Text.Json.Nodes;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.AiHost.Provisioning;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Core.Services;
 
@@ -540,12 +542,12 @@ public sealed class AIService : IAIService
     public Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default)
         => ProviderManager.Instance.Service<HostModelSetup>() is { } setup
     ? LocalAiSetupReader.DescribeAsync(setup, OwnedModelsInUse(),
-                                               ModelPlacement.Expected(ProviderManager.Instance.Service<ComputeHardwareReport>() ?? ComputeHardware.Probe()), ct)
+                                               ModelPlacement.Expected(ProviderManager.Instance.Service<MachineCards>() ?? MachineCards.Probe()), ct)
             : Task.FromResult<LocalAiSetup?>(null);
 
     public Task<LocalAiCheck> CheckLocalAiAsync(IProgress<LocalAiCheckProgress> progress, CancellationToken ct = default)
         => ProviderManager.Instance.Service<HostModelSetup>() is { } setup
-            ? new LocalAiChecker(setup, OwnedModelsInUse(), Path.Combine(ModelAssetStore.DefaultRoot(), "reports")).RunAsync(progress, ct)
+            ? new LocalAiChecker(setup, OwnedModelsInUse(), Path.Combine(LocalAiFolder.Root(), "reports")).RunAsync(progress, ct)
             : throw new InvalidOperationException("Nexaflow's own models are not set up in this session.");
 
     // ── Persistence ───────────────────────────────────────────────────────

@@ -1,9 +1,9 @@
 using System.IO;
 using Nexaflow.AiHost.Client;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.Tools;
 using Nexaflow.Features.Common;
-using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
@@ -35,7 +35,7 @@ public class LocalToolModelsTests
     {
         var store = new ModelAssetStore(_root, [], downloadsAllowed: false);
         var host = Substitute.For<IAiHost>();
-        var nvidia = new ComputeHardwareReport([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 16L << 30, IsIntegrated: false, IsNpu: false)],
+        var nvidia = new MachineCards([new MachineCard("gpu", 16L << 30)],
                                                CudaRuntimePack.MinimumDriver);
         return new PageReading(new OwnedPageReading(Substitute.For<IBackgroundActivityManager>(), store, host, new HostModelSetup(host), nvidia),
                                store, null);
@@ -87,7 +87,7 @@ public class LocalToolModelsTests
         var store = new ModelAssetStore(_root, [], downloadsAllowed: false);
         var host = Substitute.For<IAiHost>();
         var check = new PictureChecking(new OwnedPictureChecking(Substitute.For<IBackgroundActivityManager>(), store, host, new HostModelSetup(host),
-                                                                 new ComputeHardwareReport([], null)), store, null);
+                                                                 MachineCards.None), store, null);
 
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
             ((Nexaflow.Core.Services.Generation.IPictureCheck)check).FitForGeneralAudienceAsync(new MediaBytes([1], "image/png"), CancellationToken.None));

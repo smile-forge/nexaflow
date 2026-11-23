@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What a provider whose models run on this machine tells the app: the models it offers and the files each needs, which
+    of them this machine cannot run and why, and the runtime several share. Only local providers and Core reference it;
+    a cloud provider never does, and Providers.Common holds nothing local (ArchitectureRulesTests). The files themselves
+    are the AI host SDK's (Nexaflow.AiHost.Provisioning).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Provisioning\Nexaflow.AiHost.Provisioning.csproj" />
+  </ItemGroup>
+
+</Project>

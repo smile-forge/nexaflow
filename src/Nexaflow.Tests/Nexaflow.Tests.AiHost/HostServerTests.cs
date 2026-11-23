@@ -52,6 +52,71 @@ public class HostServerTests
         Assert.AreEqual(new Pong(5), await pipes.App.ReceiveAsync(), "nothing answered the stray input");
     }
 
+    [TestMethod]
+    public async Task ARequestWaitingBehindOtherWork_IsSaidToBeQueued_WhenItHasBeenQuiet()
+    {
+        var clock = new ManualClock();
+        var gate  = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var pipes = await Pipes.OpenAsync(clock, new Doing(() => RequestActivity.WaitAsync(gate.Task)));
+
+        await pipes.App.SendAsync(new DescribeHost(1));
+        await Task.Delay(Soon);
+        clock.Advance(HostServer.Quiet);
+
+        Assert.AreEqual(new Progress(1, Progress.Queued, 0, 0), await pipes.App.ReceiveAsync());
+        gate.SetResult();
+        Assert.AreEqual(new Completed(1), await pipes.App.ReceiveAsync());
+    }
+
+    [TestMethod]
+    public async Task ARequestGoneOnFromAWait_IsSaidToBeWorking_WhenItHasBeenQuiet()
+    {
+        var clock = new ManualClock();
+        var waited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var step   = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var pipes = await Pipes.OpenAsync(clock, new Doing(async () =>
+        {
+            await RequestActivity.WaitAsync(waited.Task);
+            await step.Task;   // a step of its own, nothing to show yet
+        }));
+
+        await pipes.App.SendAsync(new DescribeHost(1));
+        await Task.Delay(Soon);
+        waited.SetResult();
+        await Task.Delay(Soon);
+        clock.Advance(HostServer.Quiet);
+
+        Assert.AreEqual(new Progress(1, Progress.Working, 0, 0), await pipes.App.ReceiveAsync());
+        step.SetResult();
+        Assert.AreEqual(new Completed(1), await pipes.App.ReceiveAsync());
+    }
+
+    [TestMethod]
+    public async Task ARequestStuckInOneStep_IsLeftSilent_ForTheClientsWatchdogToHear()
+    {
+        var clock = new ManualClock();
+        var step  = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var pipes = await Pipes.OpenAsync(clock, new Doing(() => step.Task));
+
+        await pipes.App.SendAsync(new DescribeHost(1));
+        await Task.Delay(Soon);
+        clock.Advance(HostServer.Quiet * 3);
+        await Task.Delay(Soon);
+        await pipes.App.SendAsync(new Ping(7));
+
+        Assert.AreEqual(new Pong(7), await pipes.App.ReceiveAsync(), "nothing was said for it");
+        step.SetResult();
+        Assert.AreEqual(new Completed(1), await pipes.App.ReceiveAsync());
+    }
+
+    private static readonly TimeSpan Soon = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>A request that does what it is given, then completes.</summary>
+    private sealed class Doing(Func<Task> work) : HostRequestHandler<DescribeHost>
+    {
+        protected override Task HandleAsync(DescribeHost request, Func<HostReply, Task> reply, CancellationToken ct) => work();
+    }
+
     /// <summary>A stream that says how many bytes each input carried, until its input ends.</summary>
     private sealed class CountingStream : HostStreamHandler<DescribeHost>
     {
@@ -82,17 +147,19 @@ public class HostServerTests
 
         public HostChannel App { get; }
 
-        public static async Task<Pipes> OpenAsync(params IHostRequestHandler[] handlers)
+        public static Task<Pipes> OpenAsync(params IHostRequestHandler[] handlers) => OpenAsync(TimeProvider.System, handlers);
+
+        public static async Task<Pipes> OpenAsync(TimeProvider clock, params IHostRequestHandler[] handlers)
         {
             string name = "nexaflow-test-" + Guid.NewGuid().ToString("N");
-            var app = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous, 65536, 65536);
+            var app = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 65536, 65536);
             var hostEnd = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
             await Task.WhenAll(app.WaitForConnectionAsync(), hostEnd.ConnectAsync());
-            hostEnd.ReadMode = PipeTransmissionMode.Message;
+
 
             var host = new HostChannel(hostEnd);
             var log  = new HostLog(Path.Combine(TestTemp.Root, "nexaflow-tests", "aihost-logs"));
-            var server = new HostServer(host, log, handlers);
+            var server = new HostServer(host, log, handlers, clock);
             return new Pipes(app, host, log, Task.Run(server.RunAsync));
         }
 

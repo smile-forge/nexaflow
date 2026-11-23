@@ -72,7 +72,7 @@ public class VideoModelTests
         await foreach (var reply in _client!.SendAsync(id => new Film(id, model, prompt, Width, Height, frames, Rate, 7, RequestPriority.Job) { FirstFrame = firstFrame },
                                                        TimeSpan.FromMinutes(5), ct))
             replies.Add(reply);
-        var mp4 = replies.OfType<Filmed>().Single().Mp4;
+        var mp4 = replies.OfType<FilmedFrames>().AsMp4(Width, Height, Rate);
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, saveAs);
         File.WriteAllBytes(saved, mp4);
         TestContext.AddResultFile(saved);   // to watch: the test checks its shape, a person checks what it shows
@@ -84,7 +84,7 @@ public class VideoModelTests
 
     [TestMethod]
     [Timeout(900_000, CooperativeCancellation = true)]
-    public async Task FastWan_MakesAClipInItsThreeSteps_DecodedFrameByFrame_AsAnH264Mp4()
+    public async Task FastWan_MakesAClipInItsThreeSteps_SentFrameByFrameAsDecoded()
     {
         var model = Model(distilled: true);
 

@@ -1,4 +1,4 @@
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Restoring;
 
@@ -68,7 +68,7 @@ internal static class PictureUpscaling
             await ThroughTiles(rgba, width, height, factor, tiles, alpha: true, output, upscaleTile, () => tileDone(++done, total), lastOfAll: true);
 
         int ow = width * factor, oh = height * factor;
-        return scale == factor ? output : PictureResampling.ResizeLanczos(output, ow, oh, 4, width * scale, height * scale);
+        return scale == factor ? output : ReferenceResampling.ResizeLanczos(output, ow, oh, 4, width * scale, height * scale);
     }
 
     /// <summary>

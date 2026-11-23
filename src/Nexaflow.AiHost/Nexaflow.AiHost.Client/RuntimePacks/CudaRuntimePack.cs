@@ -1,5 +1,5 @@
-using Nexaflow.IO.Common.Hardware;
-using Nexaflow.Providers.Common;
+
+using Nexaflow.AiHost.Provisioning;
 
 namespace Nexaflow.AiHost.Client;
 
@@ -23,11 +23,11 @@ public static class CudaRuntimePack
     /// another runtime's beside it.</summary>
     private const string IdPrefix = "cuda-";
 
-    private static readonly Lazy<CatalogModel> Manifest = new(() =>
+    private static readonly Lazy<AssetSet> Manifest = new(() =>
     {
         using var json = typeof(CudaRuntimePack).Assembly.GetManifestResourceStream("cuda-pack.json")
             ?? throw new InvalidOperationException("The CUDA pack manifest is not embedded.");
-        return ModelCatalog.Read(json).Single();
+        return AssetSet.Read(json);
     });
 
     /// <summary>The pack's id, which is also its folder under <c>runtime\</c>: the runtime versions it carries.</summary>
@@ -38,10 +38,9 @@ public static class CudaRuntimePack
     /// <summary>The bytes it takes on disk.</summary>
     public static long Size => Files.Sum(f => f.Size);
 
-    /// <summary>Whether the pack can run here: an NVIDIA GPU of its own, and a driver new enough for CUDA 13.</summary>
-    public static bool Applies(ComputeHardwareReport hardware)
-        => hardware.NvidiaGpus.Any()
-        && hardware.CudaDriver is { } driver && driver >= MinimumDriver;
+    /// <summary>Whether the pack can run here: an NVIDIA card, and a driver new enough for CUDA 13.</summary>
+    public static bool Applies(MachineCards machine)
+        => machine.Cards.Count > 0 && machine.CudaDriver is { } driver && driver >= MinimumDriver;
 
     /// <summary>The pack's folder when every file of it is on disk and verified; null otherwise.</summary>
     public static string? Locate(IModelAssetStore store)

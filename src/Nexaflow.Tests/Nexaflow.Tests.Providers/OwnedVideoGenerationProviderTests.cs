@@ -1,7 +1,8 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.IO.Common.Imaging;
+using Nexaflow.Media.Png;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 
@@ -19,9 +20,9 @@ public class OwnedVideoGenerationProviderTests
     private const string FastWan = "fastwan2.2-ti2v-5b";
     private const string Wan     = "wan2.2-ti2v-5b";
 
-    private static ComputeHardwareReport Nvidia() => new([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 32L << 30, IsIntegrated: false, IsNpu: false)], CudaRuntimePack.MinimumDriver);
+    private static MachineCards Nvidia() => new([new MachineCard("gpu", 32L << 30)], CudaRuntimePack.MinimumDriver);
 
-    private static ComputeHardwareReport Amd() => new([new ComputeAdapter("gpu", ComputeVendor.Amd, 32L << 30, IsIntegrated: false, IsNpu: false)], null);
+    private static MachineCards Amd() => MachineCards.None;
 
     /// <summary>A host on a 32 GB card: room for the decoder, the largest part.</summary>
     private static FakeAiHost Roomy(FakeAiHost host)
@@ -73,10 +74,18 @@ public class OwnedVideoGenerationProviderTests
         Assert.IsFalse(provider.IsAvailable);
     }
 
+    /// <summary>What a host sends of a clip: <paramref name="count"/> grey frames of the size asked.</summary>
+    private static FilmedFrames Frames(int width, int height, int count)
+    {
+        var rgb = new byte[width * height * 3 * count];
+        Array.Fill(rgb, (byte)128);
+        return new FilmedFrames(0, rgb);
+    }
+
     [TestMethod]
     public async Task FastWan_FilmsInTheHost_AtTheJobPriority_InItsThreeDistilledSteps()
     {
-        var host = Filming(new Filmed(0, [0x00, 0x00, 0x00, 0x18]));
+        var host = Filming(Frames(1280, 704, 2));
 
         var made = await Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox in the snow", new MediaAspect(1280, 704), 5));
 
@@ -89,13 +98,13 @@ public class OwnedVideoGenerationProviderTests
         StringAssert.EndsWith(film.Model.Parts[FilmingParts.Denoiser].Folder, @"wan2.2-ti2v-5b\denoiser-fast");
         Assert.AreEqual(0, film.Model.Parts[FilmingParts.Decoder].Device, "on the GPU the host found");
         Assert.AreEqual("video/mp4", made.Media.MimeType);
-        CollectionAssert.AreEqual(new byte[] { 0x00, 0x00, 0x00, 0x18 }, made.Media.Bytes);
+        CollectionAssert.AreEqual("ftyp"u8.ToArray(), made.Media.Bytes[4..8], "the host's frames, encoded as an MP4 as they came");
     }
 
     [TestMethod]
     public async Task TheFullModel_StartsFromAPicture_ItsFirstFrame_AndSteersFromItsNegativePrompt()
     {
-        var host = Filming(new Filmed(0, [1]));
+        var host = Filming(Frames(704, 1280, 1));
         var request = new VideoGenerationRequest("the waves roll in", new MediaAspect(704, 1280), 5) { FirstFrame = Picture(704, 1280) };
 
         await Provider(Wan, Here(), host).GenerateVideoAsync(request);
@@ -111,7 +120,7 @@ public class OwnedVideoGenerationProviderTests
     [TestMethod]
     public async Task TheFullModel_KeepsOutWhatItIsTold_AfterItsOwnNegativePrompt_FromTheSeedItIsGiven()
     {
-        var host = Filming(new Filmed(0, [1]));
+        var host = Filming(Frames(1280, 704, 1));
 
         await Provider(Wan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("the waves roll in", new MediaAspect(1280, 704), 5)
         {
@@ -161,7 +170,7 @@ public class OwnedVideoGenerationProviderTests
     public async Task EachStep_AndTheDecoding_AreShownOnTheActivity()
     {
         var activities = new FakeActivityManager();
-        var host = Filming(new Progress(0, FilmingStages.Filming, 1, 3), new Progress(0, FilmingStages.Decoding, 16, 31), new Filmed(0, [1]));
+        var host = Filming(new Progress(0, FilmingStages.Filming, 1, 3), new Progress(0, FilmingStages.Decoding, 16, 31), Frames(1280, 704, 1));
 
         await Provider(FastWan, Here(), host, activities).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5));
 
@@ -184,7 +193,7 @@ public class OwnedVideoGenerationProviderTests
     [TestMethod]
     public async Task OnA10GbCard_AClipIsMade_ItsPromptReadOnTheCpu_ItsDenoiserStreamed_ItsDecoderInTiles()
     {
-        var host = Filming(new Filmed(0, [1]));
+        var host = Filming(Frames(1280, 704, 1));
         host.Gpus = [new HostGpu(0, "NVIDIA GeForce RTX 3080", null, 10L << 30, (10L << 30) - (5L << 29), 9L << 30)];
 
         await Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5));

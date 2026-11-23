@@ -19,7 +19,7 @@ internal sealed class MossDrawing(ModelRegistry models, GpuScheduler gpu) : IDra
 
     public bool Draws(int width, int height) => MossSampler.Draws(width, height);
 
-    public bool Reads(int width, int height) => false;
+    public (int Width, int Height) ReadSize(int width, int height) => throw new NotSupportedException("MOSS-Image draws from a prompt alone.");
 
     public bool TakesNegativePrompts => true;
 

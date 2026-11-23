@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Nexaflow.Core.Services.Voice;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common.Audio;
+using Nexaflow.Media.Audio;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Core.Services.Generation;

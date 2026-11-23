@@ -2,7 +2,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
 using Nexaflow.AiHost.Sampling;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Drawing;
 
@@ -22,7 +22,7 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
 
     public bool Draws(int width, int height) => HiDreamSampler.Draws(width, height);
 
-    public bool Reads(int width, int height) => HiDreamSampler.Reads(width, height);
+    public (int Width, int Height) ReadSize(int width, int height) => HiDreamSampler.ReadSize(width, height);
 
     public bool TakesNegativePrompts => false;
 
@@ -48,7 +48,7 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
                 foreach (var (rgb, width, height) in references)
                 {
                     var (readWidth, readHeight) = HiDreamSampler.ConditionSize(width, height);
-                    var read = PictureResampling.ResizeAsPil(rgb, width, height, 3, readWidth, readHeight, PilFilter.Lanczos);
+                    var read = ReferenceResampling.ResizeAsPil(rgb, width, height, 3, readWidth, readHeight, PilFilter.Lanczos);
                     using (await lane.NextAsync(model.Parts[DrawingParts.PictureReader].Device, ct))
                     {
                         ct.ThrowIfCancellationRequested();

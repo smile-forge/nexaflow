@@ -6,6 +6,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common.Audio;
+using Nexaflow.Media.Audio;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Core.Services.LocalAi;

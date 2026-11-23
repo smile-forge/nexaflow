@@ -2,6 +2,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Drawing;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -64,7 +65,7 @@ public class KleinModelTests
         var (client, _) = Host();
         var replies = new List<HostReply>();
         await foreach (var reply in client.SendAsync(draw, TimeSpan.FromMinutes(5))) replies.Add(reply);
-        var png = replies.OfType<Drawn>().Single().Png;
+        var png = replies.OfType<Drawn>().Single().AsPng();
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, name);
         File.WriteAllBytes(saved, png);
         TestContext.AddResultFile(saved);   // to look at: the test checks its shape, a person checks what it shows
@@ -122,17 +123,19 @@ public class KleinModelTests
 
     [TestMethod]
     [Timeout(600_000, CooperativeCancellation = true)]
-    public async Task APicture_IsChangedByAnInstruction_AtItsOwnSize()
+    public async Task APicture_IsChangedByAnInstruction_AtTheSizeTheModelReadsIt()
     {
         var (_, model) = Host();
         var (_, source) = await DrawAsync(id => new Draw(id, model, "A red-brick café on a street corner, morning light.", 1024, 768, 3, RequestPriority.Job),
                                           "edit-source-klein.png");
+        // Sent at twice the size the model reads it at: the host brings it within the megapixel itself.
+        var large = ReferenceResampling.ResizeLanczos(source.Rgb, 1024, 768, 3, 2048, 1536);
 
-        var (_, edited) = await DrawAsync(id => new Draw(id, model, "Make it night time, the street lamps lit.", 1024, 768, 4, RequestPriority.Job)
-                                                { Sources = [new DrawingSource(1024, 768, source.Rgb)] },
+        var (_, edited) = await DrawAsync(id => new Draw(id, model, "Make it night time, the street lamps lit.", 0, 0, 4, RequestPriority.Job)
+                                                { Sources = [new DrawingSource(2048, 1536, large)] },
                                           "edited-night-klein.png");
 
-        Assert.AreEqual((1024, 768), (edited.Width, edited.Height));
+        Assert.AreEqual((1168, 880), (edited.Width, edited.Height), "2048x1536 at its proportions within a megapixel, each side cut to 16");
         AssertAPicture(edited);
         Assert.IsTrue(Mean(edited.Rgb) < Mean(source.Rgb) - 10, "night is darker than morning");
     }
@@ -150,7 +153,7 @@ public class KleinModelTests
             for (int x = 256; x < 512; x++)
                 mask[y * width + x] = 255;
 
-        var (_, filled) = await DrawAsync(id => new Draw(id, model, "a slice of chocolate cake", width, height, 6, RequestPriority.Job)
+        var (_, filled) = await DrawAsync(id => new Draw(id, model, "a slice of chocolate cake", 0, 0, 6, RequestPriority.Job)
                                                 { Sources = [new DrawingSource(width, height, source.Rgb)], Mask = mask },
                                           "filled-cake-klein.png");
 
