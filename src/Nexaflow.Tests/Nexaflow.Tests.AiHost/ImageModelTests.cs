@@ -2,6 +2,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Drawing;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -16,21 +17,17 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("owned-images")]
 public class ImageModelTests
 {
+    /// <summary>The model, as the catalog names it: the host draws with its parts where it places them.</summary>
+    private const string Model = "z-image-turbo";
+
     private static AiHostClient? _client;
-    private static DrawingModel? _model;
 
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        _client = await TestStore.HostAsync();
-        _model = new DrawingModel(DrawingMethod.ZImage, new Dictionary<string, ModelSpec>
-        {
-            [DrawingParts.PromptEncoder] = TestStore.Spec("z-image-turbo", DrawingParts.PromptEncoder, 0, 5L << 30),
-            [DrawingParts.Denoiser]      = TestStore.Spec("z-image-turbo", DrawingParts.Denoiser, 0, 10L << 30),
-            [DrawingParts.Decoder]       = TestStore.Spec("z-image-turbo", DrawingParts.Decoder, 0, 6L << 30),
-        }, Steps: 9, Shift: 3f, Guidance: 0f);
+    _client = await TestStore.HostAsync();
     }
 
     [ClassCleanup]
@@ -39,10 +36,10 @@ public class ImageModelTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, DrawingModel Model) Host()
+    private static (AiHostClient Client, string Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing());
-        return (_client, _model);
+        if (_client is null) Assert.Inconclusive(TestStore.Missing());
+        return (_client, Model);
     }
 
     [TestMethod]
@@ -72,30 +69,29 @@ public class ImageModelTests
 
     /// <summary>The same prompt and seed drawn with the denoiser whole and streamed — its weights in this machine's memory, brought
     /// to the GPU a group at a time — where its folder holds the streamed build: the two pictures are one, to the rounding of fp16
-    /// arithmetic done in another order.</summary>
+    /// arithmetic done in another order. Drawn by the host's own drawing method in this process (<see cref="InProcessHost"/>), each
+    /// denoiser placed by the test: a host's plan streams it only where its GPU lacks the room for it whole.</summary>
     [TestMethod]
     [Timeout(900_000, CooperativeCancellation = true)]
     [CoversNode("owned-images-streamed")]
     public async Task AStreamedDenoiser_DrawsThePictureTheWholeOneDraws()
     {
-        var (client, model) = Host();
+        _ = Host();
+        using var host = InProcessHost.OnTheGpu();
+        var model = TestStore.DrawingModelOf(Model);
         var denoiser = model.Parts[DrawingParts.Denoiser];
         if (!File.Exists(TestStore.PathOf($"{denoiser.Folder}/denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
         var streamed = model with
         {
             Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 5L << 30 } },
         };
+        var drawing = new ZImageDrawing(host.Models, host.Scheduler);
 
-        async Task<PngReader.Picture> Draw(DrawingModel drawing)
-        {
-            await foreach (var reply in client.SendAsync(id => new Draw(id, drawing, "A red fox asleep in the snow, watercolour.", 1024, 1024, 7, RequestPriority.Job),
-                                                         TimeSpan.FromMinutes(5)))
-                if (reply is Drawn drawn) return PngReader.Read(drawn.AsPng());
-            throw new AssertFailedException("nothing was drawn");
-        }
+        Task<PngReader.Picture> Draw(DrawingModel drawn)
+            => host.DrawAsync(drawing, new Draw(1, Model, "A red fox asleep in the snow, watercolour.", 1024, 1024, 7, RequestPriority.Job), drawn);
 
         PngReader.Picture whole, stream;
-        
+
         long streamedPeak, wholePeak;
         using (var watch = GpuMemoryWatch.Start()) { stream = await Draw(streamed); streamedPeak = watch.PeakBytes; }
         using (var watch = GpuMemoryWatch.Start()) { whole = await Draw(model); wholePeak = watch.PeakBytes; }

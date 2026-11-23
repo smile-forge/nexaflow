@@ -27,8 +27,13 @@ public class PhonemizerReadBackTests
 {
     private const int Sentences = 100;
 
+    /// <summary>The speech-to-text model of the catalog that hears the sentences back.</summary>
+    private const string Listener = "nemotron-whisper-turbo";
+
     private static AiHostClient? _client;
-    private static ListenModels? _models;
+
+    /// <summary>The listener's parts, held for the class's requests as dictation holds them.</summary>
+    private static HostHold? _hold;
     private static string _lexicons = "";
 
     [ClassInitialize]
@@ -38,15 +43,14 @@ public class PhonemizerReadBackTests
         _client = await TestStore.HostOnEitherAsync();
         if (_client is null) return;
         _lexicons = lexicons;
-        // On the first GPU when the host runs from the pack; on the CPU without.
-        _models = TestStore.ListenModelsOf("nemotron-whisper-turbo", _client.Environment.Cuda);
-        foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector! })
-            await foreach (var _ in _client.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
+        // Held where the host places them: on the GPU when it runs from the pack, on the CPU without.
+        _hold = await TestStore.HoldPlacedAsync(_client, TestStore.HeldPartsOf(Listener, _client.Environment.Cuda), RequestPriority.Voice);
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
+        if (_hold is not null) await _hold.DisposeAsync();
         if (_client is not null) await _client.DisposeAsync();
     }
 
@@ -97,7 +101,7 @@ public class PhonemizerReadBackTests
         var wave = kokoro.Tokenize(phonemes).SelectMany(piece => kokoro.Synthesize(piece, voice, 1f)).ToArray();
         byte[] pcm = new PcmResampler(KokoroSynthesizer.SampleRate, 16_000).Convert(Pcm16.FromSamples(wave));
 
-        await using var stream = await _client!.OpenStreamAsync(id => new Listen(id, _models!, language, UtteranceEnd.Pause, RequestPriority.Voice), TimeSpan.FromMinutes(1));
+        await using var stream = await _client!.OpenStreamAsync(id => new Listen(id, Listener, language, UtteranceEnd.Pause, RequestPriority.Voice), TimeSpan.FromMinutes(1));
         var reading = Task.Run(async () =>
         {
             var finals = new List<string>();

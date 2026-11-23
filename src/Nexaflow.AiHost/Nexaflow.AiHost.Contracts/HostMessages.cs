@@ -27,9 +27,10 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(Progress), "progress")]
 [JsonDerivedType(typeof(Completed), "completed")]
 [JsonDerivedType(typeof(Failed), "failed")]
-[JsonDerivedType(typeof(LoadModel), "load")]
-[JsonDerivedType(typeof(ModelLoaded), "loaded")]
-[JsonDerivedType(typeof(UnloadModel), "unload")]
+[JsonDerivedType(typeof(HoldModels), "hold-models")]
+[JsonDerivedType(typeof(ModelsPlaced), "models-placed")]
+[JsonDerivedType(typeof(ModelsAway), "models-away")]
+[JsonDerivedType(typeof(ModelsBack), "models-back")]
 [JsonDerivedType(typeof(Generate), "generate")]
 [JsonDerivedType(typeof(TextDelta), "delta")]
 [JsonDerivedType(typeof(ReasoningDelta), "reasoning-delta")]
@@ -45,7 +46,6 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(SpokenSegmentEnd), "spoken-end")]
 [JsonDerivedType(typeof(Draw), "draw")]
 [JsonDerivedType(typeof(Drawn), "drawn")]
-[JsonDerivedType(typeof(MadeWay), "made-way")]
 [JsonDerivedType(typeof(Film), "film")]
 [JsonDerivedType(typeof(FilmedFrames), "filmed-frames")]
 [JsonDerivedType(typeof(RestorePicture), "restore-picture")]
@@ -152,10 +152,13 @@ public sealed record Failed(long RequestId, HostErrorKind Kind, string Message) 
 /// <summary>What the host is and what it can run on: its runtime and the execution providers that loaded.</summary>
 public sealed record DescribeHost(long RequestId) : HostRequest(RequestId);
 
-/// <param name="RuntimePack">The pack the runtime was loaded from, or null for the install's CPU runtime.</param>
+/// <param name="RuntimePack">The id of the pack the runtime was loaded from, or null for the install's CPU runtime.</param>
 /// <param name="Gpus">The GPUs models can run on — none without the pack.</param>
+/// <param name="Held">Where every held part runs, whoever holds it (<see cref="HoldModels"/>).</param>
+/// <param name="Unplaced">The held parts placed nowhere, and why.</param>
 public sealed record HostDescription(long RequestId, string RuntimeVersion, IReadOnlyList<string> ExecutionProviders,
-                                     string? RuntimePack, IReadOnlyList<HostGpu> Gpus, HostMemory? Memory = null) : HostReply(RequestId);
+                                     string? RuntimePack, IReadOnlyList<HostGpu> Gpus, HostMemory? Memory = null,
+                                     IReadOnlyList<PartPlacement>? Held = null, IReadOnlyList<PartUnplaced>? Unplaced = null) : HostReply(RequestId);
 
 /// <summary>A GPU the host runs models on.</summary>
 /// <param name="Device">Its number — CUDA's own order, which llama.cpp and ONNX Runtime both count in.</param>

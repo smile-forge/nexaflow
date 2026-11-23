@@ -5,8 +5,8 @@ using Nexaflow.AiHost.Provisioning;
 
 // An app that is not Nexaflow, running a language model of the AI host's catalog through the SDK alone. It starts a private host,
 // asks it for the model's files — the host fetches them into its store, which it alone keeps — and, on the machine's first NVIDIA
-// card where the CUDA pack suits it, for that too; then it asks one question at background priority, as an app thinking for itself
-// would, and writes the reply as it comes.
+// card where the CUDA pack suits it, for that too; then it holds the model's chat part — the host placing it beside whatever else it
+// holds — asks one question at background priority, as an app thinking for itself would, writes the reply as it comes, and lets go.
 //
 //   Nexaflow.AiHost.Sample --host <Nexaflow.AiHost.exe> [--model <catalog id>] [--store <folder>] [--prompt <text>]
 
@@ -37,11 +37,16 @@ if (files.Any(f => !store.Has(f)))
 }
 host.Environment = onGpu ? AiHostEnvironment.OnCuda : AiHostEnvironment.Cpu;
 
-const int context = 4096;
-var part = entry.Part(HostedRoles.Chat, runtime);
-var model = new ModelSpec(entry.Id, part.Runner, part.Folder, part.File, part.Adapter, part.MemoryBytes + part.BytesPerToken * context, context,
-                          Device: onGpu ? 0 : null, Projector: part.Projector);
-Console.Error.WriteLine(onGpu ? $"running {entry.DisplayName} on {machine.Cards[0].Name}" : $"running {entry.DisplayName} on the CPU");
+var model = new ModelRef(entry.Id, entry.Part(HostedRoles.Chat, runtime).Name);
+await using var hold = await new HostHolds(host).HoldAsync([model], RequestPriority.Background, new Progress<string>(stage => Console.Error.WriteLine(stage)));
+if (hold.PlacementOf(model) is not { } placed)
+{
+    Console.Error.WriteLine($"{entry.DisplayName} could not be held: {hold.WhyUnplaced(model)}");
+    return 1;
+}
+Console.Error.WriteLine(placed.Device is { } device
+    ? $"running {entry.DisplayName} on GPU {device}, with {placed.ContextTokens:N0} tokens of context"
+    : $"running {entry.DisplayName} on the CPU, with {placed.ContextTokens:N0} tokens of context");
 
 int written = 0;
 await foreach (var reply in host.SendAsync(id => new Generate(id, model, [new ChatTurn(TurnRole.User, prompt)], 128, RequestPriority.Background),

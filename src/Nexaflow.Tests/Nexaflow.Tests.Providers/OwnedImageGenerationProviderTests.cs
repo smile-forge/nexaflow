@@ -13,7 +13,7 @@ using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.Providers;
 
-/// <summary>"Nexaflow" drawing: Z-Image Turbo run in the AI host, its three parts loaded for a picture and its steps shown;
+/// <summary>"Nexaflow" drawing: Z-Image Turbo run in the AI host, named to it by its catalog id and its steps shown;
 /// MOSS-Image, with a negative prompt and its LoRAs.</summary>
 [TestClass]
 public class OwnedImageGenerationProviderTests
@@ -25,7 +25,7 @@ public class OwnedImageGenerationProviderTests
     private static MachineCards Amd() => MachineCards.None;
 
     private static OwnedImageGenerationProvider Provider(FakeModelStore store, FakeAiHost host, FakeActivityManager? activities = null)
-        => new(activities ?? new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia(), new ProviderModel(ModelId));
+        => new(activities ?? new FakeActivityManager(), store, host, new HostHolds(host), Nvidia(), new ProviderModel(ModelId));
 
     /// <summary>The model's files and the CUDA pack it runs from.</summary>
     private static FakeModelStore Here() => new([.. Files, .. CudaRuntimePack.Files]);
@@ -60,7 +60,7 @@ public class OwnedImageGenerationProviderTests
     public void EachCard_ListsThePictureModelsItHolds(int gigabytes, string[] listed)
     {
         var card = new MachineCards([new MachineCard("gpu", (long)gigabytes << 30)], CudaRuntimePack.MinimumDriver);
-        var provider = new OwnedImageGenerationProvider(new FakeActivityManager(), new FakeModelStore(), new FakeAiHost(), new HostModelSetup(new FakeAiHost()), card, new ProviderModel(ModelId));
+        var provider = new OwnedImageGenerationProvider(new FakeActivityManager(), new FakeModelStore(), new FakeAiHost(), new HostHolds(new FakeAiHost()), card, new ProviderModel(ModelId));
 
         CollectionAssert.AreEqual(listed, provider.Catalog.Select(m => m.Id).ToArray());
     }
@@ -69,7 +69,7 @@ public class OwnedImageGenerationProviderTests
     public void OnAMachineWithoutCuda_ThereIsNoModelToDraw()
     {
         var host = new FakeAiHost();
-        var provider = new OwnedImageGenerationProvider(new FakeActivityManager(), new FakeModelStore(Files), host, new HostModelSetup(host), Amd(), new ProviderModel(ModelId));
+        var provider = new OwnedImageGenerationProvider(new FakeActivityManager(), new FakeModelStore(Files), host, new HostHolds(host), Amd(), new ProviderModel(ModelId));
 
         Assert.AreEqual(0, provider.Catalog.Count, "the model is built for CUDA alone");
         Assert.IsFalse(provider.IsAvailable, "even with its files here, nothing of it runs on this machine");
@@ -86,7 +86,7 @@ public class OwnedImageGenerationProviderTests
     }
 
     [TestMethod]
-    public async Task APicture_IsDrawnInTheHost_AtTheJobPriority_WithItsThreePartsAndSampler()
+    public async Task APicture_IsDrawnInTheHost_AtTheJobPriority_ByItsCatalogId()
     {
         var host = Drawing(new Drawn(0, 2, 1, SharedBytes.Of([10, 20, 30, 40, 50, 60])));
 
@@ -94,12 +94,9 @@ public class OwnedImageGenerationProviderTests
 
         var draw = (Draw)host.Requests.Single();
         Assert.AreEqual((RequestPriority.Job, "a fox", 1344, 768), (draw.Priority, draw.Prompt, draw.Width, draw.Height));
-        var parts = draw.Model.Parts;
-        Assert.AreEqual(("z-image-prompt-encoder", "z-image-denoiser", "z-image-decoder"),
-                        (parts[DrawingParts.PromptEncoder].Runner, parts[DrawingParts.Denoiser].Runner, parts[DrawingParts.Decoder].Runner));
-        Assert.AreEqual((DrawingMethod.ZImage, 9, 3f, 0f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
-        StringAssert.StartsWith(parts[DrawingParts.Denoiser].Folder, "models/z-image-turbo/", "the folder is the store's name for it: where it lies is the host's to know");
-        Assert.AreEqual(0, parts[DrawingParts.Denoiser].Device, "on the GPU the host found");
+        Assert.AreEqual(ModelId, draw.Model, "the model by the catalog's id: its parts, its sampler and where each runs are the host's to take from it");
+        Assert.IsTrue(host.Environment.Cuda, "the host runs from the pack");
+        Assert.AreEqual(0, host.Holds.Count, "a picture's parts are loaded by the host for it, not held beside the resident models");
         CollectionAssert.AreEqual(new byte[] { 10, 20, 30, 40, 50, 60 }, PngReader.Read(made.Media.Bytes).Rgb, "the host's pixels, as a PNG");
         Assert.AreEqual("image/png", made.Media.MimeType);
     }
@@ -157,15 +154,17 @@ public class OwnedImageGenerationProviderTests
     }
 
     [TestMethod]
-    public async Task OnAGpuTooSmallForItsLargestPart_NoPictureIsDrawn()
+    public async Task APictureAskedBeforeTheModelIsHere_IsRefused_BeforeTheHostIsAsked()
     {
-        var host = new FakeAiHost { Gpus = [new HostGpu(0, "NVIDIA GeForce GTX 1080", null, 8L << 30, 6L << 30, 7L << 30)] };
+        var host = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
+        var store = new FakeModelStore(CudaRuntimePack.Files);
 
         var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
-            Provider(Here(), host).GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1))));
+            Provider(store, host).GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1))));
 
-        StringAssert.Contains(ex.Message, "more than any GPU here has for local models");
-        Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host that could not hold it");
+        StringAssert.Contains(ex.Message, "is not on this machine yet");
+        Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host without the model");
+        Assert.AreEqual(0, store.Fetched.Count, "a download is the user's to start");
     }
 
     [TestMethod]
@@ -187,7 +186,7 @@ public class OwnedImageGenerationProviderTests
     }
 
     private static OwnedImageGenerationProvider Moss(FakeModelStore store, FakeAiHost host)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia(), new ProviderModel("moss-image"));
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), Nvidia(), new ProviderModel("moss-image"));
 
     /// <summary>MOSS-Image's files and the CUDA pack — none of its LoRAs.</summary>
     private static FakeModelStore MossHere() =>
@@ -212,31 +211,44 @@ public class OwnedImageGenerationProviderTests
     {
         var store = MossHere();
         var host = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
+        var drawing = host.Reply;
+        int fetchedBeforeTheDraw = -1;
+        host.Reply = (r, attempt) =>
+        {
+            if (r is Draw) fetchedBeforeTheDraw = store.Fetched.Count;
+            return drawing(r, attempt);
+        };
         var provider = Moss(store, host);
         Assert.IsTrue(provider.IsAvailable, "the model is here with none of its LoRAs");
 
         await provider.GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1)) { Lora = "moss-anime", NegativePrompt = "people" });
 
         var draw = (Draw)host.Requests.Single();
-        Assert.AreEqual((DrawingMethod.MossImage, 50, 5f, 3f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
+        Assert.AreEqual("moss-image", draw.Model);
         Assert.AreEqual(("moss_seinen_style, a fox", "people"), (draw.Prompt, draw.NegativePrompt));
-        Assert.AreEqual(("models/moss-image/loras/moss-anime.onnx_adapter", 1f, (string?)null),
-                        (draw.Lora!.Adapter, draw.Lora.Strength, draw.Lora.Sampler));
+        Assert.AreEqual(new DrawingLora("moss-anime", 1f), draw.Lora, "the LoRA by the catalog's id, at the strength its makers trained it: its adapter is the host's to find");
         CollectionAssert.AreEqual(new[] { "models/moss-image/loras/moss-anime.onnx_adapter" }, store.Fetched.Single().Select(f => f.RelativePath).ToArray(),
                                   "only the LoRA asked for is fetched");
+        Assert.AreEqual(1, fetchedBeforeTheDraw, "its files are here before the host is asked to draw with it");
     }
 
     [TestMethod]
-    public async Task TheDistillation_BringsItsOwnSampler_AndIsDrawnWithNoNegativePrompt()
+    public async Task TheDistillation_IsFetchedWithItsSampler_AndIsDrawnWithNoNegativePrompt()
     {
+        var store = MossHere();
         var host = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
-        var provider = Moss(MossHere(), host);
+        var provider = Moss(store, host);
+        var fast = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "moss-image").Loras.Single(l => l.Id == "moss-fast-8step");
 
         await provider.GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1)) { Lora = "moss-fast-8step" });
 
         var draw = (Draw)host.Requests.Single();
         Assert.AreEqual(("a fox", (string?)null), (draw.Prompt, draw.NegativePrompt), "it has no trigger, and nothing was kept out");
-        Assert.AreEqual("models/moss-image/loras/moss-fast-8step.sampler.json", draw.Lora!.Sampler, "the LoRA's sampler, by its path in the store");
+        Assert.AreEqual(new DrawingLora("moss-fast-8step", fast.Strength), draw.Lora, "named by its id: the sampler it brings is the host's to read");
+        CollectionAssert.AreEquivalent(new[] { "models/moss-image/loras/moss-fast-8step.sampler.json" },
+                                       store.Fetched.Single().Select(f => f.RelativePath).Where(p => p.EndsWith(".json")).ToArray(),
+                                       "its sampler fetched with its adapter");
+        CollectionAssert.AreEquivalent(fast.Files.Select(f => f.RelativePath).ToArray(), store.Fetched.Single().Select(f => f.RelativePath).ToArray());
         await Assert.ThrowsExactlyAsync<ArgumentException>(() => provider.GenerateImageAsync(
             new ImageGenerationRequest("a fox", new(1, 1)) { Lora = "moss-fast-8step", NegativePrompt = "people" }), "it is told nothing to keep out");
         await Assert.ThrowsExactlyAsync<ArgumentException>(() => provider.GenerateImageAsync(
@@ -259,7 +271,7 @@ public class OwnedImageGenerationProviderTests
     private const string KleinId = "flux2-klein-4b";
 
     private static OwnedImageGenerationProvider Klein(FakeModelStore store, FakeAiHost host)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia(), new ProviderModel(KleinId));
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), Nvidia(), new ProviderModel(KleinId));
 
     /// <summary>FLUX.2 [klein]'s files and the CUDA pack.</summary>
     private static FakeModelStore KleinHere() =>
@@ -292,11 +304,10 @@ public class OwnedImageGenerationProviderTests
         var draw = (Draw)host.Requests.Single();
         Assert.AreEqual((0, 0), (draw.Width, draw.Height), "the host draws an edit at the size its model reads the first picture at");
         Assert.AreEqual((2000, 1000, 2000 * 1000 * 3), (draw.Sources.Single().Width, draw.Sources.Single().Height, draw.Sources.Single().Rgb.Length));
-        Assert.AreEqual((DrawingMethod.Flux2Klein, 4, 0f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift));
+        Assert.AreEqual(KleinId, draw.Model);
         Assert.AreEqual(2000 * 1000, draw.Mask!.Length);
         Assert.AreEqual(255, draw.Mask.Span[500 * 2000 + 100], "where the mask is transparent, drawn again");
         Assert.AreEqual(0, draw.Mask.Span[500 * 2000 + 1900], "where it is opaque, kept");
-        Assert.AreEqual("klein-picture-encoder", draw.Model.Parts[DrawingParts.PictureEncoder].Runner);
     }
 
     [TestMethod]

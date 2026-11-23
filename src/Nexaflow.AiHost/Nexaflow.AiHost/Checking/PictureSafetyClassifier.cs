@@ -4,6 +4,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
 using Nexaflow.AiHost.Speech;
 using Nexaflow.AiHost.Imaging;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.AiHost.Checking;
 

@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Erasing;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost.Erasing;
@@ -10,7 +11,8 @@ namespace Nexaflow.Tests.AiHost.Erasing;
 /// predict made of it, in fp32 (tools/ai-models/big-lama makes them). Each mask reaches near every corner, so the host
 /// works the whole picture as one region, as predict does.
 /// <para>
-/// The graph is big-lama's from the test store (<see cref="TestStore"/>), run on the CUDA pack there;
+/// The graph is big-lama's from the test store (<see cref="TestStore"/>), run by a host on the CUDA pack there, and on the CPU by the
+/// host's own handler in the test's process with no GPU to place it on (<see cref="InProcessHost"/>);
 /// <c>NEXAFLOW_TEST_LAMA_REFERENCE</c> names the reference set. Without both every test is inconclusive.
 /// </para>
 /// </summary>
@@ -23,6 +25,12 @@ public class PictureErasingTests
     /// <summary>How close, in dB, the filled pixels are to predict's: past 50, the two differ only where a value truncates the
     /// other way.</summary>
     private const double Agreement = 50;
+
+    /// <summary>The erasing tool, as the catalog names it.</summary>
+    private const string Tool = "big-lama";
+
+    /// <summary>Its inpainter, as a hold names it.</summary>
+    private static readonly ModelRef Inpainter = new(Tool, ErasingParts.Inpainter);
 
     private static AiHostClient? _client;
     private static string? _reference;
@@ -42,29 +50,20 @@ public class PictureErasingTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static IReadOnlyDictionary<string, ModelSpec> Parts(int? device)
+    private static IEnumerable<(string Name, int Width, int Height)> Cases()
     {
         if (_client is null || _reference is null)
             Assert.Inconclusive($"{TestStore.Missing()} Or NEXAFLOW_TEST_LAMA_REFERENCE is not set.");
-        return new Dictionary<string, ModelSpec>
-        {
-            [ErasingParts.Inpainter] = TestStore.Spec("big-lama", ErasingParts.Inpainter, device, 4L << 30),
-        };
-    }
-
-    private static IEnumerable<(string Name, int Width, int Height)> Cases()
-    {
-        _ = Parts(0);   // inconclusive without the graph
         return JsonNode.Parse(File.ReadAllText(Path.Combine(_reference!, "reference.json")))!.AsObject()
             .Select(c => (c.Key, c.Value!["width"]!.GetValue<int>(), c.Value!["height"]!.GetValue<int>()));
     }
 
-    private async Task<(List<HostReply> Replies, byte[] Pixels)> EraseAsync(string name, int width, int height, int? device)
+    private async Task<(List<HostReply> Replies, byte[] Pixels)> EraseAsync(string name, int width, int height)
     {
         using var pixels = await _client!.ShareFileAsync(Path.Combine(_reference!, $"{name}.rgba"));
         using var mask = await _client.ShareFileAsync(Path.Combine(_reference!, $"{name}.mask"));
         var replies = new List<HostReply>();
-        await foreach (var reply in _client.SendAsync(id => new ErasePicture(id, Parts(device), pixels, mask, width, height, RequestPriority.Job),
+        await foreach (var reply in _client.SendAsync(id => new ErasePicture(id, Tool, pixels, mask, width, height, RequestPriority.Job),
                                                       TimeSpan.FromMinutes(5)))
             replies.Add(reply);
         using var erased = replies.OfType<PictureErased>().Single().Pixels;
@@ -106,9 +105,13 @@ public class PictureErasingTests
     [TestMethod]
     public async Task EachPicture_IsFilledAsLamasPredictFillsIt_OnTheGpu()
     {
-        foreach (var (name, width, height) in Cases())
+        var cases = Cases();
+        // Held, the inpainter runs where the host placed it for the hold: a GPU, where one has room for it.
+        await using var hold = await TestStore.HoldPlacedAsync(_client!, [Inpainter], RequestPriority.Job);
+        Assert.IsNotNull(hold.PlacementOf(Inpainter)!.Device, "the host placed the inpainter on a GPU");
+        foreach (var (name, width, height) in cases)
         {
-            var (replies, pixels) = await EraseAsync(name, width, height, device: 0);
+            var (replies, pixels) = await EraseAsync(name, width, height);
             Assert.AreEqual(1, replies.OfType<PictureErased>().Single().Regions, $"{name}: a mask reaching every corner is one region");
             Assert.IsTrue(replies.OfType<Progress>().Any(p => p.Stage == ErasingStages.Filling && p.Done == 1 && p.Total == 1), "the region is reported");
             AssertErasedAsPredictErases(name, pixels, "the GPU");
@@ -119,7 +122,11 @@ public class PictureErasingTests
     public async Task EachPicture_IsFilledTheSame_OnTheCpu()
     {
         var (name, width, height) = Cases().First();
-        var (_, pixels) = await EraseAsync(name, width, height, device: null);
-        AssertErasedAsPredictErases(name, pixels, "the CPU");
+        using var host = InProcessHost.OnTheCpu();
+        var request = new ErasePicture(1, Tool, SharedBytes.Of(File.ReadAllBytes(Path.Combine(_reference!, $"{name}.rgba"))),
+                                       SharedBytes.Of(File.ReadAllBytes(Path.Combine(_reference!, $"{name}.mask"))), width, height, RequestPriority.Job);
+        var replies = await InProcessHost.RunAsync(new EraseHandler(host.Held, host.Scheduler), request);
+        using var erased = replies.OfType<PictureErased>().Single().Pixels;
+        AssertErasedAsPredictErases(name, erased.ToArray(), "the CPU");
     }
 }

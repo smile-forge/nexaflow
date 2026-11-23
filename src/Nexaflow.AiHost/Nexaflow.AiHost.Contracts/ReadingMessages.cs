@@ -16,9 +16,9 @@ public static class ReadingParts
 /// be asked of every picture shown. The picture goes as <see cref="RestorePicture"/>'s does; one <see cref="TextFoundInPicture"/>
 /// answers.
 /// </summary>
-/// <param name="Finder">The <see cref="ReadingParts.TextFinder"/>.</param>
+/// <param name="Tool">The page-reading tool, as the catalog names it: the host runs its <see cref="ReadingParts.TextFinder"/>.</param>
 /// <param name="Pixels">The picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA, row by row.</param>
-public sealed record FindTextInPicture(long RequestId, ModelSpec Finder, SharedBytes Pixels, int Width, int Height) : HostRequest(RequestId);
+public sealed record FindTextInPicture(long RequestId, string Tool, SharedBytes Pixels, int Width, int Height) : HostRequest(RequestId);
 
 /// <summary>Where the picture holds writing — each region of text found, none for a picture without.</summary>
 public sealed record TextFoundInPicture(long RequestId, IReadOnlyList<TextRegion> Regions) : HostReply(RequestId);

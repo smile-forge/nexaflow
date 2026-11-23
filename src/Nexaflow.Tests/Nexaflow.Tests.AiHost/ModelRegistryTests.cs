@@ -2,6 +2,7 @@ using Nexaflow.AiHost;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -103,13 +104,18 @@ public class ModelRegistryTests
         var (registry, runner) = Registry();
         (await registry.AcquireAsync(Spec("chat", 6), resident: true, Quiet, default)).Dispose();
 
-        var told = new List<string>();
-        using (var room = registry.BorrowRoom(ids => { told.AddRange(ids); return Task.CompletedTask; }))
+        var away = new List<string>();
+        var back = new List<string>();
+        registry.PartsAway += ids => { lock (away) away.AddRange(ids); };
+        registry.PartBack += id => { lock (back) back.Add(id); };
+        using (var room = registry.BorrowRoom())
         using (await registry.AcquireAsync(Spec("denoiser", 9), resident: false, Quiet, default, room))
             CollectionAssert.AreEqual(new[] { "chat", "denoiser" }, runner.Loads.ToArray(), "the chat model made way");
-        CollectionAssert.AreEqual(new[] { "chat" }, told, "whoever draws hears which residents made way");
+        CollectionAssert.AreEqual(new[] { "chat" }, away, "the residents that made way are told of, for whoever holds them");
 
         await WaitFor(() => runner.Loads.Count(id => id == "chat") == 2);
+        await WaitFor(() => { lock (back) return back.Count == 1; });
+        CollectionAssert.AreEqual(new[] { "chat" }, back, "and told of again once they are loaded again");
         using var chat = await registry.AcquireAsync(Spec("chat", 6), resident: true, Quiet, default);
         Assert.AreEqual(2, runner.Loads.Count(id => id == "chat"), "loaded again after the picture, and held from then on");
     }

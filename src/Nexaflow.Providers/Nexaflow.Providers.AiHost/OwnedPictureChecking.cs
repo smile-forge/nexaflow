@@ -17,8 +17,8 @@ public sealed record PictureVerdict(float Gore, float Sexual, float Neither);
 /// </summary>
 public sealed class OwnedPictureChecking : OwnedToolFront
 {
-    public OwnedPictureChecking(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureChecking))
+    public OwnedPictureChecking(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds, MachineCards hardware)
+        : this(new OwnedModelRuntime(activities, assets, host, holds, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureChecking))
     {
     }
 
@@ -36,9 +36,9 @@ public sealed class OwnedPictureChecking : OwnedToolFront
             RgbPicture rgb;
             try { rgb = PictureDecoder.DecodeRgb(picture); }
             catch (InvalidDataException ex) { throw new InvalidOperationException($"The picture to check could not be read: {ex.Message}", ex); }
-            var parts = await PlacedAsync([CheckingParts.SafetyClassifier], ct);
+            var tool = ToolId();
             using var shared = await Owned.Host.ShareAsync(rgb.Rgb, ct);
-            await foreach (var reply in Owned.Host.SendAsync(id => new CheckPicture(id, parts[CheckingParts.SafetyClassifier], rgb.Width, rgb.Height, shared),
+            await foreach (var reply in Owned.Host.SendAsync(id => new CheckPicture(id, tool, rgb.Width, rgb.Height, shared),
                                                              OwnedModelRuntime.StallLimit, ct))
                 if (reply is PictureChecked checkedOne) return new PictureVerdict(checkedOne.Gore, checkedOne.Sexual, checkedOne.Neither);
             throw new InvalidOperationException("The AI host finished without its verdict on the picture.");

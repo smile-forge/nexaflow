@@ -11,20 +11,20 @@ namespace Nexaflow.AiHost.Selecting;
 /// registry for each answer and given back after it, so a page open on a picture holds the GPU only while it is asking;
 /// what was read stays in the host's memory for as long as the request does.
 /// </summary>
-internal sealed class SelectHandler(ModelRegistry models, GpuScheduler gpu) : HostStreamHandler<SelectInPicture>
+internal sealed class SelectHandler(HeldModels models, GpuScheduler gpu) : HostStreamHandler<SelectInPicture>
 {
     protected override async Task HandleAsync(SelectInPicture request, Func<HostReply, Task> reply, ChannelReader<RequestInput> input, CancellationToken ct)
     {
         Validate(request);
+        models.ToolOf(request.Tool);   // a tool the catalog does not name is refused before the picture is read
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
         var image = PictureSelecting.Prepare(request.Pixels.Span, request.Width, request.Height);
         RequestSections.Done(request.Pixels);
         PictureFeatures features;
-        using (var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids))))
+        using (var room = models.BorrowRoom())
         {
-            var spec = request.Parts[SelectingParts.ImageEncoder];
-            using var lease = await models.AcquireAsync(spec, resident: false, Stage, ct, room);
-            using (await gpu.NextAsync(request.Priority, spec.Device, ct))
+            using var lease = await models.AcquireAsync(models.ToolPart(request.Tool, SelectingParts.ImageEncoder), Stage, ct, room);
+            using (await gpu.NextAsync(request.Priority, lease.Model.Spec.Device, ct))
             {
                 ct.ThrowIfCancellationRequested();
                 features = lease.As<PictureEncoder>().Encode(image);
@@ -55,11 +55,10 @@ internal sealed class SelectHandler(ModelRegistry models, GpuScheduler gpu) : Ho
 
         float[] masks, ious;
         float objectScore;
-        using (var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids))))
+        using (var room = models.BorrowRoom())
         {
-            var spec = request.Parts[SelectingParts.ClickDecoder];
-            using var lease = await models.AcquireAsync(spec, resident: false, s => reply(new Progress(request.RequestId, s, 0, 0)), ct, room);
-            using (await gpu.NextAsync(request.Priority, spec.Device, ct))
+            using var lease = await models.AcquireAsync(models.ToolPart(request.Tool, SelectingParts.ClickDecoder), s => reply(new Progress(request.RequestId, s, 0, 0)), ct, room);
+            using (await gpu.NextAsync(request.Priority, lease.Model.Spec.Device, ct))
                 (masks, ious, objectScore) = lease.As<ClickDecoder>().Decode(features, points, labels);
         }
 
@@ -88,28 +87,25 @@ internal sealed class SelectHandler(ModelRegistry models, GpuScheduler gpu) : Ho
         float[] logits, boxes, low;
         float presence;
         Func<string, Task> stage = s => reply(new Progress(request.RequestId, s, 0, 0));
-        using (var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids))))
+        using (var room = models.BorrowRoom())
         {
-            var textSpec = request.Parts[SelectingParts.TextEncoder];
             float[] text;
             bool[] padding;
-            using (var lease = await models.AcquireAsync(textSpec, resident: false, stage, ct, room))
-            using (await gpu.NextAsync(request.Priority, textSpec.Device, ct))
+            using (var lease = await models.AcquireAsync(models.ToolPart(request.Tool, SelectingParts.TextEncoder), stage, ct, room))
+            using (await gpu.NextAsync(request.Priority, lease.Model.Spec.Device, ct))
                 (text, padding) = lease.As<TextEncoder>().Encode(phrase);
 
             float[] exampleTokens = [];
             if (ask.Examples.Count > 0)
             {
                 var (exampleBoxes, exampleLabels) = PictureSelecting.Examples(ask.Examples, request.Width, request.Height);
-                var exemplarSpec = request.Parts[SelectingParts.ExemplarEncoder];
-                using var lease = await models.AcquireAsync(exemplarSpec, resident: false, stage, ct, room);
-                using (await gpu.NextAsync(request.Priority, exemplarSpec.Device, ct))
+                using var lease = await models.AcquireAsync(models.ToolPart(request.Tool, SelectingParts.ExemplarEncoder), stage, ct, room);
+                using (await gpu.NextAsync(request.Priority, lease.Model.Spec.Device, ct))
                     exampleTokens = lease.As<ExemplarEncoder>().Encode(features, exampleBoxes, exampleLabels);
             }
 
-            var finderSpec = request.Parts[SelectingParts.Finder];
-            using (var lease = await models.AcquireAsync(finderSpec, resident: false, stage, ct, room))
-            using (await gpu.NextAsync(request.Priority, finderSpec.Device, ct))
+            using (var lease = await models.AcquireAsync(models.ToolPart(request.Tool, SelectingParts.Finder), stage, ct, room))
+            using (await gpu.NextAsync(request.Priority, lease.Model.Spec.Device, ct))
                 (logits, presence, boxes, low) = lease.As<Finder>().Find(features, text, padding, exampleTokens);
         }
 
@@ -128,10 +124,7 @@ internal sealed class SelectHandler(ModelRegistry models, GpuScheduler gpu) : Ho
     }
 
     private static void Validate(SelectInPicture request)
-    {
-        foreach (var role in SelectingParts.All)
-            if (!request.Parts.ContainsKey(role)) throw new HostRequestException(HostErrorKind.Invalid, $"A selection needs its {role}.");
-        if (request.Width <= 0 || request.Height <= 0 || (long)request.Width * request.Height > SelectInPicture.MostPixels)
+    {        if (request.Width <= 0 || request.Height <= 0 || (long)request.Width * request.Height > SelectInPicture.MostPixels)
             throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not one a selection reads.");
         if (request.Pixels.Length != (long)request.Width * request.Height * 4)
             throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not {request.Pixels.Length} bytes of RGBA.");

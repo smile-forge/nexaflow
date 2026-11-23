@@ -56,27 +56,29 @@ internal static class HostProgram
                 ? share : AiHostProtocol.DefaultMemoryShare;
             using var runtime = new ExecutionRuntime(log, memoryShare);
             using var models  = new ModelRegistry(runtime, ModelAdapters.Default, ModelRunners.Default, log, store, runtime.Memory);
+            using var held    = new HeldModels(models, store, NativeRuntime.Pack is null ? Catalog.HostCatalog.Cpu : Catalog.HostCatalog.Cuda,
+                                               runtime.GpusNow, runtime.Memory, log);
+            var requests  = new RequestModels(held);
             var scheduler = new GpuScheduler();
             var server = new HostServer(channel, log,
             [
-                new DescribeHostHandler(runtime),
+            new DescribeHostHandler(runtime, held),
                 new Store.DescribeModelStoreHandler(store),
                 new Store.FetchModelFilesHandler(store),
                 new Store.RemoveModelFilesHandler(store),
-                new LoadModelHandler(models),
-                new UnloadModelHandler(models),
-                new GenerateHandler(models, scheduler),
-                new ListenHandler(models, scheduler),
-                new SpeakHandler(models, scheduler, new SpeechPhonemizers()),
-                new DrawHandler(models, [new ZImageDrawing(models, scheduler), new HiDreamDrawing(models, scheduler), new MossDrawing(models, scheduler), new KleinDrawing(models, scheduler),
+                new HoldModelsHandler(held),
+                new GenerateHandler(models, held, scheduler),
+                new ListenHandler(models, requests, scheduler),
+                new SpeakHandler(models, requests, scheduler, new SpeechPhonemizers()),
+                new DrawHandler(models, requests, [new ZImageDrawing(models, scheduler), new HiDreamDrawing(models, scheduler), new MossDrawing(models, scheduler), new KleinDrawing(models, scheduler),
                                                          new QwenEditDrawing(models, scheduler)]),
-                new FilmHandler(models, [new WanFilming(models, scheduler)]),
-                new RestoreHandler(models, scheduler),
-                new SelectHandler(models, scheduler),
-                new FindTextHandler(models),
-                new Erasing.EraseHandler(models, scheduler),
-                new Checking.CheckPictureHandler(models),
-            new SceneDepth.SceneDepthHandler(models, scheduler),
+            new FilmHandler(models, requests, [new WanFilming(models, scheduler)]),
+            new RestoreHandler(held, scheduler),
+            new SelectHandler(held, scheduler),
+            new FindTextHandler(held),
+            new Erasing.EraseHandler(held, scheduler),
+            new Checking.CheckPictureHandler(held),
+            new SceneDepth.SceneDepthHandler(held, scheduler),
             ], sections: sections);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");

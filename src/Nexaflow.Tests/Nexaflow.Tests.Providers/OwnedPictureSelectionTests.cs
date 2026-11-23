@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Providers;
 
 /// <summary>
 /// Picture selection's front (<see cref="OwnedPictureSelection"/>): SAM 3.1 pinned to its published graphs, a session
-/// that reads its picture once at interactive priority with every part placed, each ask answered by the reply of its own
+/// that reads its picture once at interactive priority, named to the host by the tool's id, each ask answered by the reply of its own
 /// turn, and a session the host ends telling whatever still waits why.
 /// </summary>
 [TestClass]
@@ -19,7 +19,7 @@ public class OwnedPictureSelectionTests
     private static MachineCards Nvidia() => new([new MachineCard("gpu", 8L << 30)], CudaRuntimePack.MinimumDriver);
 
     private static OwnedPictureSelection Selection(FakeModelStore store, FakeAiHost host)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia());
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), Nvidia());
 
     private static IReadOnlyList<ModelAsset> Files => Selection(new FakeModelStore(), new FakeAiHost()).Catalog!.Files;
 
@@ -56,7 +56,7 @@ public class OwnedPictureSelectionTests
     }
 
     [TestMethod]
-    public async Task ASession_ReadsItsPictureOnce_Interactively_WithEveryPart_AndEndsItsRequestWhenDisposed()
+    public async Task ASession_ReadsItsPictureOnce_Interactively_ByTheToolItsCatalogNames_AndEndsItsRequestWhenDisposed()
     {
         var host = Reading();
         var selection = Selection(Here(), host);
@@ -71,7 +71,7 @@ public class OwnedPictureSelectionTests
 
         var request = (SelectInPicture)host.Requests.Single();
         Assert.AreEqual(RequestPriority.Interactive, request.Priority);
-        CollectionAssert.AreEquivalent(SelectingParts.All.ToArray(), request.Parts.Keys.ToArray());
+        Assert.AreEqual("sam3.1", request.Tool, "the tool by the catalog's id: its parts, and where each runs, are the host's to take from it");
         Assert.AreEqual((640, 480, 640 * 480 * 4), (request.Width, request.Height, request.Pixels.Length));
         Assert.IsInstanceOfType<InputEnd>(host.Inputs.Last(), "disposing the session ends its request, and the host lets the picture go");
     }

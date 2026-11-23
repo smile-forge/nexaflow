@@ -10,21 +10,19 @@ namespace Nexaflow.Providers.AiHost;
 
 /// <summary>
 /// What every provider of a model Nexaflow runs itself shares: the runtime this machine runs owned models on, fetching a
-/// model's files — with the CUDA pack, where it suits the machine — and having the host hold the model's parts where
-/// the machine's setup places them: each on a GPU, or on its CPU build where no GPU has room, a language model with
-/// the context its GPU leaves it. When the setup moves them — another model taken on — they are loaded again there.
+/// model's files — with the CUDA pack, where it suits the machine — and having the host hold the model's parts while it is warm.
+/// Where each part runs the host decides, beside every other model held: on a GPU, or on its CPU build where no GPU has room, a
+/// language model with the context its GPU leaves it. A request names a part (<see cref="ModelRef"/>), never where it runs.
 /// </summary>
-internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
-                                        MachineCards hardware) : IModelHolder
+internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds,
+                                        MachineCards hardware)
 {
     /// <summary>How long a request may go without a word from the host — a load takes seconds, a token milliseconds.</summary>
     internal static readonly TimeSpan StallLimit = TimeSpan.FromMinutes(2);
 
-    private readonly object _gate = new();
-    /// <summary>Each held part as the host holds it, by its id: where it runs, and its files' folder on this machine.</summary>
-    private readonly Dictionary<string, ModelSpec> _placed = new(StringComparer.Ordinal);
-    /// <summary>Why a part placed somewhere did not load there, by its id.</summary>
-    private readonly Dictionary<string, string> _failed = new(StringComparer.Ordinal);
+    /// <summary>One hold at a time: taking the model on, and letting it go.</summary>
+    private readonly SemaphoreSlim _holding = new(1, 1);
+    private HostHold? _hold;
     private HostedModel? _held;
 
     /// <summary>When the provider's model is in use, for the app to load it ahead or let it go.</summary>
@@ -81,18 +79,15 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         long memory = host.Memory.BudgetBytes;
         var placement = ModelPlacement.Plan(gpus, needs, memory);
         if (placement.Unplaced.Count > 0) return false;
-        if (model.PartsFor(ExecutionProvider).Where(p => p.LoadsOnDemand).Any(p => ModelPlacement.PlaceOnDemand(placement, Need(model, p)) is null))
+        if (model.PartsFor(ExecutionProvider).Where(p => p.LoadsOnDemand).Any(p => ModelPlacement.PlaceOnDemand(placement, PlacementNeeds.Of(model, p)) is null))
             return false;
         return model is not HostedModel { Kind: HostedKind.Language } language || language == OwnedModels.OfKind(ModelKind.Language).First()
                || needs.All(n => n.CpuOnly || placement.Of(n.Id)!.Device is not null) && placement.Placed.Sum(s => s.HostBytes) <= memory;
     }
 
-    /// <summary>What the setup needs to place each of <paramref name="model"/>'s parts held with it on this machine — all
-    /// but those it loads on demand.</summary>
-    public IReadOnlyList<PlacementNeed> NeedsOf(HostedEntry model) => [.. Held(model).Select(p => Need(model, p))];
-
-    /// <summary>The parts of <paramref name="model"/> the host holds with it: all but those it loads on demand.</summary>
-    private IEnumerable<HostedPart> Held(HostedEntry model) => model.PartsFor(ExecutionProvider).Where(p => !p.LoadsOnDemand);
+    /// <summary>What placing each of <paramref name="model"/>'s parts held with it on this machine takes — all but those it loads
+    /// on demand.</summary>
+    public IReadOnlyList<PlacementNeed> NeedsOf(HostedEntry model) => PlacementNeeds.Of(model, ExecutionProvider);
 
     /// <summary>It has a build for this machine, and that build's files are here and verified.</summary>
     public bool IsHere(HostedEntry model) => model.RunsOn(ExecutionProvider) && CatalogOf(model).Files.All(assets.Has);
@@ -100,26 +95,20 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// <summary>Everything the model needs to run here is here: its files, and the CUDA pack where it suits the machine.</summary>
     public bool IsReady(HostedEntry model) => IsHere(model) && (!CudaRuntimePack.Applies(hardware) || CudaRuntimePack.IsIn(assets));
 
-    /// <summary>Whether any part of <paramref name="model"/> has made way on its GPU for a picture being drawn.</summary>
-    public bool IsMakingWay(HostedEntry model) => model.PartsFor(ExecutionProvider).Any(part => setup.HasMadeWay(PartId(model, part)));
+    /// <summary>Whether any part of <paramref name="model"/> held here has made way on its GPU for a picture being drawn — whoever
+    /// draws it.</summary>
+    public bool IsMakingWay(HostedEntry model) => _hold is { } hold && _held?.Id == model.Id && hold.AnyAway;
 
-    /// <summary>The host's models <paramref name="ids"/> made way for a picture, until the returned value is disposed.</summary>
-    public IDisposable MakingWay(IReadOnlyList<string> ids) => setup.MakingWay(ids);
-
-    /// <summary>Raised when models make way for a picture or are back after it.</summary>
-    public event EventHandler? MadeWayChanged
-    {
-        add => setup.MadeWayChanged += value;
-        remove => setup.MadeWayChanged -= value;
-    }
+    /// <summary>Raised when the held model's parts make way for a picture, are back after it, or are placed again.</summary>
+    public event EventHandler? MadeWayChanged;
 
     /// <summary>One of the files <paramref name="model"/> needs here: its own, or the CUDA pack's where the pack suits the
     /// machine — its arriving or going changes whether the model is ready, as <see cref="IsReady"/> reads it.</summary>
     public bool IsFileOf(HostedEntry model, ModelAsset asset)
         => CatalogOf(model).Files.Contains(asset) || (Runtime?.Files.Contains(asset) ?? false);
 
-    /// <summary>Fetches another build of a model that is here. The store refuses it when its drive has no room, and the
-    /// activity says so.</summary>
+    /// <summary>Has the host fetch files of a model that is here — a LoRA's, the first time a picture asks for it. The store refuses
+    /// it when its drive has no room, and the activity says so.</summary>
     private async Task<bool> FetchFilesAsync(string name, IReadOnlyList<ModelAsset> files, CancellationToken ct)
     {
         if (files.All(assets.Has)) return true;
@@ -141,14 +130,14 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         }
         catch (Exception ex)
         {
-            activity.Fail(ex.Message);   // the model stays unavailable until a later warm-up fetches it
+            activity.Fail(ex.Message);   // the files stay away until a later ask fetches them
             return false;
         }
     }
 
-    /// <summary>Has the setup place the model's parts beside every other model held, the host holding them where they are
-    /// placed — once its files, and the CUDA pack where it suits the machine, are here: warming a model never downloads it, a
-    /// download being the user's to start. Never throws: a model that will not load says why when a request asks for it.</summary>
+    /// <summary>Has the host hold the model's parts beside every other model held — once its files, and the CUDA pack where it suits
+    /// the machine, are here: warming a model never downloads it, a download being the user's to start. Never throws: a model that will
+    /// not load says why when a request asks for it.</summary>
     public async Task WarmupAsync(HostedModel model, CancellationToken ct)
     {
         if (!IsReady(model)) return;
@@ -160,11 +149,35 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
         catch (Exception ex) when (ex is AiHostException or OperationCanceledException or LlmProviderException) { }
     }
 
-    private async Task HoldAsync(HostedModel model, CancellationToken ct)
+    /// <summary>The hold on <paramref name="model"/>'s parts held with it, opened where none is — or where the host ended the last one.</summary>
+    /// <exception cref="AiHostException">The host refused it, or could not be reached.</exception>
+    private async Task<HostHold> HoldAsync(HostedModel model, CancellationToken ct)
     {
-        _held = model;
-        host.Environment = Environment;
-        await setup.HoldAsync(this, NeedsOf(model), ct);
+        await _holding.WaitAsync(ct);
+        try
+        {
+            if (_hold is { Ended: false } open && _held?.Id == model.Id) return open;
+            if (_hold is { } stale) await LetGoAsync(stale);
+            host.Environment = Environment;
+            var parts = PlacementNeeds.Held(model, ExecutionProvider).Select(p => new ModelRef(model.Id, p.Name)).ToList();
+            var hold = await holds.HoldAsync(parts, RequestPriority.Interactive, ct: ct);
+            hold.Changed += OnHoldChanged;
+            _hold = hold;
+            _held = model;
+            return hold;
+        }
+        finally { _holding.Release(); }
+    }
+
+    private void OnHoldChanged(object? sender, EventArgs e) => MadeWayChanged?.Invoke(this, EventArgs.Empty);
+
+    private async Task LetGoAsync(HostHold hold)
+    {
+        hold.Changed -= OnHoldChanged;
+        _hold = null;
+        _held = null;
+        await hold.DisposeAsync();
+        MadeWayChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Lets the host unload the model's parts; the host itself stays for any other model, and the other models
@@ -173,185 +186,95 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     {
         try
         {
-            await setup.LetGoAsync(this, ct);
+            await _holding.WaitAsync(ct);
         }
-        catch (Exception ex) when (ex is AiHostException or OperationCanceledException) { }
-        lock (_gate)
+        catch (OperationCanceledException) { return; }
+        try
         {
-            _placed.Clear();
-            _failed.Clear();
+            if (_hold is { } hold) await LetGoAsync(hold);
         }
-        _held = null;
+        finally { _holding.Release(); }
     }
 
-    /// <summary>Has the host hold the model's parts as <paramref name="placement"/> places them — fetching a CPU build of a model
-    /// that is here the first time a part is placed on one. A part placed nowhere is unavailable until the plan changes.</summary>
-    public async Task ApplyAsync(Placement placement, CancellationToken ct)
+    /// <summary>
+    /// Has the host hold <paramref name="model"/>'s parts at <paramref name="priority"/> for as long as the returned value is not
+    /// disposed — a voice for its conversation, ahead of everything else placed. The model's own hold stays as it is.
+    /// </summary>
+    /// <exception cref="LlmProviderException">Its files are not here yet, or the host refused the hold.</exception>
+    public async Task<HostHold> HoldForAsync(HostedModel model, RequestPriority priority, CancellationToken ct)
     {
-        if (_held is not { } model) return;
-        foreach (var id in Held(model).Select(p => PartId(model, p)).Distinct())
-        {
-            try
-            {
-                if (placement.Of(id) is not { } placed)
-                {
-                    lock (_gate) _placed.Remove(id);
-                    continue;
-                }
-                var spec = await ResolvedAsync(model, placed, ct);
-                await foreach (var _ in host.SendAsync(r => new LoadModel(r, spec), StallLimit, ct)) { }
-                lock (_gate)
-                {
-                    _placed[id] = spec;
-                    _failed.Remove(id);
-                }
-            }
-            catch (Exception ex) when (ex is AiHostException or OperationCanceledException or LlmProviderException)
-            {
-                lock (_gate)
-                {
-                    _placed.Remove(id);
-                    _failed[id] = ex.Message;
-                }
-            }
-        }
-    }
-
-    /// <summary>The spec the host holds one of the model's parts as, where the setup placed it — the model taken on
-    /// first, when it is not held yet.</summary>
-    /// <exception cref="LlmProviderException">Its files are not here yet, or no GPU has room for it and it has no CPU
-    /// build.</exception>
-    public async Task<ModelSpec> PlacedAsync(HostedModel model, string partName, CancellationToken ct)
-    {
-        string id = $"{model.Id}/{partName}";
-        lock (_gate)
-            if (_placed.TryGetValue(id, out var held)) return held;
-
         if (!IsHere(model)) throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
-        await HoldAsync(model, ct);
-        lock (_gate)
-            return _placed.TryGetValue(id, out var placed) ? placed
-                : throw new LlmProviderException(_failed.TryGetValue(id, out var why)
-                    ? $"{model.Catalog.DisplayName} did not load: {why}"
-                    : $"{model.Catalog.DisplayName} does not fit beside the other models on this machine's GPUs.");
+        host.Environment = Environment;
+        var parts = PlacementNeeds.Held(model, ExecutionProvider).Select(p => new ModelRef(model.Id, p.Name)).ToList();
+        try
+        {
+            return await holds.HoldAsync(parts, priority, ct: ct);
+        }
+        catch (AiHostException ex)
+        {
+            throw new LlmProviderException($"{model.Catalog.DisplayName} could not be held: {ex.Message}", ex);
+        }
     }
 
-    /// <summary>The context a language model's part is held with; its catalog's own until it is placed.</summary>
-    public int ContextOf(HostedModel model, string partName)
+    /// <summary>One of the model's parts held with it, as a request names it — the model held first, where it is not.</summary>
+    /// <exception cref="LlmProviderException">Its files are not here yet, or the host holds the part nowhere: no GPU has room for
+    /// it and it has no CPU build, or it would not load.</exception>
+    public async Task<ModelRef> PlacedAsync(HostedModel model, string partName, CancellationToken ct)
     {
-        lock (_gate)
-            if (_placed.TryGetValue($"{model.Id}/{partName}", out var placed)) return placed.ContextTokens;
-        return model.PartNamed(partName, ExecutionProvider).ContextTokens;
+        if (!IsHere(model)) throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
+        HostHold hold;
+        try
+        {
+            hold = await HoldAsync(model, ct);
+        }
+        catch (AiHostException ex)
+        {
+            throw new LlmProviderException($"{model.Catalog.DisplayName} could not be held: {ex.Message}", ex);
+        }
+        var part = new ModelRef(model.Id, partName);
+        return hold.PlacementOf(part) is not null ? part
+            : throw new LlmProviderException(hold.WhyUnplaced(part) is { } why
+                ? $"{model.Catalog.DisplayName} did not load: {why}"
+                : $"{model.Catalog.DisplayName} does not fit beside the other models on this machine's GPUs.");
     }
+
+    /// <summary>Where a language model's part runs, as the host holds it; null before it is held.</summary>
+    private PartPlacement? PlacementOf(HostedModel model, string partName)
+        => _hold is { } hold && _held?.Id == model.Id ? hold.PlacementOf(new ModelRef(model.Id, partName)) : null;
+
+    /// <summary>The context a language model's part is held with; its catalog's own until it is held.</summary>
+    public int ContextOf(HostedModel model, string partName)
+        => PlacementOf(model, partName)?.ContextTokens ?? model.PartNamed(partName, ExecutionProvider).ContextTokens;
 
     /// <summary>How many replies a language model's part writes at once, as it is held; as many as it holds where nothing gives it
-    /// room for more until it is placed.</summary>
-    public int RepliesOf(HostedModel model, string partName)
-    {
-        lock (_gate)
-            return _placed.TryGetValue($"{model.Id}/{partName}", out var placed) ? placed.Sequences : ModelSpec.DefaultSequences;
-    }
+    /// room for more until it is held.</summary>
+    public int RepliesOf(HostedModel model, string partName) => PlacementOf(model, partName)?.Sequences ?? ModelSpec.DefaultSequences;
 
     /// <summary>What a language model's part gives work nobody is watching, as it is held: replies at once, each with a context of
     /// its own; null where it has no context for such work, and does it in its one context.</summary>
     public BackgroundCapacity? BackgroundOf(HostedModel model, string partName)
-    {
-        lock (_gate)
-            return _placed.TryGetValue($"{model.Id}/{partName}", out var placed) && placed.BackgroundSequences > 0
-                ? new BackgroundCapacity(placed.BackgroundTokens, placed.BackgroundSequences)
-                : null;
-    }
+        => PlacementOf(model, partName) is { BackgroundSequences: > 0 } placed
+            ? new BackgroundCapacity(placed.BackgroundTokens, placed.BackgroundSequences)
+            : null;
 
-    /// <summary>Where a part loaded on demand — a picture's or a clip's — runs beside the models held now.</summary>
-    /// <exception cref="LlmProviderException">No GPU here has room for it, and it has no CPU build.</exception>
-    public async Task<ModelSpec> PlacedOnDemandAsync(HostedEntry model, string partName, CancellationToken ct)
+    /// <summary>A model that is here, as a request names it — one whose parts load on demand, a picture's or a clip's — the host told
+    /// what it runs on.</summary>
+    /// <exception cref="LlmProviderException">It is not on this machine yet.</exception>
+    public string Ready(HostedEntry model)
     {
+        if (!IsHere(model)) throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
         host.Environment = Environment;
-        var part = model.PartNamed(partName, ExecutionProvider);
-        var placed = await setup.PlaceOnDemandAsync(Need(model, part), ct)
-                     ?? throw new LlmProviderException($"{model.Catalog.DisplayName} needs {Gib(Lighter(model, part).Select(b => b.MemoryBytes).Append(part.MemoryBytes).Min())} "
-                                                       + $"of GPU memory for its {part.Role}, more than any GPU here has for local models.");
-        return await ResolvedAsync(model, placed, ct);
-    }
-
-    /// <summary>What the setup needs to place a part: how it runs on a GPU and on the CPU — the same part where it runs
-    /// on either, its CPU build where it has one — what its context costs, held in 8 bits (<see cref="ContextCache.Q8"/>), and
-    /// what it takes to read in longer steps or to be cut between a GPU and the CPU.</summary>
-    private PlacementNeed Need(HostedEntry model, HostedPart part)
-    {
-        var onCpu = part.ExecutionProvider is null ? part
-                  : model.Parts.FirstOrDefault(p => p.Name == part.Name && p.ExecutionProvider == OwnedModels.Cpu);
-        bool language = part.BytesPerToken > 0;
-        return new PlacementNeed(Unresolved(model, part), onCpu is null ? null : Unresolved(model, onCpu) with { MemoryBytes = FilesBytes(model, onCpu) },
-                                 language ? ContextCache.Q8.BytesPerToken(part.BytesPerToken) : 0, language ? OwnedModels.ShortestContext : 0,
-                                 part.Layers, language ? WeightsBytes(model, part) : 0, part.BatchBytesPerToken, ContextCache.Q8.BytesPerToken(part.BytesPerSequence), part.BackgroundBytes,
-                                 part.StateBytes, part.ExpertBytes,
-                                 Lighter(model, part));
-    }
-
-    /// <summary>How <paramref name="part"/> runs holding less on a GPU, most first: streamed, then decoded in tiles.</summary>
-    private static IReadOnlyList<ModelSpec> Lighter(HostedEntry model, HostedPart part)
-    {
-        var builds = new List<ModelSpec>();
-        if (part.Streamed is { } streamed)
-            builds.Add(Unresolved(model, part) with { File = streamed.File, MemoryBytes = streamed.MemoryBytes, HostBytes = streamed.HostBytes });
-        if (part.Tiled is { } tiled)
-            builds.Add(Unresolved(model, part) with { TileCells = tiled.Cells, MemoryBytes = tiled.MemoryBytes, HostBytes = tiled.HostBytes });
-        return builds;
-    }
-
-    /// <summary>What <paramref name="part"/>'s own file holds — a language model's weights, its GGUF — read whole.</summary>
-    private static long WeightsBytes(HostedEntry model, HostedPart part)
-        => model.Catalog.Files.FirstOrDefault(f => f.RelativePath == $"{part.Folder}/{part.File}")?.Size ?? 0;
-
-    /// <summary>What <paramref name="part"/> holds in memory on the CPU, with no context: its files, read whole — the
-    /// catalog's footprints are its GPU's.</summary>
-    private static long FilesBytes(HostedEntry model, HostedPart part)
-        => model.Catalog.Files.Where(f => f.RelativePath.StartsWith(part.Folder + "/", StringComparison.Ordinal)).Sum(f => f.Size);
-
-    /// <summary>A part as the setup plans it: its folder still the catalog's, relative to the asset store.</summary>
-    private static ModelSpec Unresolved(HostedEntry model, HostedPart part)
-        => new(PartId(model, part), part.Runner, part.Folder, part.File, part.Adapter, part.MemoryBytes, part.ContextTokens, part.CudaOptions,
-               part.Projector, ContextCache: part.BytesPerToken > 0 ? ContextCache.Q8 : ContextCache.F16);
-
-    /// <summary>
-    /// <paramref name="placed"/> once its part's files are in the host's store — fetched first where the model is here but this part's
-    /// build is not, as a GPU part's CPU build for a GPU without the room. Its folder stays the store's name for it: where it lies is the
-    /// host's to know.
-    /// </summary>
-    /// <exception cref="LlmProviderException">The model is not on this machine, or the part's files could not be fetched.</exception>
-    private async Task<ModelSpec> ResolvedAsync(HostedEntry model, ModelSpec placed, CancellationToken ct)
-    {
-        var part = model.Parts.First(p => PartId(model, p) == placed.Id && p.Folder == placed.Folder);
-        var files = model.Catalog.Files.Where(f => f.RelativePath.StartsWith(part.Folder + "/", StringComparison.Ordinal)).ToList();
-        if (!files.All(assets.Has) && (!IsHere(model) || !await FetchFilesAsync(model.Catalog.DisplayName, files, ct)))
-            throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
-        return placed;
+        return model.Id;
     }
 
     /// <summary>
     /// <paramref name="files"/> of <paramref name="model"/> that come only when a request first needs them — a LoRA's — fetched into the
-    /// host's store where they are not there yet; their paths in the store, which is all a request names of them.
+    /// host's store where they are not there yet.
     /// </summary>
     /// <exception cref="LlmProviderException">The model is not on this machine, or the files could not be fetched.</exception>
-    public async Task<IReadOnlyList<string>> FetchedAsync(HostedEntry model, string name, IReadOnlyList<ModelAsset> files, CancellationToken ct)
+    public async Task FetchAsync(HostedEntry model, string name, IReadOnlyList<ModelAsset> files, CancellationToken ct)
     {
         if (!IsHere(model)) throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
-        if (!await FetchFilesAsync(name, files, ct)) throw new LlmProviderException($"{name} could not be downloaded.");
-        return [.. files.Select(f => assets.Has(f) ? f.RelativePath : throw new LlmProviderException($"{name} is not on this machine yet."))];
+        if (!await FetchFilesAsync(name, files, ct) || !files.All(assets.Has)) throw new LlmProviderException($"{name} could not be downloaded.");
     }
-
-    /// <summary><paramref name="file"/> of <paramref name="part"/> — a voice's lexicon — as a request names it, in the part's folder,
-    /// once it is in the host's store.</summary>
-    /// <exception cref="LlmProviderException">It is not.</exception>
-    public string FileOf(HostedEntry model, HostedPart part, string file)
-    {
-        var asset = model.Catalog.Files.First(f => f.RelativePath == $"{part.Folder}/{file}");
-        return assets.Has(asset) ? file : throw new LlmProviderException($"{model.Catalog.DisplayName} is not on this machine yet.");
-    }
-
-    /// <summary>The host's name for a part: the model's id, and the part's name in it — the same for each of its builds.</summary>
-    private static string PartId(HostedEntry model, HostedPart part) => $"{model.Id}/{part.Name}";
-
-    private static string Gib(long bytes) => $"{bytes / (double)(1L << 30):0.#} GB";
 }

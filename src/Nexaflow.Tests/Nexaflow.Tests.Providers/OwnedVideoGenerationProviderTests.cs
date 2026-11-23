@@ -13,7 +13,7 @@ namespace Nexaflow.Tests.Providers;
 
 /// <summary>
 /// "Nexaflow" video: Wan2.2-TI2V-5B run in the AI host — FastWan's three steps from a description, the full model's fifty
-/// from a description or a picture to start from — its parts loaded for a clip, its steps and decoding shown.
+/// from a description or a picture to start from — named to it by its catalog id, its steps and decoding shown.
 /// </summary>
 [TestClass]
 public class OwnedVideoGenerationProviderTests
@@ -33,7 +33,7 @@ public class OwnedVideoGenerationProviderTests
     }
 
     private static OwnedVideoGenerationProvider Provider(string modelId, FakeModelStore store, FakeAiHost host, FakeActivityManager? activities = null)
-        => new(activities ?? new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia(), new ProviderModel(modelId));
+        => new(activities ?? new FakeActivityManager(), store, host, new HostHolds(host), Nvidia(), new ProviderModel(modelId));
 
     /// <summary>Both models' files and the CUDA pack they run from.</summary>
     private static FakeModelStore Here() => new([.. Files(FastWan).Concat(Files(Wan)).DistinctBy(f => f.RelativePath), .. CudaRuntimePack.Files]);
@@ -69,7 +69,7 @@ public class OwnedVideoGenerationProviderTests
     public void OnAMachineWithoutCuda_ThereIsNoModelToFilmWith()
     {
         var host = new FakeAiHost();
-        var provider = new OwnedVideoGenerationProvider(new FakeActivityManager(), Here(), host, new HostModelSetup(host), Amd(), new ProviderModel(FastWan));
+        var provider = new OwnedVideoGenerationProvider(new FakeActivityManager(), Here(), host, new HostHolds(host), Amd(), new ProviderModel(FastWan));
 
         Assert.AreEqual(0, provider.Catalog.Count, "the models are built for CUDA alone");
         Assert.IsFalse(provider.IsAvailable);
@@ -84,7 +84,7 @@ public class OwnedVideoGenerationProviderTests
     }
 
     [TestMethod]
-    public async Task FastWan_FilmsInTheHost_AtTheJobPriority_InItsThreeDistilledSteps()
+    public async Task FastWan_FilmsInTheHost_AtTheJobPriority_ByItsCatalogId()
     {
         var host = Filming(Frames(1280, 704, 2));
 
@@ -92,18 +92,17 @@ public class OwnedVideoGenerationProviderTests
 
         var film = (Film)host.Requests.Single();
         Assert.AreEqual((RequestPriority.Job, "a fox in the snow", 1280, 704, 121, 24), (film.Priority, film.Prompt, film.Width, film.Height, film.Frames, film.FramesPerSecond));
+        Assert.AreEqual((FastWan, (string?)null), (film.Model, film.NegativePrompt),
+                        "the model by the catalog's id — its parts, its steps and where each runs are the host's to take from it — and nothing asked kept out");
         Assert.IsNull(film.FirstFrame);
-        Assert.AreEqual((FilmingMethod.WanDistilled, 8f, 0f), (film.Model.Method, film.Model.Shift, film.Model.Guidance));
-        CollectionAssert.AreEqual(new[] { 1000, 757, 522 }, film.Model.Timesteps.ToArray());
-        CollectionAssert.AreEquivalent(new[] { FilmingParts.PromptEncoder, FilmingParts.Denoiser, FilmingParts.Decoder }, film.Model.Parts.Keys.ToArray());
-        Assert.AreEqual("models/wan2.2-ti2v-5b/denoiser-fast", film.Model.Parts[FilmingParts.Denoiser].Folder);
-        Assert.AreEqual(0, film.Model.Parts[FilmingParts.Decoder].Device, "on the GPU the host found");
+        Assert.IsTrue(host.Environment.Cuda, "the host runs from the pack");
+        Assert.AreEqual(0, host.Holds.Count, "a clip's parts are loaded by the host for it, not held beside the resident models");
         Assert.AreEqual("video/mp4", made.Media.MimeType);
         CollectionAssert.AreEqual("ftyp"u8.ToArray(), made.Media.Bytes[4..8], "the host's frames, encoded as an MP4 as they came");
     }
 
     [TestMethod]
-    public async Task TheFullModel_StartsFromAPicture_ItsFirstFrame_AndSteersFromItsNegativePrompt()
+    public async Task TheFullModel_StartsFromAPicture_ItsFirstFrame()
     {
         var host = Filming(Frames(704, 1280, 1));
         var request = new VideoGenerationRequest("the waves roll in", new MediaAspect(704, 1280), 5) { FirstFrame = Picture(704, 1280) };
@@ -113,13 +112,11 @@ public class OwnedVideoGenerationProviderTests
         var film = (Film)host.Requests.Single();
         Assert.AreEqual((704, 1280), (film.Width, film.Height));
         Assert.AreEqual(704 * 1280 * 3, film.FirstFrame!.Length, "the picture goes to the host as its pixels");
-        Assert.AreEqual((FilmingMethod.Wan, 50, 5f, 5f), (film.Model.Method, film.Model.Steps, film.Model.Shift, film.Model.Guidance));
-        StringAssert.StartsWith(film.Model.NegativePrompt, "色调艳丽");
-        Assert.IsTrue(film.Model.Parts.ContainsKey(FilmingParts.FrameEncoder), "the picture is encoded into the clip's first latent frame");
+        Assert.AreEqual((Wan, (string?)null), (film.Model, film.NegativePrompt), "nothing asked kept out: the catalog's own negative prompt is the host's to add");
     }
 
     [TestMethod]
-    public async Task TheFullModel_KeepsOutWhatItIsTold_AfterItsOwnNegativePrompt_FromTheSeedItIsGiven()
+    public async Task TheFullModel_PassesOnWhatItIsToldToKeepOut_FromTheSeedItIsGiven()
     {
         var host = Filming(Frames(1280, 704, 1));
 
@@ -130,8 +127,7 @@ public class OwnedVideoGenerationProviderTests
         });
 
         var film = (Film)host.Requests.Single();
-        StringAssert.StartsWith(film.Model.NegativePrompt, "色调艳丽");
-        StringAssert.EndsWith(film.Model.NegativePrompt, ", boats");
+        Assert.AreEqual("boats", film.NegativePrompt, "what the user asks kept out, trimmed: the host adds it to the catalog's own");
         Assert.AreEqual(99L, film.Seed);
     }
 
@@ -180,28 +176,29 @@ public class OwnedVideoGenerationProviderTests
     }
 
     [TestMethod]
-    public async Task OnAGpuTooSmallForTheDecoderEvenInTiles_NoClipIsMade()
+    public async Task AHostThatCannotFilm_FailsAsTheProvider()
     {
-        var host = new FakeAiHost { Gpus = [new HostGpu(0, "NVIDIA GeForce RTX 4060", null, 8L << 30, 5L << 30, 6L << 30)] };
+        var activities = new FakeActivityManager();
+        var host = new FakeAiHost { Reply = (r, _) => [new Failed(r.RequestId, HostErrorKind.Refused, "no GPU has room for its decoder")] };
 
         var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
-            Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5)));
+            Provider(FastWan, Here(), host, activities).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5)));
 
-        StringAssert.Contains(ex.Message, "needs 7 GB of GPU memory for its decoder", "the smallest build tried — in tiles — not the whole decoder's 20.8 GB");
-        Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host that could not hold it");
+        StringAssert.Contains(ex.Message, "no GPU has room for its decoder", "where each part runs, and whether it fits, is the host's to say");
+        Assert.AreEqual(1, activities.StartedCount);
     }
 
     [TestMethod]
-    public async Task OnA10GbCard_AClipIsMade_ItsPromptReadOnTheCpu_ItsDenoiserStreamed_ItsDecoderInTiles()
+    public async Task AClipAskedBeforeTheModelIsHere_IsRefused_BeforeTheHostIsAsked()
     {
         var host = Filming(Frames(1280, 704, 1));
-        host.Gpus = [new HostGpu(0, "NVIDIA GeForce RTX 3080", null, 10L << 30, (10L << 30) - (5L << 29), 9L << 30)];
+        var store = new FakeModelStore(CudaRuntimePack.Files);
 
-        await Provider(FastWan, Here(), host).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5));
+        var ex = await Assert.ThrowsExactlyAsync<LlmProviderException>(() =>
+            Provider(FastWan, store, host).GenerateVideoAsync(new VideoGenerationRequest("a fox", new MediaAspect(1280, 704), 5)));
 
-        var parts = ((Film)host.Requests.Single()).Model.Parts;
-        Assert.IsNull(parts[FilmingParts.PromptEncoder].Device, "its prompt read on the CPU: the card's budget does not hold the encoder");
-        Assert.AreEqual((0, "denoiser.stream.json"), (parts[FilmingParts.Denoiser].Device, parts[FilmingParts.Denoiser].File), "its denoiser streamed");
-        Assert.AreEqual((0, 16), (parts[FilmingParts.Decoder].Device, parts[FilmingParts.Decoder].TileCells), "its decoder in tiles");
+        StringAssert.Contains(ex.Message, "is not on this machine yet");
+        Assert.AreEqual(0, host.Requests.Count, "nothing is asked of a host without the model");
+        Assert.AreEqual(0, store.Fetched.Count, "a download is the user's to start");
     }
 }

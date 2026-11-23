@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Microsoft.ML.OnnxRuntime;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
 

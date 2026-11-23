@@ -18,10 +18,10 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
     private readonly OwnedModelRuntime _runtime;
     private readonly HostedModel?       _model;
 
-    public OwnedTextToSpeechProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
+    public OwnedTextToSpeechProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds,
                                      MachineCards hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, holds, hardware);
         _model   = OwnedModels.OfKind(ModelKind.TextToSpeech).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
     }
@@ -67,29 +67,28 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
     {
         if (_model is null) throw new LlmProviderException($"{Name} has no voice model of that name.");
         var use = await _runtime.ModelUse.BeginAsync(ct);   // the session's whole stretch is one use, ended with it
+        HostHold? voice = null;
         try
         {
-            var voices = new List<VoiceSpec>();
-            foreach (var v in _model.Voices)
-            {
-                var part = _model.PartNamed(v.Part, _runtime.ExecutionProvider);
-                // A voice loaded on demand is only placed here: the host loads it with the first sentence in its language.
-                var placed = part.LoadsOnDemand ? await _runtime.PlacedOnDemandAsync(_model, part.Name, ct) : await _runtime.PlacedAsync(_model, part.Name, ct);
-                voices.Add(new VoiceSpec(v.Language, placed, v.File, v.Lexicon is { } lexicon ? _runtime.FileOf(_model, part, lexicon) : null));
-            }
+            // The voices held with the model are held at the voice priority for the session's length; one loaded on demand the host loads
+            // with the first sentence in its language.
+            foreach (var part in _model.Voices.Select(v => _model.PartNamed(v.Part, _runtime.ExecutionProvider)).Where(p => !p.LoadsOnDemand).DistinctBy(p => p.Name))
+                await _runtime.PlacedAsync(_model, part.Name, ct);
+            voice = await _runtime.HoldForAsync(_model, RequestPriority.Voice, ct);
 
             var host = _runtime.Host;
-            host.Environment = _runtime.Environment;
-            var stream = await host.OpenStreamAsync(id => new Speak(id, voices, options.Speed, RequestPriority.Voice), OwnedModelRuntime.StallLimit, ct);
-            return new OwnedSpeakingSession(stream, use);
+            var stream = await host.OpenStreamAsync(id => new Speak(id, _runtime.Ready(_model), options.Speed, RequestPriority.Voice), OwnedModelRuntime.StallLimit, ct);
+            return new OwnedSpeakingSession(stream, use, voice);
         }
         catch (AiHostException ex)
         {
+            if (voice is not null) await voice.DisposeAsync();
             use.Dispose();
             throw new LlmProviderException($"{Name} could not start speaking: {ex.Message}", ex);
         }
         catch
         {
+            if (voice is not null) await voice.DisposeAsync();
             use.Dispose();
             throw;
         }
@@ -102,8 +101,9 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
     }
 }
 
-/// <summary>A stretch of speaking in the host: segments streamed in, their audio streamed back.</summary>
-internal sealed class OwnedSpeakingSession(IHostStream stream, IDisposable use) : ITextToSpeechSession
+/// <summary>A stretch of speaking in the host: segments streamed in, their audio streamed back — its voices held at the voice
+/// priority for its length.</summary>
+internal sealed class OwnedSpeakingSession(IHostStream stream, IDisposable use, HostHold voice) : ITextToSpeechSession
 {
     private int _segments;
 
@@ -145,6 +145,10 @@ internal sealed class OwnedSpeakingSession(IHostStream stream, IDisposable use) 
     public async ValueTask DisposeAsync()
     {
         try { await stream.DisposeAsync(); }
-        finally { use.Dispose(); }
+        finally
+        {
+            await voice.DisposeAsync();
+            use.Dispose();
+        }
     }
 }

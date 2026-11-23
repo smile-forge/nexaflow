@@ -51,14 +51,12 @@ public class HostChannelTests
         await using var app  = new HostChannel(server);
         await using var host = new HostChannel(client);
 
-        var model = new DrawingModel(DrawingMethod.HiDream,
-                                     new Dictionary<string, ModelSpec> { [DrawingParts.Denoiser] = new("h/denoiser", "hidream-denoiser", @"C:\ai\h\denoiser", "denoiser.onnx", null, 2, 0) },
-                                     50, 3f, 5f);
-        await app.SendAsync(new Draw(5, model, "a fox", 1344, 768, 42, RequestPriority.Job));
+        await app.SendAsync(new Draw(5, "hidream-o1-image", "a fox", 1344, 768, 42, RequestPriority.Job, NegativePrompt: "blur",
+                                     Lora: new DrawingLora("hidream-fast", 0.8f)));
         var draw = (Draw)(await host.ReceiveAsync())!;
         Assert.AreEqual((5L, "a fox", 1344, 768, 42L, RequestPriority.Job), (draw.RequestId, draw.Prompt, draw.Width, draw.Height, draw.Seed, draw.Priority));
-        Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
-        Assert.AreEqual(@"C:\ai\h\denoiser", draw.Model.Parts[DrawingParts.Denoiser].Folder);
+        Assert.AreEqual(("hidream-o1-image", "blur", new DrawingLora("hidream-fast", 0.8f)), (draw.Model, draw.NegativePrompt, draw.Lora),
+                        "the model as the catalog names it, with what to keep out and the LoRA it is drawn with");
 
         byte[] rgb = [1, 2, 3, 4, 5, 6];
         await host.SendAsync(new Drawn(5, 2, 1, SharedBytes.Of(rgb)));
@@ -72,7 +70,7 @@ public class HostChannelTests
     public async Task AMessagesByteArrays_CrossBesideItsJson_ManyMegabytesAndSeveralAtOnce()
     {
         await using var pair = await PipePair.OpenAsync();
-        var model = new DrawingModel(DrawingMethod.HiDream, new Dictionary<string, ModelSpec>(), 4, 3f, 1f);
+        const string model = "hidream-o1-image";
         byte[] first = [.. Enumerable.Range(0, 1024 * 1024 * 3 * 3).Select(i => (byte)i)];
         byte[] second = [7, 8, 9];
         byte[] mask = new byte[1024 * 1024];

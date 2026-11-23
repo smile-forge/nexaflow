@@ -3,17 +3,20 @@ using System.Text;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Catalog;
+using Nexaflow.AiHost;
 
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// What sharing one AI host between apps costs and buys, measured on this machine's GPU with real models: Nexaflow's people-facing
 /// model and voice beside the background thinking of an app like Aria, whose engine builds its state through one-shot calls below
-/// people's priority. They report numbers, asserting only what the host promises; each is inconclusive where its models are not named.
+/// people's priority. Each app holds its models as an app does, by the catalog's names for them, and the host places them. They report
+/// numbers, asserting only what the host promises; each is inconclusive where its models are not named.
 /// <list type="bullet">
 /// <item>The test store (<see cref="TestStore"/>), holding the CUDA pack — every measurement is of the GPU — Gemma 4 26B A4B's QAT
 /// build, Kokoro, and Gemma 4 E4B, the second people-facing model for three apps on one card.</item>
-/// <item><c>NEXAFLOW_TEST_ARIA_GGUF</c>: the GGUF the background app runs, a build of its own, by its path in the test store.</item>
+/// <item><c>NEXAFLOW_TEST_ARIA_MODEL</c>: the language model of the catalog the background app runs, by its id, in the test store.</item>
 /// <item><c>NEXAFLOW_TEST_MEASUREMENTS</c>, optional: a file each measurement's lines are appended to.</item>
 /// </list>
 /// </summary>
@@ -23,8 +26,6 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("ai-host")]
 public class SharedHostMeasurements
 {
-    private const long GB = 1L << 30;
-
     /// <summary>The client's stall limit for a language model's request, as the app's own provider sets it.</summary>
     private static readonly TimeSpan StallLimit = TimeSpan.FromMinutes(2);
 
@@ -34,48 +35,25 @@ public class SharedHostMeasurements
     private static async Task<AiHostClient> HostOnTheCardAsync()
         => await TestStore.HostAsync() ?? throw new AssertInconclusiveException(TestStore.Missing());
 
-    /// <summary>The GGUF the background app runs, by its path in the test store, which <c>NEXAFLOW_TEST_ARIA_GGUF</c> names.</summary>
-    private static string AriaGguf()
-        => Environment.GetEnvironmentVariable("NEXAFLOW_TEST_ARIA_GGUF")?.Replace('\\', '/') is { Length: > 0 } path && path.Contains('/')
-           && TestStore.Root is not null && File.Exists(TestStore.PathOf(path)) ? path
-           : throw new AssertInconclusiveException("NEXAFLOW_TEST_ARIA_GGUF names no background app's GGUF in a folder of the test store.");
+    /// <summary>The background app's model, its chat part: the language model of the catalog <c>NEXAFLOW_TEST_ARIA_MODEL</c> names.</summary>
+    private static ModelRef Aria()
+        => Environment.GetEnvironmentVariable("NEXAFLOW_TEST_ARIA_MODEL") is { Length: > 0 } id
+           && HostCatalog.Find(id) is HostedModel { Kind: HostedKind.Language } model
+           && model.Parts.FirstOrDefault(p => p.Role == HostedRoles.Chat) is { } chat
+            ? new ModelRef(id, chat.Name)
+            : throw new AssertInconclusiveException("NEXAFLOW_TEST_ARIA_MODEL names no language model of the catalog for the background app.");
 
-    /// <summary>Nexaflow's people-facing model: Gemma 4 26B A4B's QAT build, wholly on the first GPU, as the catalog has it.</summary>
-    private static ModelSpec People()
-        => TestStore.Spec("gemma-4-26b-a4b-it", "chat", 0, 18_790_481_920L + ContextCache.Q8.BytesPerToken(25_600) * 32_768, 32_768)
-           with { Projector = null, ContextCache = ContextCache.Q8 };
+    /// <summary>Nexaflow's people-facing model: Gemma 4 26B A4B's QAT build, its chat part.</summary>
+    private static readonly ModelRef People = new("gemma-4-26b-a4b-it", "chat");
 
-    /// <summary>A model named by its GGUF's path in the test store alone, on the first GPU: its file, what llama.cpp works in beside it,
-    /// and its context.</summary>
-    private static ModelSpec Gguf(string id, string gguf, int contextTokens, long bytesPerToken)
-    {
-        if (TestStore.Root is null) throw new AssertInconclusiveException(TestStore.Missing());
-        int slash = gguf.LastIndexOf('/');
-        return new(id, "llama-chat", gguf[..slash], gguf[(slash + 1)..], null,
-                   new FileInfo(TestStore.PathOf(gguf)).Length + 3 * GB + ContextCache.Q8.BytesPerToken(bytesPerToken) * contextTokens, contextTokens,
-                   ContextCache: ContextCache.Q8, Device: 0, Checkpoints: 8);
-    }
+    /// <summary>A second people-facing model, for three apps on one card: Gemma 4 E4B, its chat part.</summary>
+    private static readonly ModelRef Second = new("gemma-4-e4b-it", "chat");
 
-    /// <summary>A second people-facing model, for three apps on one card: Gemma 4 E4B's GGUF, as the background app's is named.</summary>
-    private static ModelSpec Second()
-    {
-        var chat = TestStore.Spec("gemma-4-e4b-it", "chat", 0);
-        return Gguf("people/second", $"{chat.Folder}/{chat.File}", 8_192, 17_920);
-    }
+    /// <summary>Nexaflow's voice: Kokoro, speaking in the voice the catalog gives each language.</summary>
+    private const string Voice = "kokoro-82m";
 
-    private static VoiceSpec Voice() => TestStore.Voice("kokoro-82m", "en", 0, 1 * GB);
-
-    private static async Task LoadAsync(AiHostClient host, ModelSpec model)
-    {
-        await foreach (var _ in host.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(5))) { }
-    }
-
-    private static async Task<HostGpu> GpuOfAsync(AiHostClient host)
-    {
-        await foreach (var reply in host.SendAsync(id => new DescribeHost(id), TimeSpan.FromMinutes(1)))
-            if (reply is HostDescription { Gpus: [var gpu, ..] }) return gpu;
-        throw new AssertInconclusiveException("The host found no GPU.");
-    }
+    /// <summary>Kokoro's parts, as Nexaflow holds them for a voice conversation.</summary>
+    private static IReadOnlyList<ModelRef> VoiceParts => TestStore.HeldPartsOf(Voice, cuda: true);
 
     private void Report(string line)
     {
@@ -88,20 +66,25 @@ public class SharedHostMeasurements
 
     // ── Budgets ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// A host holding Nexaflow's model leaves another on the card only what it does not hold. The other is the host's own parts in this
+    /// process (<see cref="InProcessHost"/>), asked for a size no plan of its own would place there — past what the first leaves it — and
+    /// refusing it before anything loads.
+    /// </summary>
     [TestMethod]
     public async Task TwoHostsOnOneCard_EachLeavesTheOtherWhatItHolds()
     {
-        var people = People();
-
         await using var first = await HostOnTheCardAsync();
-        await using var second = await HostOnTheCardAsync();
-        var secondBefore = await GpuOfAsync(second);
-        await LoadAsync(first, people);
+        using var second = InProcessHost.OnTheGpu();
+        long secondBefore = second.Models.SpareOn(0);
+        await using var held = await TestStore.HoldPlacedAsync(first, [People], RequestPriority.Interactive);
+        var people = held.PlacementOf(People)!;
 
         // Within what the second host had when it started, past what the first leaves it now: refused before anything loads.
-        var crowding = people with { Id = "people/crowding", MemoryBytes = secondBefore.BudgetBytes - people.MemoryBytes / 2 };
-        var refused = await Assert.ThrowsExactlyAsync<AiHostException>(() => LoadAsync(second, crowding));
-        Report($"the second host started with {Mib(secondBefore.BudgetBytes)} to budget; once the first held {Mib(people.MemoryBytes)}, "
+        var crowding = TestStore.Spec(People.Model, People.Part, 0) with { Id = "people/crowding", MemoryBytes = secondBefore - people.MemoryBytes / 2 };
+        var refused = await Assert.ThrowsExactlyAsync<HostRequestException>(
+            async () => { using var _ = await second.Models.AcquireAsync(crowding, resident: true, _ => Task.CompletedTask, CancellationToken.None); });
+        Report($"the second host started with {Mib(secondBefore)} to budget; once the first held {Mib(people.MemoryBytes)}, "
                + $"it refused {Mib(crowding.MemoryBytes)}: {refused.Message}");
         Assert.AreEqual(HostErrorKind.Refused, refused.Kind);
     }
@@ -113,7 +96,7 @@ public class SharedHostMeasurements
 
     /// <summary>Replies one after another on <paramref name="model"/> until <paramref name="stop"/>, as a person reading them would
     /// ask; what came of them.</summary>
-    private static async Task<(int Replies, int Tokens, string? Lost)> PeopleAsync(AiHostClient host, ModelSpec model, CancellationToken stop)
+    private static async Task<(int Replies, int Tokens, string? Lost)> PeopleAsync(AiHostClient host, ModelRef model, CancellationToken stop)
     {
         int replies = 0, tokens = 0;
         try
@@ -134,15 +117,14 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task ThreeAppsOnOneCard_TwoPeopleReading_StillLeaveThinkingNobodyWatchesATurn()
     {
-        var people = People();
-        var second = Second();
-        var aria = Gguf("aria/model", AriaGguf(), 16_384, 25_600);
+        var aria = Aria();
 
         await using var host = await HostOnTheCardAsync();
-        foreach (var model in new[] { people, second, aria }) await LoadAsync(host, model);
+        await using var reading = await TestStore.HoldPlacedAsync(host, [People, Second], RequestPriority.Interactive);
+        await using var thinking = await TestStore.HoldPlacedAsync(host, [aria], RequestPriority.Background);
 
         using var stop = new CancellationTokenSource(StallLimit + TimeSpan.FromSeconds(40));
-        var readers = new[] { PeopleAsync(host, people, stop.Token), PeopleAsync(host, second, stop.Token) };
+        var readers = new[] { PeopleAsync(host, People, stop.Token), PeopleAsync(host, Second, stop.Token) };
         await Task.Delay(TimeSpan.FromSeconds(5));
 
         var watch = Stopwatch.StartNew();
@@ -186,7 +168,7 @@ public class SharedHostMeasurements
     private sealed record VoiceTurn(TimeSpan FirstWord, TimeSpan Sentence, TimeSpan Audio);
 
     /// <summary>One spoken turn: the reply's first sentence written, then its first audio, from the moment the person stopped.</summary>
-    private static async Task<VoiceTurn> SpeakAsync(AiHostClient host, ModelSpec model, VoiceSpec voice, string question)
+    private static async Task<VoiceTurn> SpeakAsync(AiHostClient host, ModelRef model, string question)
     {
         var watch = Stopwatch.StartNew();
         var text = new StringBuilder();
@@ -208,7 +190,7 @@ public class SharedHostMeasurements
         said ??= text.ToString();
         sentence ??= watch.Elapsed;
 
-        await using var speaking = await host.OpenStreamAsync(id => new Speak(id, [voice], 1f, RequestPriority.Voice), StallLimit);
+        await using var speaking = await host.OpenStreamAsync(id => new Speak(id, Voice, 1f, RequestPriority.Voice), StallLimit);
         await speaking.WriteAsync(new TextToSpeak(speaking.RequestId, 0, said, "en"));
         await speaking.WriteAsync(new InputEnd(speaking.RequestId));
         TimeSpan? audio = null;
@@ -226,7 +208,7 @@ public class SharedHostMeasurements
     private sealed record Thinking(int Calls, int Tokens, int Lost, TimeSpan Ran);
 
     /// <summary>The background app's own work, one call at a time as its engine makes them, until <paramref name="stop"/>.</summary>
-    private static async Task<Thinking> ThinkAsync(AiHostClient host, ModelSpec model, CancellationToken stop)
+    private static async Task<Thinking> ThinkAsync(AiHostClient host, ModelRef model, CancellationToken stop)
     {
         var watch = Stopwatch.StartNew();
         int calls = 0, tokens = 0, lost = 0;
@@ -250,9 +232,9 @@ public class SharedHostMeasurements
         return new Thinking(calls, tokens, lost, watch.Elapsed);
     }
 
-    private sealed record Setup(string Name, AiHostClient Voice, AiHostClient? Thinker, ModelSpec VoiceModel, ModelSpec? ThinkingModel);
+    private sealed record Setup(string Name, AiHostClient Voice, AiHostClient? Thinker, ModelRef VoiceModel, ModelRef? ThinkingModel);
 
-    private async Task MeasureAsync(Setup setup, VoiceSpec voice)
+    private async Task MeasureAsync(Setup setup)
     {
         using var gpu = GpuMemoryWatch.Start();
         using var stop = new CancellationTokenSource();
@@ -260,10 +242,10 @@ public class SharedHostMeasurements
         if (thinking is not null) await Task.Delay(TimeSpan.FromSeconds(10));
 
         var turns = new List<VoiceTurn>();
-        await SpeakAsync(setup.Voice, setup.VoiceModel, voice, "Say hello.");   // warms the voice path
+        await SpeakAsync(setup.Voice, setup.VoiceModel, "Say hello.");   // warms the voice path
         foreach (var question in Questions)
         {
-            turns.Add(await SpeakAsync(setup.Voice, setup.VoiceModel, voice, question));
+            turns.Add(await SpeakAsync(setup.Voice, setup.VoiceModel, question));
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
         stop.Cancel();
@@ -283,39 +265,37 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task Voice_BesideThinkingNobodyWatches_InSeparateHostsAndInOne()
     {
-        var people = People();
-        var aria = Gguf("aria/model", AriaGguf(), 16_384, 25_600);
-        var voice = Voice();
+        var aria = Aria();
 
         await using (var alone = await HostOnTheCardAsync())
         {
-            await LoadAsync(alone, people);
-            await LoadAsync(alone, voice.Model);
-            await MeasureAsync(new Setup("voice alone", alone, null, people, null), voice);
+            await using var people = await TestStore.HoldPlacedAsync(alone, [People], RequestPriority.Interactive);
+            await using var voice = await TestStore.HoldPlacedAsync(alone, VoiceParts, RequestPriority.Voice);
+            await MeasureAsync(new Setup("voice alone", alone, null, People, null));
         }
 
         await using (var nexaflow = await HostOnTheCardAsync())
         await using (var thinker = await HostOnTheCardAsync())
         {
-            await LoadAsync(nexaflow, people);
-            await LoadAsync(nexaflow, voice.Model);
-            await LoadAsync(thinker, aria);
-            await MeasureAsync(new Setup("separate hosts, own models", nexaflow, thinker, people, aria), voice);
+            await using var people = await TestStore.HoldPlacedAsync(nexaflow, [People], RequestPriority.Interactive);
+            await using var voice = await TestStore.HoldPlacedAsync(nexaflow, VoiceParts, RequestPriority.Voice);
+            await using var thinking = await TestStore.HoldPlacedAsync(thinker, [aria], RequestPriority.Background);
+            await MeasureAsync(new Setup("separate hosts, own models", nexaflow, thinker, People, aria));
         }
 
         await using (var shared = await HostOnTheCardAsync())
         {
-            await LoadAsync(shared, people);
-            await LoadAsync(shared, voice.Model);
-            await LoadAsync(shared, aria);
-            await MeasureAsync(new Setup("one host, own models", shared, shared, people, aria), voice);
+            await using var people = await TestStore.HoldPlacedAsync(shared, [People], RequestPriority.Interactive);
+            await using var voice = await TestStore.HoldPlacedAsync(shared, VoiceParts, RequestPriority.Voice);
+            await using var thinking = await TestStore.HoldPlacedAsync(shared, [aria], RequestPriority.Background);
+            await MeasureAsync(new Setup("one host, own models", shared, shared, People, aria));
         }
 
         await using (var shared = await HostOnTheCardAsync())
         {
-            await LoadAsync(shared, people);
-            await LoadAsync(shared, voice.Model);
-            await MeasureAsync(new Setup("one host, one model", shared, shared, people, people), voice);
+            await using var people = await TestStore.HoldPlacedAsync(shared, [People], RequestPriority.Interactive);
+            await using var voice = await TestStore.HoldPlacedAsync(shared, VoiceParts, RequestPriority.Voice);
+            await MeasureAsync(new Setup("one host, one model", shared, shared, People, People));
         }
     }
 
@@ -324,9 +304,9 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task ABackgroundAppsConversation_ReadAppended_AgainstReadWholeEachCall()
     {
-        var aria = Gguf("aria/model", AriaGguf(), 16_384, 25_600);
+        var aria = Aria();
         await using var host = await HostOnTheCardAsync();
-        await LoadAsync(host, aria);
+        await using var thinking = await TestStore.HoldPlacedAsync(host, [aria], RequestPriority.Background);
 
         foreach (bool clockInSystemTurn in new[] { false, true })
         {
@@ -373,9 +353,9 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task ABackgroundApp_IsSentItsModelsReasoning_WhenItAsks_AndCanGiveItBack()
     {
-        var aria = Gguf("aria/model", AriaGguf(), 16_384, 25_600);
+        var aria = Aria();
         await using var host = await HostOnTheCardAsync();
-        await LoadAsync(host, aria);
+        await using var thinking = await TestStore.HoldPlacedAsync(host, [aria], RequestPriority.Background);
 
         var turns = new List<ChatTurn> { new(TurnRole.System, "Be brief."), new(TurnRole.User, "A train leaves at 14:10 and arrives at 16:45. How long is it?") };
         var (text, reasoning) = (new StringBuilder(), new StringBuilder());

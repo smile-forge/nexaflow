@@ -18,9 +18,8 @@ internal sealed class WanFilming(ModelRegistry models, GpuScheduler gpu) : IFilm
 
     public bool Films(int width, int height, int frames) => WanSampler.Films(width, height, frames);
 
-    public async Task FilmAsync(Film request, FilmingCallbacks report, ModelRegistry.Room room, CancellationToken ct)
+    public async Task FilmAsync(Film request, FilmingModel model, FilmingCallbacks report, ModelRegistry.Room room, CancellationToken ct)
     {
-        var model = request.Model;
         var lane  = gpu.Open(request.Priority);
         var shape = LatentShape.Of(request.Frames, request.Width, request.Height);
         bool guided = model.Method == FilmingMethod.Wan;

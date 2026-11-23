@@ -321,25 +321,25 @@ public partial class App : Application
         var assets = new AiHostModelStore(aiHost);
         _ = ReadModelStoreAsync(assets);
         // The picture tools run in the same host, on the same plan of its GPUs, from the same store, as the owned models.
-        var hostSetup = new HostModelSetup(aiHost);
+        var holds = new HostHolds(aiHost);
         _residency = new ModelResidency(preloadConfig, new ModelUseHistory(Path.Combine(LocalAiFolder.Root(), "model-use.json")));
         // A host with nothing held in it closes after the same idle time a model is let go after.
-        if (preloadConfig.IdleRelease is { } idle) aiHost.RetireWhenIdle(idle, () => hostSetup.HoldsModels);
+        if (preloadConfig.IdleRelease is { } idle) aiHost.RetireWhenIdle(idle, () => holds.HoldsModels);
         StartupTimings.Mark("Init.ModelStore");
         var hardware = MachineCards.Probe();
         StartupTimings.Mark("Init.HardwareProbe");
         // A machine that had the CUDA pack gets this version's in place of it, in the background, without being asked again.
         var cudaPack = new CudaPackDownload(assets, () => assets.HadEarlierRuntimePack, hardware, activityManager);
         _cudaPack = cudaPack;
-        var pictureTools = new PictureTools(new OwnedPictureTools(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
-        var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
-        var pageReading = new PageReading(new OwnedPageReading(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
-        var pictureErasing = new PictureErasing(new OwnedPictureErasing(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
-        var sceneDepth = new SceneDepthEstimation(new OwnedSceneDepth(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
+        var pictureTools = new PictureTools(new OwnedPictureTools(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
+        var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
+        var pageReading = new PageReading(new OwnedPageReading(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
+        var pictureErasing = new PictureErasing(new OwnedPictureErasing(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
+        var sceneDepth = new SceneDepthEstimation(new OwnedSceneDepth(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
         // Not a feature's tool: the check Enhanced AI Protection Mode holds every picture made to, which Core runs itself.
-        var pictureChecking = new PictureChecking(new OwnedPictureChecking(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
+        var pictureChecking = new PictureChecking(new OwnedPictureChecking(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
         ProviderManager.Instance.Initialize(activityManager, assets, _residency,
-            aiHost, hostSetup, hardware,
+            aiHost, holds, hardware,
             new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), cudaPack, pictureTools, pictureSelection, pageReading,
             pictureErasing, sceneDepth, pictureChecking);
         FeatureManager.Instance.ProvideTool<IPictureTools>(pictureTools);

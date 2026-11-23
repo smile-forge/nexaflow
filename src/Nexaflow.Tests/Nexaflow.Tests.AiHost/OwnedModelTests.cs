@@ -8,7 +8,8 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// The real model in the real host — where a machine has it: Gemma 4 E4B, <c>gemma-4-e4b-it</c> from the test store
-/// (<see cref="TestStore"/>), run on CUDA where the store holds the pack this machine runs, on the CPU otherwise. What is
+/// (<see cref="TestStore"/>), held where the host places it — on CUDA where the store holds the pack this machine runs, on the CPU
+/// otherwise. What is
 /// checked is behaviour — the context appended rather than re-read, media read where it comes, calls
 /// made and what came of them read on, cancellation honoured — never wording; the media is the sample dataset's, whose
 /// content is beside the point.
@@ -19,30 +20,33 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("ai-host")]
 public class OwnedModelTests
 {
+    /// <summary>The model's chat part, as a request names it.</summary>
+    private static readonly ModelRef Chat = new("gemma-4-e4b-it", "chat");
+
     private static AiHostClient? _client;
-    private static ModelSpec? _model;
+
+    /// <summary>The model held for the class's requests, as a conversation holds it.</summary>
+    private static HostHold? _hold;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
         _client = await TestStore.HostOnEitherAsync();
         if (_client is null) return;
-        // On the first GPU when the host runs from the pack, as the catalog has it there; on the CPU without.
-        bool cuda = _client.Environment.Cuda;
-        _model = TestStore.Spec("gemma-4-e4b-it", "chat", cuda ? 0 : null, cuda ? 5905580032L + 17920L * 16_384 : 0, 16_384);
-        await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _model), TimeSpan.FromMinutes(3))) { }
+        _hold = await TestStore.HoldPlacedAsync(_client, [Chat], RequestPriority.Interactive);
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
+        if (_hold is not null) await _hold.DisposeAsync();
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, ModelSpec Model) Model()
+    private static (AiHostClient Client, ModelRef Model) Model()
     {
-        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
-        return (_client!, _model!);
+        if (_client is null || _hold is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        return (_client!, Chat);
     }
 
     private sealed record Answer(string Text, GenerationEnded Ended, IReadOnlyList<ChatToolCall> Calls);
@@ -97,11 +101,11 @@ public class OwnedModelTests
         var gemma = new TokenSampling(1.0f, 64, 0.95f, Seed: 11);
         List<ChatTurn> Asked() => Conversation("Write two sentences about a lighthouse keeper.");
 
-        async Task<string[]> OnAFreshHostAsync()
+        async Task<(string[] Replies, PartPlacement Placed)> OnAFreshHostAsync()
         {
-            // The same store on the same machine: the same runtime as the class's host, so the model loads as it did there.
+            // The same store on the same machine, beside the class's host: each fresh host places the model as the other did.
             await using var host = (await TestStore.HostOnEitherAsync())!;
-            await foreach (var _ in host.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
+            await using var hold = await TestStore.HoldPlacedAsync(host, [model], RequestPriority.Interactive);
             var replies = new List<string>();
             foreach (var seed in new uint[] { 11, 12, 13 })
             {
@@ -111,14 +115,15 @@ public class OwnedModelTests
                     if (reply is TextDelta delta) text.Append(delta.Text);
                 replies.Add(text.ToString());
             }
-            return [.. replies];
+            return ([.. replies], hold.PlacementOf(model)!);
         }
 
         var first = await OnAFreshHostAsync();
         var again = await OnAFreshHostAsync();
 
-        CollectionAssert.AreEqual(first, again, "the same requests in the same order draw the same");
-        Assert.IsTrue(first.Distinct().Count() > 1, "it is sampled, not the likeliest token each time");
+        Assert.AreEqual(first.Placed, again.Placed, "each fresh host runs the model where the other did");
+        CollectionAssert.AreEqual(first.Replies, again.Replies, "the same requests in the same order draw the same");
+        Assert.IsTrue(first.Replies.Distinct().Count() > 1, "it is sampled, not the likeliest token each time");
     }
 
     [TestMethod]

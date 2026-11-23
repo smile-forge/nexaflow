@@ -20,8 +20,8 @@ public sealed record ErasedPicture(int Regions, SharedBytes Pixels) : IDisposabl
 /// </summary>
 public sealed class OwnedPictureErasing : OwnedToolFront
 {
-    public OwnedPictureErasing(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureErasing))
+    public OwnedPictureErasing(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds, MachineCards hardware)
+        : this(new OwnedModelRuntime(activities, assets, host, holds, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureErasing))
     {
     }
 
@@ -39,14 +39,13 @@ public sealed class OwnedPictureErasing : OwnedToolFront
     public async Task<ErasedPicture> EraseAsync(ReadOnlyMemory<byte> pixels, ReadOnlyMemory<byte> mask, int width, int height,
                                                 IProgress<(int Done, int Total)>? progress, CancellationToken ct)
     {
-        var madeWay = new List<IDisposable>();   // the models that make way for this picture, back once it is done
         ErasedPicture? erased = null;
         try
         {
-            var parts = await PlacedAsync(ErasingParts.All, ct);
+            var tool = ToolId();
             using var picture = await Owned.Host.ShareAsync(pixels, ct);
             using var covered = await Owned.Host.ShareAsync(mask, ct);
-            await foreach (var reply in Owned.Host.SendAsync(id => new ErasePicture(id, parts, picture, covered, width, height, RequestPriority.Job),
+            await foreach (var reply in Owned.Host.SendAsync(id => new ErasePicture(id, tool, picture, covered, width, height, RequestPriority.Job),
                                                              OwnedModelRuntime.StallLimit, ct))
             {
                 switch (reply)
@@ -54,9 +53,7 @@ public sealed class OwnedPictureErasing : OwnedToolFront
                     case Progress { Stage: ErasingStages.Filling, Total: > 0 } step:
                         progress?.Report(((int)step.Done, (int)step.Total));
                         break;
-                    case MadeWay made:
-                        madeWay.Add(Owned.MakingWay(made.Models));
-                        break;
+
                     case PictureErased done:
                         erased = new ErasedPicture(done.Regions, done.Pixels);
                         break;
@@ -73,10 +70,6 @@ public sealed class OwnedPictureErasing : OwnedToolFront
         {
             erased?.Dispose();
             throw;
-        }
-        finally
-        {
-            foreach (var back in madeWay) back.Dispose();
         }
     }
 }

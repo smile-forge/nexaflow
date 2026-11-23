@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.AiHost.Models;
 

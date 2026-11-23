@@ -31,9 +31,8 @@ internal sealed class KleinDrawing(ModelRegistry models, GpuScheduler gpu) : IDr
 
     public bool Masks => true;
 
-    public async Task<SharedBytes> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
+    public async Task<SharedBytes> DrawAsync(Draw request, DrawingModel model, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
-        var model = request.Model;
         var lane  = gpu.Open(request.Priority);
         int rows = request.Height / KleinSampler.PixelsPerToken, cols = request.Width / KleinSampler.PixelsPerToken, tokens = rows * cols;
 

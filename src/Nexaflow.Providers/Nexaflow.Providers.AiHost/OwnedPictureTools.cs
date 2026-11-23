@@ -24,8 +24,8 @@ public sealed record RestoringStep(string Stage, int Done, int Total);
 /// </summary>
 public sealed class OwnedPictureTools : OwnedToolFront
 {
-    public OwnedPictureTools(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureRestoration))
+    public OwnedPictureTools(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds, MachineCards hardware)
+        : this(new OwnedModelRuntime(activities, assets, host, holds, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureRestoration))
     {
     }
 
@@ -43,13 +43,12 @@ public sealed class OwnedPictureTools : OwnedToolFront
     public async Task<RestoredPicture> RestoreAsync(ReadOnlyMemory<byte> pixels, int width, int height, int scale, bool faces,
                                                     IProgress<RestoringStep>? progress, CancellationToken ct)
     {
-        var madeWay = new List<IDisposable>();   // the models that make way for this picture, back once it is done
         RestoredPicture? restored = null;
         try
         {
-            var parts = await PlacedAsync(RestoringParts.Of(scale, faces), ct);
+            var tool = ToolId();
             using var picture = await Owned.Host.ShareAsync(pixels, ct);
-            await foreach (var reply in Owned.Host.SendAsync(id => new RestorePicture(id, parts, picture, width, height, scale, faces, RequestPriority.Job),
+            await foreach (var reply in Owned.Host.SendAsync(id => new RestorePicture(id, tool, picture, width, height, scale, faces, RequestPriority.Job),
                                                              OwnedModelRuntime.StallLimit, ct))
             {
                 switch (reply)
@@ -57,9 +56,7 @@ public sealed class OwnedPictureTools : OwnedToolFront
                     case Progress { Total: > 0 } step:
                         progress?.Report(new RestoringStep(step.Stage, (int)step.Done, (int)step.Total));
                         break;
-                    case MadeWay made:
-                        madeWay.Add(Owned.MakingWay(made.Models));
-                        break;
+
                     case PictureRestored done:
                         restored = new RestoredPicture(done.Width, done.Height, done.FacesRestored, done.Pixels);
                         break;
@@ -76,10 +73,6 @@ public sealed class OwnedPictureTools : OwnedToolFront
         {
             restored?.Dispose();
             throw;
-        }
-        finally
-        {
-            foreach (var back in madeWay) back.Dispose();
         }
     }
 }

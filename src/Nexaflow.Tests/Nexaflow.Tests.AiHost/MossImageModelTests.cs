@@ -20,21 +20,17 @@ public class MossImageModelTests
 {
     private const string Fox = "A fox standing in a forest clearing at dawn, mist between the trees.";
 
+    /// <summary>The model, as the catalog names it: the host draws with its parts where it places them.</summary>
+    private const string Model = "moss-image";
+
     private static AiHostClient? _client;
-    private static DrawingModel? _model;
 
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        _client = await TestStore.HostAsync();
-        _model = new DrawingModel(DrawingMethod.MossImage, new Dictionary<string, ModelSpec>
-        {
-            [DrawingParts.PromptEncoder] = TestStore.Spec("moss-image", DrawingParts.PromptEncoder, 0, 9L << 30),
-            [DrawingParts.Denoiser]      = TestStore.Spec("moss-image", DrawingParts.Denoiser, 0, 9L << 30),
-            [DrawingParts.Decoder]       = TestStore.Spec("moss-image", DrawingParts.Decoder, 0, 4L << 30),
-        }, Steps: 50, Shift: 5f, Guidance: 3f);
+    _client = await TestStore.HostAsync();
     }
 
     [ClassCleanup]
@@ -43,18 +39,18 @@ public class MossImageModelTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, DrawingModel Model) Host()
+    private static (AiHostClient Client, string Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing());
-        return (_client, _model);
+        if (_client is null) Assert.Inconclusive(TestStore.Missing());
+        return (_client, Model);
     }
 
-    /// <summary>The catalog's LoRA <paramref name="id"/> of MOSS-Image, as a request names it: its adapter and — for a distillation
-    /// that draws in its own steps — its sampler, by their paths in the store.</summary>
+    /// <summary>The catalog's LoRA <paramref name="id"/> of MOSS-Image, as a request names it: by its id, the host finding its adapter
+    /// and — for a distillation that draws in its own steps — its sampler in the store.</summary>
     private static DrawingLora Lora(string id, float strength)
     {
-        var lora = ((HostedModel)HostCatalog.Find("moss-image")!).Loras.Single(l => l.Id == id);
-        return new(lora.Adapter.RelativePath, strength, lora.Sampler?.RelativePath);
+        var lora = ((HostedModel)HostCatalog.Find(Model)!).Loras.Single(l => l.Id == id);
+        return new(lora.Id, strength);
     }
 
     /// <summary>Draws <paramref name="draw"/>'s picture: its PNG and the denoising steps reported, in order.</summary>
@@ -163,7 +159,7 @@ public class MossImageModelTests
     {
         var (client, _) = Host();
         // Nothing of Z-Image's need be here: the request is refused before a part is asked for.
-        var zImage = new DrawingModel(DrawingMethod.ZImage, new Dictionary<string, ModelSpec>(), Steps: 9, Shift: 3f, Guidance: 0f);
+        const string zImage = "z-image-turbo";
 
         var lora = await Assert.ThrowsAsync<AiHostException>(async () =>
         {

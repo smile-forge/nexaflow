@@ -1,7 +1,9 @@
 using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Drawing;
 using Nexaflow.AiHost.Provisioning;
+using Nexaflow.AiHost.Speech;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -9,8 +11,9 @@ namespace Nexaflow.Tests.AiHost;
 /// The model store the tests that run real models read: <c>NEXAFLOW_TEST_STORE</c> names one laid out as the AI host keeps it —
 /// the machine's own, <c>%ProgramData%\Smile-Forge\Models</c>, or a copy — holding each model under its catalog folder and, for a
 /// GPU, the CUDA pack. A test's host keeps that store and downloads nothing; a request names a model as an app does, by its
-/// folder in the store (<see cref="Spec"/>). A build not yet in the catalog is tried by putting it under the folder the catalog
-/// will name. Unset, every such test is inconclusive.
+/// catalog id, and the host places it (<see cref="HoldPlacedAsync"/>). A test that chooses a placement itself runs the host's parts in
+/// its own process (<see cref="Spec"/>, <see cref="InProcessHost"/>). A build not yet in the catalog is tried by putting it under the
+/// folder the catalog will name. Unset, every such test is inconclusive.
 /// </summary>
 internal static class TestStore
 {
@@ -57,10 +60,36 @@ internal static class TestStore
     public static string Missing(bool gpu = true)
         => gpu ? $"{Variable} names no model store holding the CUDA pack this machine runs." : $"{Variable} names no model store.";
 
+    /// <summary>The parts of <paramref name="model"/> an app holds with it — all but those loaded on demand — as a hold names them, on the
+    /// runtime of a host on the CUDA pack where <paramref name="cuda"/>, on the CPU otherwise.</summary>
+    public static IReadOnlyList<ModelRef> HeldPartsOf(string model, bool cuda)
+    {
+        var entry = HostCatalog.Find(model) ?? throw new ArgumentException($"The catalog has no model '{model}'.", nameof(model));
+        return [.. PlacementNeeds.Held(entry, cuda ? HostCatalog.Cuda : HostCatalog.Cpu).Select(p => new ModelRef(model, p.Name)).DistinctBy(r => r.Id)];
+    }
+
     /// <summary>
-    /// <paramref name="model"/>'s part <paramref name="part"/> — its name in the model — as a request names it: its folder in the store,
-    /// its file and runner from the catalog, on <paramref name="device"/> (null for the CPU, which takes the part's CPU build where
-    /// it has one), holding <paramref name="memoryBytes"/> where the test says, else what the catalog says it holds.
+    /// Has <paramref name="host"/> hold <paramref name="parts"/> at <paramref name="priority"/>, as an app holds a model while it expects
+    /// to use it: each loaded where the host's plan places it when this returns, until the hold is disposed. A part held nowhere fails the
+    /// test, saying why.
+    /// </summary>
+    public static async Task<HostHold> HoldPlacedAsync(AiHostClient host, IReadOnlyList<ModelRef> parts, RequestPriority priority)
+    {
+        var hold = await new HostHolds(host).HoldAsync(parts, priority);
+        if (parts.FirstOrDefault(p => hold.PlacementOf(p) is null) is { } unplaced)
+        {
+            string why = hold.WhyUnplaced(unplaced) ?? "the hold ended";
+            await hold.DisposeAsync();
+            throw new AssertFailedException($"{unplaced} is held nowhere: {why}");
+        }
+        return hold;
+    }
+
+    /// <summary>
+    /// <paramref name="model"/>'s part <paramref name="part"/> — its name in the model — as the host runs it at a placement the test
+    /// chooses: its folder in the store, its file and runner from the catalog, on <paramref name="device"/> (null for the CPU, which takes
+    /// the part's CPU build where it has one), holding <paramref name="memoryBytes"/> where the test says, else what the catalog says it
+    /// holds.
     /// </summary>
     public static ModelSpec Spec(string model, string part, int? device, long? memoryBytes = null, int contextTokens = 0)
     {
@@ -72,26 +101,13 @@ internal static class TestStore
                              built.CudaOptions, built.Projector, device);
     }
 
-    /// <summary>
-    /// The listening models of <paramref name="model"/> — a speech-to-text model of the catalog — as a request names them: the recogniser
-    /// and the transcriber on the first GPU where <paramref name="cuda"/>, holding what the catalog says, and on the CPU otherwise; the
-    /// voice activity and turn detectors on the CPU either way.
-    /// </summary>
-    public static ListenModels ListenModelsOf(string model, bool cuda)
-    {
-        int? device = cuda ? 0 : null;
-        long? held = cuda ? null : 0;
-        return new ListenModels(Spec(model, HostedRoles.VoiceActivity, null, 0), Spec(model, HostedRoles.Recognizer, device, held),
-                                Spec(model, HostedRoles.Transcriber, device, held), Spec(model, HostedRoles.TurnDetector, null, 0));
-    }
-
     /// <summary>Where <paramref name="relative"/> lies in the test store — for a test that reads a model's file itself, as a reference
     /// check does; the host never takes a path.</summary>
     public static string PathOf(string relative) => Path.Combine(Root ?? throw new InvalidOperationException(Missing(false)), relative);
 
     /// <summary>
-    /// The voice of <paramref name="model"/> that reads <paramref name="language"/>, as a request names it: the part that speaks it as
-    /// <see cref="Spec"/> gives it, the voice's file and — for a language read from a lexicon — the lexicon's, both in that part's folder.
+    /// The voice of <paramref name="model"/> that reads <paramref name="language"/>, as the host speaks with it: the part that speaks it
+    /// as <see cref="Spec"/> gives it, the voice's file and — for a language read from a lexicon — the lexicon's, both in that part's folder.
     /// </summary>
     public static VoiceSpec Voice(string model, string language, int? device, long? memoryBytes = null)
     {
@@ -110,6 +126,20 @@ internal static class TestStore
         if (Root is null) Assert.Inconclusive(Missing(gpu: false));
         var spec = Spec(model, part, device, memoryBytes);
         return spec with { Folder = PathOf(spec.Folder) };
+    }
+
+    /// <summary>
+    /// <paramref name="model"/>, an image model of the catalog, as the host draws with it — the method, steps, shift and guidance the
+    /// catalog gives it — each part on the first GPU as <see cref="Spec"/> gives it: for a test that draws in its own process at a placement
+    /// it chooses (<see cref="InProcessHost.DrawAsync"/>).
+    /// </summary>
+    public static DrawingModel DrawingModelOf(string model)
+    {
+        var entry = HostCatalog.Find(model) as HostedModel ?? throw new ArgumentException($"The catalog has no model '{model}'.", nameof(model));
+        var sampler = entry.Sampler ?? throw new ArgumentException($"'{model}' draws nothing.", nameof(model));
+        var parts = DrawingParts.Of(sampler.Method)
+            .ToDictionary(role => role, role => Spec(model, entry.PartsFor(HostCatalog.Cuda).First(p => p.Role == role).Name, 0));
+        return new DrawingModel(sampler.Method, parts, sampler.Steps, sampler.Shift, sampler.Guidance);
     }
 
     /// <summary>

@@ -29,8 +29,8 @@ internal static class OwnedModelHarness
     private static AiHostClient? _host;
     private static ILlmProvider? _model;
 
-    /// <summary>The machine's setup the model is held through, once it is loaded.</summary>
-    public static HostModelSetup? Setup { get; private set; }
+    /// <summary>The holds the model is held through in the host, once it is loaded.</summary>
+    public static HostHolds? Holds { get; private set; }
 
     /// <summary>The loaded model, or an inconclusive test on a machine without it.</summary>
     public static async Task<ILlmProvider> ModelAsync()
@@ -53,8 +53,8 @@ internal static class OwnedModelHarness
                                                                store: root, downloads: false));
             var store = new AiHostModelStore(_host);
             await store.RefreshAsync();
-            Setup = new HostModelSetup(_host);
-            var provider = new OwnedLlmProvider(new Activities(), store, _host, Setup, MachineCards.Probe(), new ProviderModel("gemma-4-e4b-it"));
+            Holds = new HostHolds(_host);
+            var provider = new OwnedLlmProvider(new Activities(), store, _host, Holds, MachineCards.Probe(), new ProviderModel("gemma-4-e4b-it"));
             if (!provider.IsAvailable) Assert.Inconclusive($"{root} does not hold Gemma 4 E4B's files.");
             await provider.WarmupAsync();
             return _model = provider;
@@ -67,7 +67,7 @@ internal static class OwnedModelHarness
         if (_host is not null) await _host.DisposeAsync();
         _host = null;
         _model = null;
-        Setup = null;
+        Holds = null;
     }
 
     /// <summary>An AIService whose every language role is <paramref name="model"/>.</summary>

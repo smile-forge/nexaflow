@@ -540,14 +540,14 @@ public sealed class AIService : IAIService
     }
 
     public Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default)
-        => ProviderManager.Instance.Service<HostModelSetup>() is { } setup
-    ? LocalAiSetupReader.DescribeAsync(setup, OwnedModelsInUse(),
+    => ProviderManager.Instance.Service<HostHolds>() is { } holds
+    ? LocalAiSetupReader.DescribeAsync(holds, OwnedModelsInUse(),
                                                ModelPlacement.Expected(ProviderManager.Instance.Service<MachineCards>() ?? MachineCards.Probe()), ct)
             : Task.FromResult<LocalAiSetup?>(null);
 
     public Task<LocalAiCheck> CheckLocalAiAsync(IProgress<LocalAiCheckProgress> progress, CancellationToken ct = default)
-        => ProviderManager.Instance.Service<HostModelSetup>() is { } setup
-            ? new LocalAiChecker(setup, OwnedModelsInUse(), Path.Combine(LocalAiFolder.Root(), "reports")).RunAsync(progress, ct)
+        => ProviderManager.Instance.Service<HostHolds>() is { } holds
+            ? new LocalAiChecker(holds, OwnedModelsInUse(), Path.Combine(LocalAiFolder.Root(), "reports")).RunAsync(progress, ct)
             : throw new InvalidOperationException("Nexaflow's own models are not set up in this session.");
 
     // ── Persistence ───────────────────────────────────────────────────────

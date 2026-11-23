@@ -4,6 +4,7 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
 using Nexaflow.AiHost.Tiling;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.AiHost.Filming;
 

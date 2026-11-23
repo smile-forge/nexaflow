@@ -54,16 +54,9 @@ public static class DrawingParts
 public static class DrawingMethods
 {
     /// <summary>Whether a model drawn <paramref name="method"/>'s way shifts its noise levels by an amount that follows the
-    /// picture's size rather than by a shift of its own (<see cref="DrawingModel.Shift"/> is 0).</summary>
+    /// picture's size rather than by a shift of its own (its catalog's shift is 0).</summary>
     public static bool ShiftsBySize(DrawingMethod method) => method is DrawingMethod.Flux2Klein or DrawingMethod.QwenImageEdit;
 }
-
-/// <summary>An image model's parts by role (<see cref="DrawingParts"/>), the method that draws with them, and how it samples.</summary>
-/// <param name="Steps">How many denoising steps a picture takes.</param>
-/// <param name="Shift">The flow-matching shift applied to the noise levels the steps run through; 0 for a model whose
-/// shift follows the picture's size (FLUX.2's).</param>
-/// <param name="Guidance">How far each step steers away from the empty prompt; 0 for a model that does not.</param>
-public sealed record DrawingModel(DrawingMethod Method, IReadOnlyDictionary<string, ModelSpec> Parts, int Steps, float Shift, float Guidance);
 
 /// <summary>
 /// Draws one picture from a prompt, and from pictures to work from where its model takes them. Each step — reading the
@@ -71,13 +64,15 @@ public sealed record DrawingModel(DrawingMethod Method, IReadOnlyDictionary<stri
 /// replies get in between; each denoising step is reported as a <see cref="Progress"/> (stage "drawing", done of total).
 /// The picture comes back as one <see cref="Drawn"/>.
 /// </summary>
+/// <param name="Model">The image model, as the catalog names it: the parts it draws with, the method and the sampling, the host's to
+/// take from its catalog.</param>
 /// <param name="Width">In pixels; with <see cref="Height"/>, a size the model draws a picture from a prompt alone at. An edit —
 /// a picture made from <see cref="Sources"/> — is drawn at the size its model reads the first at, which the host decides and
 /// <see cref="Drawn"/> reports, so it names none: 0 × 0.</param>
 /// <param name="Seed">The noise the picture starts from: the same seed and prompt draw the same picture.</param>
 /// <param name="NegativePrompt">What to keep out of the picture, for a model that is told; null for none.</param>
 /// <param name="Lora">The LoRA it is drawn with, for a model that takes one; null for none.</param>
-public sealed record Draw(long RequestId, DrawingModel Model, string Prompt, int Width, int Height, long Seed,
+public sealed record Draw(long RequestId, string Model, string Prompt, int Width, int Height, long Seed,
                           RequestPriority Priority, string? NegativePrompt = null, DrawingLora? Lora = null) : HostRequest(RequestId)
 {
     /// <summary>The pictures to work from, in order, each at the size it is: the host reads each at the size its model reads a
@@ -95,18 +90,12 @@ public sealed record DrawingSource(int Width, int Height, SharedBytes Rgb);
 
 /// <summary>
 /// A LoRA a picture is drawn with: an ONNX Runtime adapter for its model's denoiser, applied unmerged at a strength, and
-/// — for a distillation — the sampler it brings in place of its model's own.
+/// — for a distillation — the sampler it brings in place of its model's own. Its files are the host's to find in its store.
 /// </summary>
-/// <param name="Adapter">The adapter file, by its path in the host's model store.</param>
+/// <param name="Id">The LoRA, as the image model's catalog names it.</param>
 /// <param name="Strength">How much of it is added; 1 as its makers trained it.</param>
-/// <param name="Sampler">A distillation's own sampler, by its path in the host's model store; null for a LoRA drawn with its
-/// model's sampler.</param>
-public sealed record DrawingLora(string Adapter, float Strength, string? Sampler = null);
+public sealed record DrawingLora(string Id, float Strength);
 
 /// <summary>The picture, <paramref name="Width"/> × <paramref name="Height"/>, interleaved 8-bit RGB row by row: encoding it is
 /// whoever keeps it's.</summary>
 public sealed record Drawn(long RequestId, int Width, int Height, SharedBytes Rgb) : HostReply(RequestId);
-
-/// <summary>Resident models that made way on their GPU for this picture or clip — unloaded until the last one is done,
-/// when they load again. Until then a request for one waits.</summary>
-public sealed record MadeWay(long RequestId, IReadOnlyList<string> Models) : HostReply(RequestId);

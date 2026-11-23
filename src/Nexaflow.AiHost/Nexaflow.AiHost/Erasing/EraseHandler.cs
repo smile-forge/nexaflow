@@ -10,7 +10,7 @@ namespace Nexaflow.AiHost.Erasing;
 /// <see cref="ErasingHandover"/>): the inpainter held while the picture's regions go through it, in the room the picture
 /// borrowed, each region taking the GPU at the request's priority and reported.
 /// </summary>
-internal sealed class EraseHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<ErasePicture>
+internal sealed class EraseHandler(HeldModels models, GpuScheduler gpu) : HostRequestHandler<ErasePicture>
 {
     protected override async Task HandleAsync(ErasePicture request, Func<HostReply, Task> reply, CancellationToken ct)
     {
@@ -24,15 +24,14 @@ internal sealed class EraseHandler(ModelRegistry models, GpuScheduler gpu) : Hos
         if (regions.Count > 0)
         {
             var lane = gpu.Open(request.Priority);
-            using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
-            var spec = request.Parts[ErasingParts.Inpainter];
-            using var lease = await models.AcquireAsync(spec, resident: false, s => reply(new Progress(request.RequestId, s, 0, 0)), ct, room);
+            using var room = models.BorrowRoom();
+            using var lease = await models.AcquireAsync(models.ToolPart(request.Tool, ErasingParts.Inpainter), s => reply(new Progress(request.RequestId, s, 0, 0)), ct, room);
             var inpainter = lease.As<PictureInpainter>();
             for (int i = 0; i < regions.Count; i++)
             {
                 var prepared = ErasingHandover.Prepare(erased.Span, request.Width, mask.Span, regions[i]);
                 float[] inpainted;
-                using (await lane.NextAsync(spec.Device, ct))
+                using (await lane.NextAsync(lease.Model.Spec.Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
                     inpainted = inpainter.Inpaint(prepared.Rgb, prepared.Mask, prepared.Width, prepared.Height, lastCall: i == regions.Count - 1);
@@ -52,8 +51,5 @@ internal sealed class EraseHandler(ModelRegistry models, GpuScheduler gpu) : Hos
             throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not {request.Pixels.Length} bytes of RGBA.");
         if (request.Mask.Length != (long)request.Width * request.Height)
             throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} mask is not {request.Mask.Length} bytes.");
-        foreach (var role in ErasingParts.All)
-            if (!request.Parts.ContainsKey(role))
-                throw new HostRequestException(HostErrorKind.Invalid, $"Erasing needs its {role}.");
     }
 }

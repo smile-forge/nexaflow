@@ -42,24 +42,17 @@ public class PictureRestorationTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static IReadOnlyDictionary<string, ModelSpec> Parts()
+    /// <summary>The restoring tool, as the catalog names it: the host runs its five graphs where it places them.</summary>
+    private static string Tool()
     {
         if (_client is null || _reference is null)
             Assert.Inconclusive($"{TestStore.Missing()} Or NEXAFLOW_TEST_PICTURE_REFERENCE is not set.");
-        ModelSpec Part(string role, long gib) => TestStore.Spec("real-esrgan-gfpgan", role, 0, gib << 30);
-        return new Dictionary<string, ModelSpec>
-        {
-            [RestoringParts.UpscalerX2]   = Part(RestoringParts.UpscalerX2, 2),
-            [RestoringParts.UpscalerX4]   = Part(RestoringParts.UpscalerX4, 3),
-            [RestoringParts.FaceDetector] = Part(RestoringParts.FaceDetector, 2),
-            [RestoringParts.FaceRestorer] = Part(RestoringParts.FaceRestorer, 2),
-            [RestoringParts.FaceParser]   = Part(RestoringParts.FaceParser, 1),
-        };
+        return "real-esrgan-gfpgan";
     }
 
     private static IEnumerable<JsonNode> Cases()
     {
-        _ = Parts();   // inconclusive without the graphs
+        _ = Tool();   // inconclusive without the graphs
         return JsonNode.Parse(File.ReadAllText(Path.Combine(_reference!, "reference.json")))!["cases"]!.AsArray()!.Select(c => c!);
     }
 
@@ -68,7 +61,7 @@ public class PictureRestorationTests
     {
         using var pixels = await _client!.ShareFileAsync(Path.Combine(_reference!, picture), ct);
         var replies = new List<HostReply>();
-        await foreach (var reply in _client.SendAsync(id => new RestorePicture(id, Parts(), pixels, width, height, scale, faces, RequestPriority.Job),
+        await foreach (var reply in _client.SendAsync(id => new RestorePicture(id, Tool(), pixels, width, height, scale, faces, RequestPriority.Job),
                                                       TimeSpan.FromMinutes(5), ct))
             replies.Add(reply);
         using var restored = replies.OfType<PictureRestored>().Single().Pixels;

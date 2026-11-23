@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("owned-images")]
 public class EditFittingTests
 {
-    private static readonly DrawingModel Model = new(DrawingMethod.Flux2Klein, new Dictionary<string, ModelSpec>(), 4, 0f, 0f);
+    private const string Model = "flux2-klein-4b";
 
     private static Draw Edit(params DrawingSource[] sources) => new(1, Model, "a lake", 0, 0, 1, RequestPriority.Job) { Sources = sources };
 

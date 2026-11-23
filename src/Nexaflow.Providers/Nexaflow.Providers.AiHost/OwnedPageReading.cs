@@ -28,8 +28,8 @@ public sealed class OwnedPageReading : OwnedToolFront
 
     private static readonly ReplyDecoding Makers = new(WrittenWindow: 128, RepeatBan: new RepeatBan(35, 128), WritesControlTokens: true);
 
-    public OwnedPageReading(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PageReading))
+    public OwnedPageReading(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds, MachineCards hardware)
+        : this(new OwnedModelRuntime(activities, assets, host, holds, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PageReading))
     {
     }
 
@@ -44,9 +44,9 @@ public sealed class OwnedPageReading : OwnedToolFront
     {
         try
         {
-            var parts = await PlacedAsync([ReadingParts.TextFinder], ct);
+            var tool = ToolId();
             using var picture = await Owned.Host.ShareAsync(pixels, ct);
-            await foreach (var reply in Owned.Host.SendAsync(id => new FindTextInPicture(id, parts[ReadingParts.TextFinder], picture, width, height),
+            await foreach (var reply in Owned.Host.SendAsync(id => new FindTextInPicture(id, tool, picture, width, height),
                                                              OwnedModelRuntime.StallLimit, ct))
                 if (reply is TextFoundInPicture found) return found.Regions;
             throw new InvalidOperationException("The AI host finished without saying where the text is.");
@@ -68,12 +68,12 @@ public sealed class OwnedPageReading : OwnedToolFront
     {
         try
         {
-            var parts = await PlacedAsync([ReadingParts.Reader], ct);
+            var reader = PartOf(ReadingParts.Reader);
             using var page = await Owned.Host.ShareFileAsync(picture, ct);
             var turns = new[] { new ChatTurn(TurnRole.User, Instruction, [new ChatMedia(MediaKind.Image, page)]) };
             var text = new StringBuilder();
             var priority = waiting ? RequestPriority.Interactive : RequestPriority.Job;
-            await foreach (var reply in Owned.Host.SendAsync(id => new Generate(id, parts[ReadingParts.Reader], turns, null, priority, Thinks: false, Decoding: Makers),
+            await foreach (var reply in Owned.Host.SendAsync(id => new Generate(id, reader, turns, null, priority, Thinks: false, Decoding: Makers),
                                                              OwnedModelRuntime.StallLimit, ct))
             {
                 if (reply is not TextDelta delta) continue;

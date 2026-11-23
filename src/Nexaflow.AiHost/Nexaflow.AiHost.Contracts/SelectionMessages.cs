@@ -62,10 +62,11 @@ public sealed record FoundInPicture(float Score, SelectionBox Box);
 /// it when it closes or moves to another — and what was read goes with it. Each answer brings its masks back, in a shared
 /// section when they are large.
 /// </summary>
-/// <param name="Parts">The parts it may use, by role (<see cref="SelectingParts"/>); each loads when first asked of.</param>
+/// <param name="Tool">The selecting tool, as the catalog names it: the host runs its parts by role (<see cref="SelectingParts"/>), each
+/// loaded when first asked of.</param>
 /// <param name="Pixels">The picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA, row by row. Its alpha is
 /// not read.</param>
-public sealed record SelectInPicture(long RequestId, IReadOnlyDictionary<string, ModelSpec> Parts, SharedBytes Pixels, int Width, int Height,
+public sealed record SelectInPicture(long RequestId, string Tool, SharedBytes Pixels, int Width, int Height,
                                      RequestPriority Priority) : HostRequest(RequestId)
 {
     /// <summary>The most pixels a picture may hold: 256 megapixels, a gigabyte of RGBA.</summary>

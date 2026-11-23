@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Llama;
 using Nexaflow.AiHost.Models;
 

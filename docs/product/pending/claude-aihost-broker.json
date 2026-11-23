@@ -270,14 +270,97 @@
           "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Local/Nexaflow.Providers.Local.csproj"
         }
       ]
+    },
+    "local-ai-setup": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/ModelPlacement.cs",
+          "class": "ModelPlacement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedModelRuntime.cs",
+          "class": "OwnedModelRuntime"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Models/HeldModels.cs",
+          "class": "HeldModels"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/PlacementNeeds.cs",
+          "class": "PlacementNeeds"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/HostHolds.cs",
+          "class": "HostHolds"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Models/ModelHandlers.cs",
+          "class": "HoldModelsHandler"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Models/RequestModels.cs",
+          "class": "RequestModels"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ModelPlacementTests.cs",
+            "class": "ModelPlacementTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HeldModelsTests.cs",
+            "class": "HeldModelsTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RequestModelsTests.cs",
+            "class": "RequestModelsTests"
+          }
+        ]
+      }
+    },
+    "experts-in-host": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/ModelPlacement.cs",
+          "class": "PlacementNeed",
+          "method": "ExpertsOutBytesAt"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaModel.cs",
+          "class": "LlamaModel",
+          "method": "Load"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 11,
   "touched_nodes": [
     "ai-host",
     "ai-model-assets",
     "ai-tools",
+    "experts-in-host",
+    "local-ai-setup",
     "owned-images-moss-loras",
     "providers-speech-to-text",
     "voice-input"

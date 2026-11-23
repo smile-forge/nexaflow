@@ -19,10 +19,10 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     private readonly OwnedModelRuntime _runtime;
     private readonly HostedModel?       _model;
 
-    public OwnedSpeechToTextProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
+    public OwnedSpeechToTextProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds,
                                      MachineCards hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, holds, hardware);
         _model   = OwnedModels.OfKind(ModelKind.SpeechToText).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
     }
@@ -66,29 +66,30 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     {
         if (_model is null) throw new LlmProviderException($"{Name} has no speech model of that name.");
         var use = await _runtime.ModelUse.BeginAsync(ct);   // the session's whole stretch is one use, ended with it
+        HostHold? voice = null;
         try
         {
-            var models = new ListenModels(
-                await _runtime.PlacedAsync(_model, HostedRoles.VoiceActivity, ct),
-                await _runtime.PlacedAsync(_model, HostedRoles.Recognizer, ct),
-                await _runtime.PlacedAsync(_model, HostedRoles.Transcriber, ct),
-                await _runtime.PlacedAsync(_model, HostedRoles.TurnDetector, ct));
+            foreach (var role in new[] { HostedRoles.VoiceActivity, HostedRoles.Recognizer, HostedRoles.Transcriber, HostedRoles.TurnDetector })
+                await _runtime.PlacedAsync(_model, role, ct);
             var (end, priority) = options.Segmentation == SpeechSegmentation.Turns
                 ? (UtteranceEnd.Turn, RequestPriority.Voice)
                 : (UtteranceEnd.Pause, RequestPriority.Interactive);
+            // A conversation's listening is held at the voice priority for its length: placed ahead of every other held model.
+            if (priority == RequestPriority.Voice) voice = await _runtime.HoldForAsync(_model, priority, ct);
 
             var host = _runtime.Host;
-            host.Environment = _runtime.Environment;
-            var stream = await host.OpenStreamAsync(id => new Listen(id, models, options.Language, end, priority), OwnedModelRuntime.StallLimit, ct);
-            return new OwnedListeningSession(stream, use);
+            var stream = await host.OpenStreamAsync(id => new Listen(id, _model.Id, options.Language, end, priority), OwnedModelRuntime.StallLimit, ct);
+            return new OwnedListeningSession(stream, use, voice);
         }
         catch (AiHostException ex)
         {
+            if (voice is not null) await voice.DisposeAsync();
             use.Dispose();
             throw new LlmProviderException($"{Name} could not start listening: {ex.Message}", ex);
         }
         catch
         {
+            if (voice is not null) await voice.DisposeAsync();
             use.Dispose();
             throw;
         }
@@ -101,8 +102,9 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     }
 }
 
-/// <summary>A stretch of listening in the host: captured audio streamed in, what is heard streamed back.</summary>
-internal sealed class OwnedListeningSession(IHostStream stream, IDisposable use) : ISpeechToTextSession
+/// <summary>A stretch of listening in the host: captured audio streamed in, what is heard streamed back — its models held at the
+/// voice priority for its length, in a conversation.</summary>
+internal sealed class OwnedListeningSession(IHostStream stream, IDisposable use, HostHold? voice) : ISpeechToTextSession
 {
     public async ValueTask AppendAudioAsync(ReadOnlyMemory<byte> pcm, CancellationToken ct = default)
     {
@@ -141,6 +143,10 @@ internal sealed class OwnedListeningSession(IHostStream stream, IDisposable use)
     public async ValueTask DisposeAsync()
     {
         try { await stream.DisposeAsync(); }
-        finally { use.Dispose(); }
+        finally
+        {
+            if (voice is not null) await voice.DisposeAsync();
+            use.Dispose();
+        }
     }
 }

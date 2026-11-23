@@ -3,6 +3,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Drawing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.AiHost.Imaging;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -20,23 +21,17 @@ public class KleinModelTests
 {
     private const int Steps = 4;
 
+    /// <summary>The model, as the catalog names it: the host draws with its parts where it places them.</summary>
+    private const string Model = "flux2-klein-4b";
+
     private static AiHostClient? _client;
-    private static DrawingModel? _model;
 
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        _client = await TestStore.HostAsync();
-        ModelSpec Part(string part, long bytes) => TestStore.Spec("flux2-klein-4b", part, 0, bytes);
-        _model = new DrawingModel(DrawingMethod.Flux2Klein, new Dictionary<string, ModelSpec>
-        {
-            [DrawingParts.PromptEncoder]  = Part(DrawingParts.PromptEncoder, 5L << 30),
-            [DrawingParts.Denoiser]       = Part(DrawingParts.Denoiser, 11L << 30),
-            [DrawingParts.PictureEncoder] = Part(DrawingParts.PictureEncoder, 2L << 30),
-            [DrawingParts.Decoder]        = Part(DrawingParts.Decoder, 5L << 30),
-        }, Steps, Shift: 0f, Guidance: 0f);
+    _client = await TestStore.HostAsync();
     }
 
     [ClassCleanup]
@@ -45,10 +40,10 @@ public class KleinModelTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, DrawingModel Model) Host()
+    private static (AiHostClient Client, string Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing());
-        return (_client, _model);
+        if (_client is null) Assert.Inconclusive(TestStore.Missing());
+        return (_client, Model);
     }
 
     private async Task<(List<HostReply> Replies, PngReader.Picture Picture)> DrawAsync(Func<long, Draw> draw, string name)
@@ -57,10 +52,16 @@ public class KleinModelTests
         var replies = new List<HostReply>();
         await foreach (var reply in client.SendAsync(draw, TimeSpan.FromMinutes(5))) replies.Add(reply);
         var png = replies.OfType<Drawn>().Single().AsPng();
+        Keep(png, name);
+        return (replies, PngReader.Read(png));
+    }
+
+    /// <summary>Keeps a picture drawn with the test's results, to look at: the test checks its shape, a person checks what it shows.</summary>
+    private void Keep(byte[] png, string name)
+    {
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, name);
         File.WriteAllBytes(saved, png);
-        TestContext.AddResultFile(saved);   // to look at: the test checks its shape, a person checks what it shows
-        return (replies, PngReader.Read(png));
+        TestContext.AddResultFile(saved);
     }
 
     private static void AssertAPicture(PngReader.Picture picture)
@@ -86,25 +87,37 @@ public class KleinModelTests
     }
 
     /// <summary>The same prompt and seed drawn with the denoiser whole and streamed, where its folder holds the streamed build: one
-    /// picture, to the rounding of fp16 arithmetic done in another order.</summary>
+    /// picture, to the rounding of fp16 arithmetic done in another order. Drawn by the host's own drawing method in this process
+    /// (<see cref="InProcessHost"/>), each denoiser placed by the test: a host's plan streams it only where its GPU lacks the room for it
+    /// whole.</summary>
     [TestMethod]
     [Timeout(900_000, CooperativeCancellation = true)]
     [CoversNode("owned-images-streamed")]
     public async Task AStreamedDenoiser_DrawsThePictureTheWholeOneDraws()
     {
-        var (_, model) = Host();
+        _ = Host();
+        using var host = InProcessHost.OnTheGpu();
+        var model = TestStore.DrawingModelOf(Model);
         var denoiser = model.Parts[DrawingParts.Denoiser];
         if (!File.Exists(TestStore.PathOf($"{denoiser.Folder}/denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
         var streamed = model with
         {
             Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 7L << 30 } },
         };
+        var drawing = new KleinDrawing(host.Models, host.Scheduler);
+
+        async Task<PngReader.Picture> DrawInProcessAsync(DrawingModel drawn, string name)
+        {
+            var picture = await host.DrawAsync(drawing, new Draw(1, Model, "A red fox asleep in the snow, watercolour.", 1360, 768, 7, RequestPriority.Job), drawn);
+            Keep(new Drawn(1, picture.Width, picture.Height, SharedBytes.Of(picture.Rgb)).AsPng(), name);
+            return picture;
+        }
 
         PngReader.Picture whole, stream;
-        
+
         long streamedPeak, wholePeak;
-        using (var watch = GpuMemoryWatch.Start()) { stream = (await DrawAsync(id => new Draw(id, streamed, "A red fox asleep in the snow, watercolour.", 1360, 768, 7, RequestPriority.Job), "fox-klein-streamed.png")).Picture; streamedPeak = watch.PeakBytes; }
-        using (var watch = GpuMemoryWatch.Start()) { whole = (await DrawAsync(id => new Draw(id, model, "A red fox asleep in the snow, watercolour.", 1360, 768, 7, RequestPriority.Job), "fox-klein-whole.png")).Picture; wholePeak = watch.PeakBytes; }
+        using (var watch = GpuMemoryWatch.Start()) { stream = await DrawInProcessAsync(streamed, "fox-klein-streamed.png"); streamedPeak = watch.PeakBytes; }
+        using (var watch = GpuMemoryWatch.Start()) { whole = await DrawInProcessAsync(model, "fox-klein-whole.png"); wholePeak = watch.PeakBytes; }
         TestContext.WriteLine($"the GPU at its peak: streamed {streamedPeak / 1e9:0.00} GB, whole {wholePeak / 1e9:0.00} GB");
         Assert.IsTrue(streamedPeak < wholePeak, $"streamed, the GPU held {streamedPeak / 1e9:0.00} GB at its peak, whole {wholePeak / 1e9:0.00} GB");
         double mse = whole.Rgb.Zip(stream.Rgb).Average(p => (p.First - p.Second) * (double)(p.First - p.Second));

@@ -43,24 +43,17 @@ public class PictureSelectionTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static IReadOnlyDictionary<string, ModelSpec> Parts()
+    /// <summary>The selecting tool, as the catalog names it: the host runs its five graphs where it places them.</summary>
+    private static string Tool()
     {
         if (_client is null || _reference is null)
             Assert.Inconclusive($"{TestStore.Missing()} Or NEXAFLOW_TEST_SAM_REFERENCE is not set.");
-        ModelSpec Part(string role, long mib) => TestStore.Spec("sam3.1", role, 0, mib << 20);
-        return new Dictionary<string, ModelSpec>
-        {
-            [SelectingParts.ImageEncoder]    = Part(SelectingParts.ImageEncoder, 2560),
-            [SelectingParts.ClickDecoder]    = Part(SelectingParts.ClickDecoder, 256),
-            [SelectingParts.TextEncoder]     = Part(SelectingParts.TextEncoder, 1024),
-            [SelectingParts.ExemplarEncoder] = Part(SelectingParts.ExemplarEncoder, 128),
-            [SelectingParts.Finder]          = Part(SelectingParts.Finder, 1664),
-        };
+        return "sam3.1";
     }
 
     private static JsonObject Pictures()
     {
-        _ = Parts();
+        _ = Tool();
         return JsonNode.Parse(File.ReadAllText(Path.Combine(_reference!, "reference.json")))!["pictures"]!.AsObject();
     }
 
@@ -113,7 +106,7 @@ public class PictureSelectionTests
     private async Task<Session> OpenAsync(JsonNode picture)
     {
         using var pixels = await _client!.ShareFileAsync(Path.Combine(_reference!, picture["pixels"]!.GetValue<string>()));
-        var stream = await _client.OpenStreamAsync(id => new SelectInPicture(id, Parts(), pixels,
+        var stream = await _client.OpenStreamAsync(id => new SelectInPicture(id, Tool(), pixels,
                                                                               picture["width"]!.GetValue<int>(), picture["height"]!.GetValue<int>(),
                                                                               RequestPriority.Interactive),
                                                     TimeSpan.FromMinutes(5));

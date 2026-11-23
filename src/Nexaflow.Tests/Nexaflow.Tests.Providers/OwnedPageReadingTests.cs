@@ -20,7 +20,7 @@ public class OwnedPageReadingTests
     private static MachineCards Nvidia() => new([new MachineCard("gpu", 16L << 30)], CudaRuntimePack.MinimumDriver);
 
     private static OwnedPageReading Reading(FakeModelStore store, FakeAiHost host)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Nvidia());
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), Nvidia());
 
     private static IReadOnlyList<ModelAsset> Files => Reading(new FakeModelStore(), new FakeAiHost()).Catalog!.Files;
 
@@ -49,7 +49,7 @@ public class OwnedPageReadingTests
     }
 
     [TestMethod]
-    public async Task TextIsFound_OnTheCpu_EvenWhereTheGpuHasRoom()
+    public async Task TextIsFound_ByTheToolItsCatalogNames()
     {
         var host = Answering(r => r is FindTextInPicture find ? [new TextFoundInPicture(find.RequestId, [new TextRegion(0.1f, 0.2f, 0.3f, 0.02f, 0.9f)])] : []);
 
@@ -57,8 +57,7 @@ public class OwnedPageReadingTests
 
         var request = (FindTextInPicture)host.Requests.Single();
         Assert.AreEqual((640 * 480 * 4, 640, 480), (request.Pixels.Length, request.Width, request.Height));
-        Assert.AreEqual("text-finder", request.Finder.Runner);
-        Assert.IsNull(request.Finder.Device, "the CPU, not the GPU");
+        Assert.AreEqual("unlimited-ocr", request.Tool, "the tool by the catalog's id: its text finder, and where it runs, are the host's to take from it");
         Assert.AreEqual(0.9f, regions.Single().Score);
     }
 
@@ -83,7 +82,7 @@ public class OwnedPageReadingTests
         Assert.IsNull(request.Sampling, "greedy, as the makers decode");
         Assert.IsFalse(request.Thinks);
         Assert.AreEqual(RequestPriority.Interactive, request.Priority, "a person is waiting for it");
-        Assert.AreEqual("unlimited-ocr-q8_0.gguf", request.Model.File);
+        Assert.AreEqual(new ModelRef("unlimited-ocr", ReadingParts.Reader), request.Model, "the tool's reader, by the catalog's names");
         Assert.AreEqual("<|det|>title [1, 2, 3, 4]<|/det|>Introduction", read);
         CollectionAssert.AreEqual(new[] { "<|det|>title [1, 2, 3, 4]<|/det|>", "Introduction" }, pieces);
     }

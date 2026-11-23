@@ -13,8 +13,8 @@ namespace Nexaflow.Providers.AiHost;
 /// </summary>
 public sealed class OwnedPictureSelection : OwnedToolFront
 {
-    public OwnedPictureSelection(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureSelection))
+    public OwnedPictureSelection(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds, MachineCards hardware)
+        : this(new OwnedModelRuntime(activities, assets, host, holds, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureSelection))
     {
     }
 
@@ -30,19 +30,19 @@ public sealed class OwnedPictureSelection : OwnedToolFront
     /// <exception cref="InvalidOperationException">The tool is not on this machine, or the host could not read the picture.</exception>
     public async Task<OwnedSelectionSession> OpenAsync(ReadOnlyMemory<byte> pixels, int width, int height, CancellationToken ct)
     {
-        var parts = await PlacedAsync(SelectingParts.All, ct);
+        var tool = ToolId();
         IHostStream stream;
         try
         {
             using var picture = await Owned.Host.ShareAsync(pixels, ct);
-            stream = await Owned.Host.OpenStreamAsync(id => new SelectInPicture(id, parts, picture, width, height, RequestPriority.Interactive),
+            stream = await Owned.Host.OpenStreamAsync(id => new SelectInPicture(id, tool, picture, width, height, RequestPriority.Interactive),
                                                       OwnedModelRuntime.StallLimit, ct);
         }
         catch (AiHostException ex)
         {
             throw new InvalidOperationException($"The picture could not be read: {ex.Message}", ex);
         }
-        var session = new OwnedSelectionSession(stream, Owned);
+        var session = new OwnedSelectionSession(stream);
         try
         {
             await session.EncodedAsync(ct);
@@ -64,19 +64,16 @@ public sealed class OwnedPictureSelection : OwnedToolFront
 public sealed class OwnedSelectionSession : IAsyncDisposable
 {
     private readonly IHostStream _stream;
-    private readonly OwnedModelRuntime _owned;
     private readonly Lock _gate = new();
     private readonly Dictionary<int, TaskCompletionSource<HostReply>> _waiting = [];
     private readonly TaskCompletionSource _encoded = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly List<IDisposable> _madeWay = [];
     private readonly Task _reading;
     private Exception? _ended;
     private int _turns, _disposed;
 
-    internal OwnedSelectionSession(IHostStream stream, OwnedModelRuntime owned)
+    internal OwnedSelectionSession(IHostStream stream)
     {
         _stream = stream;
-        _owned = owned;
         _reading = Task.Run(ReadAsync);
     }
 
@@ -133,11 +130,7 @@ public sealed class OwnedSelectionSession : IAsyncDisposable
             {
                 switch (reply)
                 {
-                    case MadeWay made:
-                        lock (_gate) _madeWay.Add(_owned.MakingWay(made.Models));
-                        break;
                     case PictureEncoded:
-                        GiveBack();
                         _encoded.TrySetResult();
                         break;
                     case PointsSelected selected:
@@ -162,12 +155,10 @@ public sealed class OwnedSelectionSession : IAsyncDisposable
         var failure = new InvalidOperationException($"The selection stopped: {ended.Message}", ended);
         _encoded.TrySetException(failure);
         foreach (var w in waiting) w.TrySetException(failure);
-        GiveBack();
     }
 
     private void Answer(int turn, HostReply reply)
     {
-        GiveBack();
         TaskCompletionSource<HostReply>? waiting;
         lock (_gate) _waiting.TryGetValue(turn, out waiting);
         if (waiting is null || !waiting.TrySetResult(reply)) Release(reply);   // an ask given up on: its masks let go
@@ -178,18 +169,6 @@ public sealed class OwnedSelectionSession : IAsyncDisposable
     {
         if (reply is PointsSelected selected) selected.Mask.Dispose();
         else if (reply is PhraseFound found) found.Masks.Dispose();
-    }
-
-    /// <summary>The models that made way for an ask, given back once it is answered.</summary>
-    private void GiveBack()
-    {
-        List<IDisposable> back;
-        lock (_gate)
-        {
-            back = [.. _madeWay];
-            _madeWay.Clear();
-        }
-        foreach (var b in back) b.Dispose();
     }
 
     public async ValueTask DisposeAsync()

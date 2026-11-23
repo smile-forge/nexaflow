@@ -3,6 +3,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Drawing;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -20,24 +21,17 @@ public class QwenEditModelTests
 {
     private const int Steps = 40;
 
+    /// <summary>The model, as the catalog names it: the host edits with its parts where it places them.</summary>
+    private const string Model = "qwen-image-edit-2511";
+
     private static AiHostClient? _client;
-    private static DrawingModel? _model;
 
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        _client = await TestStore.HostAsync();
-        ModelSpec Part(string part, long bytes) => TestStore.Spec("qwen-image-edit-2511", part, 0, bytes);
-        _model = new DrawingModel(DrawingMethod.QwenImageEdit, new Dictionary<string, ModelSpec>
-        {
-            [DrawingParts.PictureReader]  = Part(DrawingParts.PictureReader, 2L << 30),
-            [DrawingParts.PromptEncoder]  = Part(DrawingParts.PromptEncoder, 10L << 30),
-            [DrawingParts.PictureEncoder] = Part(DrawingParts.PictureEncoder, 4L << 30),
-            [DrawingParts.Denoiser]       = Part(DrawingParts.Denoiser, 24L << 30),
-            [DrawingParts.Decoder]        = Part(DrawingParts.Decoder, 6L << 30),
-        }, Steps, Shift: 0f, Guidance: 4f);
+    _client = await TestStore.HostAsync();
     }
 
     [ClassCleanup]
@@ -46,10 +40,10 @@ public class QwenEditModelTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, DrawingModel Model) Host()
+    private static (AiHostClient Client, string Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing());
-        return (_client, _model);
+        if (_client is null) Assert.Inconclusive(TestStore.Missing());
+        return (_client, Model);
     }
 
     /// <summary>A picture with something in it: a sunlit gradient, a dark square in the middle, a pattern along the bottom.</summary>
@@ -75,10 +69,16 @@ public class QwenEditModelTests
         var replies = new List<HostReply>();
         await foreach (var reply in client.SendAsync(draw, TimeSpan.FromMinutes(10))) replies.Add(reply);
         var png = replies.OfType<Drawn>().Single().AsPng();
+        Keep(png, name);
+        return (replies, PngReader.Read(png));
+    }
+
+    /// <summary>Keeps a picture edited with the test's results, to look at: the test checks its shape, a person checks what it shows.</summary>
+    private void Keep(byte[] png, string name)
+    {
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, name);
         File.WriteAllBytes(saved, png);
-        TestContext.AddResultFile(saved);   // to look at: the test checks its shape, a person checks what it shows
-        return (replies, PngReader.Read(png));
+        TestContext.AddResultFile(saved);
     }
 
     [TestMethod]
@@ -100,13 +100,17 @@ public class QwenEditModelTests
     }
 
     /// <summary>The same edit with the denoiser whole and streamed, where its folder holds the streamed build: one picture, to the
-    /// rounding of fp16 arithmetic done in another order.</summary>
+    /// rounding of fp16 arithmetic done in another order. Edited by the host's own drawing method in this process
+    /// (<see cref="InProcessHost"/>), each denoiser placed by the test: a host's plan streams it only where its GPU lacks the room for it
+    /// whole.</summary>
     [TestMethod]
     [Timeout(2_400_000, CooperativeCancellation = true)]
     [CoversNode("owned-images-streamed")]
     public async Task AStreamedDenoiser_EditsAsTheWholeOneEdits()
     {
-        var (_, model) = Host();
+        _ = Host();
+        using var host = InProcessHost.OnTheGpu();
+        var model = TestStore.DrawingModelOf(Model);
         var denoiser = model.Parts[DrawingParts.Denoiser];
         if (!File.Exists(TestStore.PathOf($"{denoiser.Folder}/denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
         var streamed = model with
@@ -115,14 +119,21 @@ public class QwenEditModelTests
         };
         const int width = 1184, height = 896;
         var source = Scene(width, height);
-        Draw Edit(long id, DrawingModel drawing) => new(id, drawing, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
-                                                    { Sources = [new DrawingSource(width, height, SharedBytes.Of(source))] };
+        var drawing = new QwenEditDrawing(host.Models, host.Scheduler);
+
+        async Task<PngReader.Picture> EditInProcessAsync(DrawingModel edited, string name)
+        {
+            var picture = await host.DrawAsync(drawing, new Draw(1, Model, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
+                                                        { Sources = [new DrawingSource(width, height, SharedBytes.Of(source))] }, edited);
+            Keep(new Drawn(1, picture.Width, picture.Height, SharedBytes.Of(picture.Rgb)).AsPng(), name);
+            return picture;
+        }
 
         PngReader.Picture whole, stream;
         
         long streamedPeak, wholePeak;
-        using (var watch = GpuMemoryWatch.Start()) { stream = (await EditAsync(id => Edit(id, streamed), "night-qwen-streamed.png")).Picture; streamedPeak = watch.PeakBytes; }
-        using (var watch = GpuMemoryWatch.Start()) { whole = (await EditAsync(id => Edit(id, model), "night-qwen-whole.png")).Picture; wholePeak = watch.PeakBytes; }
+        using (var watch = GpuMemoryWatch.Start()) { stream = await EditInProcessAsync(streamed, "night-qwen-streamed.png"); streamedPeak = watch.PeakBytes; }
+        using (var watch = GpuMemoryWatch.Start()) { whole = await EditInProcessAsync(model, "night-qwen-whole.png"); wholePeak = watch.PeakBytes; }
         TestContext.WriteLine($"the GPU at its peak: streamed {streamedPeak / 1e9:0.00} GB, whole {wholePeak / 1e9:0.00} GB");
         Assert.IsTrue(streamedPeak < wholePeak, $"streamed, the GPU held {streamedPeak / 1e9:0.00} GB at its peak, whole {wholePeak / 1e9:0.00} GB");
         double mse = whole.Rgb.Zip(stream.Rgb).Average(p => (p.First - p.Second) * (double)(p.First - p.Second));

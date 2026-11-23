@@ -1,10 +1,11 @@
 using System.Diagnostics;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 
 namespace Nexaflow.AiHost.Models;
 
 /// <summary>
-/// The models in memory. The resident set — what the app asked to keep loaded — stays; any other model a request
+/// The models in memory. The resident set — what is held (<see cref="HeldModels"/>) — stays; any other model a request
 /// names is loaded on demand into what its GPU's budget leaves, and is the first to go when another needs the room.
 /// Admission is per GPU, against its budget, from each model's estimate: a model that would not fit is refused rather
 /// than over-committed, after unloading what may go. A picture borrows a <see cref="Room"/>: while one is out,
@@ -64,7 +65,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
                 lock (_gate) idle = _idle.Task;
                 if (MakeRoomFor(spec, room, out var madeWay))
                 {
-                    if (madeWay.Count > 0) await room!.MadeWayAsync(madeWay);
+                    if (madeWay.Count > 0) PartsAway?.Invoke(madeWay);
                     return await LoadAsync(spec, resident, stage, ct);
                 }
             }
@@ -123,14 +124,18 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         }
         log.Write($"loaded {spec.Id} on {Where(spec)} in {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s");
 
+        bool displaced;
+        Lease lease;
         lock (_gate)
         {
             // A resident that made way for a picture is resident again, whoever loads it.
-            bool displaced = _displaced.Remove(spec.Id);
+            displaced = _displaced.Remove(spec.Id);
             var entry = new Entry(model, spec) { Resident = resident || displaced, Users = 1 };
             _loaded[spec.Id] = entry;
-            return new Lease(this, entry);
+            lease = new Lease(this, entry);
         }
+        if (displaced) PartBack?.Invoke(spec.Id);
+        return lease;
     }
 
     /// <summary><paramref name="spec"/> as it is loaded: its folder where it lies in the model store, and its files plain names in it —
@@ -227,13 +232,20 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         }
     }
 
-    /// <summary>Room for one picture: while any is out, residents nothing is using may make way for its parts.</summary>
-    /// <param name="madeWay">Told the residents that make way for this picture, as they do.</param>
-    public Room BorrowRoom(Func<IReadOnlyList<string>, Task>? madeWay = null)
+    /// <summary>Room for one picture: while any is out, residents nothing is using may make way for its parts
+    /// (<see cref="PartsAway"/>).</summary>
+    public Room BorrowRoom()
     {
         lock (_gate) _rooms++;
-        return new Room(this, madeWay);
+        return new Room(this);
     }
+
+    /// <summary>Residents made way on their GPU for a picture, by their ids: unloaded until the last picture is done, or a request
+    /// needs one.</summary>
+    public event Action<IReadOnlyList<string>>? PartsAway;
+
+    /// <summary>A resident that made way for a picture is loaded again.</summary>
+    public event Action<string>? PartBack;
 
     /// <summary>Once the last picture is done, loads the residents that made way for pictures — those no request has
     /// loaded since.</summary>
@@ -348,17 +360,9 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     public sealed class Room : IDisposable
     {
         private readonly ModelRegistry _registry;
-        private readonly Func<IReadOnlyList<string>, Task>? _madeWay;
         private int _returned;
 
-        internal Room(ModelRegistry registry, Func<IReadOnlyList<string>, Task>? madeWay)
-        {
-            _registry = registry;
-            _madeWay  = madeWay;
-        }
-
-        /// <summary>Residents have made way for this picture.</summary>
-        internal Task MadeWayAsync(IReadOnlyList<string> ids) => _madeWay?.Invoke(ids) ?? Task.CompletedTask;
+        internal Room(ModelRegistry registry) => _registry = registry;
 
         public void Dispose()
         {

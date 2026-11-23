@@ -29,16 +29,16 @@ public class TenGigabyteCardTests
     public void EveryKindOfModel_HasOneItRuns()
     {
         var host = Host();
-        var setup = new HostModelSetup(host);
+        var holds = new HostHolds(host);
         var store = new FakeModelStore();
         var activities = new FakeActivityManager();
 
-        Assert.AreNotEqual(0, new OwnedLlmProvider(activities, store, host, setup, Card, First(ModelKind.Language)).Catalog.Count, "a language model");
-        Assert.AreNotEqual(0, new OwnedSpeechToTextProvider(activities, store, host, setup, Card, First(ModelKind.SpeechToText)).Catalog.Count, "speech in");
-        Assert.AreNotEqual(0, new OwnedTextToSpeechProvider(activities, store, host, setup, Card, First(ModelKind.TextToSpeech)).Catalog.Count, "speech out");
-        Assert.AreNotEqual(0, new OwnedVideoGenerationProvider(activities, store, host, setup, Card, First(ModelKind.VideoGeneration)).Catalog.Count, "a clip");
+        Assert.AreNotEqual(0, new OwnedLlmProvider(activities, store, host, holds, Card, First(ModelKind.Language)).Catalog.Count, "a language model");
+        Assert.AreNotEqual(0, new OwnedSpeechToTextProvider(activities, store, host, holds, Card, First(ModelKind.SpeechToText)).Catalog.Count, "speech in");
+        Assert.AreNotEqual(0, new OwnedTextToSpeechProvider(activities, store, host, holds, Card, First(ModelKind.TextToSpeech)).Catalog.Count, "speech out");
+        Assert.AreNotEqual(0, new OwnedVideoGenerationProvider(activities, store, host, holds, Card, First(ModelKind.VideoGeneration)).Catalog.Count, "a clip");
 
-        var pictures = new OwnedImageGenerationProvider(activities, store, host, setup, Card, First(ModelKind.ImageGeneration)).Catalog.Select(m => m.Id).ToHashSet();
+        var pictures = new OwnedImageGenerationProvider(activities, store, host, holds, Card, First(ModelKind.ImageGeneration)).Catalog.Select(m => m.Id).ToHashSet();
         var images = OwnedModels.OfKind(ModelKind.ImageGeneration).Where(m => pictures.Contains(m.Id)).ToList();
         Assert.IsTrue(images.Any(m => m.Sampler!.Sizes.Count > 0), "a picture drawn from a prompt");
         Assert.IsTrue(images.Any(m => m.Sampler!.Editing is not null), "a picture changed");
@@ -48,18 +48,18 @@ public class TenGigabyteCardTests
     public void EveryPictureTool_Runs()
     {
         var host = Host();
-        var setup = new HostModelSetup(host);
+        var holds = new HostHolds(host);
         var store = new FakeModelStore();
         var activities = new FakeActivityManager();
 
         OwnedToolFront[] tools =
         [
-            new OwnedPictureTools(activities, store, host, setup, Card),
-            new OwnedPictureSelection(activities, store, host, setup, Card),
-            new OwnedPageReading(activities, store, host, setup, Card),
-            new OwnedPictureErasing(activities, store, host, setup, Card),
-            new OwnedPictureChecking(activities, store, host, setup, Card),
-            new OwnedSceneDepth(activities, store, host, setup, Card),
+            new OwnedPictureTools(activities, store, host, holds, Card),
+            new OwnedPictureSelection(activities, store, host, holds, Card),
+            new OwnedPageReading(activities, store, host, holds, Card),
+            new OwnedPictureErasing(activities, store, host, holds, Card),
+            new OwnedPictureChecking(activities, store, host, holds, Card),
+            new OwnedSceneDepth(activities, store, host, holds, Card),
         ];
         foreach (var tool in tools) Assert.IsTrue(tool.RunsHere, tool.GetType().Name);
     }

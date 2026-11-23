@@ -14,7 +14,7 @@ namespace Nexaflow.AiHost.Generation;
 /// a step of its own — each token read in one round with every other reply the model is writing
 /// (<see cref="TokenRounds"/>) — so speech gets in between.
 /// </summary>
-internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<Generate>
+internal sealed class GenerateHandler(ModelRegistry models, HeldModels held, GpuScheduler gpu) : HostRequestHandler<Generate>
 {
     /// <summary>The progress stage a reply in its reasoning reports, with how many tokens it has thought so far.</summary>
     public const string Thinking = "thinking";
@@ -24,8 +24,8 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
 
     protected override async Task HandleAsync(Generate request, Func<HostReply, Task> reply, CancellationToken ct)
     {
-        using var lease = await models.AcquireAsync(request.Model, resident: false,
-            stage => reply(new Progress(request.RequestId, stage, 0, 0)), ct);
+        Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
+        using var lease = await models.AcquireAsync(await held.ResolveAsync(request.Model, Stage, ct), resident: false, Stage, ct);
         var model = lease.As<ChatModel>();
         string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools, request.Thinks);
         var media = ChatPrompt.Media(model, request.Turns);

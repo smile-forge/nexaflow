@@ -1,8 +1,6 @@
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.AiHost.Catalog;
 
-
-namespace Nexaflow.AiHost.Client;
+namespace Nexaflow.AiHost.Catalog;
 
 /// <summary>What a model needs to be placed on this machine.</summary>
 /// <param name="OnGpu">How it runs on a GPU: <see cref="ModelSpec.MemoryBytes"/> is what it holds there with no
@@ -98,23 +96,45 @@ public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, lon
     }
 }
 
+/// <summary>The models a host holds on each GPU, as a part loaded on demand is placed beside them
+/// (<see cref="ModelPlacement.PlaceOnDemand"/>).</summary>
+public interface IResidents
+{
+    IReadOnlyList<HostGpu> Gpus { get; }
+
+    /// <summary>What the residents leave of <paramref name="gpu"/>'s budget.</summary>
+    long FreeOn(HostGpu gpu);
+}
+
+/// <summary>Where a host holds every held part, as it describes itself (<see cref="HostDescription"/>): the residents an app reads,
+/// where the host plans them.</summary>
+public sealed record HostPlacement(IReadOnlyList<HostGpu> Gpus, IReadOnlyList<PartPlacement> Held, IReadOnlyList<PartUnplaced> Unplaced) : IResidents
+{
+    /// <summary>The host's placement, as <paramref name="description"/> gives it.</summary>
+    public static HostPlacement Of(HostDescription description) => new(description.Gpus, description.Held ?? [], description.Unplaced ?? []);
+
+    /// <summary>Where the part the host names <paramref name="id"/> runs; null where it is held nowhere, or not held.</summary>
+    public PartPlacement? Of(string id) => Held.FirstOrDefault(p => p.Part.Id == id);
+
+    /// <summary>Whether the part the host names <paramref name="id"/> is held, but nowhere.</summary>
+    public bool IsUnplaced(string id) => Unplaced.Any(p => p.Part.Id == id);
+
+    public long FreeOn(HostGpu gpu) => gpu.BudgetBytes - Held.Where(p => p.Device == gpu.Device).Sum(p => p.MemoryBytes);
+}
+
 /// <summary>Where the resident models run: each one's spec as placed — its GPU, or the CPU, and a language model's
 /// context — and the models no GPU had room for and that have no CPU build.</summary>
-public sealed record Placement(IReadOnlyList<HostGpu> Gpus, IReadOnlyList<ModelSpec> Placed, IReadOnlyList<string> Unplaced)
+public sealed record Placement(IReadOnlyList<HostGpu> Gpus, IReadOnlyList<ModelSpec> Placed, IReadOnlyList<string> Unplaced) : IResidents
 {
     public ModelSpec? Of(string id) => Placed.FirstOrDefault(s => s.Id == id);
 
     /// <summary>What the placed models leave of <paramref name="gpu"/>'s budget.</summary>
     public long FreeOn(HostGpu gpu) => gpu.BudgetBytes - Placed.Where(s => s.Device == gpu.Device).Sum(s => s.MemoryBytes);
-
-    /// <summary>Whether loading <paramref name="onDemand"/>, as placed, makes resident models on its GPU make way.</summary>
-    public bool Displaces(ModelSpec onDemand)
-        => onDemand.Device is { } device && Gpus.First(g => g.Device == device) is var gpu && FreeOn(gpu) < onDemand.MemoryBytes;
 }
 
 /// <summary>
-/// Plans where models run, from the GPUs there are and each GPU's budget. Language models are placed first, then the
-/// rest from the largest down, each on the GPU it fills most nearly — so a GPU is left as whole as can be for a
+/// Plans where models run, from the GPUs there are and each GPU's budget. Models are placed by the priority they are held at,
+/// highest first; within it language models first, then the rest from the largest down, each on the GPU it fills most nearly — so a GPU is left as whole as can be for a
 /// picture. A language model is given its own context where there is room for it, and a shorter one where there is
 /// not; a model that finds no room takes it from the contexts of the language models on a GPU, down to their
 /// shortest; a mixture of experts that still finds none keeps its routed experts in this machine's memory and the rest on the
@@ -204,14 +224,18 @@ public static class ModelPlacement
     }
 
     /// <param name="memoryBudget">What models on the CPU may hold — <see cref="HostMemory.BudgetBytes"/>.</param>
-    public static Placement Plan(IReadOnlyList<HostGpu> gpus, IReadOnlyList<PlacementNeed> needs, long memoryBudget = long.MaxValue)
+    /// <param name="priorities">The priority each model is held at, by its id — what a voice holds is placed before what a reply holds,
+    /// and a job's last; one not named is held at <see cref="RequestPriority.Interactive"/>.</param>
+    public static Placement Plan(IReadOnlyList<HostGpu> gpus, IReadOnlyList<PlacementNeed> needs, long memoryBudget = long.MaxValue,
+                                 IReadOnlyDictionary<string, RequestPriority>? priorities = null)
     {
         var seats = new List<Seat>();
         var onCpu = new List<PlacementNeed>();
         var unplaced = new List<string>();
         long Free(HostGpu gpu) => gpu.BudgetBytes - seats.Where(s => s.Device == gpu.Device).Sum(s => s.Bytes);
 
-        foreach (var need in needs.OrderByDescending(n => n.HasContext).ThenByDescending(n => n.OnGpu.MemoryBytes).ThenBy(n => n.Id, StringComparer.Ordinal))
+        RequestPriority PriorityOf(PlacementNeed need) => priorities?.GetValueOrDefault(need.Id, RequestPriority.Interactive) ?? RequestPriority.Interactive;
+        foreach (var need in needs.OrderBy(PriorityOf).ThenByDescending(n => n.HasContext).ThenByDescending(n => n.OnGpu.MemoryBytes).ThenBy(n => n.Id, StringComparer.Ordinal))
         {
             var seat = need.CpuOnly ? null : Seated(need);
             if (seat is not null) seats.Add(seat);
@@ -324,7 +348,7 @@ public static class ModelPlacement
     /// <summary>Where a model loaded on demand — a picture's part — runs: on a GPU it fits beside the resident models
     /// if one has the room, else on the GPU with the most room once residents make way for it; where no GPU's whole budget holds
     /// it, as the first of its lighter builds one's budget holds — streamed, in tiles; on the CPU, or nowhere, when none holds any.</summary>
-    public static ModelSpec? PlaceOnDemand(Placement residents, PlacementNeed need)
+    public static ModelSpec? PlaceOnDemand(IResidents residents, PlacementNeed need)
     {
         if (need.CpuOnly) return (need.OnCpu ?? need.OnGpu) with { Device = null };
         if (GpuFor(residents, need.OnGpu.MemoryBytes) is { } gpu) return need.OnGpu with { Device = gpu.Device };
@@ -335,12 +359,16 @@ public static class ModelPlacement
 
     /// <summary>The GPU a part holding <paramref name="bytes"/> loads on: one it fits beside the residents, else the one with the most
     /// room once they make way; null where no GPU's whole budget holds it.</summary>
-    private static HostGpu? GpuFor(Placement residents, long bytes)
+    private static HostGpu? GpuFor(IResidents residents, long bytes)
         => residents.Gpus.Where(g => g.BudgetBytes >= bytes)
                          .OrderByDescending(g => residents.FreeOn(g) >= bytes)
                          .ThenByDescending(residents.FreeOn)
                          .ThenBy(g => g.Device)
                          .FirstOrDefault();
+
+    /// <summary>Whether loading <paramref name="onDemand"/>, as placed, makes the residents on its GPU make way.</summary>
+    public static bool Displaces(this IResidents residents, ModelSpec onDemand)
+        => onDemand.Device is { } device && residents.Gpus.First(g => g.Device == device) is var gpu && residents.FreeOn(gpu) < onDemand.MemoryBytes;
 
     /// <summary>The GPUs the host would find on this machine, as its driver tells before the host has run: each NVIDIA card
     /// where the CUDA pack suits the machine, numbered as the host numbers them, less what the desktop is taken to hold and

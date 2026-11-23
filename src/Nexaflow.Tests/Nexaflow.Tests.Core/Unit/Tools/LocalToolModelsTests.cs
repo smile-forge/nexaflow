@@ -38,7 +38,7 @@ public class LocalToolModelsTests
         var host = Substitute.For<IAiHost>();
         var nvidia = new MachineCards([new MachineCard("gpu", 16L << 30)],
                                                CudaRuntimePack.MinimumDriver);
-        return new PageReading(new OwnedPageReading(Substitute.For<IBackgroundActivityManager>(), store, host, new HostModelSetup(host), nvidia),
+        return new PageReading(new OwnedPageReading(Substitute.For<IBackgroundActivityManager>(), store, host, new HostHolds(host), nvidia),
                                store, null);
     }
 
@@ -87,7 +87,7 @@ public class LocalToolModelsTests
     {
         var store = new ModelAssetStore(_root, [], downloadsAllowed: false);
         var host = Substitute.For<IAiHost>();
-        var check = new PictureChecking(new OwnedPictureChecking(Substitute.For<IBackgroundActivityManager>(), store, host, new HostModelSetup(host),
+        var check = new PictureChecking(new OwnedPictureChecking(Substitute.For<IBackgroundActivityManager>(), store, host, new HostHolds(host),
                                                                  MachineCards.None), store, null);
 
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>

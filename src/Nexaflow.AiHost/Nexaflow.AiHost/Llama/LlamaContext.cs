@@ -1,4 +1,5 @@
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.AiHost.Llama;
 

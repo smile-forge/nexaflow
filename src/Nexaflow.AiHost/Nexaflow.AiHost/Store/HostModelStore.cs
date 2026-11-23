@@ -12,13 +12,25 @@ internal interface IModelFiles
     string PathOf(string relative);
 }
 
+/// <summary>The store as what runs models reads it: whether a build's files are here, and fetching one a placement needs.</summary>
+internal interface IModelStore : IModelFiles
+{
+    /// <summary>Whether every one of <paramref name="files"/> is in the store, verified.</summary>
+    bool Holds(IEnumerable<ModelAsset> files);
+
+    /// <exception cref="HostRequestException">A path the catalog does not name.</exception>
+    /// <exception cref="ModelRoomException">The store's drive has too little room left; nothing was fetched.</exception>
+    /// <exception cref="ModelDownloadsOffException">A file is not here, and this run downloads nothing.</exception>
+    Task FetchAsync(IReadOnlyList<string> paths, IProgress<AssetProgress>? progress, CancellationToken ct);
+}
+
 /// <summary>
 /// The model store this host keeps — the one thing that reads and writes it, whichever app asks: <c>%ProgramData%\Smile-Forge\Models</c>,
 /// one copy on the machine, written as the service's account where the host is installed as a service and as the user who started
 /// it where an app did. It fetches only the files its catalog names — every model's and tool's, every LoRA's, the CUDA pack's —
 /// and moves in those an earlier store kept, each when it is the same file.
 /// </summary>
-internal sealed class HostModelStore : IModelFiles
+internal sealed class HostModelStore : IModelStore
 {
     private readonly ModelAssetStore _store;
     private readonly Dictionary<string, ModelAsset> _files;
@@ -54,6 +66,8 @@ internal sealed class HostModelStore : IModelFiles
         => HostCatalog.Models.SelectMany(m => m.Files.Concat(m.Loras.SelectMany(l => l.Files)))
                              .Concat(HostCatalog.Tools.SelectMany(t => t.Files))
                              .Concat(CudaRuntimePack.Files);
+
+    public bool Holds(IEnumerable<ModelAsset> files) => files.All(_store.Has);
 
     /// <summary>The store as it stands, for every file the catalog names.</summary>
     public ModelStoreState Describe()

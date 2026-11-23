@@ -18,7 +18,7 @@ public class OwnedTextToSpeechProviderTests
     private static MachineCards Amd() => MachineCards.None;
 
     private static OwnedTextToSpeechProvider Provider(FakeModelStore store, FakeAiHost host)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Amd(), new ProviderModel(ModelId));
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), Amd(), new ProviderModel(ModelId));
 
     private static IReadOnlyList<ModelAsset> Files => Provider(new FakeModelStore(), new FakeAiHost()).Catalog.Single(m => m.Id == ModelId).Files;
 
@@ -34,18 +34,23 @@ public class OwnedTextToSpeechProviderTests
     }
 
     [TestMethod]
-    public async Task Speaking_OpensASpeakInTheHost_AtTheVoicePriority_WithItsVoices()
+    public async Task Speaking_OpensASpeakInTheHost_AtTheVoicePriority_HoldingItsVoiceForTheSession()
     {
         var host = new FakeAiHost();
         var provider = Provider(new FakeModelStore(Files), host);
+        var synthesizer = new ModelRef(ModelId, HostedRoles.Synthesizer);
 
-        await using var session = await provider.StartSessionAsync(new TextToSpeechOptions(Speed: 1.1f));
+        await using (var session = await provider.StartSessionAsync(new TextToSpeechOptions(Speed: 1.1f)))
+        {
+            var speak = host.Requests.OfType<Speak>().Single();
+            Assert.AreEqual((ModelId, RequestPriority.Voice, 1.1f), (speak.Model, speak.Priority, speak.Speed),
+                            "the voice model by the catalog's id: the voice for each language, and its files, are the host's to take from it");
+            var voice = host.Holds.Single(h => h.Priority == RequestPriority.Voice);
+            CollectionAssert.AreEqual(new[] { synthesizer }, voice.Models.ToArray(), "its voice held ahead of everything else placed while it speaks");
+        }
 
-        var speak = host.Requests.OfType<Speak>().Single();
-        Assert.AreEqual((RequestPriority.Voice, 1.1f), (speak.Priority, speak.Speed));
-        var voice = speak.Voices.Single(v => v.Language == "en");
-        Assert.AreEqual(("kokoro", "onnx/model.onnx", "voices/af_heart.bin"), (voice.Model.Runner, voice.Model.File, voice.VoiceFile));
-        Assert.AreEqual("models/kokoro-82m", voice.Model.Folder, "the folder is the store's name for it: where it lies is the host's to know");
+        Assert.IsFalse(host.Holds.Any(h => h.Priority == RequestPriority.Voice), "the voice's hold ends with the session");
+        CollectionAssert.AreEqual(new[] { synthesizer }, host.Holds.Single().Models.ToArray(), "the model's own hold stays while it is warm");
     }
 
     [TestMethod]
@@ -56,9 +61,8 @@ public class OwnedTextToSpeechProviderTests
 
         await using var session = await provider.StartSessionAsync(new TextToSpeechOptions(Speed: 1f));
 
-        CollectionAssert.AreEqual(new[] { $"{ModelId}/synthesizer" }, host.Requests.OfType<LoadModel>().Select(l => l.Model.Id).ToArray(),
+        CollectionAssert.AreEqual(new[] { $"{ModelId}/{HostedRoles.Synthesizer}" }, host.Holds.SelectMany(h => h.Models).Select(m => m.Id).Distinct().ToArray(),
                                   "only the voice every language falls back on is held");
-        Assert.AreEqual($"{ModelId}/german", host.Requests.OfType<Speak>().Single().Voices.Single(v => v.Language == "de").Model.Id);
     }
 
     [TestMethod]

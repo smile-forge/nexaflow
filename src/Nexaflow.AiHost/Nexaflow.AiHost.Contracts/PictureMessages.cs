@@ -44,10 +44,11 @@ public static class RestoringStages
 /// brings the picture back. A restored picture runs to hundreds of megabytes, so both go in shared sections
 /// (<see cref="SharedBytes"/>), never through the pipe.
 /// </summary>
-/// <param name="Parts">The parts it uses, by role (<see cref="RestoringParts.Of"/>).</param>
+/// <param name="Tool">The restoring tool, as the catalog names it: the host runs the parts <see cref="Scale"/> and <see cref="Faces"/>
+/// call for, by role (<see cref="RestoringParts.Of"/>).</param>
 /// <param name="Pixels">The picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA, row by row, straight alpha.</param>
 /// <param name="Scale">1, 2 or 4: how many times the size the picture comes back.</param>
-public sealed record RestorePicture(long RequestId, IReadOnlyDictionary<string, ModelSpec> Parts, SharedBytes Pixels, int Width, int Height,
+public sealed record RestorePicture(long RequestId, string Tool, SharedBytes Pixels, int Width, int Height,
                                     int Scale, bool Faces, RequestPriority Priority) : HostRequest(RequestId)
                                     {
                                         /// <summary>The most pixels the upscaler's result may hold — at its own factor, before a picture kept at its size is

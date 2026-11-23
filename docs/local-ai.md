@@ -363,14 +363,14 @@ The host owns:
   free is read at each admission through NVIDIA's management library (`CardMemory`, NVML), which sees every program on
   the card — llama.cpp's own reading on Windows sees only this process — so what another program, or another app's
   host, takes is left to it and what it gives back is there to use. Where NVML cannot read a card, the budget is what
-  was free when the host started. Every model runs on the one GPU its spec names, or on the CPU; a description of the
-  host reports each GPU, the budget it started with, and what is free on it now.
-- **A resident set** — the models the app holds, where the machine's setup places them, kept between turns (4–6 s to
-  reload is too slow between them). The app holds a model from its first request until it has stood idle, or from the
-  first window on for one its preload policy loads ahead (see *What stays loaded*). A model asked for in another place
-  or at another size is loaded again there, the old one going once nothing uses it. A part its catalog marks
-  `loadsOnDemand` — Kokoro's German voice — is not held with its model: the host loads it with the first request that
-  uses it.
+  was free when the host started. Every part runs on the one GPU the host places it on, or on the CPU; a description of
+  the host reports each GPU, the budget it started with, what is free on it now, and where every held part runs.
+- **Holds** — the parts an app has the host keep loaded (`HoldModels`, a request that runs for as long as the hold), where
+  the host places them, kept between turns (4–6 s to reload is too slow between them). Nexaflow holds a model from its
+  first request until it has stood idle, or from the first window on for one its preload policy loads ahead (see *What
+  stays loaded*); a voice conversation holds its speech models at the voice priority for its length. A part two holds
+  hold is loaded once, and goes once neither holds it and nothing is using it. A part its catalog marks `loadsOnDemand` —
+  Kokoro's German voice — is not held with its model: the host loads it with the first request that uses it.
 - **Models loaded on demand** — image, music, a tool's parts, a second LLM a request names: kept loaded after the
   request, and the first to go, least recently used, when another needs the room.
 - **Admission per GPU**: each model sized from its spec against its own GPU's budget; unload what may go, or refuse
@@ -387,10 +387,10 @@ The host owns:
   drawn, residents nothing is using may make way for its parts on their GPU, after every model loaded on demand; a
   reply in progress keeps its model, and the picture waits for it. Those residents load again once the last picture
   is done, or as soon as a request needs one — that request waiting, if it must, until the part holding the room is
-  done. The picture's request says which residents made way for it (`MadeWay`, protocol 8); the app holds them as away
-  until the picture is done (`HostModelSetup.MakingWay`), and a provider whose model is away says so
-  (`IAiProvider.IsMakingWay`). A voice conversation whose answering model is away pauses: it passes nothing the
-  microphone hears to the listener, and the AI bar says "Working…" until the model is back.
+  done. Every hold holding a part that made way is told (`ModelsAway`), whoever draws the picture, and told again once it
+  is loaded (`ModelsBack`); a provider whose model is away says so (`IAiProvider.IsMakingWay`). A voice conversation whose
+  answering model is away pauses: it passes nothing the microphone hears to the listener, and the AI bar says "Working…"
+  until the model is back.
 - **Priorities, preempted at token boundaries**: live voice, then interactive chat, then background analysis, then
   generation jobs. Concurrent models time-slice a GPU, so each device takes one step at a time — a token, a 512-token
   slice of prompt — and gives the next to the highest-priority request waiting for it; a background analysis yields to
@@ -427,9 +427,10 @@ runtimes and any tool's parts with it — and the next request starts a fresh on
 
 ### The machine's setup
 
-The app plans where the resident models run (`HostModelSetup`), every workspace's together, from the GPUs the host
-reports. Language models are placed first, then the rest from the largest down, each on the GPU it fills most nearly —
-so a GPU stays as whole as it can for a picture. A language model gets its catalog's context — all it was trained for,
+The host plans where the held parts run (`HeldModels`, with `ModelPlacement` from its catalog), every hold's together, on the
+GPUs it found: a request names a model or a part by its catalog id (`ModelRef`), never where it runs. Parts are placed by
+the priority they are held at — a voice's first — and within it language models first, then the rest from the largest
+down, each on the GPU it fills most nearly — so a GPU stays as whole as it can for a picture. A language model gets its catalog's context — all it was trained for,
 read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 — where there is room, and a shorter one
 where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
 holds with no context and what each token adds, measured as 16-bit values and held in 8 (34 bytes for every 64, which on
@@ -442,9 +443,12 @@ writes 58 tokens/s with 21 of its 30 layers on a GPU, against 209 with all of th
 and one with no CPU build is left out. Once everything is placed, a language model wholly on a GPU reads its prompts in
 steps of 2,048 tokens where what is left there holds them, and its catalog says what they cost — on Gemma 4 26B, 13,700
 tokens/s against 9,400 in steps of 512, for 2 GB; steps of 4,096 read no faster. On the CPU, the other models hold what their builds' files hold,
-and a language model is given the longest context the host's memory share leaves it, never under 8k — once a cut model's CPU layers, and the context they keep, are counted in that share: the host admits a cut model against its GPU's budget and the share both, idle models on the CPU making way for its layers there. When a workspace takes models on, the plan is redone and each
-model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
-time: on a GPU where they fit beside the residents, else on the one with the most room, where the residents make way.
+and a language model is given the longest context the host's memory share leaves it, never under 8k — once a cut model's CPU layers, and the context they keep, are counted in that share: the host admits a cut model against its GPU's budget and the share both, idle models on the CPU making way for its layers there. When a hold comes, the plan is redone, each part it moves is
+loaded again where it now runs, and every hold holding one is told where its parts run now (`ModelsPlaced`); a hold
+going moves nothing. A picture's parts are placed each time: on a GPU where they fit beside the held parts, else on the
+one with the most room, where the held parts make way. A language or speech model a request names that nothing holds
+runs where the plan would place it were it held. Where the placement needs a build the store lacks — a GPU part's CPU
+build, for a GPU without the room — the host fetches it first, for a model whose files are in the store.
 
 Before the host has run — in the setup wizard, and for which models a machine is offered — the GPUs are those the
 adapters report, each less 1 GB for the desktop and the runtime's share. A language model is offered where it would

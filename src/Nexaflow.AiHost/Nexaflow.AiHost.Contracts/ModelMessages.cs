@@ -1,106 +1,5 @@
 namespace Nexaflow.AiHost.Contracts;
 
-/// <summary>
-/// A model the host can run: its files, prepared in <see cref="Folder"/> by the adapter its catalog names, the runner
-/// that loads them, where it runs and what it costs there. Every request about a model carries it, so a host started
-/// fresh can load it without asking back.
-/// </summary>
-/// <param name="Id">Unique among the models the host holds: the catalog id, with its part for a model made of several.</param>
-/// <param name="Runner">What loads and runs it — <c>llama-chat</c> for a language model; a family of speech models each has its own.</param>
-/// <param name="Folder">Its folder in the host's model store, as the store names it (<c>models/kokoro-82m</c>): where that lies on
-/// disk is the host's to know, and a path that leaves the store is refused.</param>
-/// <param name="File">The file it is — a language model's GGUF, a single graph; null for a model whose runner reads several files from its folder.</param>
-/// <param name="Adapter">What turns the downloaded files into what the runner reads; null when they are used as downloaded.</param>
-/// <param name="MemoryBytes">Memory it holds loaded where <see cref="Device"/> places it, with its context — what
-/// admission counts: on a GPU against that GPU's budget, on the CPU against the host's share of this machine's
-/// memory (<see cref="HostMemory"/>).</param>
-/// <param name="ContextTokens">The longest context a conversation may grow to, for a language model; 0 otherwise.</param>
-/// <param name="CudaOptions">CUDA options it needs beyond the host's own.</param>
-/// <param name="Projector">A language model's multimodal projector, beside its GGUF in <see cref="Folder"/>: what it
-/// sees pictures and hears recordings through; null for a model of text alone.</param>
-/// <param name="Device">The GPU it runs on, numbered as <see cref="HostGpu.Device"/>; null runs it on the CPU.</param>
-/// <param name="BatchTokens">How many tokens a language model reads in one step: a prompt is read in slices this long, and the
-/// next token of every reply being written goes with them. Longer steps read a long prompt in fewer, each working in more memory.</param>
-/// <param name="ContextCache">How a language model's context holds each token it has read.</param>
-/// <param name="GpuLayers">How many of a language model's layers run on <see cref="Device"/>, the rest on the CPU, with the context
-/// each layer keeps; null for every one of them.</param>
-/// <param name="Sequences">How many sequences a language model's context holds: as many replies as it writes at once, all in the
-/// context it is given, which they share — <see cref="ContextTokens"/> is what all of them together hold — and the conversations it
-/// keeps and the openings it holds while fewer are written. Each costs memory of its own wherever a model attends to a window of
-/// what it read, and every step reads against every one of those windows, so more is not free.</param>
-/// <param name="BackgroundSequences">How many replies a language model writes at once for work nobody is watching — a document
-/// translated passage by passage — in a context of its own made when such work comes and let go when it stops, each with a slice
-/// of <paramref name="BackgroundTokens"/> to itself; 0 for none, all its work done in the one context.</param>
-/// <param name="BackgroundTokens">How long each conversation in that context may grow.</param>
-/// <param name="BackgroundBytes">What that context holds on <see cref="Device"/>: it is made only where that much is free.</param>
-/// <param name="HostBytes">What a model on a GPU holds in this machine's memory besides — the layers of a language model cut between
-/// the GPU and the CPU, and the context they keep; the saves of its partial state (<see cref="Checkpoints"/>) — counted against the
-/// host's share of it (<see cref="HostMemory"/>); 0 for a model wholly where <see cref="Device"/> places it, keeping none.</param>
-/// <param name="Checkpoints">How many saves of a conversation's partial state a language model holding such state keeps — a recurrent
-/// layer's state, a sliding window's cells — each where a turn ends: what lets a conversation whose start a prompt shares be cut back
-/// to it and read on from there, rather than read again whole. Held in this machine's memory, and counted with
-/// <see cref="HostBytes"/>; 0 for none.</param>
-/// <param name="ExpertsInHost">Whether a mixture-of-experts language model on a GPU keeps its routed experts in this machine's memory,
-/// the rest of it — attention, the shared weights, its context — on the GPU: each token reads a few of its experts, so the GPU holds
-/// what every token reads and the CPU what few do. Their weights are counted with <see cref="HostBytes"/>.</param>
-/// <param name="ExpertCacheBytes">What a model keeping its experts in this machine's memory holds of them on its GPU besides, the
-/// most recently read kept there (llama.cpp's expert cache); 0 for none.</param>
-/// <param name="TileCells">For a decoder, the side of the squares of latent cells it decodes a latent in, each alone and blended
-/// back where they overlap, so it holds one tile's work at a time; 0 decodes the whole latent at once.</param>
-public sealed record ModelSpec(string Id, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
-                               IReadOnlyDictionary<string, string>? CudaOptions = null, string? Projector = null, int? Device = null,
-                               int BatchTokens = ModelSpec.DefaultBatch, ContextCache ContextCache = ContextCache.F16, int? GpuLayers = null,
-                               int Sequences = ModelSpec.DefaultSequences, int BackgroundSequences = 0, int BackgroundTokens = 0, long BackgroundBytes = 0,
-                               long HostBytes = 0, int Checkpoints = 0, bool ExpertsInHost = false, long ExpertCacheBytes = 0, int TileCells = 0)
-{
-    /// <summary>Whether <paramref name="other"/> runs the same model in the same place at the same size — a model held
-    /// as one and asked for as the other is loaded again.</summary>
-    public bool PlacedAs(ModelSpec other)
-        => Device == other.Device && ContextTokens == other.ContextTokens && MemoryBytes == other.MemoryBytes
-           && File == other.File && Folder == other.Folder && Projector == other.Projector
-           && BatchTokens == other.BatchTokens && ContextCache == other.ContextCache && GpuLayers == other.GpuLayers && Sequences == other.Sequences
-                      && BackgroundSequences == other.BackgroundSequences && BackgroundTokens == other.BackgroundTokens && BackgroundBytes == other.BackgroundBytes
-                      && HostBytes == other.HostBytes && Checkpoints == other.Checkpoints
-                      && ExpertsInHost == other.ExpertsInHost && ExpertCacheBytes == other.ExpertCacheBytes && TileCells == other.TileCells;
-
-    /// <summary>The sequences a language model's context holds where nothing gives it room for more: as many as the catalog's figures
-    /// were measured holding.</summary>
-    public const int DefaultSequences = 8;
-
-    /// <summary>The tokens a language model reads in a step where nothing gives it more room: llama.cpp's own.</summary>
-    public const int DefaultBatch = 512;
-}
-
-/// <summary>How a language model's context holds the keys and values of each token it has read.</summary>
-public enum ContextCache
-{
-    /// <summary>As 16-bit floats, as the model works them out.</summary>
-    F16,
-
-    /// <summary>
-    /// As 8-bit values, a block of 32 sharing one scale: 34 bytes where <see cref="F16"/> takes 64, so near twice the context fits
-    /// in the same memory, with no difference a reply shows.
-    /// </summary>
-    Q8,
-}
-
-/// <summary>What each way of holding a context costs.</summary>
-public static class ContextCaches
-{
-    /// <summary>What a token held as <paramref name="cache"/> takes, where held as <see cref="ContextCache.F16"/> it takes <paramref name="asF16"/>.</summary>
-    public static long BytesPerToken(this ContextCache cache, long asF16) => cache == ContextCache.Q8 ? asF16 * 34 / 64 : asF16;
-}
-
-/// <summary>Loads a model and keeps it loaded — the resident set — until it is unloaded. Replies with
-/// <see cref="Progress"/> while it prepares and loads, then <see cref="ModelLoaded"/>.</summary>
-public sealed record LoadModel(long RequestId, ModelSpec Model) : HostRequest(RequestId);
-
-/// <param name="Device">The GPU it runs on, or null for the CPU.</param>
-public sealed record ModelLoaded(long RequestId, int? Device, double Seconds) : HostReply(RequestId);
-
-/// <summary>Lets a resident model go; it is unloaded once nothing is generating with it.</summary>
-public sealed record UnloadModel(long RequestId, string ModelId) : HostRequest(RequestId);
-
 /// <summary>Who is waiting on a request, highest first. The GPU takes one step at a time — a token, a slice of
 /// prompt — and gives the next to the highest waiting, so a background analysis yields to a reply at every token.</summary>
 public enum RequestPriority
@@ -114,6 +13,55 @@ public enum RequestPriority
     /// <summary>Generation jobs.</summary>
     Job,
 }
+
+/// <summary>A part of a model or tool the host's catalog names: the catalog's id for the model or tool, and the part's name in it. What
+/// the part is, which build of it runs here and where, the host decides.</summary>
+public sealed record ModelRef(string Model, string Part)
+{
+    /// <summary>The host's name for the part, as placements and notices name it.</summary>
+    public string Id => $"{Model}/{Part}";
+
+    public override string ToString() => Id;
+}
+
+/// <summary>
+/// Holds <see cref="Models"/> loaded for as long as the request runs — until it is cancelled, its input ends, or the app goes. The host
+/// plans where every held part runs together, those held at a higher priority placed first, and loads each there; a part held by several
+/// holds is loaded once, and goes once none holds it and nothing is using it. Replies with <see cref="Progress"/> while it fetches a build
+/// the plan needs of a model that is here and loads, then <see cref="ModelsPlaced"/> — again whenever a later hold moves its parts. While
+/// a picture is drawn, a held part nothing is using may make way for it: <see cref="ModelsAway"/> says so, and <see cref="ModelsBack"/>
+/// once it is loaded again. A part no GPU has room for, with no CPU build, is held nowhere until the plan changes. A part the catalog
+/// does not name, or of a model whose files are not in the store, fails the request (<see cref="HostErrorKind.NotFound"/>).
+/// </summary>
+public sealed record HoldModels(long RequestId, IReadOnlyList<ModelRef> Models, RequestPriority Priority) : HostRequest(RequestId);
+
+/// <summary>Where a held part runs, and what it holds there.</summary>
+/// <param name="Device">The GPU it runs on, numbered as <see cref="HostGpu.Device"/>; null for the CPU.</param>
+/// <param name="MemoryBytes">What it holds where it runs, its context with it.</param>
+/// <param name="HostBytes">What it holds in this machine's memory besides, running on a GPU.</param>
+/// <param name="ContextTokens">The longest context a conversation may grow to, for a language model; 0 otherwise.</param>
+/// <param name="Sequences">How many replies a language model writes at once.</param>
+/// <param name="BackgroundSequences">How many replies a language model writes at once for work nobody is watching, in a context of
+/// their own; 0 where it does such work in its one context.</param>
+/// <param name="BackgroundTokens">How long each of those may grow.</param>
+/// <param name="GpuLayers">How many of a language model's layers are on its GPU, where it is cut between the GPU and the CPU; null for
+/// all of them.</param>
+/// <param name="ExpertsInHost">Whether a mixture of experts keeps its routed experts in this machine's memory.</param>
+public sealed record PartPlacement(ModelRef Part, int? Device, long MemoryBytes, long HostBytes = 0, int ContextTokens = 0, int Sequences = 0,
+                                   int BackgroundSequences = 0, int BackgroundTokens = 0, int? GpuLayers = null, bool ExpertsInHost = false);
+
+/// <summary>A held part placed nowhere, and why.</summary>
+public sealed record PartUnplaced(ModelRef Part, string Reason);
+
+/// <summary>Where a hold's parts run now — loaded there — and those placed nowhere.</summary>
+public sealed record ModelsPlaced(long RequestId, IReadOnlyList<PartPlacement> Placed, IReadOnlyList<PartUnplaced> Unplaced) : HostReply(RequestId);
+
+/// <summary>Held parts that made way on their GPU for a picture: unloaded until the last picture they made way for is done. Until
+/// then a request for one waits.</summary>
+public sealed record ModelsAway(long RequestId, IReadOnlyList<ModelRef> Parts) : HostReply(RequestId);
+
+/// <summary>Held parts that made way for a picture, loaded again.</summary>
+public sealed record ModelsBack(long RequestId, IReadOnlyList<ModelRef> Parts) : HostReply(RequestId);
 
 /// <summary>Who a turn is from. <see cref="Tool"/> is what came of one of the model's tool calls.</summary>
 public enum TurnRole { System, User, Assistant, Tool }
@@ -155,11 +103,13 @@ public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedi
 /// A conversation whose earlier turns the host has already read costs only its new turns: the host keeps what each
 /// conversation has read, and appends.
 /// </summary>
+/// <param name="Model">Its chat part, as the catalog names it. Where it is not held, it is loaded for the request alone, placed as it
+/// would be held.</param>
 /// <param name="Tools">The tools the model may call, in its own protocol; none for a model that calls none.</param>
 /// <param name="Decoding">How the model's makers have it write beyond choosing each token; none for most models.</param>
 /// <param name="SendsReasoning">Send the model's reasoning as it is written (<see cref="ReasoningDelta"/>), for an app that keeps it;
 /// otherwise it is read and never sent, and its progress alone is told.</param>
-public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<ChatTurn> Turns, int? MaxNewTokens,
+public sealed record Generate(long RequestId, ModelRef Model, IReadOnlyList<ChatTurn> Turns, int? MaxNewTokens,
                               RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null, bool Thinks = true,
                               TokenSampling? Sampling = null, ReplyDecoding? Decoding = null, bool SendsReasoning = false) : HostRequest(RequestId);
 

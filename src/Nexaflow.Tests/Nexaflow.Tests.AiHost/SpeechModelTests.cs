@@ -5,13 +5,15 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.AiHost.Speech;
 using Nexaflow.Media.Audio;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// The host listening with the real speech models — Silero, Nemotron, Whisper large-v3-turbo and Smart Turn — to
 /// speech this machine's own voice says, and Kokoro speaking: <c>nemotron-whisper-turbo</c> and <c>kokoro-82m</c> from the test
-/// store (<see cref="TestStore"/>), on the CUDA pack where the store holds one this machine runs, on the CPU otherwise. What is asserted is
+/// store (<see cref="TestStore"/>), held where the host places them — on the CUDA pack where the store holds one this machine runs, on
+/// the CPU otherwise. What is asserted is
 /// where turns end and the words that decide it, not the transcripts' exact form.
 /// </summary>
 [TestClass]
@@ -21,14 +23,15 @@ namespace Nexaflow.Tests.AiHost;
 public class SpeechModelTests
 {
     private static AiHostClient? _client;
-    private static ListenModels? _models;
-    private static VoiceSpec? _voice;
 
-    /// <summary>Whether the models run on the first GPU, the host on the CUDA pack, rather than on the CPU.</summary>
-    private static bool _cuda;
+    /// <summary>Both models' parts, held for the class's requests as a voice conversation holds them.</summary>
+    private static HostHold? _hold;
 
     /// <summary>The speech-to-text model of the catalog that hears the turns.</summary>
     private const string Listener = "nemotron-whisper-turbo";
+
+    /// <summary>The text-to-speech model of the catalog that speaks, in the voice the catalog gives each language.</summary>
+    private const string Speaker = "kokoro-82m";
 
     /// <summary>Whether the Whisper hearing the turns is an English-only one: a vocabulary one token short of a multilingual model's.</summary>
     private static bool _englishOnly;
@@ -36,26 +39,20 @@ public class SpeechModelTests
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        _client = await TestStore.HostOnEitherAsync();
-        if (_client is null) return;
+    _client = await TestStore.HostOnEitherAsync();
+    if (_client is null) return;
 
-        // On the first GPU when the host runs from the pack; on the CPU without.
-        _cuda = _client.Environment.Cuda;
-        _models = TestStore.ListenModelsOf(Listener, _cuda);
-        _englishOnly = WhisperExport.Read(TestStore.PathOf(_models.Transcriber!.Folder)).Vocabulary < WhisperTranscriber.MultilingualVocabulary;
-        _voice = Kokoro("en");
-
-        foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector!, _voice.Model })
-            await foreach (var _ in _client.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
+    // The host on the CUDA pack runs the parts its GPU builds are for; on the CPU, their CPU builds.
+    bool cuda = _client.Environment.Cuda;
+    _englishOnly = WhisperExport.Read(TestStore.PartFolder(Listener, HostedRoles.Transcriber, cuda)).Vocabulary < WhisperTranscriber.MultilingualVocabulary;
+    _hold = await TestStore.HoldPlacedAsync(_client, [.. TestStore.HeldPartsOf(Listener, cuda), .. TestStore.HeldPartsOf(Speaker, cuda)], RequestPriority.Voice);
     }
-
-    /// <summary>Kokoro's voice for <paramref name="language"/>, where the models run.</summary>
-    private static VoiceSpec Kokoro(string language) => TestStore.Voice("kokoro-82m", language, _cuda ? 0 : null, _cuda ? null : 0);
 
     [ClassCleanup]
     public static async Task Stop()
     {
-        if (_client is not null) await _client.DisposeAsync();
+    if (_hold is not null) await _hold.DisposeAsync();
+    if (_client is not null) await _client.DisposeAsync();
     }
 
     [TestMethod]
@@ -121,9 +118,9 @@ public class SpeechModelTests
     [TestMethod]
     public async Task Segments_AreSpokenInOrder_AndWhatIsSaidIsWhatWasWritten()
     {
-        if (_client is null || _voice is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        if (_client is null || _hold is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
 
-        await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, [_voice!], 1f, RequestPriority.Voice), TimeSpan.FromMinutes(1));
+        await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, Speaker, 1f, RequestPriority.Voice), TimeSpan.FromMinutes(1));
         await stream.WriteAsync(new TextToSpeak(stream.RequestId, 0, "Good morning, Sam.", "en"));
         await stream.WriteAsync(new TextToSpeak(stream.RequestId, 1, "Your meeting has moved to Thursday at three.", "en"));
         await stream.WriteAsync(new InputEnd(stream.RequestId));
@@ -148,18 +145,17 @@ public class SpeechModelTests
     [DataRow("de", "Die Datei liegt im Ordner Dokumente.", "ordner")]
     public async Task FrenchAndGerman_AreSpokenFromTheirLexicons_AndHeardBack(string language, string written, string heardWord)
     {
-        if (_client is null || _voice is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        if (_client is null || _hold is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
         if (_englishOnly) Assert.Inconclusive($"The Whisper of {Listener} hears English only.");
-        var voice = Kokoro(language);
 
-        await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, [_voice!, voice], 1f, RequestPriority.Voice), TimeSpan.FromMinutes(3));
+        await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, Speaker, 1f, RequestPriority.Voice), TimeSpan.FromMinutes(3));
         await stream.WriteAsync(new TextToSpeak(stream.RequestId, 0, written, language));
         await stream.WriteAsync(new InputEnd(stream.RequestId));
         var replies = new List<HostReply>();
         await foreach (var reply in stream.ReadAsync()) if (reply is not Progress) replies.Add(reply);
         byte[] speech = [.. replies.OfType<SpokenAudio>().SelectMany(a => a.Pcm)];
 
-        await using var listening = await _client.OpenStreamAsync(id => new Listen(id, _models!, language, UtteranceEnd.Pause, RequestPriority.Voice), TimeSpan.FromMinutes(1));
+        await using var listening = await _client.OpenStreamAsync(id => new Listen(id, Listener, language, UtteranceEnd.Pause, RequestPriority.Voice), TimeSpan.FromMinutes(1));
         var reading = Task.Run(async () =>
         {
             var finals = new List<string>();
@@ -178,9 +174,9 @@ public class SpeechModelTests
     /// <summary>Streams the audio in 100 ms pieces, then 2 s of quiet, and returns everything the host replied.</summary>
     private static async Task<List<HostReply>> ListenAsync(byte[] pcm, UtteranceEnd end)
     {
-        if (_client is null || _models is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        if (_client is null || _hold is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
 
-        await using var stream = await _client!.OpenStreamAsync(id => new Listen(id, _models!, "en", end, RequestPriority.Voice), TimeSpan.FromMinutes(1));
+        await using var stream = await _client!.OpenStreamAsync(id => new Listen(id, Listener, "en", end, RequestPriority.Voice), TimeSpan.FromMinutes(1));
         var reading = Task.Run(async () =>
         {
             var replies = new List<HostReply>();

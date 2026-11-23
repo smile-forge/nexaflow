@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Providers;
 
 /// <summary>
 /// The picture tools Nexaflow runs in its AI host: Real-ESRGAN and GFPGAN, catalogued as a tool rather than a model, run
-/// for a restoration with the parts its scale and faces need, never downloaded unasked.
+/// for a restoration at the scale asked, its faces too where asked, never downloaded unasked.
 /// </summary>
 [TestClass]
 public class OwnedPictureToolsTests
@@ -21,7 +21,7 @@ public class OwnedPictureToolsTests
     private static MachineCards NoGpu() => new([], null);
 
     private static OwnedPictureTools Tools(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Nvidia());
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), hardware ?? Nvidia());
 
     private static IReadOnlyList<ModelAsset> Files => Tools(new FakeModelStore(), new FakeAiHost()).Catalog!.Files;
 
@@ -59,7 +59,7 @@ public class OwnedPictureToolsTests
     }
 
     [TestMethod]
-    public async Task APictureEnhancedAtItsSize_UsesThe2xUpscalerAlone_AtTheJobPriority()
+    public async Task APictureEnhancedAtItsSize_IsAskedOfTheToolItsCatalogNames_AtTheJobPriority()
     {
         var host = Restoring(new Progress(0, RestoringStages.Upscaling, 1, 2), new Progress(0, RestoringStages.Upscaling, 2, 2),
                              new PictureRestored(0, 64, 48, 0, SharedBytes.Of(new byte[64 * 48 * 4])));
@@ -72,21 +72,20 @@ public class OwnedPictureToolsTests
         var request = (RestorePicture)host.Requests.Single();
         Assert.AreEqual((64, 48, 1, false, RequestPriority.Job), (request.Width, request.Height, request.Scale, request.Faces, request.Priority));
         CollectionAssert.AreEqual(picture, request.Pixels.ToArray(), "the picture goes to the host as it was given");
-        CollectionAssert.AreEqual(new[] { RestoringParts.UpscalerX2 }, request.Parts.Keys.ToArray());
-        Assert.AreEqual("esrgan-upscaler", request.Parts[RestoringParts.UpscalerX2].Runner);
+        Assert.AreEqual("real-esrgan-gfpgan", request.Tool, "the tool by the catalog's id: which upscaler the scale takes is the host's to choose");
         Assert.AreEqual((64, 48, 0, 64 * 48 * 4), (restored.Width, restored.Height, restored.FacesRestored, restored.Pixels.Length));
         CollectionAssert.AreEqual(new[] { 1, 2 }, steps.Select(s => s.Done).ToArray());
     }
 
     [TestMethod]
-    public async Task APictureUpscaledWithItsFaces_UsesThe4xUpscaler_AndEveryFacePart()
+    public async Task APictureUpscaledWithItsFaces_AsksForFourTimesItsSize_AndItsFaces()
     {
         var host = Restoring(new PictureRestored(0, 256, 192, 2, SharedBytes.Of(new byte[256 * 192 * 4])));
 
         using var restored = await Tools(Here(), host).RestoreAsync(new byte[64 * 48 * 4], 64, 48, 4, faces: true, null, CancellationToken.None);
 
-        CollectionAssert.AreEquivalent(new[] { RestoringParts.UpscalerX4, RestoringParts.FaceDetector, RestoringParts.FaceRestorer, RestoringParts.FaceParser },
-                                       ((RestorePicture)host.Requests.Single()).Parts.Keys.ToArray());
+        var request = (RestorePicture)host.Requests.Single();
+        Assert.AreEqual(("real-esrgan-gfpgan", 4, true), (request.Tool, request.Scale, request.Faces), "the parts that takes are the host's to choose");
         Assert.AreEqual(2, restored.FacesRestored);
     }
 

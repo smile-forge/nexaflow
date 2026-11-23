@@ -23,10 +23,10 @@ public static class ErasingStages
 /// pixels change. Each region takes the GPU at the request's priority and is reported as a <see cref="Progress"/>; one
 /// <see cref="PictureErased"/> brings the picture back. Picture and mask go in shared sections, as a restoration's do.
 /// </summary>
-/// <param name="Parts">The parts it uses, by role (<see cref="ErasingParts.All"/>).</param>
+/// <param name="Tool">The erasing tool, as the catalog names it: the host runs its parts by role (<see cref="ErasingParts.All"/>).</param>
 /// <param name="Pixels">The picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA, row by row, straight alpha.</param>
 /// <param name="Mask">The mask: one byte a pixel, row by row, filled where it is not 0.</param>
-public sealed record ErasePicture(long RequestId, IReadOnlyDictionary<string, ModelSpec> Parts, SharedBytes Pixels, SharedBytes Mask, int Width, int Height,
+public sealed record ErasePicture(long RequestId, string Tool, SharedBytes Pixels, SharedBytes Mask, int Width, int Height,
                                   RequestPriority Priority) : HostRequest(RequestId);
 
 /// <summary>The erased picture, in the request's form, filled in <see cref="Regions"/> regions.</summary>

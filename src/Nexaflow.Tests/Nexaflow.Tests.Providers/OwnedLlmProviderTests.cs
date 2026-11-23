@@ -28,7 +28,28 @@ public class OwnedLlmProviderTests
     private static MachineCards Nvidia() => Hardware(nvidia: true, CudaRuntimePack.MinimumDriver);
 
     private static OwnedLlmProvider Provider(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Hardware(), new ProviderModel("gemma-4-e4b-it"));
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), hardware ?? Hardware(), new ProviderModel("gemma-4-e4b-it"));
+
+            /// <summary>The model's chat part, as the catalog names it.</summary>
+            private static readonly ModelRef Chat = new(Gemma.Id, HostedRoles.Chat);
+
+            /// <summary>Where the host holds the model's chat part, as it describes itself.</summary>
+            private static async Task<PartPlacement> PlacedAsync(FakeAiHost host)
+                => (await new HostHolds(host).DescribeAsync()).Held!.Single(p => p.Part == Chat);
+
+            /// <summary>The next time the provider says its availability changed.</summary>
+            private static Task NextChangeAsync(OwnedLlmProvider provider)
+            {
+                var told = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                EventHandler? heard = null;
+                heard = (_, _) =>
+                {
+                    provider.AvailabilityChanged -= heard;
+                    told.TrySetResult();
+                };
+                provider.AvailabilityChanged += heard;
+                return told.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            }
 
     private static async Task<string> ReadAsync(IAsyncEnumerable<LlmStreamEvent> events)
     {
@@ -78,9 +99,7 @@ public class OwnedLlmProviderTests
         Assert.AreEqual("Hello there.", reply);
         var generate = host.Requests.OfType<Generate>().Single();
         Assert.AreEqual(RequestPriority.Interactive, generate.Priority);
-        Assert.AreEqual("models/gemma-4-e4b-it-qat", generate.Model.Folder, "the folder is the store's name for it: where it lies is the host's to know");
-        Assert.AreEqual(("gemma-4-E4B_q4_0-it.gguf", "gemma-4-E4B-it-mmproj.gguf"), (generate.Model.File, generate.Model.Projector),
-                        "the GGUF, and the projector it sees and hears through");
+        Assert.AreEqual(Chat, generate.Model, "the model's chat part, by the catalog's names: its files, and where they lie, are the host's to know");
         Assert.AreEqual(TurnRole.System, generate.Turns[0].Role);
         CollectionAssert.AreEqual(new byte[] { 137, 80, 78, 71 }, generate.Turns[1].Media!.Single().Bytes.ToArray(), "an image the model reads goes as an image");
         StringAssert.Contains(generate.Turns[1].Text, @"[attached: C:\notes.txt]", "anything else is named");
@@ -137,7 +156,7 @@ public class OwnedLlmProviderTests
     }
 
     [TestMethod]
-    public async Task WarmingUp_LoadsAModelThatIsHere_OnTheGpu_RunningFromThePack_AndDownloadsNothing()
+    public async Task WarmingUp_HoldsAModelThatIsHere_OnTheGpu_RunningFromThePack_AndDownloadsNothing()
     {
         var store = new FakeModelStore([.. Gemma.Files, .. CudaRuntimePack.Files]);
         var host = new FakeAiHost();
@@ -147,14 +166,17 @@ public class OwnedLlmProviderTests
 
         Assert.AreEqual(0, store.Fetched.Count, "a download is the user's to start");
         Assert.IsTrue(host.Environment.Cuda, "the host runs from the pack");
-        var load = (LoadModel)host.Requests.Single();
-        Assert.AreEqual((0, 131072), (load.Model.Device, load.Model.ContextTokens), "on the GPU, with all the context it was trained for where there is room");
-        Assert.AreEqual(5905580032L + ContextCache.Q8.BytesPerToken(17920L) * 131072, load.Model.MemoryBytes, "what it holds there, context and all");
-        Assert.AreEqual(ContextCache.Q8, load.Model.ContextCache, "its context held in 8 bits");
+        var hold = (HoldModels)host.Requests.Single();
+        Assert.AreEqual(RequestPriority.Interactive, hold.Priority);
+        CollectionAssert.AreEqual(new[] { Chat }, hold.Models.ToArray(), "its part, by the catalog's names: which build runs and where is the host's");
+        var placed = await PlacedAsync(host);
+        Assert.AreEqual((0, 131072), (placed.Device, placed.ContextTokens), "on the GPU, with all the context it was trained for where there is room");
+        Assert.AreEqual(5905580032L + ContextCache.Q8.BytesPerToken(17920L) * 131072, placed.MemoryBytes, "what it holds there, its context in 8 bits and all");
+        Assert.AreEqual(131072, (await provider.GetModelInfoAsync())!.ContextWindowTokens, "and the app is told the context it has");
     }
 
     [TestMethod]
-    public async Task WarmingUp_AModelNotHere_DownloadsNothing_AndLoadsNothing()
+    public async Task WarmingUp_AModelNotHere_DownloadsNothing_AndHoldsNothing()
     {
         var store = new FakeModelStore([.. Gemma.Files]);   // the pack it needs on this machine is not
         var host = new FakeAiHost();
@@ -175,7 +197,7 @@ public class OwnedLlmProviderTests
         await provider.WarmupAsync();
 
         Assert.AreEqual(AiHostEnvironment.Cpu, host.Environment);
-        var model = ((LoadModel)host.Requests.Single()).Model;
+        var model = await PlacedAsync(host);
         var part = OwnedModels.OfKind(ModelKind.Language).Single(m => m.Id == Gemma.Id).PartsFor(OwnedModels.Cpu).Single();
         Assert.AreEqual((null, Gemma.Files.Sum(f => f.Size) + ContextCache.Q8.BytesPerToken(part.BytesPerToken) * model.ContextTokens), (model.Device, model.MemoryBytes),
                         "on the CPU it holds its files, read whole, and its context");
@@ -189,7 +211,7 @@ public class OwnedLlmProviderTests
 
         await provider.WarmupAsync();
 
-        int context = ((LoadModel)host.Requests.Single()).Model.ContextTokens;
+        int context = (await PlacedAsync(host)).ContextTokens;
         Assert.AreEqual(27648, context, "a quarter of a gigabyte past its weights, its context held in 8 bits, is twenty-seven thousand-token steps of it");
         Assert.AreEqual(context, (await provider.GetModelInfoAsync())!.ContextWindowTokens, "and the app is told the context it has");
     }
@@ -244,25 +266,40 @@ public class OwnedLlmProviderTests
     }
 
     [TestMethod]
-    public void WhileItsModelMakesWayForAPicture_ItSaysSo_AndAgainWhenItIsBack()
+    public async Task WhileItsModelMakesWayForAPicture_ItSaysSo_AndAgainWhenItIsBack()
     {
         var host     = new FakeAiHost();
-        var setup    = new HostModelSetup(host);
-        var provider = new OwnedLlmProvider(new FakeActivityManager(), new FakeModelStore(), host, setup, Hardware(), new ProviderModel("gemma-4-e4b-it"));
+        var provider = Provider(new FakeModelStore(Gemma.Files), host);
+        await provider.WarmupAsync();
         int changes  = 0;
-        provider.AvailabilityChanged += (_, _) => changes++;
-        var gemma = OwnedModels.OfKind(ModelKind.Language).Single(m => m.Id == "gemma-4-e4b-it");
-        string[] parts = [.. new[] { OwnedModels.Cuda, OwnedModels.Cpu }.SelectMany(gemma.PartsFor).Select(p => $"{gemma.Id}/{p.Name}").Distinct()];
+        provider.AvailabilityChanged += (_, _) => Interlocked.Increment(ref changes);
 
-        using (setup.MakingWay(["z-image-turbo/decoder"]))
-            Assert.IsFalse(provider.IsMakingWay, "another model made way");
+        host.MakeWay(new ModelRef("z-image-turbo", DrawingParts.Decoder));
+        Assert.IsFalse(provider.IsMakingWay, "another model made way: its hold is not told");
 
-        var back = setup.MakingWay(parts);
-        Assert.IsTrue(provider.IsMakingWay);
+        var away = NextChangeAsync(provider);
+        host.MakeWay(Chat);
+        await away;
+        Assert.IsTrue(provider.IsMakingWay, "the host says its held part made way");
 
-        back.Dispose();
+        var back = NextChangeAsync(provider);
+        host.ComeBack(Chat);
+        await back;
         Assert.IsFalse(provider.IsMakingWay);
-        Assert.AreEqual(4, changes, "each change is told, so the conversation can pause and take up listening again");
+        Assert.AreEqual(2, changes, "each change is told, so the conversation can pause and take up listening again");
+    }
+
+    [TestMethod]
+    public async Task CoolingDown_LetsTheHoldGo()
+    {
+        var host     = new FakeAiHost();
+        var provider = Provider(new FakeModelStore(Gemma.Files), host);
+        await provider.WarmupAsync();
+        Assert.AreEqual(1, host.Holds.Count);
+
+        await provider.CooldownAsync();
+
+        Assert.AreEqual(0, host.Holds.Count, "the host unloads what nobody holds");
     }
 
     [TestMethod]

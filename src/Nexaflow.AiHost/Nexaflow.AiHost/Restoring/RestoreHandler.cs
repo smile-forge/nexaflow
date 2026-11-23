@@ -12,7 +12,7 @@ namespace Nexaflow.AiHost.Restoring;
 /// only while it is needed, in the room the picture borrowed, and each call takes the GPU at the request's priority, so a
 /// reply or speech gets in between; every tile and face is reported.
 /// </summary>
-internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<RestorePicture>
+internal sealed class RestoreHandler(HeldModels models, GpuScheduler gpu) : HostRequestHandler<RestorePicture>
 {
     /// <summary>The longest side a picture is searched for faces at: larger ones are searched at this size, which still
     /// finds every face GFPGAN can remake, without a whole large photo through the detector's first layers.</summary>
@@ -26,17 +26,16 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
         var restored = RequestSections.Create(request.Width * request.Scale * request.Height * request.Scale * 4);
 
         var lane = gpu.Open(request.Priority);
-        using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
+        using var room = models.BorrowRoom();
         Func<string, Task> stage = s => reply(new Progress(request.RequestId, s, 0, 0));
 
-        var upscalerSpec = request.Parts[RestoringParts.UpscalerFor(request.Scale)];
-        using (var lease = await models.AcquireAsync(upscalerSpec, resident: false, stage, ct, room))
+        using (var lease = await models.AcquireAsync(models.ToolPart(request.Tool, RestoringParts.UpscalerFor(request.Scale)), stage, ct, room))
         {
             var upscaler = lease.As<PictureUpscaler>();
             await PictureUpscaling.UpscaleAsync(rgba, request.Width, request.Height, upscaler.Factor, request.Scale, restored.Memory,
                 async (tile, width, height, last) =>
                 {
-                    using (await lane.NextAsync(upscalerSpec.Device, ct))
+                    using (await lane.NextAsync(lease.Model.Spec.Device, ct))
                     {
                         ct.ThrowIfCancellationRequested();
                         return upscaler.Upscale(tile, width, height, last);
@@ -59,9 +58,6 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
             throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is too large to restore at {request.Scale}x.");
         if (request.Pixels.Length != (long)request.Width * request.Height * 4)
             throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not {request.Pixels.Length} bytes of RGBA.");
-        foreach (var role in RestoringParts.Of(request.Scale, request.Faces))
-            if (!request.Parts.ContainsKey(role))
-                throw new HostRequestException(HostErrorKind.Invalid, $"Restoring at {request.Scale}x{(request.Faces ? " with faces" : "")} needs its {role}.");
     }
 
     /// <summary>Finds the faces in <paramref name="rgba"/>, remakes each and pastes it over <paramref name="restored"/>;
@@ -76,8 +72,7 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
         var rgb = Rgb(rgba.Span);
         var alignments = faces.Select(FaceAlignment.Alignment).ToList();
         var remade = new List<byte[]>(faces.Count);
-        var restorerSpec = request.Parts[RestoringParts.FaceRestorer];
-        using (var lease = await models.AcquireAsync(restorerSpec, resident: false, stage, ct, room))
+        using (var lease = await models.AcquireAsync(models.ToolPart(request.Tool, RestoringParts.FaceRestorer), stage, ct, room))
         {
             var restorer = lease.As<FaceRestorer>();
             for (int i = 0; i < faces.Count; i++)
@@ -85,7 +80,7 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
                 var crop = ReferenceResampling.WarpAffine(rgb, width, height, 3, alignments[i], (0, 0, FaceRestorer.Size, FaceRestorer.Size),
                                                         FaceAlignment.CropBorder);
                 float[] face;
-                using (await lane.NextAsync(restorerSpec.Device, ct))
+                using (await lane.NextAsync(lease.Model.Spec.Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
                     face = restorer.Restore(Planar(crop), lastCall: i == faces.Count - 1);
@@ -94,14 +89,13 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
             }
         }
 
-        var parserSpec = request.Parts[RestoringParts.FaceParser];
-        using (var lease = await models.AcquireAsync(parserSpec, resident: false, stage, ct, room))
+        using (var lease = await models.AcquireAsync(models.ToolPart(request.Tool, RestoringParts.FaceParser), stage, ct, room))
         {
             var parser = lease.As<FaceParser>();
             for (int i = 0; i < faces.Count; i++)
             {
                 float[] parsed;
-                using (await lane.NextAsync(parserSpec.Device, ct))
+                using (await lane.NextAsync(lease.Model.Spec.Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
                     parsed = parser.Mask(Planar(remade[i]), lastCall: i == faces.Count - 1);
@@ -124,10 +118,9 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
         int dw = (int)(width / shrink), dh = (int)(height / shrink);
         var searched = shrink > 1 ? ReferenceResampling.ResizeLanczos(rgba.Span, width, height, 4, dw, dh) : rgba;
 
-        var spec = request.Parts[RestoringParts.FaceDetector];
         IReadOnlyList<FoundFace> found;
-        using (var lease = await models.AcquireAsync(spec, resident: false, stage, ct, room))
-        using (await lane.NextAsync(spec.Device, ct))
+        using (var lease = await models.AcquireAsync(models.ToolPart(request.Tool, RestoringParts.FaceDetector), stage, ct, room))
+        using (await lane.NextAsync(lease.Model.Spec.Device, ct))
         {
             ct.ThrowIfCancellationRequested();
             var (boxes, scores, landmarks) = lease.As<FaceDetector>().Detect(PictureUpscaling.Planar(searched, dw, dh), dw, dh);

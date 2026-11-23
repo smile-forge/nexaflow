@@ -37,25 +37,15 @@ public class VideoModelTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    /// <summary>The model's parts as the catalog places them, with FastWan's denoiser or the full model's.</summary>
-    private static FilmingModel Model(bool distilled)
+    /// <summary>The model as the catalog names it — FastWan, or the full model — whose parts, steps and guidance the host takes from
+    /// the catalog.</summary>
+    private static string Model(bool distilled)
     {
         if (_client is null) Assert.Inconclusive(TestStore.Missing());
-        string id = distilled ? "fastwan2.2-ti2v-5b" : "wan2.2-ti2v-5b";
-        var parts = new Dictionary<string, ModelSpec>
-        {
-            [FilmingParts.PromptEncoder] = TestStore.Spec(id, FilmingParts.PromptEncoder, 0, 8L << 30),
-            [FilmingParts.Denoiser]      = TestStore.Spec(id, FilmingParts.Denoiser, 0, 14L << 30),
-            [FilmingParts.Decoder]       = TestStore.Spec(id, FilmingParts.Decoder, 0, 14L << 30),
-        };
-        if (!distilled)
-            parts[FilmingParts.FrameEncoder] = TestStore.Spec(id, FilmingParts.FrameEncoder, 0, 3L << 30);
-        return distilled
-            ? new FilmingModel(FilmingMethod.WanDistilled, parts, 3, 8f, 0f, [1000, 757, 522], "")
-            : new FilmingModel(FilmingMethod.Wan, parts, 50, 5f, 5f, [], "色调艳丽，过曝，静态，细节模糊不清");
+        return distilled ? "fastwan2.2-ti2v-5b" : "wan2.2-ti2v-5b";
     }
 
-    private async Task<(List<HostReply> Replies, Mp4Reader.Clip Clip)> FilmAsync(FilmingModel model, string prompt, int frames, byte[]? firstFrame,
+    private async Task<(List<HostReply> Replies, Mp4Reader.Clip Clip)> FilmAsync(string model, string prompt, int frames, byte[]? firstFrame,
                                                                                  string saveAs, CancellationToken ct = default)
     {
         var replies = new List<HostReply>();

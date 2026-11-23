@@ -9,7 +9,7 @@ namespace Nexaflow.Tests.AiHost;
 /// <summary>
 /// The host checking pictures with OwenElliott's image safety classifier, M. How a picture is laid out for it is checked
 /// always; the classifier itself where the test store (<see cref="TestStore"/>) holds <c>image-safety-classifier-m</c> — it
-/// runs on the CPU, so no CUDA pack is needed. What is asserted is the shape of a
+/// runs on the CPU too, so no CUDA pack is needed. What is asserted is the shape of a
 /// verdict and that a plain picture is judged fit, not how well the classifier catches what it is for.
 /// </summary>
 [TestClass]
@@ -17,14 +17,15 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("opt-shell-ai-protection")]
 public class PictureCheckingTests
 {
+    /// <summary>The checking tool, as the catalog names it: the host runs its classifier where it places it.</summary>
+    private const string Tool = "image-safety-classifier-m";
+
     private static AiHostClient? _client;
-    private static ModelSpec? _classifier;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
         _client = await TestStore.HostAsync(gpu: false);
-        _classifier = TestStore.Spec("image-safety-classifier-m", CheckingParts.SafetyClassifier, null, 0);
     }
 
     [ClassCleanup]
@@ -33,10 +34,10 @@ public class PictureCheckingTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, ModelSpec Classifier) Host()
+    private static (AiHostClient Client, string Tool) Host()
     {
-        if (_client is null || _classifier is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
-        return (_client, _classifier);
+        if (_client is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        return (_client, Tool);
     }
 
     /// <summary>A plain outdoor scene, 640 × 480: a sky lightening toward the horizon over a strip of grass, as its RGB.</summary>

@@ -11,19 +11,16 @@ namespace Nexaflow.AiHost.Speech;
 /// language's phonemiser and voice, a GPU step per piece at the request's priority, its audio sent back in pieces of
 /// about a second and its end marked. A segment in a language with no voice is read by the first.
 /// </summary>
-internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, SpeechPhonemizers phonemizers) : HostStreamHandler<Speak>
+internal sealed class SpeakHandler(ModelRegistry models, RequestModels requests, GpuScheduler gpu, SpeechPhonemizers phonemizers) : HostStreamHandler<Speak>
 {
     private const int ChunkSamples = KokoroSynthesizer.SampleRate;
 
     protected override async Task HandleAsync(Speak request, Func<HostReply, Task> reply, ChannelReader<RequestInput> input, CancellationToken ct)
     {
-        if (request.Voices.Count == 0) throw new HostRequestException(HostErrorKind.Invalid, "Speaking needs a voice.");
-        // A voice's lexicon is a file of its model's, named in the model's folder: where it lies in the store is the host's to say.
-        var voices = request.Voices.Select(v => v.Lexicon is { } lexicon ? v with { Lexicon = models.Files.PathOf($"{v.Model.Folder}/{lexicon}") } : v).ToList();
+        Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
+        var voices = await requests.VoicesAsync(request.Model, Stage, ct);
         if (voices.FirstOrDefault(v => !phonemizers.Reads(v.Language, v.Lexicon)) is { } unread)
             throw new HostRequestException(HostErrorKind.Invalid, $"This host cannot read {unread.Language} for a voice{(unread.Lexicon is null ? " without its lexicon" : "")}.");
-
-        Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
         var leases = new Dictionary<string, ModelRegistry.Lease>(StringComparer.Ordinal);
 
         // A voice's model is taken on with the first segment it reads: a language never spoken never loads its voice.

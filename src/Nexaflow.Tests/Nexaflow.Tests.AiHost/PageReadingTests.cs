@@ -7,8 +7,8 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// Unlimited-OCR in the real host, held to the makers' own reading of the recipe's sample pages — where a machine has
-/// them. The tool is <c>unlimited-ocr</c> from the test store (<see cref="TestStore"/>), run on CUDA where the store holds the pack
-/// this machine runs; <c>NEXAFLOW_TEST_PAGE_READING_REFERENCE</c> names the recipe's reference (<c>pages\</c>, <c>reader\</c>,
+/// them. The tool is <c>unlimited-ocr</c> from the test store (<see cref="TestStore"/>), its reader held where the host places it —
+/// on CUDA where the store holds the pack this machine runs; <c>NEXAFLOW_TEST_PAGE_READING_REFERENCE</c> names the recipe's reference (<c>pages\</c>, <c>reader\</c>,
 /// <c>text-finder\</c>). The reader is decoded as its makers decode it: greedy,
 /// the prompt and the last 128 tokens written in view, no 35-token run written twice within 128.
 /// </summary>
@@ -20,10 +20,16 @@ public class PageReadingTests
 {
     private static readonly ReplyDecoding Makers = new(WrittenWindow: 128, RepeatBan: new RepeatBan(35, 128), WritesControlTokens: true);
 
-    private static AiHostClient? _client;
-    private static ModelSpec? _reader;
+    /// <summary>The page reading tool, as the catalog names it.</summary>
+    private const string Tool = "unlimited-ocr";
 
-    private static ModelSpec? _finder;
+    /// <summary>Its reader, the language model a page is read with, as a request names it.</summary>
+    private static readonly ModelRef Reader = new(Tool, ReadingParts.Reader);
+
+    private static AiHostClient? _client;
+
+    /// <summary>The reader, held for the class's requests.</summary>
+    private static HostHold? _hold;
     private static string _reference = "";
 
     [ClassInitialize]
@@ -34,26 +40,24 @@ public class PageReadingTests
         if (_client is null) return;
 
         _reference = reference;
-        bool cuda = _client.Environment.Cuda;
-        _reader = TestStore.Spec("unlimited-ocr", ReadingParts.Reader, cuda ? 0 : null, cuda ? 7L << 30 : 0, 8192);
-        _finder = TestStore.Spec("unlimited-ocr", ReadingParts.TextFinder, null, 0);
-        await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _reader), TimeSpan.FromMinutes(3))) { }
+        _hold = await TestStore.HoldPlacedAsync(_client, [Reader], RequestPriority.Job);
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
+        if (_hold is not null) await _hold.DisposeAsync();
         if (_client is not null) await _client.DisposeAsync();
     }
 
     private static async Task<(string Text, GenerationEnded Ended)> ReadAsync(string page)
     {
-        if (_client is null || _reader is null)
+        if (_client is null || _hold is null)
             Assert.Inconclusive($"{TestStore.Missing(gpu: false)} Or NEXAFLOW_TEST_PAGE_READING_REFERENCE names no page reading reference.");
         var turns = new List<ChatTurn> { new(TurnRole.User, "document parsing.", [new ChatMedia(MediaKind.Image, SharedBytes.Of(File.ReadAllBytes(page)))]) };
         var text = new StringBuilder();
         GenerationEnded? ended = null;
-        await foreach (var reply in _client!.SendAsync(id => new Generate(id, _reader!, turns, 8192, RequestPriority.Job, Thinks: false, Decoding: Makers),
+        await foreach (var reply in _client!.SendAsync(id => new Generate(id, Reader, turns, 8192, RequestPriority.Job, Thinks: false, Decoding: Makers),
                                                         TimeSpan.FromMinutes(2)))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);
@@ -182,7 +186,7 @@ public class PageReadingTests
 
     private static IEnumerable<string> SamplePages()
     {
-        if (_client is null || _reader is null)
+        if (_client is null || _hold is null)
             Assert.Inconclusive($"{TestStore.Missing(gpu: false)} Or NEXAFLOW_TEST_PAGE_READING_REFERENCE names no page reading reference.");
         return Directory.GetFiles(Path.Combine(_reference, "pages"), "*.png").Order();
     }
@@ -218,7 +222,7 @@ public class PageReadingTests
         {
             var reference = Found(name);
             TextFoundInPicture? found = null;
-            await foreach (var reply in _client!.SendAsync(id => new FindTextInPicture(id, _finder!, SharedBytes.Of(File.ReadAllBytes(Path.Combine(_reference, "text-finder", name + ".rgba"))),
+            await foreach (var reply in _client!.SendAsync(id => new FindTextInPicture(id, Tool, SharedBytes.Of(File.ReadAllBytes(Path.Combine(_reference, "text-finder", name + ".rgba"))),
                                                                                         reference.PictureWidth, reference.PictureHeight), TimeSpan.FromMinutes(1)))
                 if (reply is TextFoundInPicture text) found = text;
 
@@ -243,10 +247,12 @@ public class PageReadingTests
     [TestMethod]
     public void APicturePreparedAsTheHostPreparesIt_GivesTheMakersMap()
     {
-        var spec = _finder;
-        foreach (var name in Pictures())
+        var names = Pictures();
+        // The detector in this process, on the CPU where its finder runs, read from the test store.
+        var spec = TestStore.InProcessSpec(Tool, ReadingParts.TextFinder, null);
+        foreach (var name in names)
         {
-            using var finder = (Nexaflow.AiHost.Reading.TextFinder)new Nexaflow.AiHost.Reading.TextFinderRunner().Load(spec!);
+            using var finder = (Nexaflow.AiHost.Reading.TextFinder)new Nexaflow.AiHost.Reading.TextFinderRunner().Load(spec);
             var reference = Found(name);
             var rgba = File.ReadAllBytes(Path.Combine(_reference, "text-finder", name + ".rgba"));
             var (input, width, height) = Nexaflow.AiHost.Reading.TextFinding.Prepare(rgba, reference.PictureWidth, reference.PictureHeight);

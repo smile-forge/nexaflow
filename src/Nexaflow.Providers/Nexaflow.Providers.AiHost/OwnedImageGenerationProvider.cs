@@ -23,10 +23,10 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     private readonly OwnedModelRuntime _runtime;
     private readonly HostedModel?       _model;
 
-    public OwnedImageGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
+    public OwnedImageGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds,
                                         MachineCards hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, holds, hardware);
         _model   = OwnedModels.OfKind(ModelKind.ImageGeneration).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
     }
@@ -114,10 +114,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
             ? (0, 0)
             : sampler.Sizes.Values.First(size => new MediaAspect(size.Width, size.Height) == request.Aspect);
         byte[]? mask = request.Mask is { } stencil ? Redrawn(stencil, sources[0]) : null;
-        var parts = new Dictionary<string, ModelSpec>();
-        foreach (var role in DrawingParts.Of(sampler.Method))
-            parts[role] = await _runtime.PlacedOnDemandAsync(_model, role, ct);
-        var drawing = new DrawingModel(sampler.Method, parts, sampler.Steps, sampler.Shift, sampler.Guidance);
+        var model = _runtime.Ready(_model);
         long seed = request.Seed ?? Random.Shared.NextInt64();
 
         // A LoRA's files come the first time a picture asks for it; its trigger leads the prompt it is drawn with.
@@ -125,8 +122,8 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         DrawingLora? drawingLora = null;
         if (lora is not null)
         {
-            var files = await _runtime.FetchedAsync(_model, $"the {lora.Offer.Name} LoRA for {_model.Catalog.DisplayName}", lora.Files, ct);
-            drawingLora = new DrawingLora(files[0], lora.Strength, lora.Sampler is null ? null : files[1]);
+            await _runtime.FetchAsync(_model, $"the {lora.Offer.Name} LoRA for {_model.Catalog.DisplayName}", lora.Files, ct);
+            drawingLora = new DrawingLora(lora.Id, lora.Strength);
         }
         string prompt = lora?.Prompted(request.Prompt) ?? request.Prompt;
         string? negative = string.IsNullOrWhiteSpace(request.NegativePrompt) ? null : request.NegativePrompt;
@@ -135,7 +132,6 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         var activity = _runtime.Activities.StartActivity(label + "…");
         var host     = _runtime.Host;
         host.Environment = _runtime.Environment;
-        var madeWay  = new List<IDisposable>();   // the models that make way for this picture, back once it is done
         var shared   = new List<SharedBytes>();   // the pictures and mask as the host reads them, closed once it has
         try
         {
@@ -149,7 +145,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
             SharedBytes? covered = null;
             if (mask is not null) shared.Add(covered = await host.ShareAsync(mask, ct));
             byte[]? png = null;
-            await foreach (var reply in host.SendAsync(id => new Draw(id, drawing, prompt, width, height, seed, RequestPriority.Job, negative, drawingLora)
+            await foreach (var reply in host.SendAsync(id => new Draw(id, model, prompt, width, height, seed, RequestPriority.Job, negative, drawingLora)
                                                              { Sources = drawingSources, Mask = covered },
                                                        OwnedModelRuntime.StallLimit, ct))
             {
@@ -161,9 +157,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
                     case Drawn drawn:
                         using (drawn.Rgb) png = PngEncoder.EncodeRgb(drawn.Rgb.Span, drawn.Width, drawn.Height);
                         break;
-                    case MadeWay made:
-                        madeWay.Add(_runtime.MakingWay(made.Models));
-                        break;
+
                 }
             }
             if (png is null) throw new LlmProviderException("The AI host finished without a picture.");
@@ -187,7 +181,6 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         }
         finally
         {
-            foreach (var back in madeWay) back.Dispose();
             foreach (var bytes in shared) bytes.Dispose();
         }
     }

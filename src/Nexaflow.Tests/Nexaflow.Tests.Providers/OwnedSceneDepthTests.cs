@@ -21,7 +21,7 @@ public class OwnedSceneDepthTests
     private static MachineCards NoGpu() => new([], null);
 
     private static OwnedSceneDepth Depth(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Nvidia());
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), hardware ?? Nvidia());
 
     private static IReadOnlyList<ModelAsset> Files => Depth(new FakeModelStore(), new FakeAiHost()).Catalog!.Files;
 
@@ -60,7 +60,7 @@ public class OwnedSceneDepthTests
         var request = (EstimateSceneDepth)host.Requests.Single();
         Assert.AreEqual((2, 1), (request.Width, request.Height));
         CollectionAssert.AreEqual(picture, request.Pixels.ToArray(), "the picture goes to the host as it was given");
-        Assert.IsTrue(request.Parts.ContainsKey(SceneDepthParts.Estimator));
+        Assert.AreEqual("depth-anything-v2-small", request.Tool, "the tool by the catalog's id: its estimator, and where it runs, are the host's to take from it");
         Assert.AreEqual((784, 518), (estimated.Width, estimated.Height));
         Assert.AreSame(disparity, estimated.Disparity, "the host's disparity, as it sent it");
     }
