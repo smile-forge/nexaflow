@@ -69,6 +69,7 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
             Assert.Inconclusive($"{AiDirVariable} names no folder of Nexaflow's own models on this machine.");
             return;
         }
+        OwnedModelFolder.RequireModel(aiDir, "gemma-4-e4b-it", AiDirVariable);
         _aiDir  = aiDir;
         _folder = TestTemp.CreateSubdirectory("nexaflow-documents-").FullName;
         File.WriteAllText(Path.Combine(_folder, FileName), Guide);
@@ -124,6 +125,7 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
     }
 
     [TestMethod]
+    [SecondLaunch(SecondLaunchReason.SecondState, "The workspace's Documents model is Nexaflow's own and the app is started on its folder; without it the journey is inconclusive, and the editor's journey runs without.")]
     public void AWholeDocument_IsSummarisedAndTranslatedBesideIt_TheSummaryLeadingBackToEachSection()
     {
         var view = OpenFileVia(_folder, FileName, "ShowMarkdownAction", "MarkdownView");

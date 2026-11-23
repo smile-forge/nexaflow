@@ -270,7 +270,7 @@ public class SetupWizardTests
         var box = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.AsTextBox());
         box.Focus();
         box.Text = value;
-        if (!propertyChanged) Keyboard.Press(VirtualKeyShort.TAB);
+        if (!propertyChanged) Keyboard.Type(VirtualKeyShort.TAB);
     }
 
     /// <summary>Clicks Next/Finish once it's enabled (its enabled-state tracks the step's validity).</summary>

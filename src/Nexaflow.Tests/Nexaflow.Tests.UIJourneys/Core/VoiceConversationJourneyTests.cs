@@ -56,6 +56,8 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
             Assert.Inconclusive($"{AiDirVariable} names no folder of Nexaflow's own models on this machine.");
             return;
         }
+        OwnedModelFolder.RequireModel(aiDir, "gemma-4-e4b-it", AiDirVariable);
+        OwnedModelFolder.RequireModel(aiDir, "kokoro-82m", AiDirVariable);
         _aiDir  = aiDir;
         _folder = TestTemp.CreateSubdirectory("nexaflow-voice-").FullName;
         File.WriteAllBytes(Path.Combine(_folder, FileName), [0x50, 0x4B, 0x05, 0x06, .. new byte[18]]);   // an empty zip
@@ -183,7 +185,7 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
         Wait.UntilInputIsProcessed();
         if (bar.AsTextBox().Text is var typed && typed != text) return Missed(text, $"the box held \"{typed}\" once typed into");
         if (!InFront()) return Missed(text, "the app lost the front before Enter, so it was not pressed");
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        Keyboard.Type(VirtualKeyShort.RETURN);
         Wait.UntilInputIsProcessed();
         return WaitForFs(() => bar.AsTextBox().Text.Length == 0, 10)
             || Missed(text, $"the box still held \"{bar.AsTextBox().Text}\" once sent");

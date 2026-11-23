@@ -103,7 +103,7 @@ public class UsbJourneyTests : UsbJourneyBase
                 Check("right-click on a tree node offers Copy USB path", () =>
                     RightClick(CentreOf(bus)) && MenuItemNamed("Copy USB path") is { IsEnabled: true });
                 ShootWindowArea(ShotFolder, "02-tree-menu");
-                Keyboard.Press(VirtualKeyShort.ESCAPE);
+                Keyboard.Type(VirtualKeyShort.ESCAPE);
                 bus.Click();
             }
         }
@@ -120,7 +120,7 @@ public class UsbJourneyTests : UsbJourneyBase
             Check("…and its debug details", () =>
                 MenuItemNamed("Copy debug details") is { IsEnabled: true } && MenuItemNamed("Save debug details…") is { IsEnabled: true });
             ShootWindowArea(ShotFolder, "03-device-menu");
-            Keyboard.Press(VirtualKeyShort.ESCAPE);
+            Keyboard.Type(VirtualKeyShort.ESCAPE);
             Check("the right-clicked row is the one selected", () => device.AsListBoxItem().IsSelected);
 
             device.DoubleClick();
@@ -140,7 +140,7 @@ public class UsbJourneyTests : UsbJourneyBase
         });
         Check("right-click on blank space offers Refresh", () => RightClick(blank) && MenuItemNamed("Refresh") is not null);
         ShootWindowArea(ShotFolder, "04-blank-menu");
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
 
         // '>' on this page goes to a place, as it does in the file browser.
         Check("'> 1' opens bus 1", () => GoTo("1"));
@@ -288,7 +288,7 @@ public class UsbJourneyTests : UsbJourneyBase
         // The menus a right-click opens, each drawn in the app's theme — photographed off the window, where they open.
         Check("right-click on a row offers Copy path", () => RightClick(CentreOf(first)) && MenuItemNamed("Copy path") is not null);
         ShootWindowArea(ShotFolder, "21-row-menu");
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
         Check("the right-clicked row is the one selected", () => first.AsListBoxItem().IsSelected);
 
         var area = list.BoundingRectangle;
@@ -300,17 +300,17 @@ public class UsbJourneyTests : UsbJourneyBase
         });
         Check("right-click on blank space offers New folder", () => RightClick(blank) && MenuItemNamed("New folder…") is not null);
         ShootWindowArea(ShotFolder, "22-blank-menu");
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
 
         Check("right-click on the path bar offers Copy path", () =>
             RightClick(CentreOf(WaitForId("Store_Path", 5)!)) && MenuItemNamed("Copy path") is not null);
         ShootWindowArea(ShotFolder, "23-path-menu");
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
 
         Check("right-click on selectable text offers Select all", () =>
             RightClick(CentreOf(WaitForId("Store_Root", 5)!)) && MenuItemNamed("Select all") is not null);
         ShootWindowArea(ShotFolder, "24-text-menu");
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
 
         // A folder opens on a double-click and the path bar walks into it; Backspace comes back out.
         Check("a row is named for what it holds", () => list.Items.All(i => !string.IsNullOrEmpty(i.Properties.Name.ValueOrDefault)));
@@ -325,7 +325,7 @@ public class UsbJourneyTests : UsbJourneyBase
             Shoot("25-storage-folder");
             Check("Backspace goes back up", () =>
             {
-                Keyboard.Press(VirtualKeyShort.BACK);
+                Keyboard.Type(VirtualKeyShort.BACK);
                 return WaitForFs(() => CountOf("Store_Crumb") == steps, 3);
             });
         }

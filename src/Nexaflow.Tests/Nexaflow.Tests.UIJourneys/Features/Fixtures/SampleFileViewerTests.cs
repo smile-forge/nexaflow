@@ -29,13 +29,11 @@ namespace Nexaflow.Tests.Features.Fixtures;
 /// </para>
 ///
 /// <para>
-/// The corpus is split across three tests rather than swept in one, because as a single method it was by
-/// far the slowest thing in this suite — a three-minute serial block where every other journey is under a
-/// minute. The two largest families carry most of that weight (markdown is a third of the ~110 mapped
-/// fixtures and images a further fifth), so each takes a test of its own and the remaining thirteen share
-/// the tail. Splitting costs one extra app launch apiece — about a second, measured — and buys a failure
-/// that names which group broke and a crash that no longer takes the other groups' results with it, each
-/// test having its own app, isolated config dir and crash log.
+/// The corpus is split across two tests rather than swept in one, because together the families take about
+/// three and a half minutes, well past the two a journey may take. Markdown is a third of the ~110 mapped
+/// fixtures and about a minute and three quarters on its own, so it takes a test of its own and every other
+/// family shares the tail. The split buys a failure that names which group broke and a crash that no longer
+/// takes the other group's results with it, each test having its own app, isolated config dir and crash log.
 /// </para>
 ///
 /// <para>
@@ -58,15 +56,13 @@ public class SampleFileViewerTests : FileSystemUiTestBase
     /// named here exactly once: <see cref="Only"/> refuses to sweep one that is missing from this list, so a
     /// new dedicated test cannot silently leave its family running in <see cref="OtherSamples_OpenInExpectedViewer_AndCloseWithoutCrashing"/> as well.
     /// </summary>
-    private static readonly string[] OwnTest = ["markdown", "images"];
+    private static readonly string[] OwnTest = ["markdown"];
 
     [TestMethod]
     public void MarkdownSamples_OpenInExpectedViewer_AndCloseWithoutCrashing() => Sweep(Only("markdown"));
 
     [TestMethod]
-    public void ImageSamples_OpenInExpectedViewer_AndCloseWithoutCrashing() => Sweep(Only("images"));
-
-    [TestMethod]
+    [SecondLaunch(SecondLaunchReason.OverTwoMinutes, "Markdown alone is about two minutes on a desktop and the other families together run past that, so one app would be a four-minute block.")]
     public void OtherSamples_OpenInExpectedViewer_AndCloseWithoutCrashing()
         => Sweep(ViewerMap.BySet.Where(set => !OwnTest.Contains(set.SubDir)));
 

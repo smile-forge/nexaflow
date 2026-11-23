@@ -118,7 +118,7 @@ public class SearchJourneyTests : UiJourneyTestBase
             return false;
         }
 
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        Keyboard.Type(VirtualKeyShort.RETURN);
         Wait.UntilInputIsProcessed();
         return true;
     }
@@ -239,8 +239,8 @@ public class SearchJourneyTests : UiJourneyTestBase
         {
             box.Text = "*.zqxwv9999";
             box.Click();
-            Keyboard.Press(VirtualKeyShort.END);
-            Keyboard.Press(VirtualKeyShort.RETURN);
+            Keyboard.Type(VirtualKeyShort.END);
+            Keyboard.Type(VirtualKeyShort.RETURN);
             Wait.UntilInputIsProcessed();
             Thread.Sleep(1500);
 

@@ -49,6 +49,9 @@ public class ImagesMossJourneyTests : UiJourneyTestBase
             return;
         }
         OwnedModelFolder.RequirePictureCheck(aiDir, AiDirVariable);
+        // Every LoRA the picker offers but the adult one: it lists the ones on disk, and the journey counts them.
+                OwnedModelFolder.RequireModel(aiDir, "moss-image", AiDirVariable, "moss-fast-8step", "moss-anime", "moss-gouache", "moss-psychedelic",
+                                              "moss-beauty", "moss-animated", "moss-impressionism");
         _aiDir  = aiDir;
         _folder = Path.Combine(TestTemp.Root, "nexaflow-moss-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_folder);
@@ -97,6 +100,7 @@ public class ImagesMossJourneyTests : UiJourneyTestBase
     }
 
     [TestMethod]
+    [SecondLaunch(SecondLaunchReason.SecondState, "The workspace's image model is MOSS-Image from the app's own model folder; each image model is a workspace of its own, and without it the journey is inconclusive.")]
     public void APictureDrawnWithTheFastLora_LandsInTheFolderUnderItsName()
     {
         CheckDoes("New opens the picker", "NewMenuAction", () => WaitForId("CreateFileNameBox", 6) is not null, 10);
@@ -104,6 +108,7 @@ public class ImagesMossJourneyTests : UiJourneyTestBase
         NeedsHere("Images_GenerateDownload", "MOSS-Image");
         CheckPresent("What to draw is asked for", "Images_GeneratePrompt");
         CheckPresent("MOSS-Image is told what to keep out", "Images_GenerateKeepOut");
+
         Check("Its LoRAs are offered after none, none meant for adults only", () => LoraNames() is { Length: 8 } names
               && names.Contains("Fast (8 steps)") && names.Contains("Anime") && !names.Contains("Uncensored"));
 

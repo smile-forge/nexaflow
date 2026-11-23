@@ -93,6 +93,7 @@ public class VideoGenerateJourneyTests : UiJourneyTestBase
     }
 
     [TestMethod]
+    [SecondLaunch(SecondLaunchReason.SecondState, "The app runs on its own models here and is started on their folder; without them the journey is inconclusive, and the player's journey runs without.")]
     public void AClipMadeFromTheNewPicker_RunsAsABackgroundTask()
     {
         CheckDoes("New opens the picker", "NewMenuAction", () => WaitForId("CreateFileNameBox", 6) is not null, 10);

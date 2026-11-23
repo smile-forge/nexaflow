@@ -108,7 +108,7 @@ public class FeatureTouchPointTests
     public void Every_sample_set_either_maps_to_a_viewer_or_is_a_named_exemption()
     {
         // Covered by their own feature's UI tests rather than the shared default-open sweep: code by
-        // CodeViewUiTests/CodeJourneyTests, notebook by NotebookViewUiTests, archive by
+        // CodeJourneyTests, notebook by NotebookViewUiTests, archive by
         // CompressedJourneyTests. Each opens through an explicit ActionStrip action instead of the
         // double-click default, so for these a ViewerMap row would be wrong rather than missing. Office has no
         // viewer at all — a .docx opens in whatever app Windows associates with it — so its fixtures are read

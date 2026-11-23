@@ -1,0 +1,6 @@
+# Features whose UI journeys still launch the app more than once without saying why, and how many launches beyond their first
+# each still owes. One line each: "<Features/Folder> <launches still owed>". Fold a feature's journeys into steps of one and
+# lower or delete its line — the second test fails on a line that no longer matches, so this file can only shrink.
+# A launch that genuinely needs a second app carries [SecondLaunch(...)] instead and is not owed.
+
+Features/Markdown 1
