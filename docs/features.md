@@ -369,7 +369,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IAIService` | Per-workspace AI service: the agent loop, conversation store, handler scoring, analysis. Injected like `IShellServices`. |
 | `IClientTool` | A locally-executed tool a page/shell exposes to the agent (use `DelegateClientTool` for one-liners). |
 | `IAIResponseHandler` | The sink the agent loop drives for all response UI (progress, approval, final). Default = shell overlay; a VM can implement it to render inline. |
-| `IChatEngagement` | A page VM opting to host AI responses in an inline banner instead of the modal overlay. |
+
 | `IQueryHandler` | Intercepts AI-input-bar text before the LLM (`Symbol` prefix / `CanProcess` score). Global or page-scoped. |
 
 ### AI input bar — key / preview / drop handlers (`Services/`)

@@ -15,8 +15,7 @@ namespace Nexaflow.Core.Services;
 public enum AiOverlayState { Message, Approval, Running, Writing }
 
 /// <summary>
-/// Shared <see cref="IAIResponseHandler"/> machinery for the two AI response surfaces — the shell's modal
-/// overlay (<see cref="ShellAIResponseHandler"/>) and the in-page banner (<see cref="InlineAiResponseHandler"/>).
+/// Shared <see cref="IAIResponseHandler"/> machinery for the shell's AI response surface (<see cref="ShellAIResponseHandler"/>).
 /// Holds the Running/Approval/Message state machine, the approval gate, "Continue as Conversation", and the
 /// observable state the surfaces bind to. Subclasses only supply placement: <see cref="Open"/> /
 /// <see cref="Close"/> show or hide their own surface. Built on the UI thread; calls marshal via <see cref="Dispatch"/>.

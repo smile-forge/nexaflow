@@ -1487,10 +1487,7 @@ public sealed class AIService : IAIService
 
         // How to reply here — spoken, or written in a small panel — comes straight after who it is.
         if (replyStyle is { Length: > 0 }) sb.Append(replyStyle.Trim()).Append("\n\n");
-        if (page is IChatEngagement eng)
-            sb.Append("Your reply is shown in a compact panel beneath this page, about ").Append(eng.MaxResponseRows ?? 8)
-              .Append(" lines tall: keep it short and to the point. Anything longer opens in a larger overlay, and anything ")
-              .Append("involved can be carried on as a full conversation.\n\n");
+
 
         sb.Append("# What the user is looking at\n").Append(context.Trim()).Append("\n\n");
 

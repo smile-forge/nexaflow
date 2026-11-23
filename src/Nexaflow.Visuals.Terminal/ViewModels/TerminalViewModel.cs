@@ -29,7 +29,7 @@ namespace Nexaflow.Visuals.Terminal.ViewModels;
 /// and the environment source/persistence are supplied by a feature-specific subclass — so cmd and a
 /// future PowerShell feature share everything here without referencing each other.
 /// </summary>
-public abstract partial class TerminalViewModel : ObservableObject, IDisposable, IPageViewModel, IChatEngagement
+public abstract partial class TerminalViewModel : ObservableObject, IDisposable, IPageViewModel
 {
     // ── Terminal back-end ─────────────────────────────────────────────────
     private readonly ITerminalLauncher _launcher;
@@ -311,7 +311,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// <summary>Sends Ctrl-C to the hosted shell (interrupt the running program / clear the line).</summary>
     public void SendCtrlC()
     {
-        EngagementInvalidated?.Invoke();
         StopWatcher();
         _transport?.Interrupt();
         IsBusy = false;
@@ -324,7 +323,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// </summary>
     public void HardStop()
     {
-        EngagementInvalidated?.Invoke();
         StopWatcher();
         _transport?.TerminateForeground();
         IsBusy = false;
@@ -340,9 +338,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     public void SendText(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        // The user is typing into the terminal: dissolve any AI banner, and — for a real character (not a
-        // lone space) — take over any background-command watch.
-        EngagementInvalidated?.Invoke();
+        // The user is typing into the terminal: a real character (not a lone space) takes over any
+        // background-command watch.
         if (!string.IsNullOrWhiteSpace(text)) StopWatcher();
         Send(text);
     }
@@ -356,9 +353,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     {
         var seq = TerminalKeys.Encode(key, modifiers);
         if (seq is null) return false;
-        // A special key (arrow / backspace / Ctrl-combo) is real interaction: dissolve the banner and
-        // take over any background-command watch.
-        EngagementInvalidated?.Invoke();
+        // A special key (arrow / backspace / Ctrl-combo) is real interaction: it takes over any
+        // background-command watch.
         StopWatcher();
         Send(seq);
         return true;
@@ -371,9 +367,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// </summary>
     public void HandleEnter()
     {
-        // Pressing Enter is a user action — dissolve any lingering AI banner. (A lone Enter does NOT stop
-        // a background-command watch; the watcher only yields to real typing or Ctrl-C.)
-        EngagementInvalidated?.Invoke();
+        // A lone Enter does NOT stop a background-command watch; the watcher only yields to real typing or Ctrl-C.
 
         var decision = TerminalEnterRouting.Decide(_atPrompt ? CurrentInputLine() : null, ShellBuiltins);
         switch (decision.Action)
@@ -1013,18 +1007,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         };
     }
 
-    // ── IChatEngagement (inline AI banner host) ───────────────────────────
-
-    private System.Windows.Controls.ContentControl? _engagementHost;
-    /// <summary>Called once by the View to hand the VM the banner host (bottom of the console column).</summary>
-    public void SetEngagementHost(System.Windows.Controls.ContentControl host) => _engagementHost = host;
-
-    public System.Windows.Controls.ContentControl GetHostUserControl()
-        => _engagementHost ??= new System.Windows.Controls.ContentControl();
-
-    public int? MaxResponseRows => null;
-
-    public event Action? EngagementInvalidated;
 
     // ── AI command capture + background watcher ───────────────────────────
     //

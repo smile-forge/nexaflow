@@ -13,7 +13,7 @@ Runs a Windows command prompt in a tab, and sends anything that isn't a command 
 - Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the [File System](help:FileSystem) page. It starts in that folder.
 
 ## With the assistant
-- At a prompt, Enter runs your line if it starts with a cmd built-in, a program on your PATH or the path of a file that exists. Anything else is taken off the line and sent to the assistant. Answers appear in a banner under the console, which clears when you start typing.
+- At a prompt, Enter runs your line if it starts with a cmd built-in, a program on your PATH or the path of a file that exists. Anything else is taken off the line and sent to the assistant, which answers in the AI bar.
 - While a program is running, Enter goes to that program, so a `y` or a password is never treated as a question.
 - The assistant knows the console's folder and that it is cmd.exe, so it uses cmd syntax rather than PowerShell.
 - What the assistant may reach is the console's folder and everything under it. That folder is where cmd really is, asked of Windows, never read off the screen, so printing a file cannot move it.

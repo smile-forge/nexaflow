@@ -1422,28 +1422,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private enum TurnOutcome { Completed, Cancelled, Prefill, Error }
 
-    /// <summary>One inline banner handler per engagement page (keyed by the page's view-model).</summary>
-    private readonly Dictionary<IChatEngagement, InlineAiResponseHandler> _inlineHandlers = [];
-
-    /// <summary>
-    /// Gets — or lazily creates and wires — the inline banner handler for an engagement page: builds the
-    /// banner, injects it into the page's host, hands the handler to the page (so it can drive its own
-    /// banner, e.g. for a background-command result), and caches it. Called only while the engagement page
-    /// is the active tab, so <see cref="ActiveTab"/> is that page.
-    /// </summary>
-    private InlineAiResponseHandler AcquireInlineHandler(IChatEngagement eng)
-    {
-        if (_inlineHandlers.TryGetValue(eng, out var existing)) return existing;
-
-        var page    = ActiveTab!;
-        var handler = new InlineAiResponseHandler(this, eng, page);
-        eng.GetHostUserControl().Content = new Controls.AiResponseBanner { DataContext = handler };
-        eng.SetResponseHandler(handler);
-        _inlineHandlers[eng] = handler;
-        page.Closed += (_, _) => _inlineHandlers.Remove(eng);
-        return handler;
-    }
-
     /// <summary>The handler driving the in-flight run, or null when idle. While set, a new submission is
     /// queued into it as an interjection rather than starting a fresh run.</summary>
     private IAIResponseHandler? _runningHandler;
@@ -1528,13 +1506,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>
     /// Where a turn about <paramref name="pageVm"/> is answered: a page that renders the assistant itself (e.g. the conversation) in
-    /// itself; a page that hosts the shared inline banner (IChatEngagement, e.g. the console) in that banner; otherwise this
-    /// window's AI bar (Ai). Either way the agent loop talks only to this handler.
+    /// itself; any other in this window's AI bar (Ai). Either way the agent loop talks only to this handler.
     /// </summary>
-    private IAIResponseHandler ResponseSurfaceFor(IPageViewModel? pageVm) =>
-        pageVm as IAIResponseHandler
-        ?? (pageVm is IChatEngagement eng ? (IAIResponseHandler)AcquireInlineHandler(eng) : null)
-        ?? Ai;
+    private IAIResponseHandler ResponseSurfaceFor(IPageViewModel? pageVm) => pageVm as IAIResponseHandler ?? Ai;
 
     /// <summary>
     /// Runs a run's turns on <paramref name="handler"/>: the first, then each follow-up the user typed after the run's last turn

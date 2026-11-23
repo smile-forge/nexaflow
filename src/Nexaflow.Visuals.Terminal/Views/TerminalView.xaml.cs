@@ -25,8 +25,7 @@ public partial class TerminalView : UserControl, IDropTarget
         ViewModel   = vm;
         DataContext = vm;
 
-        // Hand the VM the empty host the shell injects its inline AI banner into (bottom of the console).
-        vm.SetEngagementHost(EngagementHost);
+
 
         vm.ScrollRequested += (_, _) => ScrollToBottom();
 
