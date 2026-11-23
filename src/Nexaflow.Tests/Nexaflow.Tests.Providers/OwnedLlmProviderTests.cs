@@ -7,6 +7,7 @@ using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Providers.Support;
 using Nexaflow.IO.Common.Audio;
 using Nexaflow.Providers.Local;
+using Nexaflow.Media.Audio;
 
 namespace Nexaflow.Tests.Providers;
 

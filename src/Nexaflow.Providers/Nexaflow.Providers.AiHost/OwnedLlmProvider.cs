@@ -5,6 +5,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.IO.Common.Audio;
 
+using Nexaflow.Media.Audio;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Local;
 

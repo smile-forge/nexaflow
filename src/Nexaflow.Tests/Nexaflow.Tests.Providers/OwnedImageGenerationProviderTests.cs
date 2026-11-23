@@ -8,6 +8,7 @@ using System.IO.Compression;
 using Nexaflow.IO.Common.Imaging;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.AiHost.Provisioning;
+using Nexaflow.Media.Png;
 
 namespace Nexaflow.Tests.Providers;
 

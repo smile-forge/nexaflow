@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Media\Nexaflow.Media.csproj" />
     <!-- The host twice over: its internals tested in this process (the scheduler, the context log, the adapters), and
          its executable run as the app runs it, from AiHost\. -->
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" HelperFolder="AiHost" />

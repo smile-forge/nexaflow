@@ -4,6 +4,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.AiHost.Speech;
+using Nexaflow.Media.Audio;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -149,7 +150,7 @@ public class SpeechModelTests
         Assert.IsTrue(seconds is > 2 and < 8, $"{seconds:0.0} s of speech");
 
         // Heard back through the host's own ears: the words are the ones written.
-        var heard = await ListenAsync(new Nexaflow.IO.Common.Audio.PcmResampler(24_000, 16_000).Convert(speech), UtteranceEnd.Pause);
+        var heard = await ListenAsync(new PcmResampler(24_000, 16_000).Convert(speech), UtteranceEnd.Pause);
         string text = string.Join(" ", heard.OfType<ListenFinal>().Select(f => f.Text)).ToLowerInvariant();
         StringAssert.Contains(text, "thursday");
         StringAssert.Contains(text, "morning");
@@ -180,7 +181,7 @@ public class SpeechModelTests
             await foreach (var reply in listening.ReadAsync()) if (reply is ListenFinal final) finals.Add(final.Text);
             return string.Join(' ', finals);
         });
-        byte[] audio = [.. new Nexaflow.IO.Common.Audio.PcmResampler(24_000, 16_000).Convert(speech), .. new byte[16_000 * 2 * 2]];
+        byte[] audio = [.. new PcmResampler(24_000, 16_000).Convert(speech), .. new byte[16_000 * 2 * 2]];
         for (int at = 0; at < audio.Length; at += 3_200)
             await listening.WriteAsync(new AudioInput(listening.RequestId, audio[at..Math.Min(audio.Length, at + 3_200)]));
         await listening.WriteAsync(new InputEnd(listening.RequestId));

@@ -1,7 +1,7 @@
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.Media.Png;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Imaging;
+namespace Nexaflow.Tests.Components.Media;
 
 /// <summary>
 /// The PNG writer, read back by a reader written from the specification (<see cref="PngReader"/>): the chunks are in

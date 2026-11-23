@@ -3,6 +3,7 @@ using Nexaflow.Features.UsbProbe.AudioTools;
 using Nexaflow.IO.Common.Audio;
 using Nexaflow.IO.Usb.Diagnostics;
 using Nexaflow.IO.Usb.Tools;
+using Nexaflow.Media.Audio;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.UsbProbe;

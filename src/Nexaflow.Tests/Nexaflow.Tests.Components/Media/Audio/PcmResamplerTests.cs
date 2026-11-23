@@ -1,7 +1,7 @@
-using Nexaflow.IO.Common.Audio;
+using Nexaflow.Media.Audio;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Audio;
+namespace Nexaflow.Tests.Components.Media;
 
 [TestClass]
 [CoversNode("ai-host")]

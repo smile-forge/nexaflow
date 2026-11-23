@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Nexaflow.IO.Common.Audio;
+using Nexaflow.Media.Audio;
 
 namespace Nexaflow.Features.Audio.Services;
 

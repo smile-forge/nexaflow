@@ -60,9 +60,10 @@ internal sealed class ChatModel : IHostModel
     /// The lane a request is answered in, held until the returned use is disposed: the lane holding the conversation
     /// <paramref name="turns"/> continue; else, for work nobody is watching whose prompt (<paramref name="promptTokens"/>, null
     /// where it holds a medium) leaves a quarter of a slice for its reply, the lane for such work — made now, where the spec allows
-    /// one and its GPU has the room free; else its own.
+    /// one and its GPU has the room to spare (<paramref name="spareOnGpu"/>); else its own.
     /// </summary>
-    public LaneUse Enter(IReadOnlyList<ChatTurn> turns, RequestPriority priority, Func<int?> promptTokens)
+    /// <param name="spareOnGpu">What its GPU has to spare now beyond the models loaded there (<see cref="ModelRegistry.SpareOn"/>).</param>
+    public LaneUse Enter(IReadOnlyList<ChatTurn> turns, RequestPriority priority, Func<int?> promptTokens, Func<int, long> spareOnGpu)
     {
         lock (_lanes)
         {
@@ -71,16 +72,17 @@ internal sealed class ChatModel : IHostModel
             if (priority is not (RequestPriority.Background or RequestPriority.Job) || Spec.BackgroundSequences == 0
                 || promptTokens() is not { } tokens || tokens > Spec.BackgroundTokens * 3 / 4)
                 return new LaneUse(Shared, null);
-            return Background() is { } lane ? Use(lane) : new LaneUse(Shared, null);
+            return Background(spareOnGpu) is { } lane ? Use(lane) : new LaneUse(Shared, null);
         }
     }
 
-    /// <summary>The lane for work nobody is watching — made where its GPU has the room it holds free now; null where it has not,
-    /// or llama.cpp would not make it. Called under the lanes' gate.</summary>
-    private ChatLane? Background()
+    /// <summary>The lane for work nobody is watching — made where its GPU has the room it holds to spare beyond the models loaded
+    /// there, within the GPU's budget as the card says it now; null where it has not, or llama.cpp would not make it. Called under
+    /// the lanes' gate.</summary>
+    private ChatLane? Background(Func<int, long> spareOnGpu)
     {
         if (_background is not null) return _background;
-        if (Spec.Device is not { } device || LlamaBackends.FreeBytes(device) < Spec.BackgroundBytes) return null;
+        if (Spec.Device is not { } device || spareOnGpu(device) < Spec.BackgroundBytes) return null;
         try
         {
             _background = new ChatLane(this, Spec.BackgroundSequences * Spec.BackgroundTokens, Spec.BackgroundSequences, LlamaContext.DefaultBatch,

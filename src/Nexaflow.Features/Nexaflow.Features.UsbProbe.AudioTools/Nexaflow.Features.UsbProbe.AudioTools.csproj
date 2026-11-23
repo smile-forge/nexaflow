@@ -5,8 +5,9 @@
     attribute, so the device page references none of it. The tool is a headless view-model; WPF is on only for the
     DataTemplate that draws it, which the page merges from this assembly.
 
-    Endpoints, test signals, playback and metering come from Nexaflow.IO.Common's own WASAPI code, matched to the device's
-    functions by the devnode behind each endpoint. It references no feature.
+    Endpoints, test signals, playback and metering are its own, over WASAPI interop of its own (EndpointWasapi) — the
+    app's speech keeps its WASAPI in IO.Common — matched to the device's functions by the devnode behind each endpoint.
+    It references no feature.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -19,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Media\Nexaflow.Media.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Usb\Nexaflow.IO.Usb.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />

@@ -1,6 +1,7 @@
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.IO.Common.Imaging;
 using Nexaflow.IO.Common.Video;
+using Nexaflow.Media.Png;
 
 namespace Nexaflow.Tests.AiHost;
 

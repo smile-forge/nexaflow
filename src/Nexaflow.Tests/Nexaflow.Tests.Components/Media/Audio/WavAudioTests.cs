@@ -1,8 +1,8 @@
 using System.Buffers.Binary;
-using Nexaflow.IO.Common.Audio;
+using Nexaflow.Media.Audio;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Audio;
+namespace Nexaflow.Tests.Components.Media;
 
 /// <summary>Recordings as speech models read them: 16 kHz, mono, 16-bit.</summary>
 [TestClass]

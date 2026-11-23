@@ -1,7 +1,7 @@
-using Nexaflow.IO.Common.Audio;
+using Nexaflow.Features.UsbProbe.AudioTools;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Audio;
+namespace Nexaflow.Tests.Features.UsbProbe;
 
 /// <summary>
 /// The audio endpoints this machine has. It only lists what Windows knows — nothing is opened —

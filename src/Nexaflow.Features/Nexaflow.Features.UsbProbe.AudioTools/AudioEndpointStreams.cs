@@ -1,13 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using Nexaflow.Media.Audio;
 
-namespace Nexaflow.IO.Common.Audio;
-
-/// <summary>Interleaved float samples with their layout — a recording, or a WAV read for playback.</summary>
-public sealed record AudioClip(float[] Samples, int Channels, int Rate)
-{
-    public TimeSpan Length => Channels == 0 || Rate == 0 ? TimeSpan.Zero : TimeSpan.FromSeconds((double)Samples.Length / Channels / Rate);
-}
+namespace Nexaflow.Features.UsbProbe.AudioTools;
 
 /// <summary>Each channel's peak and RMS over the last twentieth of a second, in dBFS.</summary>
 public sealed record AudioLevelReading(float[] PeakDb, float[] RmsDb);
@@ -36,16 +31,16 @@ public static class AudioSignalPlayer
         IAudioRenderClient? render = null;
         try
         {
-            client = WasapiStreams.OpenAtMixFormat(endpointId, bufferMs: 100, out var format);
-            WasapiStreams.Check(client.GetBufferSize(out uint bufferFrames));
-            render = WasapiStreams.Render(client);
+            client = EndpointWasapi.OpenAtMixFormat(endpointId, bufferMs: 100, out var format);
+            EndpointWasapi.Check(client.GetBufferSize(out uint bufferFrames));
+            render = EndpointWasapi.Render(client);
             int channels = format.Channels;
             var scratch = new float[bufferFrames * channels];
             bool started = false, ended = false;
 
             while (!ct.IsCancellationRequested)
             {
-                WasapiStreams.Check(client.GetCurrentPadding(out uint padding));
+                EndpointWasapi.Check(client.GetCurrentPadding(out uint padding));
                 if (ended)
                 {
                     if (padding == 0) break;
@@ -55,10 +50,10 @@ public static class AudioSignalPlayer
                     int n = signal.Read(scratch.AsSpan(0, (int)room * channels), channels, format.Rate);
                     if (n > 0)
                     {
-                        WasapiStreams.Check(render.GetBuffer((uint)n, out IntPtr data));
+                        EndpointWasapi.Check(render.GetBuffer((uint)n, out IntPtr data));
                         Marshal.Copy(scratch, 0, data, n * channels);
-                        WasapiStreams.Check(render.ReleaseBuffer((uint)n, 0));
-                        if (!started) { WasapiStreams.Check(client.Start()); started = true; }
+                        EndpointWasapi.Check(render.ReleaseBuffer((uint)n, 0));
+                        if (!started) { EndpointWasapi.Check(client.Start()); started = true; }
                     }
                     if (n < room) ended = true;
                     if (ended && !started) break;
@@ -160,10 +155,10 @@ public sealed class AudioLevelMeter(string endpointId) : IAudioLevelMeter
         IAudioCaptureClient? capture = null;
         try
         {
-            client = WasapiStreams.OpenAtMixFormat(endpointId, bufferMs: 100, out var format);
+            client = EndpointWasapi.OpenAtMixFormat(endpointId, bufferMs: 100, out var format);
             (Channels, Rate) = (format.Channels, format.Rate);
-            capture = WasapiStreams.Capture(client);
-            WasapiStreams.Check(client.Start());
+            capture = EndpointWasapi.Capture(client);
+            EndpointWasapi.Check(client.Start());
             _started.TrySetResult();
 
             int channels = format.Channels, blockFrames = Math.Max(format.Rate / 20, 1);
@@ -175,12 +170,12 @@ public sealed class AudioLevelMeter(string endpointId) : IAudioLevelMeter
                 Thread.Sleep(10);
                 while (_running && capture.GetNextPacketSize(out uint next) == 0 && next > 0)
                 {
-                    WasapiStreams.Check(capture.GetBuffer(out IntPtr data, out uint frames, out uint flags, out _, out _));
+                    EndpointWasapi.Check(capture.GetBuffer(out IntPtr data, out uint frames, out uint flags, out _, out _));
                     int samples = (int)frames * channels;
                     if (packet.Length < samples) packet = new float[samples];
                     if ((flags & 1) != 0) Array.Clear(packet, 0, samples);
                     else Marshal.Copy(data, packet, 0, samples);
-                    WasapiStreams.Check(capture.ReleaseBuffer(frames));
+                    EndpointWasapi.Check(capture.ReleaseBuffer(frames));
 
                     Keep(packet.AsSpan(0, samples), channels);
                     for (int at = 0; at < samples;)

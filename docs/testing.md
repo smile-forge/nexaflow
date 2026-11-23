@@ -917,9 +917,10 @@ least able to fail for a reason that is not about its subject.
 
 - **`Common/`** — `Base64Codec`, `DirectoryMover`, `FileSplitter`, `Glob`, `Hashing`, `OverlayTextFile`,
   `TextLineIndex`, `TextTransforms`, and `FileTransferEngine`'s verified copies (a test seam changes what landed
-  before the read-back). `Common/Audio/` holds the test signals and the meter's arithmetic, sample by sample, and the
-  float WAV round trip. `AudioEndpointCatalogTests` and `SerialPortCatalogTests` list this machine's audio endpoints
-  and COM ports without opening any.
+  before the read-back). `Common/Audio/` holds the speech devices' tests; `SerialPortCatalogTests` lists this machine's
+  COM ports without opening any. The USB probe's audio test signals, meter and endpoint catalog are that feature's own,
+  tested in `Tests.Features.WindowsOS/UsbProbe/`; WAV, PNG and resampling are `Nexaflow.Media`'s, tested in
+  `Tests.Components/Media/`.
 - **`Location/`** — the location provider contract, written once as `LocationSessionContract` and inherited per
   backend (listing, ranged reads, atomic and conflict-checked writes, rename, delete, cancellation, reconnect), run
   against an in-memory host at 0, 80 and 250 ms of latency so a change that adds round trips shows as time; plus the

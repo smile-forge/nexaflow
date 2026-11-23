@@ -195,6 +195,20 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     /// <summary>What <paramref name="spec"/> holds in this machine's memory, against the host's share of it.</summary>
     private static long InMemory(ModelSpec spec) => spec.Device is null ? spec.MemoryBytes : spec.HostBytes;
 
+    /// <summary>
+    /// What GPU <paramref name="device"/> has to spare now beyond the models loaded there: its budget as the card says it now
+    /// (<see cref="IHostGpus.BudgetNow"/>), less what they hold. Room a model takes for itself outside admission — a lane for work
+    /// nobody is watching — is taken only within it, so it never eats what the runtime keeps back, nor what another program holds.
+    /// </summary>
+    public long SpareOn(int device)
+    {
+        lock (_gate)
+        {
+            long held = _loaded.Values.Concat(_replaced).Where(e => e.Model.Spec.Device == device).Sum(e => e.Model.Spec.MemoryBytes);
+            return Math.Max(0, gpus.BudgetNow(device, held) - held);
+        }
+    }
+
     /// <summary>Room for one picture: while any is out, residents nothing is using may make way for its parts.</summary>
     /// <param name="madeWay">Told the residents that make way for this picture, as they do.</param>
     public Room BorrowRoom(Func<IReadOnlyList<string>, Task>? madeWay = null)

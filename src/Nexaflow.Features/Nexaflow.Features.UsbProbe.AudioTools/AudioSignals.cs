@@ -1,4 +1,4 @@
-namespace Nexaflow.IO.Common.Audio;
+namespace Nexaflow.Features.UsbProbe.AudioTools;
 
 /// <summary>
 /// A test signal, generated as it plays: whatever channel count and rate the endpoint mixes at, written straight into

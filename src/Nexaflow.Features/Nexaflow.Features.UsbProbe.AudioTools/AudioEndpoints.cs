@@ -1,8 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using Nexaflow.IO.Common.Hardware;
 
-namespace Nexaflow.IO.Common.Audio;
+namespace Nexaflow.Features.UsbProbe.AudioTools;
 
 public enum AudioFlow { Playback, Recording }
 
@@ -63,10 +62,10 @@ public static class AudioEndpointCatalog
         IMMDeviceCollection? collection = null;
         try
         {
-            WasapiStreams.Check(enumerator.EnumAudioEndpoints(AllFlows, ActiveState, out IntPtr pointer));
+            EndpointWasapi.Check(enumerator.EnumAudioEndpoints(AllFlows, ActiveState, out IntPtr pointer));
             collection = (IMMDeviceCollection)Marshal.GetObjectForIUnknown(pointer);
             Marshal.Release(pointer);
-            WasapiStreams.Check(collection.GetCount(out uint count));
+            EndpointWasapi.Check(collection.GetCount(out uint count));
             for (uint i = 0; i < count; i++)
             {
                 if (collection.Item(i, out IMMDevice device) != 0) continue;
@@ -87,7 +86,7 @@ public static class AudioEndpointCatalog
         if (device.GetId(out string id) != 0) return null;
         if (((IMMEndpoint)device).GetDataFlow(out int flow) != 0) return null;
         var format = MixFormat(device);
-        return new AudioEndpointInfo(id, FriendlyName(device) ?? id, flow == WasapiStreams.CaptureFlow ? AudioFlow.Recording : AudioFlow.Playback,
+        return new AudioEndpointInfo(id, FriendlyName(device) ?? id, flow == EndpointWasapi.CaptureFlow ? AudioFlow.Recording : AudioFlow.Playback,
             format.Channels, format.Rate, format.Mask, Adapter(device));
     }
 
@@ -99,7 +98,7 @@ public static class AudioEndpointCatalog
         try
         {
             if (client.GetMixFormat(out IntPtr format) != 0) return (0, 0, 0);
-            try { var mix = WasapiStreams.Describe(format); return (mix.Channels, mix.Rate, mix.Mask); }
+            try { var mix = EndpointWasapi.Describe(format); return (mix.Channels, mix.Rate, mix.Mask); }
             finally { Marshal.FreeCoTaskMem(format); }
         }
         finally { Marshal.ReleaseComObject(client); }
@@ -134,7 +133,7 @@ public static class AudioEndpointCatalog
             if (topology.GetConnector(0, out connector) != 0) return null;
             if (connector.GetDeviceIdConnectedTo(out string adapter) != 0) return null;
             int at = adapter.IndexOf(@"\\?\", StringComparison.Ordinal);
-            return at < 0 ? null : DeviceInterfaces.InstanceIdOf(adapter[at..]);
+            return at < 0 ? null : EndpointWasapi.InstanceIdOf(adapter[at..]);
         }
         catch (COMException) { return null; }
         finally

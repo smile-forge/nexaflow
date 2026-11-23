@@ -1,7 +1,8 @@
-using Nexaflow.IO.Common.Audio;
+using Nexaflow.Features.UsbProbe.AudioTools;
+using Nexaflow.Media.Audio;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Audio;
+namespace Nexaflow.Tests.Features.UsbProbe;
 
 /// <summary>
 /// The test signals and the meter's arithmetic, sample by sample: a tone is the frequency it says on the channels it

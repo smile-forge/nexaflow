@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace Nexaflow.IO.Common.Audio;
+namespace Nexaflow.Media.Audio;
 
 /// <summary>
 /// WAV in and out, as speech models want it: any PCM or IEEE-float WAV, read as 16-bit mono at its own rate, and

@@ -29,7 +29,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         var model = lease.As<ChatModel>();
         string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools, request.Thinks);
         var media = ChatPrompt.Media(model, request.Turns);
-        using var use = model.Enter(request.Turns, request.Priority, () => media.Count == 0 ? model.Model.Tokenize(prompt).Length : null);
+        using var use = model.Enter(request.Turns, request.Priority, () => media.Count == 0 ? model.Model.Tokenize(prompt).Length : null, models.SpareOn);
         var lane = use.Lane;
         using var answering = await lane.Conversations.AnsweringAsync(ct);
         using var attended = gpu.Engage(request.Priority, model.Spec.Device);   // a young job on its card waits for this reply

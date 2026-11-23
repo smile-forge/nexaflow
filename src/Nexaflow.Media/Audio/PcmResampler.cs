@@ -1,4 +1,4 @@
-namespace Nexaflow.IO.Common.Audio;
+namespace Nexaflow.Media.Audio;
 
 /// <summary>
 /// Converts a stream of 16-bit mono PCM from one sample rate to another by linear interpolation, chunk by chunk:

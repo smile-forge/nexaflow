@@ -2,6 +2,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.IO.Common.Imaging;
+using Nexaflow.Media.Png;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 

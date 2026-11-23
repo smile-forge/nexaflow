@@ -1,11 +1,11 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
 
-namespace Nexaflow.IO.Common.Imaging;
+namespace Nexaflow.Media.Png;
 
 /// <summary>
 /// Writes 8-bit RGB pixels as a PNG, with no imaging library: for code that makes pictures but has no UI stack, such
-/// as the AI host. Each row is filtered the way that is likeliest to compress best — the filter whose output has the
+/// as the provider that keeps the pixels the AI host draws. Each row is filtered the way that is likeliest to compress best — the filter whose output has the
 /// smallest sum of absolute values, as libpng chooses — then the rows are deflated into one IDAT chunk.
 /// </summary>
 public static class PngEncoder

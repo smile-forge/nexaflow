@@ -85,6 +85,19 @@ public class ModelRegistryTests
     }
 
     [TestMethod]
+    public async Task WhatAGpuHasToSpare_IsItsBudgetNow_LessTheModelsLoadedThere()
+    {
+        var gpus = new TwoGpus();
+        var (registry, _) = Registry(gpus: gpus);
+        using var chat = await registry.AcquireAsync(Spec("chat", 4), resident: true, Quiet, default);
+
+        Assert.AreEqual(6 * GB, registry.SpareOn(0));
+        Assert.AreEqual(10 * GB, registry.SpareOn(1), "each GPU its own");
+        gpus.Taken = 7 * GB;
+        Assert.AreEqual(0, registry.SpareOn(0), "never less than nothing, however much another program takes");
+    }
+
+    [TestMethod]
     public async Task APicture_HasIdleResidentsMakeWay_AndTheyLoadAgainOnceItIsDone()
     {
         var (registry, runner) = Registry();
