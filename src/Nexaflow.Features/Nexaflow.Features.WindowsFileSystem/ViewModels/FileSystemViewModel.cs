@@ -1351,6 +1351,25 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     /// </summary>
     public Task BrowseToAsync(string path) => Browsing = BrowseAsync(path);
 
+    /// <summary>
+    /// Shown again with a <c>path</c>: the folder already open is refreshed, another is browsed to. Without one the page
+    /// goes to This PC.
+    /// </summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue("path", out var path) && !string.IsNullOrEmpty(path))
+        {
+            if (string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase))
+                Refresh();
+            else
+                _ = BrowseToAsync(path);
+        }
+        else
+        {
+            GoToThisPc(rebuildTree: true);
+        }
+    }
+
     private async Task BrowseAsync(string path)
     {
         if (_navigating) return;

@@ -24,9 +24,6 @@ public class TreeViewBuilderTests : MermaidBuilderContract
     private const string Project =
         "treeView-beta\n    my-project/\n        src/\n            App.tsx :::highlight ## main component\n            index.js ## entry point\n        .env ## environment variables\n        package.json";
 
-    /// <summary>A tree view is a language of its own: its fence names it, though a Mermaid header naming it is read too.</summary>
-    public override MermaidDiagram Diagram => MermaidDiagram.TreeView;
-
     /// <inheritdoc/>
     public override string Language => TreeViewParser.Language;
 

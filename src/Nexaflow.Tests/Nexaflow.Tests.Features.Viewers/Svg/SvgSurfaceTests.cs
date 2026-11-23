@@ -166,8 +166,8 @@ public class SvgSurfaceTests
 
         UiThread.Run(() =>
         {
-            var first  = loaded.CreateContextPreview();
-            var second = loaded.CreateContextPreview();
+            var first  = ContextPreviewProbe.Draw(loaded.CreateContextPreview());
+            var second = ContextPreviewProbe.Draw(loaded.CreateContextPreview());
 
             Assert.IsInstanceOfType(first, typeof(SvgContextPreview));
             Assert.AreSame(loaded, first.DataContext, "the preview binds to the page's own frozen drawing");

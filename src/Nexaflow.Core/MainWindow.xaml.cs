@@ -14,6 +14,9 @@ using WorkspaceRuntime = Nexaflow.Core.Models.WorkspaceRuntime;
 using Nexaflow.Visuals.Common.Localization;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Core;
 
@@ -36,6 +39,9 @@ public partial class MainWindow : Window
         Services.StartupTimings.Mark("MainWindow.ctor enter");
         InitializeComponent();
         Services.StartupTimings.Mark("MainWindow.InitializeComponent");
+
+        // Everything in the window draws a model with the app's views: a page's preview, a folder viewlet.
+        ViewRegistry.SetRegistry(this, PageViews.Instance.Registry);
 
         _shellServices = workspace.ShellServices!;
         _vm = new ShellViewModel(activityManager, workspace)
@@ -124,15 +130,19 @@ public partial class MainWindow : Window
         {
             // Active-page shortcuts. Skipped while a text box is focused so typing keeps its native editing
             // keys (Ctrl+C/V/A, Del, …). A page advertises shortcuts by implementing IKeyboardHandler on its
-            // view or view-model; reading CurrentPage each keystroke is what "swaps" the mapping per tab.
+            // view or view-model; reading the active page each keystroke is what "swaps" the mapping per tab.
             if (Keyboard.FocusedElement is not TextBoxBase)
             {
-                var pageKeys = _vm.CurrentPage as IKeyboardHandler
-                            ?? (_vm.CurrentPage as IPageView)?.ViewModel as IKeyboardHandler;
-                if (pageKeys is not null && pageKeys.CanProcessKey(e.Key, Keyboard.Modifiers))
+                var pageKeys = _vm.ActivePageView as IKeyboardHandler
+                            ?? _vm.ActivePageViewModel as IKeyboardHandler;
+                if (pageKeys is not null)
                 {
-                    e.Handled = pageKeys.ProcessKey(e.Key, Keyboard.Modifiers);
-                    if (e.Handled) return;
+                    var (key, held) = (e.Key.ToConsoleKey(), Keyboard.Modifiers.ToKeyModifiers());
+                    if (pageKeys.CanProcessKey(key, held))
+                    {
+                        e.Handled = pageKeys.ProcessKey(key, held);
+                        if (e.Handled) return;
+                    }
                 }
             }
 
@@ -177,6 +187,7 @@ public partial class MainWindow : Window
 
 
         WireAiBarChatHandlers();
+        RouteDrops();
     }
 
     // ── AI input bar: feature key/drop handlers + insert requests ─────────
@@ -191,10 +202,18 @@ public partial class MainWindow : Window
         _vm.ChatInputInsertRequested += InsertIntoAiBar;
         _vm.ChatInputFocusRequested  += FocusAiBar;
 
-        AiInput.AllowDrop        = true;
-        AiInput.PreviewDragOver += OnAiInputDragOver;
-        AiInput.Drop            += OnAiInputDrop;
+        DropSurface.SetTarget(AiInput, new ChatBarDropTarget(() => _vm.ChatDropHandlers, () => _vm.ActivePageViewModel, InsertIntoAiBar));
     }
+
+    /// <summary>
+    /// Every drag over this window goes through the one router: to a target that is an element, one named on an area
+    /// (<see cref="DropSurface"/>), or a page's view-model, which the page's view stands for.
+    /// </summary>
+    private void RouteDrops()
+        => DropRouter.Attach(
+            this,
+            failed: failure => _shellServices.ShowError(Str.Format("Shell.Drop.FailedFormat", failure.Message)),
+            targetOf: element => ViewRegistry.ModelOf(element) as IDropTarget);
 
     // Opening a tab moves focus to the AI bar (so the user can type a request straight away). Deferred to
     // Background priority — below Loaded/Input — so it runs after the tab's own content has realized and
@@ -210,25 +229,6 @@ public partial class MainWindow : Window
         int caret = Math.Clamp(AiInput.CaretIndex, 0, AiInput.Text.Length);
         AiInput.Text       = AiInput.Text.Insert(caret, text);
         AiInput.CaretIndex = caret + text.Length;
-    }
-
-    private void OnAiInputDragOver(object sender, DragEventArgs e)
-    {
-        if (_vm.CanHandleChatDrop(e.Data))
-        {
-            e.Effects = DragDropEffects.Copy;
-            e.Handled = true;   // suppress the TextBox's own drag handling for payloads we own
-        }
-    }
-
-    private void OnAiInputDrop(object sender, DragEventArgs e)
-    {
-        var text = _vm.BuildChatDropText(e.Data);
-        if (text is not null)
-        {
-            InsertIntoAiBar(text);
-            e.Handled = true;
-        }
     }
 
     private void NotificationScrim_MouseDown(object sender, MouseButtonEventArgs e)

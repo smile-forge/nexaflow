@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
+using Nexaflow.Interaction;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WslShell.ChatHandlers;
 using Nexaflow.Features.WslShell.ViewModels;
@@ -185,7 +185,7 @@ public sealed class WslShellTerminalTests
         _files.TryToVirtual(Arg.Any<string>()).Returns((string?)null);   // a path no location's folder holds
         _files.TryToVirtual(@"\\wsl.localhost\Probe\home\adam\a b.txt").Returns($@"{Home}\a b.txt");
         var terminal = await StartedOn(Home);
-        var data = new DataObject(DataFormats.FileDrop, new[] { @"\\wsl.localhost\Probe\home\adam\a b.txt", $@"{Home}\it's.txt" });
+        var data = new DragPayload((DragKinds.Files, new[] { @"\\wsl.localhost\Probe\home\adam\a b.txt", $@"{Home}\it's.txt" }));
 
         const string words = @"'/home/adam/a b.txt' '/home/adam/it'\''s.txt'";
         Assert.AreEqual(words, terminal.FormatDroppedPaths(data), "on the console");

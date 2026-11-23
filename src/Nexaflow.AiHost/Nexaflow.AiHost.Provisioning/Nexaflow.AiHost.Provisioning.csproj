@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The files local models need, for any app that runs them through the AI host: what each file is (where it comes from,
+    its size and SHA-256), the manifest that lists a set of them, and the store that fetches them — resuming, verified,
+    unpacked from the archives NVIDIA and Microsoft publish in, weighed against the drive first. Plain .NET: no Windows,
+    no app.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.AiHost" />
+  </ItemGroup>
+
+</Project>

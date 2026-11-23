@@ -171,7 +171,7 @@ public class CodeViewModelTests
 
         shell.Received().OpenTab("Code",
             Arg.Is<Dictionary<string, string>>(d => d["path"] == @"C:\proj\other.cs" && d["ast"] == "T:Other/M:Ping"),
-            Arg.Any<IPageView?>());
+            Arg.Any<Page?>());
     }
 
     [TestMethod]
@@ -185,6 +185,6 @@ public class CodeViewModelTests
 
         shell.Received().OpenTab("Code",
             Arg.Is<Dictionary<string, string>>(d => d["path"] == @"C:\proj\other.cs" && !d.ContainsKey("ast")),
-            Arg.Any<IPageView?>());
+            Arg.Any<Page?>());
     }
 }

@@ -1,11 +1,11 @@
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Erasing;
 
 /// <summary>
 /// A region of a picture to and from the inpainter as LaMa's predict hands its pictures over: RGB over 255 and the mask
 /// taken where it is not 0, padded at the right and bottom to a multiple of 8 by symmetric mirroring; the result made 8
-/// bits by clipping its product with 255 and truncating. A region worked smaller (<see cref="InpaintRegion.Shrunk"/>) goes
+/// bits by clipping its product with 255 and truncating. A region worked smaller (<see cref="ErasingRegion.Shrunk"/>) goes
 /// down by PIL's bilinear resize, which averages over the reduction, its mask marking every pixel a hole reaches, and its
 /// fill comes back up by Lanczos. Only the mask's pixels are written back.
 /// </summary>
@@ -15,7 +15,7 @@ internal static class ErasingHandover
     /// after padding.</summary>
     public sealed record Prepared(float[] Rgb, float[] Mask, int Width, int Height);
 
-    public static Prepared Prepare(ReadOnlySpan<byte> rgba, int width, ReadOnlySpan<byte> mask, InpaintRegion region)
+    public static Prepared Prepare(ReadOnlySpan<byte> rgba, int width, ReadOnlySpan<byte> mask, ErasingRegion region)
     {
         int w = region.Width, h = region.Height;
         var rgb = new byte[w * h * 3];
@@ -29,8 +29,8 @@ internal static class ErasingHandover
             }
         if (region.Shrunk)
         {
-            rgb = PictureResampling.ResizeBilinearAsPil(rgb, w, h, 3, region.WorkWidth, region.WorkHeight);
-            hole = PictureResampling.ResizeBilinearAsPil(hole, w, h, 1, region.WorkWidth, region.WorkHeight);
+            rgb = ReferenceResampling.ResizeBilinearAsPil(rgb, w, h, 3, region.WorkWidth, region.WorkHeight);
+            hole = ReferenceResampling.ResizeBilinearAsPil(hole, w, h, 1, region.WorkWidth, region.WorkHeight);
             (w, h) = (region.WorkWidth, region.WorkHeight);
         }
 
@@ -52,7 +52,7 @@ internal static class ErasingHandover
 
     /// <summary>Writes the inpainter's result for <paramref name="region"/> into <paramref name="rgba"/> where
     /// <paramref name="mask"/> is filled; every other pixel, and the alpha of all, is left as it is.</summary>
-    public static void LayBack(Span<byte> rgba, int width, ReadOnlySpan<byte> mask, InpaintRegion region, float[] inpainted, Prepared prepared)
+    public static void LayBack(Span<byte> rgba, int width, ReadOnlySpan<byte> mask, ErasingRegion region, float[] inpainted, Prepared prepared)
     {
         int w = region.WorkWidth, h = region.WorkHeight, plane = prepared.Width * prepared.Height;
         var fill = new byte[w * h * 3];
@@ -60,7 +60,7 @@ internal static class ErasingHandover
             for (int x = 0; x < w; x++)
                 for (int c = 0; c < 3; c++)
                     fill[(y * w + x) * 3 + c] = (byte)Math.Clamp(inpainted[c * plane + y * prepared.Width + x] * 255f, 0f, 255f);
-        if (region.Shrunk) fill = PictureResampling.ResizeLanczos(fill, w, h, 3, region.Width, region.Height);
+        if (region.Shrunk) fill = ReferenceResampling.ResizeLanczos(fill, w, h, 3, region.Width, region.Height);
 
         for (int y = 0; y < region.Height; y++)
             for (int x = 0; x < region.Width; x++)

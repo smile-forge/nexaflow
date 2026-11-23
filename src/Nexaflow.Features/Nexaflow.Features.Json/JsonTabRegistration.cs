@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Json.Services;
 using Nexaflow.Features.Json.ViewModels;
-using Nexaflow.Features.Json.Views;
 using Nexaflow.IO.Common;
 using System.IO;
 
@@ -35,11 +34,7 @@ public sealed class JsonTabRegistration : IPageRegistration
         {
             Title       = title,
             Icon        = "{}",
-            ContentFactory = () =>
-            {
-                var vm = new JsonViewModel(path, _vfs, new JsonPathEvaluator(), _shellServices);
-                return new JsonView(vm);
-            },
+            ViewModelFactory = () => new JsonViewModel(path, _vfs, new JsonPathEvaluator(), _shellServices),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;

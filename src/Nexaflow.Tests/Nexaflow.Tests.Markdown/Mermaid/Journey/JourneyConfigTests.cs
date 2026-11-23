@@ -13,7 +13,7 @@ public class JourneyConfigTests
     [TestMethod]
     public void TheFrontMattersSizesAndColourListsAreRead()
     {
-        var config = ((ConfiguredNode<JourneyConfig>)MermaidStaged.Read("---\nconfig:\n  journey:\n    width: 200\n    height: 60\n    boxMargin: 4\n    taskFontSize: 14\n"
+        var config = ((ConfiguredNode<JourneyConfig>)JourneyParserTests.Staged("---\nconfig:\n  journey:\n    width: 200\n    height: 60\n    boxMargin: 4\n    taskFontSize: 14\n"
             + "    actorColours:\n      - \"#ff0000\"\n      - \"#00ff00\"\n    sectionFills: [\"#101010\"]\n"
             + "  themeVariables:\n    fillType1: \"#202020\"\n---\njourney\n  A: 3: Me")).Config;
 

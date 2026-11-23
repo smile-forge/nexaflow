@@ -2,10 +2,12 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Providers.Support;
+using Nexaflow.IO.Common.Audio;
+using Nexaflow.Providers.Local;
+using Nexaflow.Media.Audio;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -18,12 +20,13 @@ public class OwnedLlmProviderTests
 {
     private static readonly CatalogModel Gemma = Provider(new FakeModelStore(), new FakeAiHost()).Catalog.Single(m => m.Id == "gemma-4-e4b-it");
 
-    private static ComputeHardwareReport Hardware(ComputeVendor vendor = ComputeVendor.Amd, Version? cuda = null)
-        => new([new ComputeAdapter("gpu", vendor, 24L << 30, IsIntegrated: false, IsNpu: false)], cuda);
+    /// <summary>A machine with no NVIDIA card — an AMD one, say — or with one of 24 GB and the driver given.</summary>
+    private static MachineCards Hardware(bool nvidia = false, Version? cuda = null)
+        => nvidia ? new([new MachineCard("gpu", 24L << 30)], cuda) : MachineCards.None;
 
-    private static ComputeHardwareReport Nvidia() => Hardware(ComputeVendor.Nvidia, CudaRuntimePack.MinimumDriver);
+    private static MachineCards Nvidia() => Hardware(nvidia: true, CudaRuntimePack.MinimumDriver);
 
-    private static OwnedLlmProvider Provider(FakeModelStore store, FakeAiHost host, ComputeHardwareReport? hardware = null)
+    private static OwnedLlmProvider Provider(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
         => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Hardware(), new ProviderModel("gemma-4-e4b-it"));
 
     private static async Task<string> ReadAsync(IAsyncEnumerable<LlmStreamEvent> events)
@@ -166,7 +169,7 @@ public class OwnedLlmProviderTests
     {
         var store = new FakeModelStore([.. Gemma.Files]);
         var host = new FakeAiHost();
-        var provider = Provider(store, host, Hardware(ComputeVendor.Amd));
+        var provider = Provider(store, host, Hardware());
 
         await provider.WarmupAsync();
 
@@ -201,7 +204,7 @@ public class OwnedLlmProviderTests
     [DataRow(32, new[] { "gemma-4-e4b-it", "qwen-3.5-9b", "mimo-v2.6-9b", "phi-4", "gemma-4-26b-a4b-it", "qwen-3.6-35b-a3b", "qwen-3.8-27b", "gemma-4-31b-it" })]
     public void EachCard_ListsTheLanguageModelsItFits(int gigabytes, string[] listed)
     {
-        var card = new ComputeHardwareReport([new ComputeAdapter("gpu", ComputeVendor.Nvidia, (long)gigabytes << 30, false, false)], CudaRuntimePack.MinimumDriver);
+        var card = new MachineCards([new MachineCard("gpu", (long)gigabytes << 30)], CudaRuntimePack.MinimumDriver);
 
         CollectionAssert.AreEqual(listed, Provider(new FakeModelStore(), new FakeAiHost(), card).Catalog.Select(m => m.Id).ToArray());
     }
@@ -209,7 +212,7 @@ public class OwnedLlmProviderTests
     [TestMethod]
     public void AModelKeepingItsExpertsInThisMachinesMemory_IsListedOnlyWhereTheHostsShareOfItHoldsThem()
     {
-        var card = new ComputeHardwareReport([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 11L << 30, false, false)], CudaRuntimePack.MinimumDriver);
+        var card = new MachineCards([new MachineCard("gpu", 11L << 30)], CudaRuntimePack.MinimumDriver);
         long gb = 1L << 30;
 
         var roomy = Provider(new FakeModelStore(), new FakeAiHost { Memory = HostMemory.Of(64 * gb, 50) }, card).Catalog.Select(m => m.Id);
@@ -221,20 +224,21 @@ public class OwnedLlmProviderTests
 
     [TestMethod]
     public void WithoutAGpuItCanRunOn_OnlyTheDefaultModelIsListed()
-        => CollectionAssert.AreEqual(new[] { "gemma-4-e4b-it" }, Provider(new FakeModelStore(), new FakeAiHost(), Hardware(ComputeVendor.Amd)).Catalog.Select(m => m.Id).ToArray(),
+        => CollectionAssert.AreEqual(new[] { "gemma-4-e4b-it" }, Provider(new FakeModelStore(), new FakeAiHost(), Hardware()).Catalog.Select(m => m.Id).ToArray(),
                                      "it runs on the CPU, as every model could, but the others too slowly to offer");
 
     [TestMethod]
-    public async Task ARecording_GoesToTheModelAsAudio()
+    public async Task ARecording_GoesToTheModelAsItsSamples()
     {
         var host = new FakeAiHost();
         var provider = Provider(new FakeModelStore(Gemma.Files), host);
+        byte[] pcm = [1, 0, 2, 0, 3, 0, 4, 0];
 
-        await ReadAsync(provider.StreamAsync([new(LlmRole.User, "What is said?") { Attachments = [new LlmAttachment("clip.wav", "audio/wav", [1, 2])] }]));
+        await ReadAsync(provider.StreamAsync([new(LlmRole.User, "What is said?") { Attachments = [new LlmAttachment("clip.wav", "audio/wav", WavAudio.Write(pcm, WavAudio.SpeechRate))] }]));
 
         var media = host.Requests.OfType<Generate>().Single().Turns[0].Media!.Single();
         Assert.AreEqual(MediaKind.Audio, media.Kind);
-        CollectionAssert.AreEqual(new byte[] { 1, 2 }, media.Bytes);
+        CollectionAssert.AreEqual(pcm, media.Bytes, "16 kHz mono PCM, the WAV read here");
         Assert.IsTrue(provider.SupportsAudio);
     }
 
@@ -254,7 +258,7 @@ public class OwnedLlmProviderTests
 
         var back = setup.MakingWay(parts);
         Assert.IsTrue(provider.IsMakingWay);
-    
+
         back.Dispose();
         Assert.IsFalse(provider.IsMakingWay);
         Assert.AreEqual(4, changes, "each change is told, so the conversation can pause and take up listening again");

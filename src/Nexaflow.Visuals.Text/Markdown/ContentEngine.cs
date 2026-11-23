@@ -157,6 +157,27 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     }
 
     /// <summary>
+    /// What is wrong with <paramref name="source"/> written in the language <paramref name="named"/> names, read and worked over
+    /// as <see cref="Read"/> reads it — and what is written inside it in another language read the same way by that language, all
+    /// the way down. Every trouble is said; a word no language reads is wrong in itself.
+    /// </summary>
+    public IReadOnlyList<string> Troubles(string named, string source)
+    {
+        if (!ContentLanguages.Reads(named)) return [$"'{named}' is not a language Nexaflow reads."];
+
+        var read = Read(named, source).Root;
+
+        return
+        [
+            .. read.SelfAndDescendants().Select(part => part.Node.Trouble).OfType<string>(),
+            .. read.SelfAndDescendants()
+                   .Where(part => ContentNested.Language(part) is not null)
+                   .SelectMany(part => part.Children.Where(child => child.Kind == Kinds.Nested)
+                                                    .SelectMany(nested => Troubles(ContentNested.Language(part)!, nested.Text))),
+        ];
+    }
+
+    /// <summary>
     /// Forgets what was laid, so the next layout works over and lays everything again — for content shown against something else.
     /// </summary>
     public void Forget()

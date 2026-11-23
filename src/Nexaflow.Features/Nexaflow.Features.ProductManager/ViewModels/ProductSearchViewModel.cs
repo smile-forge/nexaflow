@@ -85,6 +85,15 @@ public sealed partial class ProductSearchViewModel : ObservableObject, IPageView
 
     public string ProductRoot => _productRoot;
 
+    /// <summary>A second search re-points this tab rather than opening another: the tab is identified by the
+    /// product root, so the shell hands the new query here.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (!pageParams.TryGetValue("query", out var query) || string.IsNullOrWhiteSpace(query)) return;
+        Query = query;
+        _ = SearchAsync();
+    }
+
     /// <summary>
     /// Runs whatever is in <see cref="Query"/> — what the page's own box does, and what a query handed in
     /// through the tab parameter arrives as.

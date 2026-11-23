@@ -19,7 +19,7 @@ namespace Nexaflow.Markdown.Mermaid.Flowchart.Stages;
 /// </para>
 /// <para>
 /// What the written tree cannot say comes out here, which is everything that takes the whole block to settle. A node written on
-/// two lines is one node, and one an <c>id@{ … }</c> line is about is a node whether any line wrote it. A node's words, and the
+/// two lines is one node, and one an <c>id@{ … }</c> line is about, or a <c>style</c> line names, is a node whether any line wrote it. A node's words, and the
 /// shape it is drawn as, are the last ones any line gave it; the subgraph it belongs to the first it was written in. And where a
 /// node leads is on the node, written as prose writes a link — <see cref="Kinds.Link"/> holding a <see cref="Roles.Destination"/>
 /// and the words shown — so whoever follows a link needs to know nothing about charts.
@@ -51,6 +51,8 @@ public sealed class ResolveChart : IAstStage
         private readonly List<ContentNode> links = [];
         private readonly List<(FlowchartMetadataNode Said, string? Group)> meant = [];
         private readonly List<(string Id, string Where, string? Tip)> clicked = [];
+        private readonly List<(ContentNode Line, string? Group)> styled = [];
+        private readonly HashSet<string> subgraphs = new(StringComparer.Ordinal);
         private int opened;
         private int drawn;
 
@@ -63,16 +65,21 @@ public sealed class ResolveChart : IAstStage
             {
                 if (node.Kind == MermaidKinds.Group)
                 {
-                    if (node.Children.FirstOrDefault()?.Stated() is not null)
+                    if (node.Children.FirstOrDefault()?.Stated() is { } opening)
+                    {
+                        if (Inside(opening.Inner(FlowchartKinds.Node) ?? opening, MermaidKinds.Name) is { Length: > 0 } subgraph) this.subgraphs.Add(subgraph);
                         Read(node, this.opened++.ToString(CultureInfo.InvariantCulture));
+                    }
 
                     continue;
                 }
 
                 if (node.Stated() is not { } stated) continue;
 
-                if (stated is FlowchartMetadataNode about) this.meant.Add((about, inside));
+                // An id@{ … } line, and metadata written among a line's nodes about the node before it.
+                foreach (var about in stated.SelfAndDescendants().OfType<FlowchartMetadataNode>()) this.meant.Add((about, inside));
                 if (stated.Kind == FlowchartKinds.Click) Clicked(stated);
+                if (stated.Kind == FlowchartKinds.Style) this.styled.Add((stated, inside));
                 if (stated.Kind == FlowchartKinds.Nodes) Laid(stated, inside);
             }
         }
@@ -84,10 +91,14 @@ public sealed class ResolveChart : IAstStage
         /// </summary>
         public void Settle()
         {
+            // A style line naming no node and no subgraph makes the node, in the subgraph it is written in, as Mermaid's does.
+            foreach (var (line, group) in this.styled)
+                foreach (var id in line.SelfAndDescendants().Where(inner => inner.Kind == Kinds.Words && inner.Role == FlowchartRoles.Id).Select(inner => inner.Text))
+                    if (id.Length > 0 && !this.known.ContainsKey(id) && !this.subgraphs.Contains(id)) Taken(id, group);
             foreach (var (said, group) in this.meant)
             {
                 if (said.About is not (FlowchartSaid.Node or FlowchartSaid.New)) continue;
-                if (Said(said, FlowchartRoles.Id) is not { Length: > 0 } id) continue;
+                if (said.Id is not { Length: > 0 } id) continue;
 
                 var node = Taken(id, group);
 

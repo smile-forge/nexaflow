@@ -17,13 +17,13 @@ public class SequenceStagesTests
 {
     /// <summary>The number each message was given, in the order they are written.</summary>
     private static string?[] Numbers(string source) =>
-        [.. MermaidStaged.Read(source).SelfAndDescendants().Where(node => node.Kind == SequenceKinds.Message).Select(message => message.Said(SequenceRoles.Number))];
+        [.. SequenceParserTests.Staged(source).SelfAndDescendants().Where(node => node.Kind == SequenceKinds.Message).Select(message => message.Said(SequenceRoles.Number))];
 
     [TestMethod]
     public void EachBoxAndFrameHoldsTheLinesWrittenInIt_AndStillPrintsAsWritten()
     {
         const string source = "sequenceDiagram\n  box Purple Team\n  participant A\n  end\n  loop a\n    alt b\n      A->>B: x\n    else c\n      A->>B: y\n    end\n  end\n  A->>B: z";
-        var tree = MermaidStaged.Read(source);
+        var tree = SequenceParserTests.Staged(source);
         var groups = tree.SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Group).ToList();
 
         Assert.AreEqual(3, groups.Count);
@@ -35,10 +35,10 @@ public class SequenceStagesTests
     [TestMethod]
     public void AnEndClosesWhicheverWasOpenedLast_AndOneNothingOpensIsSaidToBe()
     {
-        var stray = MermaidStaged.Read("sequenceDiagram\n  A->>B: x\n  end");
+        var stray = SequenceParserTests.Staged("sequenceDiagram\n  A->>B: x\n  end");
         Assert.IsTrue(stray.SelfAndDescendants().Any(node => node.Kind == SequenceKinds.Ends && node.Trouble is not null));
 
-        var unclosed = MermaidStaged.Read("sequenceDiagram\n  loop a\n    A->>B: x");
+        var unclosed = SequenceParserTests.Staged("sequenceDiagram\n  loop a\n    A->>B: x");
         Assert.IsTrue(unclosed.SelfAndDescendants().Any(node => node.Kind == SequenceKinds.Frame && node.Trouble is not null));
     }
 
@@ -75,7 +75,7 @@ public class SequenceStagesTests
     [TestMethod]
     public void TheFrontMatterIsHungOnTheBlock()
     {
-        var config = (MermaidStaged.Read("---\nconfig:\n  sequence:\n    actorMargin: 80\n    hideUnusedParticipants: true\n---\nsequenceDiagram\n  A->>B: x")
+        var config = (SequenceParserTests.Staged("---\nconfig:\n  sequence:\n    actorMargin: 80\n    hideUnusedParticipants: true\n---\nsequenceDiagram\n  A->>B: x")
                       as ConfiguredNode<SequenceConfig>)!.Config;
 
         Assert.AreEqual(80, config.Between);

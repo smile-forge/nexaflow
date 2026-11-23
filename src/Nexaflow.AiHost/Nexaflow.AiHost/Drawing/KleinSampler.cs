@@ -32,6 +32,16 @@ internal static class KleinSampler
         width >= PixelsPerToken && height >= PixelsPerToken && width % PixelsPerToken == 0 && height % PixelsPerToken == 0
         && (long)width * height <= MaxPixels;
 
+    /// <summary>The size an edit is drawn at from a <paramref name="width"/> × <paramref name="height"/> first picture, and each
+    /// picture to work from read at: scaled down, never up, to within <see cref="MaxPixels"/>, each side then cut to whole
+    /// tokens, as the pipeline sizes every picture it works from.</summary>
+    public static (int Width, int Height) ReadSize(int width, int height)
+    {
+        double scale = Math.Min(1.0, Math.Sqrt((double)MaxPixels / ((long)width * height)));
+        int Fit(int side) => Math.Max(PixelsPerToken, (int)(side * scale) / PixelsPerToken * PixelsPerToken);
+        return (Fit(width), Fit(height));
+    }
+
     /// <summary>
     /// The shift's exponent, μ, for a picture of <paramref name="imageTokens"/> tokens drawn in <paramref name="steps"/>
     /// steps: the pipeline's compute_empirical_mu, a line through what Black Forest Labs measured at 10 and 200 steps.

@@ -245,8 +245,11 @@ flowchart LR
 
 Local models run in `Nexaflow.AiHost`, a helper executable beside the app, as `Nexaflow.PrivilegeBridge` is. The app's
 `AiHostClient` starts it on the first request for a model, speaks to it over a named pipe only the user can open, and
-binds it to the process-wide kill-on-close job object (`KillOnCloseJob`, shared with the terminal) so it dies with
-the app. Every reason is something the test beds hit:
+binds it to a kill-on-close job object of the SDK's own (`HostProcessJob`) so it dies with the app. The SDK and the
+host keep their logs with one writer compiled into each (`AiHostLogFile`), and the host executable references nothing
+of Nexaflow's but its contracts. Another app runs a host of its own the same way, through the SDK alone —
+`Nexaflow.AiHost.Sample` is the shortest one, and `StandaloneSdkTests` holds the SDK to referencing nothing else of
+Nexaflow's and runs the sample against a real model. Every reason is something the test beds hit:
 
 - **A native crash takes its process down.** Two access violations in onnxruntime-genai during testing; in the
   host that is a restart and a retried request, in the WPF process it is the whole app.
@@ -356,9 +359,13 @@ data goes**, and a cost class.
 The host owns:
 
 - **The GPUs it runs models on**, numbered as CUDA counts them — the order llama.cpp and ONNX Runtime both use — each
-  with a budget of its own: what was free on it when the host started, less 1.5 GB the runtime keeps for itself
-  (cuBLAS workspaces, ONNX Runtime's arenas, transients past each model's estimate). Every model runs on the one GPU
-  its spec names, or on the CPU; a description of the host reports each GPU, its budget, and what is free on it now.
+  with a budget of its own: what is free on the card, with the host's own models counted back in, less 1.5 GB the
+  runtime keeps for itself (cuBLAS workspaces, ONNX Runtime's arenas, transients past each model's estimate). What is
+  free is read at each admission through NVIDIA's management library (`CardMemory`, NVML), which sees every program on
+  the card — llama.cpp's own reading on Windows sees only this process — so what another program, or another app's
+  host, takes is left to it and what it gives back is there to use. Where NVML cannot read a card, the budget is what
+  was free when the host started. Every model runs on the one GPU its spec names, or on the CPU; a description of the
+  host reports each GPU, the budget it started with, and what is free on it now.
 - **A resident set** — the models the app holds, where the machine's setup places them, kept between turns (4–6 s to
   reload is too slow between them). The app holds a model from its first request until it has stood idle, or from the
   first window on for one its preload policy loads ahead (see *What stays loaded*). A model asked for in another place
@@ -388,7 +395,10 @@ The host owns:
 - **Priorities, preempted at token boundaries**: live voice, then interactive chat, then background analysis, then
   generation jobs. Concurrent models time-slice a GPU, so each device takes one step at a time — a token, a 512-token
   slice of prompt — and gives the next to the highest-priority request waiting for it; a background analysis yields to
-  a reply at every token instead of halving it. A request says how urgent it is (`LlmUrgency`); analysis is background.
+  a reply at every token instead of halving it. Yielding is not waiting for good: while replies keep a device busy,
+  work below them has one turn in eight (`GpuScheduler.ShareOfTurns`), so a background app's thinking moves however
+  many people are reading, at an eighth of a reply's speed at most. Speech is never kept waiting. A request says how
+  urgent it is (`LlmUrgency`); analysis is background.
 - **Each card takes its own turns** (`GpuScheduler`): models on different GPUs never wait for each other, and the CPU
   takes turns of its own.
 - **A generation job gives way to people, then runs alongside them.** A job's step is not token-sized — a HiDream
@@ -1022,10 +1032,12 @@ DeepStack features, and whole as clean 32×32 pixel patches the denoiser reads a
 - **Every token numbered as HiDream numbers it** — the prompt's pictures as grids, the picture drawn at 4096, each
   picture worked from on past it (`VisionPromptPositions`, `HiDreamSampler.ImagePositions`) — and the vision tower's
   patches, position-embedding cells and rotary rows held to HiDream's code by `HiDreamSamplerTests`.
-- **Sized as HiDream sizes them.** One picture is edited at its own proportions within 2048², enlarged or reduced;
-  several are each fitted within a square of three quarters of the edit's longest side for two, half for three or
-  four, by `resize_pilimage`'s box halving, bicubic cover and centre crop (`PatchFitting`), and read by the vision
-  tower within 384² with Lanczos — PIL's filters to the value (`PictureResampling.ResizeAsPil`).
+- **Sized as HiDream sizes them, by the host.** An app sends its pictures at the size they are; the host reads each at
+  the size its model reads a picture of its proportions at (`IDrawingMethod.ReadSize`, `EditFitting`), and the edit is
+  drawn at the first one's. One picture is edited at its own proportions within 2048², enlarged or reduced; several are
+  each fitted within a square of three quarters of the edit's longest side for two, half for three or four, by
+  `resize_pilimage`'s box halving, bicubic cover and centre crop (`PatchFitting`), and read by the vision tower within
+  384² with Lanczos — PIL's filters to the value (`ReferenceResampling.ResizeAsPil`).
 - **A mask as klein's.** HiDream's pipeline takes none; the host puts the first picture back where a mask leaves it
   after each step (`FlowInpainting`, shared with klein), so it fills and expands, and since it draws in pixels what the
   mask leaves comes back to the pixel.
@@ -1041,7 +1053,7 @@ Image Editing row only (`IImageGenerationProvider.DrawsFromPromptsOf`).
 
 - **Each picture is read twice.** Small, by Qwen2.5-VL's vision tower — resized within 384² as the pipeline resizes it,
   then to the processor's multiple of 28 with PyTorch's 8-bit antialiased bicubic, both to the value
-  (`PictureResampling.ResizeAsTorch`), its windows worked out by the host — into the prompt Qwen2.5-VL-7B reads; and at
+  (`ReferenceResampling.ResizeAsTorch`), its windows worked out by the host — into the prompt Qwen2.5-VL-7B reads; and at
   about a megapixel by Qwen-Image's VAE into latents the 60-layer MMDiT reads beside the edit's, modulated as at
   timestep zero.
 - **fp16 branches on fp32 streams, held to bf16.** The streams reach 10⁹, so no 16-bit type holds a step to fp32's: the
@@ -1223,15 +1235,21 @@ per-machine choice users change later. At most, the bundle's Install page gains 
   rather than the whole pack. Once the new pack is whole, however it came, the earlier folders are deleted; on a
   machine the pack does not suit, at launch. Windows ML's providers, for other vendors and NPUs, come with the first
   model built for one of them.
-- **Models and voices**: `ModelAssetStore`, under `%LOCALAPPDATA%\Smile\nexaflow\ai\` — a short, real, non-roaming
-  path. Each provider ships a catalog manifest naming its models' files with source, size and SHA-256; a download
+- **Models and voices**: `ModelAssetStore` — the AI host SDK's (`Nexaflow.AiHost.Provisioning`), so any app running
+  models through the host fetches them the same way — under `%LOCALAPPDATA%\Smile\nexaflow\ai\` (`LocalAiFolder`), a
+  short, real, non-roaming path. Each provider ships a catalog manifest naming its models' files with source, size and
+  SHA-256 (`ModelCatalog`, `Providers.Local`; the CUDA pack a set of its own, `AssetSet`); a download
   resumes from a `.partial` file and a file is handed out only once verified. A file an earlier version kept — Whisper
   models in `%APPDATA%\…\voice\models`, an earlier CUDA pack's — is moved in when it is the same file, before anything
   is weighed against the drive or downloaded.
-- **Hardware probe**: `ComputeHardware` (IO.Common) reads every ML-capable adapter through DXCore — GPUs of every
-  vendor with their real memory, and NPUs — and the CUDA driver from `nvcuda.dll`. System Info's Local AI card shows
-  it with the local models it suits; the host reads it to decide whether to offer an owned model at all, and on
-  which provider.
+- **Hardware probe**: what decides where local models run is the SDK's `MachineCards`, read through NVIDIA's management
+  library (NVML, with the driver on Windows and Linux) before any host runs: each NVIDIA card with its memory, in PCI
+  bus order — the order the host numbers them in, since it sets `CUDA_DEVICE_ORDER=PCI_BUS_ID` — and the CUDA version
+  the driver runs. The CUDA pack applies (`CudaRuntimePack.Applies`), the GPUs a host would find are expected
+  (`ModelPlacement.Expected`) and an owned model is offered from it. The host reads the same library through the same
+  source (`Nvml`) for its budgets. `ComputeHardware` (IO.Common) reads every ML-capable adapter through DXCore — GPUs of
+  every vendor and NPUs — for System Info's Local AI card and for what the requirement rows say was found where no
+  NVIDIA card will do.
 - **Whisper's CUDA natives** leave the base install once speech runs in the host, cutting the installer and every
   update by about 60%.
 

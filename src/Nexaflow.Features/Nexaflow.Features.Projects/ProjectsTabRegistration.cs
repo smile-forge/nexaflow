@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
 using Nexaflow.Features.Projects.ViewModels;
-using Nexaflow.Features.Projects.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects;
@@ -38,15 +37,14 @@ public sealed class ProjectsTabRegistration : IPageRegistration
 
         // Build the operations + VM lazily so CreatePageDefinition stays side-effect-free (the VM's ctor loads
         // projects) — callers may peek a page's Title/Icon without realizing its content.
-        tab.ContentFactory = () =>
+        tab.ViewModelFactory = () =>
         {
-            var vm   = new ProjectsViewModel(_config, _shellServices);
-            var page = new ProjectsView(vm);
+            var vm = new ProjectsViewModel(_config, _shellServices);
             vm.OpenProjectRequested += path =>
-                _shellServices.OpenTab("ProjectDetail", new() { ["path"] = path }, page);
+                _shellServices.OpenTab("ProjectDetail", new() { ["path"] = path }, tab);
             vm.OpenFilesRequested += path =>
-                _shellServices.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = path }, page);
-            return page;
+                _shellServices.OpenTab("FileSystem", new() { ["mode"] = "path", ["path"] = path }, tab);
+            return vm;
         };
 
         return tab;

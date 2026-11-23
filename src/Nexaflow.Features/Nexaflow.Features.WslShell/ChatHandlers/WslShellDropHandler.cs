@@ -1,4 +1,4 @@
-using System.Windows;
+using Nexaflow.Interaction;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WslShell.ViewModels;
 
@@ -8,10 +8,10 @@ namespace Nexaflow.Features.WslShell.ChatHandlers;
 /// single-quoted — however it was named.</summary>
 public sealed class WslShellDropHandler : IChatDropHandler
 {
-    public IReadOnlyList<string> AcceptedFormats { get; } = [DataFormats.FileDrop];
+    public IReadOnlyList<string> AcceptedKinds { get; } = [DragKinds.Files, DragKinds.FileContents];
 
     public bool CanHandle(IPageViewModel? pageVm) => pageVm is WslShellViewModel;
 
-    public string? BuildInsertText(IDataObject data, IPageViewModel? pageVm)
-        => (pageVm as WslShellViewModel)?.FormatDroppedPaths(data);
+    public string? BuildInsertText(IDragPayload payload, IPageViewModel? pageVm)
+        => (pageVm as WslShellViewModel)?.FormatDroppedPaths(payload);
 }

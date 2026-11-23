@@ -28,8 +28,6 @@ public class MindmapBuilderTests : MermaidBuilderContract
     private const string Map =
         "mindmap\n  root((Nexaflow))\n    Markdown\n      CommonMark\n      Mermaid\n    Files\n      Explorer\n    Terminal";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Mindmap;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("a mindmap with branches", Map),

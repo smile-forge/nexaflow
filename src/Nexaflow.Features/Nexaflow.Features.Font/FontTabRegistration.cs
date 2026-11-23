@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Font.ViewModels;
-using Nexaflow.Features.Font.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -57,11 +56,10 @@ public sealed class FontTabRegistration(IShellServices shell, IVirtualFileSystem
             page.SetMultiFileBreadcrumbs(paths, Str.Format("Font.Page.CountFormat", paths.Count));
         }
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new FontViewModel(paths, shell, vfs);
-            page.Closed += (_, _) => vm.Dispose();
-            return new FontView(vm);
+            return vm;
         };
 
         return page;

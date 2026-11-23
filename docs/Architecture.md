@@ -26,10 +26,11 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Tier | Projects | Role |
 |------|----------|------|
 | Shell | `Nexaflow.Core` | WinExe entry point; window chrome, tab strip, ribbon, breadcrumbs, AI input bar; `FeatureManager`/`FeatureCatalog`, `WorkspaceManager`, `ProviderManager`, `ConfigManager` |
-| Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here |
+| Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here. Names no UI toolkit (no WPF): what a contract hands out to be shown is a model, drawn by a `[ViewFor]` view; `ArchitectureRulesTests` keeps it so |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
+| Input vocabulary | `Nexaflow.Interaction` | WPF-free `net10.0` leaf the contracts speak: `KeyModifiers`, `IDragPayload` + `DragKinds`, `IDropTarget`. Beneath `Features.Common` rather than in it, so a shared control can take a drop without seeing `IShellServices` |
 | Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the `VirtualFileSystem` over archives and mounts, the remote-location contracts and each runtime's `LocationFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
-| Providers | `Nexaflow.Providers.Common` and `Nexaflow.Providers.OpenAICompatible` (the chat-completions wire format OpenAI and xAI share) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
+| Providers | `Nexaflow.Providers.Common` and `Nexaflow.Providers.OpenAICompatible` (the chat-completions wire format OpenAI and xAI share), `Nexaflow.Providers.Local` (what a provider whose models run here offers) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria, Whisper, AiHost) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
 | Languages | `Nexaflow.Language.<code>` under `src/Nexaflow.Languages/` — one resource-only pack per language, gathered from every project's `Localization/<code>/` | Shipped to `Languages\` and loaded by path, never referenced — see [localization.md](localization.md) |
 | Initiatives | `Nexaflow.Services.Initiatives` + `Nexaflow.Services.Initiatives.Cli` (`nfi`) | WPF-free backend for the product tree, the knowledge graph, `SnaplinkValidator` and graph edit plans — never references WPF, Core or a feature. The CLI runs the same validator headlessly for the installer's build gate (exit 1 = broken links) — see [product-graph.md](product-graph.md) |
@@ -47,7 +48,9 @@ and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red b
 - Features depend on `Features.Common` + the shared leaves only — never on Core, never on each other.
   (The `Compressed.*` codec backends reference only `IO.Common`, where the codec contracts live —
   not even the Compressed feature; they're discovered at runtime.)
-- Providers depend on `Providers.Common` only — never on Core, never on each other.
+- Providers depend on `Providers.Common` only — never on Core, never on each other. A provider whose models run on this
+  machine also references `Providers.Local` and the AI host SDK; `Providers.Common` holds nothing of local models, so a
+  cloud provider — and a cloud-only user — carries none of it (`ArchitectureRulesTests`).
 - `Nexaflow.Core` depends on all features and providers (so they ship) but never instantiates feature
   view/view-model types — all tab/viewlet creation goes through `FeatureManager`, all provider
   instances through `ProviderManager`'s pool. Features talk back only via `IShellServices`.
@@ -83,7 +86,7 @@ The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved
 | `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
 | `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
 | `FileMapManager`, `ExternalAppRegistry`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
-| `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume | — |
+| `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`LocalAiFolder`; `NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume by the AI host SDK's store | — |
 
 **Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme, language), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`. Dictation's model is the workspace's: the ability grid's Speech In row.
 
@@ -142,7 +145,7 @@ is always at least one workspace.
 ### Per-window / per-tab
 
 - A **window** (`IWindowHost`) registers into its runtime's `ShellServices`. Several windows can share one runtime (tear-off / "open in new window"); switching the dropdown reconfigures the runtime **in place** for all of its windows (`SwitchWorkspace` — tabs close, providers/AIService rebuilt against the target workspace).
-- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, runtime, params)` → the matching `IPageRegistration.CreatePageDefinition`. Its ViewModel + content are realized lazily by `ContentFactory` and live for the life of the tab.
+- A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, runtime, params)` → the matching `IPageRegistration.CreatePageDefinition`. Its view-model is made lazily by `ViewModelFactory` and lives for the life of the tab; the view that draws it is Core's (`PageViews`), found by `[ViewFor]`.
 
 ### Per-feature (assembly)
 
@@ -193,11 +196,11 @@ The contract layer. Every feature depends on this; nothing else does.
 
 | File | Responsibility |
 |------|----------------|
-| `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ContentFactory` delegate, cached `Content`, `Closed` event |
+| `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ViewModelFactory` delegate, the made `ViewModel`, `Reinitialize`, `Closed` event. Holds nothing of the view |
 | `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
 | `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
-| `IPageView.cs` | Thin shell-lifecycle contract implemented by tab `UserControl`s: exposes `IPageViewModel? ViewModel` and `Reinitialize` |
-| `IPageViewModel.cs` | AI pipeline contract implemented by ViewModels: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`) |
+| `IPageViewModel.cs` | What a page is, implemented by its view-model: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`), `Reinitialize` (shown again with parameters) |
+| `PlaceholderViewModel.cs` | A page that only says why it is empty (a missing feature, nothing to open) |
 | `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`), `WatchFolder(path, onChanged)` (a folder's own entries through the shell's change notifications, sync providers' included → `FolderChange`, one registration per folder, torn down with the workspace) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
 | `IFileWatch.cs` (under `Services/`) | Handle from `WatchFile`: `Enabled` (hold + coalesce while false, flush on re-enable), `Dispose` to unwatch |
 | `IAIService.cs` | Per-`WorkspaceRuntime` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
@@ -211,9 +214,10 @@ The contract layer. Every feature depends on this; nothing else does.
 | `Services/IQueryHandler.cs` | Intercepts the AI input bar; registered globally or inferred from the active page's ViewModel |
 | `FileActions/IFileAction.cs` / `IFolderAction.cs` / `IFileCreateAction.cs` / `IFileCreateWithOptions.cs` / `ICacheable.cs` | File/folder context-action contracts (discovered by `FileSystemFeatureRegistry`, not `FeatureManager`) |
 | `Ribbon/*.cs` | `IRibbonPinHandler`, `IRibbonExecutionContext`, `ISelectionProvider`, `RibbonPinResult` — drag-to-ribbon pinning |
-| `Viewlets/*.cs` | `IFolderViewlet`, `IViewletController`, `ViewletDisplayMode` — folder-display extensions |
+| `Viewlets/*.cs` | `IFolderViewlet`, `IViewletController`, `ViewletDisplayMode` — folder-display extensions, each a view-model drawn by its `[ViewFor]` view |
+| `IContextPreview.cs` / `PagePreview.cs` / `TextContextPreview.cs` | A page's preview for the conversation's context panel, as a model: the page itself (`PagePreview<TPage>`), a text summary (`TextContextPreview`), or a feature's own |
 | `IKeyboardHandler.cs` | Claims global keyboard shortcuts; queried against the active page |
-| `IDropTarget.cs` | Accepts file drag-drop; resolved from the active page by the file browser |
+| `FileViewRequest.cs` | "Show this file in its viewer" through `HandleObject` — never launches it |
 
 ### Feature assemblies
 
@@ -221,7 +225,7 @@ Each feature assembly follows the same internal structure:
 
 - One or more `*PageRegistration : IPageRegistration` (a few are named `*TabRegistration` but implement the same interface) — factory entry points, injected with `IShellServices` and any `IFeatureConfig` the assembly declares
 - `ViewModels/` — MVVM Toolkit `ObservableObject` view models; never reference Core
-- `Views/` — WPF `UserControl`s; implement `IPageView` to expose context to the AI pipeline
+- `Views/` — WPF `UserControl`s, each marked `[ViewFor(typeof(ItsViewModel))]` and taking that view-model in its one constructor; Core makes them (`Visuals.Common/Viewing/ViewRegistry`)
 - Optional: `IQueryHandler` implementations registered globally or resolved from the active ViewModel
 - Optional: `IFileAction` / `IFolderAction` implementations for file browser context menus
 - Optional: `IFeatureConfig` POCO for persisted settings (auto-discovered by `FeatureManager`)
@@ -280,8 +284,9 @@ A provider serves one kind of model (`ModelKind`) through that kind's contract �
 model, `ISpeechToTextProvider` for speech to text — over the `IAiProvider` base every provider shares (name,
 residency, availability, models, warm-up); one backend serving two kinds ships a type per kind under one name, as
 OpenAI does. The ability grid's columns carry their kind, and a row takes only columns of its own. A provider that
-needs model files declares an `IModelAssetStore` in its constructor and describes them in a catalog manifest it
-ships (`ModelCatalog`); the store fetches them. A provider that exposes its catalog (`ILocalModelCatalog`) gets a page
+needs model files declares an `IModelAssetStore` (the AI host SDK's, `AiHost.Provisioning`) in its constructor and
+describes them in a catalog manifest it ships (`ModelCatalog`, `Providers.Local`); the store fetches them. A provider
+that exposes its catalog (`ILocalModelCatalog`) gets a page
 in Configure Workspace listing its models, their size and whether each is here, to fetch, remove, and — when its
 kind serves one ability — choose the one that ability uses. Everything on the page acts at once: the choice is made
 on the ability grid it shares with the AI page and saved straight away, leaving the grid's other edits for Apply.
@@ -316,6 +321,7 @@ All providers implement `IAiProvider` through their kind's contract (and optiona
 | `Nexaflow.Providers.XAI` | xAI's Grok models over its OpenAI-compatible API. Which models it serves, which take pictures and how much each reads come from xAI's own model endpoints (`/language-models`, `/models/{id}`), not from the model's name. |
 | `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine's CPU: Dictation only, with Whisper base, where the machine runs none of Nexaflow's own speech models; its models come from the asset store. |
 | `Nexaflow.Providers.Ollama` | Ollama REST API for locally-hosted models. |
+| `Nexaflow.Providers.Local` | Not a provider: what a provider whose models run on this machine tells the app — its catalog (`ILocalModelCatalog`, `CatalogModel`, the manifest reader `ModelCatalog`), the models this machine cannot run and why, the runtime several share. The files themselves are the AI host SDK's (`Nexaflow.AiHost.Provisioning`: `ModelAsset`, `IModelAssetStore`, `ModelAssetStore`). Shared like `Providers.Common`, so it declares no concrete provider or config. |
 
 ---
 
@@ -327,8 +333,8 @@ Page  (ObservableObject)
   ├── PageKind: string?                 (e.g. "Search", "Projects")
   ├── PageParams: Dict?                 (current params, kept in sync by the page via IShellServices)
   ├── Breadcrumbs: ObservableCollection<BreadcrumbSegment>
-  ├── ContentFactory: Func<UserControl>? (set by IPageRegistration.CreatePageDefinition; lazy-invoked on first activation)
-  ├── Content: UserControl              (cached after GetOrCreateContent() first call)
+  ├── ViewModelFactory: Func<IPageViewModel>? (set by IPageRegistration.CreatePageDefinition; run on first need)
+  ├── ViewModel: IPageViewModel?        (made by GetOrCreateViewModel(); a failing factory is LoadException)
   └── Closed: event                     (raised on permanent close, not deactivation)
 
 BreadcrumbSegment
@@ -363,7 +369,7 @@ ConversationRecord
 
 Implement in your feature assembly. `FeatureManager` discovers it **automatically** via the cached `FeatureCatalog` index (no code-registration step); its assembly is loaded and the registration built **lazily** on first use. It injects constructor dependencies per `WorkspaceRuntime`: any `IFeatureConfig` declared in the same assembly, the scoped `IShellServices`, `IAIService`, and the runtime's `IVirtualFileSystem`. Expose a `static string StaticPageKind` — the catalog reads the page kind from it without instantiating (and caches it).
 
-`CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model and view **inside the `ContentFactory` closure** so they're built only when the tab is first shown. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
+`CreatePageDefinition` must stay **cheap and side-effect-free** — callers build a definition speculatively just to read its `Title`/`Icon` (e.g. for a menu) and may discard it. Construct the view-model **inside the `ViewModelFactory` closure** so it is built only when the page is first needed. The registration never names a view: the view marked `[ViewFor]` the view-model's type draws it. Optionally advertise `Parameters` (so the shell/AI can describe how to open the page) and set `CanBeContextItem`/`CreatePageDefinitions` for pages offered in the AI "add context" and ribbon-editor menus.
 
 ```csharp
 public sealed class MyPageRegistration(MyConfig config, IShellServices shellServices) : IPageRegistration
@@ -383,8 +389,8 @@ public sealed class MyPageRegistration(MyConfig config, IShellServices shellServ
             Icon           = "🔧",
             PageParams     = pageParams,
             Breadcrumbs    = { new BreadcrumbSegment { Label = "My Feature" } }, // get-only collection
-            // built lazily on first activation — keep all heavy work in here, not above
-            ContentFactory = () => new MyView(new MyViewModel(path, config, shellServices))
+            // built lazily on first need — keep all heavy work in here, not above
+            ViewModelFactory = () => new MyViewModel(path, config, shellServices)
         };
     }
 }
@@ -405,27 +411,40 @@ independently shippable. Full model — region tokens, `ThemedRegion` scenes, au
 
 ---
 
-### `IPageView` / `IPageViewModel` — Exposing context to the AI pipeline
+### `IPageViewModel` and `[ViewFor]` — what a page is, and what draws it
 
-`IPageView` is the shell's typed handle to a tab `UserControl` — implement it on your `UserControl`. It exposes the ViewModel and handles shell lifecycle. `Reinitialize` is called on first load and whenever the shell activates the tab with a new param set (including re-clicking the active tab).
+A page **is** its view-model: the shell, the AI pipeline and every other page reach it through `Page.ViewModel`,
+never through a control. `Reinitialize` is called whenever the shell shows the page again with a parameter set
+(routing found it open, or the user re-clicked its tab).
 
-`IPageViewModel` is the AI pipeline contract — implement it on your ViewModel so the shell can query context and expose **client tools** the AI agent may invoke. A client tool is a self-contained `IClientTool` (use `DelegateClientTool` for one-liners) carrying its own metadata and execution. Safe tools (`ToolSafety.SafeOperation` — observers, or changes the user can see / must still save) auto-run; tools with real consequence (`ToolSafety.RequiresApproval`) are approved first. `GetClientTools()` and `GetContextObject()` have defaults, so a page that only supplies context overrides nothing else.
+The view is the UI layer's concern. Mark it `[ViewFor(typeof(MyViewModel))]` and give it one constructor taking the
+view-model; `FeatureCatalog` records it (in feature assemblies and in `Nexaflow.Visuals.*`), `ViewRegistry`
+(`Visuals.Common/Viewing/`) makes it — a view-model no view names is drawn by the view of the type it derives from —
+and Core's `PageViews` keeps one per page until the tab closes, so a tab moved between panes or windows keeps its
+view. A page whose view-model or view cannot be made is drawn by `PageLoadErrorView` saying why. Because nothing in a
+page's contract is WPF's, another toolkit can draw the same view-models with views of its own.
+
+The same holds for what a contract hands out to be shown inside a feature's own surface — a page's context preview, a
+folder viewlet. Those are models too, and the feature hosting them places a `ModelHost` (`Visuals.Common/Viewing/`),
+which draws its model with the registry every main window hands down (`ViewRegistry.Registry`, an inherited
+property), so a feature never reaches for the app's registry itself.
+
+`IPageViewModel` is also the AI pipeline contract: the shell queries context and exposes **client tools** the AI agent may invoke. A client tool is a self-contained `IClientTool` (use `DelegateClientTool` for one-liners) carrying its own metadata and execution. Safe tools (`ToolSafety.SafeOperation` — observers, or changes the user can see / must still save) auto-run; tools with real consequence (`ToolSafety.RequiresApproval`) are approved first. `GetClientTools()` and `GetContextObject()` have defaults, so a page that only supplies context overrides nothing else.
 
 ```csharp
-// The View — thin shell-lifecycle wrapper
-public partial class MyView : UserControl, IPageView
+// The View — draws the view-model, and nothing else knows it exists
+[ViewFor(typeof(MyViewModel))]
+public partial class MyView : UserControl
 {
-    private readonly MyViewModel _vm;
-    public MyView(MyViewModel vm) { _vm = vm; DataContext = vm; InitializeComponent(); }
-
-    public IPageViewModel? ViewModel => _vm;
-    public void Reinitialize(Dictionary<string, string> pageParams) { /* react to new params */ }
+    public MyView(MyViewModel vm) { DataContext = vm; InitializeComponent(); }
 }
 
 // The ViewModel — owns all AI pipeline logic
 public partial class MyViewModel : ObservableObject, IPageViewModel
 {
     public string GetContext() => "User is viewing My Feature";
+
+    public void Reinitialize(Dictionary<string, string> pageParams) { /* react to new params */ }
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -562,7 +581,7 @@ For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]`
 
 Implement on your page's `UserControl` **or** its ViewModel. The shell dispatches it from the window's
 tunneling `PreviewKeyDown` (`MainWindow.xaml.cs`) for the **active page only** — it resolves the handler off
-`CurrentPage` (view first, then `IPageView.ViewModel`) on each keystroke, so the mapping follows the focused
+the active page (its view first, then its view-model) on each keystroke, so the mapping follows the focused
 tab automatically. Because it's the window that dispatches, a page's shortcuts fire whichever shell control
 (ribbon, breadcrumb bar, the view itself) currently has focus — not only when the view is focused.
 
@@ -574,11 +593,14 @@ Two rules the shell applies so it composes cleanly:
 - **The active page gets first refusal, then shell globals** (Ctrl+Tab → AI input, Ctrl+W → close tab). So a
   page may claim a key the shell would otherwise take.
 
-```csharp
-public bool CanProcessKey(Key key, ModifierKeys modifiers)
-    => modifiers == ModifierKeys.Control && key == Key.OemPlus;
+A key is a `ConsoleKey` (a Windows virtual key) and what is held a `KeyModifiers`; Core's `KeyTranslation` is the one
+place WPF's keys become those.
 
-public bool ProcessKey(Key key, ModifierKeys modifiers)
+```csharp
+public bool CanProcessKey(ConsoleKey key, KeyModifiers modifiers)
+    => modifiers == KeyModifiers.Control && key == ConsoleKey.OemPlus;
+
+public bool ProcessKey(ConsoleKey key, KeyModifiers modifiers)
 {
     ZoomIn();
     return true;
@@ -587,9 +609,40 @@ public bool ProcessKey(Key key, ModifierKeys modifiers)
 
 ---
 
-### `IDropTarget` — File drag-drop
+### `IDropTarget` — drag and drop
 
-Implement on your `UserControl`. The file browser resolves this from the active page for drop operations.
+Every drag over a window — from Windows, another application or the app itself — goes through one `DropRouter`
+(`Nexaflow.Visuals.Common/Dropping/`, attached by `MainWindow`). A feature never sets `AllowDrop` for one or handles a
+drag event: it says what it takes (`AcceptedKinds`), what a drop would do (`OfferDrop`, asked as the pointer moves, so
+it touches no disk) and takes it (`AcceptDrop`). Nothing in the contract is WPF's.
+
+A target registers by where it is:
+
+| Where | How |
+|---|---|
+| anywhere on a page | the page's view **or** its view-model implements `IDropTarget` |
+| on one control | the control implements it |
+| on an area of a view | `dropping:DropSurface.Target="{Binding …}"` |
+| the ribbon | `IRibbonPinHandler` — what a drop becomes as buttons |
+| the AI bar | `IChatDropHandler` — what a drop becomes as text |
+
+The tabs are Core's own target: a file dropped there is raised as a `FileViewRequest`, a link as itself.
+
+- **The innermost surface wins, a target or a control's own handling alike.** Words over a text box are the box's; a
+  file over it, which the box refuses, goes to the targets around it. `OfferDrop` returning null passes to the surface
+  around; `DropOffer.Refused` ends the asking.
+- **Kinds, not formats.** `WindowsDragPayload` is the one place Windows' formats become `DragKinds`: `Files` (paths),
+  `FileContents` (files that are only content — a mail's attachment, a file out of a zip), `Link`, `Text`, `Html`,
+  `Image` (PNG bytes). A drag of the app's own names a kind of its own (`Page.DragKind`, `"FileAction"`).
+- **The payload lives as long as the drag.** Read it inside `AcceptDrop`, before the first await. `FilesOnDisk()` gives
+  paths that outlive it, writing content-only files to a staging folder (`DropStaging`) with their names made safe and
+  marked as from the internet.
+- **The source is never told its files were moved**, which is leave to delete them: a target that moves does the whole
+  move. A drag from elsewhere that nothing takes is refused — WPF's own default answer is Move.
+- **Looking never launches.** `FileViewRequest` opens the viewer for the type, or text or bytes where none is mapped.
+- **A control's own gesture stays its own**: a list reordering, a layer dragged onto another. It carries a kind of its
+  own, and the router leaves it with the control that set `AllowDrop` for it.
+- **A native child window is outside all of it**: WebView2 takes the drops over itself.
 
 ---
 
@@ -739,8 +792,8 @@ App.OnStartup
 User clicks ribbon button
   → RibbonControl.InternalRibbonActionCommand → ShellViewModel.OpenRibbonItem(item)
   → _shellServices.OpenTab(item.PageKind, item.PageParams)   ← persisted items carry only PageKind/params
-  → page.GetOrCreateContent()               ← ContentFactory invoked on first activation
-  → CurrentPage = page, breadcrumbs updated
+  → PaneView asks PageViews.ViewOf(page)    ← ViewModelFactory run, then the [ViewFor] view made, on first show
+  → ActiveTab = page, breadcrumbs updated
 
 Feature code calls shellServices.OpenTab("PageKind", params, callerPage)
   (shellServices = the caller's WorkspaceRuntime instance)

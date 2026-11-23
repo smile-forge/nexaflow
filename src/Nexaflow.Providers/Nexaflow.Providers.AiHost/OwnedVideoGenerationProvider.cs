@@ -1,8 +1,11 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.IO.Common.Imaging;
+using Nexaflow.IO.Common.Video;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Providers.AiHost;
 
@@ -19,7 +22,7 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
     private readonly OwnedModel?       _model;
 
     public OwnedVideoGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
-                                        ComputeHardwareReport hardware, ProviderModel model)
+                                        MachineCards hardware, ProviderModel model)
     {
         _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.VideoGeneration).FirstOrDefault(m => m.Id == model.Model);
@@ -123,7 +126,10 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
         var madeWay  = new List<IDisposable>();   // the models that make way for this clip, back once it is done
         try
         {
-            byte[]? mp4 = null;
+            // Encoded frame by frame as the host sends them, so the clip is never held whole as pictures.
+            using var mp4 = new MemoryStream();
+            using var encoder = new Mp4Encoder(mp4, width, height, filming.FramesPerSecond);
+            int frameBytes = width * height * 3;
             await foreach (var reply in host.SendAsync(id => new Film(id, model, request.Prompt, width, height, filming.Frames(request.Seconds),
                                                                          filming.FramesPerSecond, seed, RequestPriority.Job) { FirstFrame = firstFrame },
                                                        OwnedModelRuntime.StallLimit, ct))
@@ -136,17 +142,18 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
                     case Progress { Total: > 0 } progress:
                         activity.Update($"{label} — step {progress.Done} of {progress.Total}");
                         break;
-                    case Filmed filmed:
-                        mp4 = filmed.Mp4;
+                    case FilmedFrames frames:
+                        for (int at = 0; at + frameBytes <= frames.Rgb.Length; at += frameBytes) encoder.AddFrame(frames.Rgb.AsSpan(at, frameBytes));
                         break;
                     case MadeWay made:
                         madeWay.Add(_runtime.MakingWay(made.Models));
                         break;
                 }
             }
-            if (mp4 is null) throw new LlmProviderException("The AI host finished without a clip.");
+            if (encoder.Frames == 0) throw new LlmProviderException("The AI host finished without a clip.");
+            encoder.Finish();
             activity.Complete();
-            return new GeneratedMedia(new MediaBytes(mp4, "video/mp4"));
+            return new GeneratedMedia(new MediaBytes(mp4.ToArray(), "video/mp4"));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

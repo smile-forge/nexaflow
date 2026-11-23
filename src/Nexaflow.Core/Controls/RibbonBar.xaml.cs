@@ -13,13 +13,14 @@ using System.Windows.Shapes;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Icons;
 
 namespace Nexaflow.Core.Controls;
 
-public partial class RibbonBar : UserControl
+public partial class RibbonBar : UserControl, IDropTarget
 {
     private const double MinWidthBeforeOverflow = 500;
 
@@ -135,9 +136,6 @@ public partial class RibbonBar : UserControl
     public RibbonBar()
     {
         InitializeComponent();
-        AllowDrop = true;
-        DragOver  += RibbonBar_DragOver;
-        Drop      += RibbonBar_Drop;
     }
 
     private FrameworkElement ElementFor(RibbonItem item)
@@ -352,61 +350,28 @@ public partial class RibbonBar : UserControl
 
     // ── Drag-and-drop ──────────────────────────────────────────────────────
 
-    private void RibbonBar_DragOver(object sender, DragEventArgs e)
+    public IReadOnlyList<string> AcceptedKinds => [Page.DragKind, .. PinHandlers.SelectMany(handler => handler.AcceptedKinds)];
+
+    private IReadOnlyList<IRibbonPinHandler> PinHandlers
+        => Runtime is { } runtime ? FeatureManager.Instance.GetRibbonPinHandlers(runtime) : [];
+
+    public DropOffer? OfferDrop(DropRequest request)
     {
-        var pos = e.GetPosition(EditBtn);
-        if (pos.X >= 0 && pos.X <= EditBtn.ActualWidth)
-        {
-            e.Effects = DragDropEffects.None;
-            e.Handled = true;
-            return;
-        }
+        var overEdit = TranslatePoint(new Point(request.At.X, request.At.Y), EditBtn).X;
+        if (overEdit >= 0 && overEdit <= EditBtn.ActualWidth) return DropOffer.Refused;
 
-        if (e.Data.GetDataPresent(typeof(Page)))
-        {
-            e.Effects = DragDropEffects.Move;
-            e.Handled = true;
-            return;
-        }
-
-        if (Runtime is { } ctx)
-        {
-            foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(ctx))
-                foreach (var fmt in h.AcceptedFormats)
-                    if (e.Data.GetDataPresent(fmt))
-                    {
-                        e.Effects = DragDropEffects.Copy;
-                        e.Handled = true;
-                        return;
-                    }
-        }
-
-        e.Effects = DragDropEffects.None;
-        e.Handled = true;
+        var effect = request.Payload.Contains(Page.DragKind) ? DropEffect.Move : DropEffect.Copy;
+        return new DropOffer(effect, Str.Get("Shell.Drop.PinToRibbon"));
     }
 
-    private void RibbonBar_Drop(object sender, DragEventArgs e)
+    public void AcceptDrop(DropRequest request)
     {
-        int insertAt = ComputeInsertIndex(e.GetPosition(ItemsPanel));
+        int insertAt = ComputeInsertIndex(TranslatePoint(new Point(request.At.X, request.At.Y), ItemsPanel));
 
-        if (e.Data.GetData(typeof(Page)) is Page tab)
-        {
+        if (request.Payload.Read(Page.DragKind) is Page tab)
             PinTabToRibbonCommand?.Execute(new TabPinRequest(tab, insertAt));
-            e.Handled = true;
-            return;
-        }
-
-        if (Runtime is { } dropCtx)
-        {
-            foreach (var h in FeatureManager.Instance.GetRibbonPinHandlers(dropCtx))
-                foreach (var fmt in h.AcceptedFormats)
-                    if (e.Data.GetData(fmt) is { } payload)
-                    {
-                        PinFromHandlerCommand?.Execute(new RibbonPinRequest(fmt, payload, insertAt));
-                        e.Handled = true;
-                        return;
-                    }
-        }
+        else
+            PinFromHandlerCommand?.Execute(new RibbonPinRequest(request.Payload, insertAt));
     }
 
     private int ComputeInsertIndex(Point posInPanel)

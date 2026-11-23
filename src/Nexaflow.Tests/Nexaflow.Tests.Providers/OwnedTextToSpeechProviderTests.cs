@@ -1,6 +1,6 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.OpenAI;
@@ -14,7 +14,7 @@ public class OwnedTextToSpeechProviderTests
 {
     private const string ModelId = "kokoro-82m";
 
-    private static ComputeHardwareReport Amd() => new([new ComputeAdapter("gpu", ComputeVendor.Amd, 24L << 30, IsIntegrated: false, IsNpu: false)], null);
+    private static MachineCards Amd() => MachineCards.None;
 
     private static OwnedTextToSpeechProvider Provider(FakeModelStore store, FakeAiHost host)
         => new(new FakeActivityManager(), store, host, new HostModelSetup(host), Amd(), new ProviderModel(ModelId));

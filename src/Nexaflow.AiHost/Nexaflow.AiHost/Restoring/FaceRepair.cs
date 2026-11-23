@@ -1,4 +1,4 @@
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Restoring;
 
@@ -126,8 +126,8 @@ internal static class FaceAlignment
         const int size = FaceRestorer.Size, edge = 10;
         var mask = new float[parsed.Length];
         for (int i = 0; i < mask.Length; i++) mask[i] = parsed[i] * 255f;
-        PictureResampling.GaussianBlur(mask, size, size, 101, 11);
-        PictureResampling.GaussianBlur(mask, size, size, 101, 11);
+        ReferenceResampling.GaussianBlur(mask, size, size, 101, 11);
+        ReferenceResampling.GaussianBlur(mask, size, size, 101, 11);
         for (int y = 0; y < size; y++)
             for (int x = 0; x < size; x++)
                 mask[y * size + x] = y < edge || y >= size - edge || x < edge || x >= size - edge ? 0 : mask[y * size + x] / 255f;
@@ -143,8 +143,8 @@ internal static class FaceAlignment
     {
         const int size = FaceRestorer.Size;
         if (Footprint(pasteBack, width, height) is not { } region) return;
-        var face = PictureResampling.WarpAffine(faceRgb, size, size, 3, pasteBack, region, [0, 0, 0]);
-        var mask = PictureResampling.WarpAffine(softMask, size, size, pasteBack, region);
+        var face = ReferenceResampling.WarpAffine(faceRgb, size, size, 3, pasteBack, region, [0, 0, 0]);
+        var mask = ReferenceResampling.WarpAffine(softMask, size, size, pasteBack, region);
         Parallel.For(0, region.Height, ry =>
         {
             for (int rx = 0; rx < region.Width; rx++)

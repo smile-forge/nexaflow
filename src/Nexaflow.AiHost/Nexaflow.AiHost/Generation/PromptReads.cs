@@ -41,7 +41,7 @@ internal sealed class PromptReads(LlamaContext context)
             }
             throw;
         }
-        await slice.Done.Task;
+        await RequestActivity.WaitAsync(slice.Done.Task);   // taken by another step: read in it
     }
 
     /// <summary>The slices waiting that fit in <paramref name="room"/> tokens, oldest first — <paramref name="first"/> before

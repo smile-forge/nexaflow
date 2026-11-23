@@ -1,4 +1,4 @@
-using System.Windows.Input;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Common;
 
@@ -17,7 +17,7 @@ public interface IChatKeyHandler
     /// Handles a key. Return <see cref="ChatKeyResult.NotHandled"/> to let the shell's default handling
     /// (and other handlers) run; otherwise return a handled result, optionally rewriting the bar text.
     /// </summary>
-    ChatKeyResult HandleKey(Key key, ModifierKeys modifiers, string currentText, int caretIndex,
+    ChatKeyResult HandleKey(ConsoleKey key, KeyModifiers modifiers, string currentText, int caretIndex,
                             IPageViewModel? pageVm);
 }
 

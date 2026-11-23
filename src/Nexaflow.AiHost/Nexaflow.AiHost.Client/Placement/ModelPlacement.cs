@@ -1,5 +1,5 @@
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
 
 namespace Nexaflow.AiHost.Client;
 
@@ -341,13 +341,12 @@ public static class ModelPlacement
                          .ThenBy(g => g.Device)
                          .FirstOrDefault();
 
-    /// <summary>The GPUs the host would find on this machine, as far as its adapters tell before the host has run:
-    /// each NVIDIA GPU of its own where the CUDA pack suits the machine, less what the desktop is taken to hold and the
-    /// runtime keeps back.</summary>
-    public static IReadOnlyList<HostGpu> Expected(ComputeHardwareReport hardware)
-        => !CudaRuntimePack.Applies(hardware) ? []
-           : [.. hardware.NvidiaGpus
-                                  .Select((a, i) => new HostGpu(i, a.Name, null, a.DedicatedMemoryBytes,
-                                                                Math.Max(0, a.DedicatedMemoryBytes - DesktopBytes - HostGpu.ReservedBytes),
-                                                                a.DedicatedMemoryBytes - DesktopBytes))];
+    /// <summary>The GPUs the host would find on this machine, as its driver tells before the host has run: each NVIDIA card
+    /// where the CUDA pack suits the machine, numbered as the host numbers them, less what the desktop is taken to hold and
+    /// the runtime keeps back.</summary>
+    public static IReadOnlyList<HostGpu> Expected(MachineCards machine)
+        => !CudaRuntimePack.Applies(machine) ? []
+           : [.. machine.Cards.Select((c, i) => new HostGpu(i, c.Name, c.BusId, c.TotalBytes,
+                                                            Math.Max(0, c.TotalBytes - DesktopBytes - HostGpu.ReservedBytes),
+                                                            c.TotalBytes - DesktopBytes))];
 }

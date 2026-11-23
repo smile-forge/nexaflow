@@ -107,7 +107,7 @@ internal sealed class CynefinBuilder : ContentBuilder
 
     // ── What is written ─────────────────────────────────────────────────────
 
-    /// <summary>The five sense-making domains, in the order their words are listed (<see cref="CynefinGrammar.Domains"/>).</summary>
+    /// <summary>The five sense-making domains, in the order their words are listed (<see cref="CynefinParser.Domains"/>).</summary>
     private enum CynefinDomain { Clear, Complicated, Complex, Chaotic, Confusion }
 
     /// <summary>Text somebody wrote: the line it was written on — what pressing it means — what it says, without its quotes, and the hole standing where it is still to write.</summary>
@@ -187,8 +187,8 @@ internal sealed class CynefinBuilder : ContentBuilder
     {
         var said = word.AsSpan().Trim();
 
-        for (var at = 0; at < CynefinGrammar.Domains.Count; at++)
-            if (said.Equals(CynefinGrammar.Domains[at], StringComparison.OrdinalIgnoreCase)) return (CynefinDomain)at;
+        for (var at = 0; at < CynefinParser.Domains.Count; at++)
+            if (said.Equals(CynefinParser.Domains[at], StringComparison.OrdinalIgnoreCase)) return (CynefinDomain)at;
 
         return null;
     }

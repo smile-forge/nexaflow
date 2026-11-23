@@ -29,6 +29,12 @@ public static class RadarKinds
 
     /// <summary>One option: its word, and what it is set to.</summary>
     public const string Option = "radar-option";
+
+    /// <summary>A backslash and the character it keeps, inside a label in quotes: <c>\"</c>, <c>\\</c>, <c>\n</c>.</summary>
+    public const string Escape = "radar-escape";
+
+    /// <summary>A line ending inside a label in quotes, which it may run across.</summary>
+    public const string Break = "radar-break";
 }
 
 /// <summary>What a piece of a <c>radar-beta</c> diagram is <em>to</em> the piece holding it.</summary>

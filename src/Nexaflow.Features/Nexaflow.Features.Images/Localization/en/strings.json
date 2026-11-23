@@ -108,6 +108,8 @@
 
   "Images.Status.LoadingThumbnailsFormat": "Loading {0} thumbnails",
 
+  "Images.Drop.AddAsLayer": "Add as a layer",
+  "Images.Drop.OpenInArtist": "Open in Artist",
   "Images.LoadFailed": "This image couldn't be opened.",
 
   "Images.Edit.Edited": "edited",

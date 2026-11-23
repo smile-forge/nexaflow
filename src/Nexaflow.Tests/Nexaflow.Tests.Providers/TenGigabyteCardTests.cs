@@ -1,6 +1,5 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
@@ -18,8 +17,8 @@ namespace Nexaflow.Tests.Providers;
 [CoversNode("local-ai-setup")]
 public class TenGigabyteCardTests
 {
-    private static readonly ComputeHardwareReport Card =
-        new([new ComputeAdapter("NVIDIA GeForce RTX 3080", ComputeVendor.Nvidia, 10L << 30, IsIntegrated: false, IsNpu: false)], CudaRuntimePack.MinimumDriver);
+    private static readonly MachineCards Card =
+        new([new MachineCard("NVIDIA GeForce RTX 3080", 10L << 30)], CudaRuntimePack.MinimumDriver);
 
     private static FakeAiHost Host() => new() { Memory = HostMemory.Of(32L << 30, AiHostProtocol.DefaultMemoryShare) };
 

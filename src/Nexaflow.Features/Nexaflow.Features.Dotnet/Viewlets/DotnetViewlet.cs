@@ -1,4 +1,3 @@
-using System.Windows;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.IO.Common;
@@ -29,8 +28,8 @@ public sealed class DotnetViewlet : IFolderViewlet
     public ViewletDisplayMode   DefaultDisplayMode => ViewletDisplayMode.SingleBar;
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar];
 
-    public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new DotnetViewletView(_shell, _files, folderPath);
+    public object CreateViewModel(string folderPath, IViewletController controller)
+        => new ViewModels.DotnetViewletViewModel(_shell, _files, folderPath);
 
     /// <summary>Building, restoring and cleaning write the project's output, so on a location they run on its host.</summary>
     public bool RunsOnLocationHost => true;

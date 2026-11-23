@@ -136,7 +136,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         var dir  = _store.EnsureAttachmentDir(note.Id);
         if (DroppedMedia.CopyImageInto(sourcePath, dir) is { } fileName)
         {
-            note.Content = $"![]({fileName})";
+            note.Content = DroppedMedia.EmbedMarkdown(fileName);
             SizeNoteToImage(note, Path.Combine(dir, fileName));
         }
         else
@@ -151,13 +151,13 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
 
     /// <summary>Creates an image post-it from a raw bitmap (e.g. a browser image drag with no file):
     /// encodes it as PNG into the note's attachment folder.</summary>
-    public PostItViewModel AddBitmapNote(System.Windows.Media.Imaging.BitmapSource bitmap, Point canvasPosition)
+    public PostItViewModel AddBitmapNote(byte[] png, Point canvasPosition)
     {
         var note = CreateNoteAt(canvasPosition);
         var dir  = _store.EnsureAttachmentDir(note.Id);
-        if (DroppedMedia.SaveBitmapInto(bitmap, dir) is { } fileName)
+        if (DroppedMedia.SaveImageInto(png, dir) is { } fileName)
         {
-            note.Content = $"![]({fileName})";
+            note.Content = DroppedMedia.EmbedMarkdown(fileName);
             SizeNoteToImage(note, Path.Combine(dir, fileName));
         }
         _store.Save(note);
@@ -171,6 +171,19 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     public PostItViewModel AddFileLinkNote(string path, Point canvasPosition)
     {
         var note = CreateNoteAt(canvasPosition, DroppedMedia.FileLinkMarkdown(path));
+        _store.Save(note);
+        var vm = AddNoteViewModel(note);
+        UpdateStatus();
+        return vm;
+    }
+
+    /// <summary>A note holding a file that came as content only — a mail's attachment, a file out of a zip — kept in
+    /// the note's attachments and linked there.</summary>
+    public PostItViewModel AddAttachedFileNote(string path, Point canvasPosition)
+    {
+        var note = CreateNoteAt(canvasPosition);
+        var kept = DroppedMedia.KeepIn(path, _store.EnsureAttachmentDir(note.Id));
+        note.Content = DroppedMedia.FileLinkMarkdown(kept ?? path);
         _store.Save(note);
         var vm = AddNoteViewModel(note);
         UpdateStatus();

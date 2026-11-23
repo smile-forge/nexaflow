@@ -1,10 +1,12 @@
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Plugins;
+using Nexaflow.Visuals.Common.Viewing;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Enumeration;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
@@ -44,6 +46,9 @@ public sealed class FeatureCatalog
         public string Name { get; set; } = "";                 // full type name
         public List<string> Contracts { get; set; } = [];      // implemented Nexaflow.* interface full names
         public string? PageKind { get; set; }                  // IPageRegistration.StaticPageKind
+
+        /// <summary>The model types a view is marked as drawing (<c>[ViewFor]</c>), by full name; null for anything not a view.</summary>
+        public List<string>? Draws { get; set; }
         public List<string>? ConfigDeps { get; set; }          // page reg: ctor IFeatureConfig param type names
         public string? ConfigName { get; set; }                // IFeatureConfig.ConfigName
         public bool Scoped { get; set; }                       // [WorkspaceScopedConfig]
@@ -86,6 +91,8 @@ public sealed class FeatureCatalog
     private readonly Dictionary<string, Assembly> _loaded      = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _activated                = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, (string File, string Type)> _pageKinds = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, (string File, string Type)> _views = new(StringComparer.Ordinal);
 
     private Action<Assembly, AssemblyEntry>? _onActivated;
     private string _exeDir = "";
@@ -153,7 +160,10 @@ public sealed class FeatureCatalog
             {
                 _byFile[a.File] = a;
                 foreach (var t in a.Types)
-                    if (t.PageKind is { } pk) _pageKinds[pk] = (a.File, t.Name);
+                    {
+                        if (t.PageKind is { } pk) _pageKinds[pk] = (a.File, t.Name);
+                        foreach (var model in t.Draws ?? []) _views[model] = (a.File, t.Name);
+                    }
             }
         }
 
@@ -196,13 +206,15 @@ public sealed class FeatureCatalog
         {
             var asm = LoadOrFind(file);
             if (asm is null) continue;
-            var entry = ScanAssembly(asm, file);
+            // The shared visual assemblies are read for their views alone: what they implement is not a feature's to contribute.
+            var viewsOnly = FileSystemName.MatchesSimpleExpression(FeatureCatalogStamp.VisualsDllPattern, file);
+            var entry = ScanAssembly(asm, file, viewsOnly);
             if (entry.Types.Count > 0) idx.Assemblies.Add(entry);
         }
         return idx;
     }
 
-    private static AssemblyEntry ScanAssembly(Assembly asm, string file)
+    private static AssemblyEntry ScanAssembly(Assembly asm, string file, bool viewsOnly)
     {
         var entry = new AssemblyEntry { File = file, Version = asm.GetName().Version?.ToString() ?? "" };
 
@@ -219,6 +231,13 @@ public sealed class FeatureCatalog
         {
             if (t is null || t.IsAbstract || t.IsInterface) continue;
 
+            var draws = t.GetCustomAttributes<ViewForAttribute>().Select(view => view.ModelType.FullName!).ToList();
+            if (viewsOnly)
+            {
+                if (draws.Count > 0) entry.Types.Add(new TypeEntry { Name = t.FullName!, Draws = draws });
+                continue;
+            }
+
             var contracts = t.GetInterfaces()
                 .Where(i => i.FullName is { } fn && fn.StartsWith("Nexaflow.", StringComparison.Ordinal))
                 .Select(i => i.FullName!)
@@ -229,9 +248,9 @@ public sealed class FeatureCatalog
             // feature-owned namespace the host defines. Dropping it here is how a plugin would silently
             // vanish, which is precisely the failure this framework exists to prevent.
             var sf = t.GetCustomAttribute<SubfeatureAttribute>();
-            if (contracts.Count == 0 && sf is null) continue;
+            if (contracts.Count == 0 && sf is null && draws.Count == 0) continue;
 
-            var te = new TypeEntry { Name = t.FullName!, Contracts = contracts };
+            var te = new TypeEntry { Name = t.FullName!, Contracts = contracts, Draws = draws.Count > 0 ? draws : null };
 
             // Unlike ConfigName / ThemeUris below, this needs no instantiation — so indexing a plugin costs
             // nothing beyond the reflection the scan is already doing.
@@ -393,6 +412,17 @@ public sealed class FeatureCatalog
         lock (_lock) { if (!_pageKinds.TryGetValue(pageKind, out r)) return false; }
         type = ResolveType(r.File, r.Type);
         return type is not null;
+    }
+
+    /// <summary>
+    /// The view marked as drawing exactly <paramref name="modelType"/>, its assembly loaded and activated; null when no view
+    /// names it. A view of a type it derives from is <see cref="ViewRegistry"/>'s to find.
+    /// </summary>
+    public Type? ViewTypeFor(Type modelType)
+    {
+        (string File, string Type) r;
+        lock (_lock) { if (modelType.FullName is not { } name || !_views.TryGetValue(name, out r)) return null; }
+        return ResolveType(r.File, r.Type);
     }
 
     public bool HasPageKind(string pageKind) { lock (_lock) return _pageKinds.ContainsKey(pageKind); }

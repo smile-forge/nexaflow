@@ -185,6 +185,9 @@
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.Local/Nexaflow.Providers.Local.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.OpenAICompatible/Nexaflow.Providers.OpenAICompatible.csproj">
       <Platform Project="x64" />
     </Project>
@@ -209,6 +212,12 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost.Client/Nexaflow.AiHost.Client.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/Nexaflow.AiHost.Provisioning.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost.Sample/Nexaflow.AiHost.Sample.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.AiHost/Nexaflow.AiHost/Nexaflow.AiHost.csproj">
@@ -393,7 +402,10 @@
   <Project Path="src/Nexaflow.Icons/Nexaflow.Icons.csproj">
     <Platform Project="x64" />
   </Project>
-  <Project Path="src/Nexaflow.Visuals.Icons/Nexaflow.Visuals.Icons.csproj">
+  <Project Path="src/Nexaflow.Interaction/Nexaflow.Interaction.csproj">
+          <Platform Project="x64" />
+        </Project>
+        <Project Path="src/Nexaflow.Visuals.Icons/Nexaflow.Visuals.Icons.csproj">
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.Visuals.Stores/Nexaflow.Visuals.Stores.csproj">

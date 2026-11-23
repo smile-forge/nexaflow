@@ -3,10 +3,12 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Web.Views;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Previews;
 using Nexaflow.Visuals.Web;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -37,6 +39,9 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
 
     /// <summary>The runtime's file system the page's file is read through.</summary>
     private readonly IVirtualFileSystem _vfs;
+
+    /// <summary>The shell the fallback offers and reports through.</summary>
+    private readonly IShellServices _shell;
 
     /// <summary>Display name shown in the toolbar (file name without path).</summary>
     public string FileName { get; }
@@ -69,6 +74,12 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     /// <summary>The WebView is shown only when it's available AND not hidden behind a shell overlay.</summary>
     public bool WebViewVisible => WebViewAvailable && !IsCovered;
 
+    /// <summary>Raised when the URL or page title changes, so the tab title + breadcrumb can refresh.</summary>
+    public event Action? PageChanged;
+
+    /// <summary>Raised to take the embedded browser to an address; the view does the navigating.</summary>
+    public event Action<string>? NavigationRequested;
+
     /// <summary>Set by the view: captures the live page as a PNG no longer than the given edge (null if unavailable).
     /// Feeds the AI a screenshot of what the user is looking at, and takes <see cref="Snapshot"/>.</summary>
     public Func<double, CancellationToken, Task<byte[]?>>? CaptureScreenshotAsync { get; set; }
@@ -88,10 +99,11 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     /// "install the runtime" link on the fallback panel.</summary>
     [ObservableProperty] private bool _runtimeMissing;
 
-    public HtmlViewModel(string filePath, IVirtualFileSystem vfs)
+    public HtmlViewModel(string filePath, IVirtualFileSystem vfs, IShellServices shell)
     {
         FileName = Path.GetFileName(filePath);
         _vfs     = vfs;
+        _shell   = shell;
         Loaded   = ResolveAsync(filePath);
     }
 
@@ -137,6 +149,93 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
         return new Uri("about:blank");
     }
 
+    // ── The embedded browser ──────────────────────────────────────────────
+
+    /// <summary>Takes the embedded browser to <paramref name="url"/> (used by breadcrumb crumbs).</summary>
+    public void NavigateTo(string url) => NavigationRequested?.Invoke(url);
+
+    /// <summary>The browser has set off for <paramref name="url"/>. The old title no longer applies; the URL form shows until
+    /// the new title arrives.</summary>
+    public void ReportNavigationStarting(string url)
+    {
+        IsLoading  = true;
+        CurrentUrl = url;
+        PageTitle  = string.Empty;
+        PageChanged?.Invoke();
+    }
+
+    /// <summary>The browser has arrived at <paramref name="url"/>, whose document is titled <paramref name="title"/>.</summary>
+    public void ReportNavigationCompleted(string url, string title)
+    {
+        IsLoading  = false;
+        CurrentUrl = url;
+        PageTitle  = title;
+        PageChanged?.Invoke();
+    }
+
+    /// <summary>The document has retitled itself.</summary>
+    public void ReportDocumentTitle(string title)
+    {
+        PageTitle = title;
+        PageChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// The embedded browser cannot run on this machine: the page swaps to its fallback panel and offers to open the page in
+    /// the user's default browser instead.
+    /// </summary>
+    public void ReportBrowserUnavailable(bool runtimeMissing, string message)
+    {
+        IsLoading        = false;
+        WebViewAvailable = false;
+        RuntimeMissing   = runtimeMissing;
+        FailureMessage   = message;
+        PageChanged?.Invoke();
+
+        // Proactively offer to open it externally; the in-tab panel stays as a fallback if they decline.
+        if (CanOpenExternally())
+            _shell.ShowConfirmation(
+                Str.Get("Web.Fallback.UnavailableTitle"),
+                Str.Format("Web.Fallback.UnavailableFormat", FailureMessage),
+                onConfirm: OpenInDefaultBrowser,
+                onCancel: static () => { });
+    }
+
+    /// <summary>Opens the page in the user's default browser, when its address is one the OS shell may be handed.</summary>
+    public void OpenInDefaultBrowser()
+    {
+        if (!CanOpenExternally())
+        {
+            _shell.ShowError("This page can't be opened in an external browser.");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(NavigationUri.ToString()) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _shell.ShowError(Str.Format("Web.Error.OpenBrowserFormat", ex.Message));
+        }
+    }
+
+    /// <summary>Opens the WebView2 runtime's download page in the user's default browser.</summary>
+    public void OpenRuntimeDownload(Uri downloadPage)
+    {
+        try { Process.Start(new ProcessStartInfo(downloadPage.AbsoluteUri) { UseShellExecute = true }); }
+        catch (Exception ex) { _shell.ShowError(Str.Format("Web.Error.OpenDownloadPageFormat", ex.Message)); }
+    }
+
+    /// <summary>Only hand http(s)/file URLs to the OS shell — never arbitrary schemes from a .url file.</summary>
+    private bool CanOpenExternally()
+    {
+        var scheme = NavigationUri.Scheme;
+        return scheme == Uri.UriSchemeHttp
+            || scheme == Uri.UriSchemeHttps
+            || scheme == Uri.UriSchemeFile;
+    }
+
     // ── IContextPreview ───────────────────────────────────────────────────
 
     /// <summary>
@@ -145,7 +244,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     /// title. A fresh control each time the chip is selected, per the contract; it binds to the snapshot but owns none
     /// of it.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview() => new WebContextPreview { DataContext = this };
+    public object CreateContextPreview() => new PagePreview<HtmlViewModel>(this);
 
     /// <summary>
     /// Takes <see cref="Snapshot"/> of the page as it now stands. Called by the view once a page has loaded; a

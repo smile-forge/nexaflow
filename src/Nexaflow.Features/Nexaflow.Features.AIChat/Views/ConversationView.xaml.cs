@@ -7,13 +7,14 @@ using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Page = Nexaflow.Features.Common.Page;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.AIChat.Views;
 
-public partial class ConversationView : UserControl, IPageView
+[ViewFor(typeof(ConversationViewModel))]
+public partial class ConversationView : UserControl
 {
     public ConversationViewModel ViewModel { get; }
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     public ConversationView(ConversationViewModel viewModel)
     {
@@ -23,9 +24,6 @@ public partial class ConversationView : UserControl, IPageView
 
         ViewModel.Timeline.CollectionChanged += OnTimelineChanged;
         ViewModel.PropertyChanged            += OnVmPropertyChanged;
-
-        ContextBanner.Drop     += OnContextBannerDrop;
-        ContextBanner.DragOver += OnContextBannerDragOver;
 
         // One menu per anchor: a ContextMenu becomes the logical child of whatever it's attached to,
         // so the banner and the add button can't share an instance.
@@ -90,12 +88,6 @@ public partial class ConversationView : UserControl, IPageView
 
     private static string Label(Page page)
         => string.IsNullOrEmpty(page.Icon) ? page.Title : $"{page.Icon}  {page.Title}";
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("conversationId", out var id))
-            _ = ViewModel.LoadAsync(id);
-    }
 
     // ── Message rendering ─────────────────────────────────────────────────
 
@@ -169,39 +161,5 @@ public partial class ConversationView : UserControl, IPageView
         TokenFooter.Text = win is null
             ? Str.Format("AIChat.Conversation.Footer.TokensUnknownFormat", used)
             : Str.Format("AIChat.Conversation.Footer.TokensFormat", used, win.Value);
-    }
-
-    // ── Drop target ───────────────────────────────────────────────────────
-
-    private void OnContextBannerDragOver(object sender, DragEventArgs e)
-    {
-        // TabStrip starts its drag with DragDropEffects.Move only — responding
-        // with Copy would intersect to None and show the no-drop cursor. We
-        // don't actually move the tab on drop, but the Effects flag has to
-        // overlap with what the source permits.
-        if (e.Data.GetDataPresent(typeof(Page)))
-            e.Effects = DragDropEffects.Move;
-        else if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            e.Effects = DragDropEffects.Copy;
-        else
-            e.Effects = DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void OnContextBannerDrop(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetDataPresent(typeof(Page)))
-        {
-            if (e.Data.GetData(typeof(Page)) is Page page)
-                ViewModel.AddContextItem(page);
-            e.Handled = true;
-            return;
-        }
-        if (e.Data.GetDataPresent(DataFormats.FileDrop) &&
-            e.Data.GetData(DataFormats.FileDrop) is string[] files)
-        {
-            foreach (var f in files) ViewModel.AddAttachment(f);
-            e.Handled = true;
-        }
     }
 }

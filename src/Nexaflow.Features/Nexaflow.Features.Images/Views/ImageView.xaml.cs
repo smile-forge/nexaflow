@@ -1,5 +1,5 @@
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Linq;
 using System.ComponentModel;
 using System.Windows;
@@ -11,7 +11,8 @@ using Nexaflow.Features.Images.Services;
 
 namespace Nexaflow.Features.Images.Views;
 
-public partial class ImageView : UserControl, IPageView
+[ViewFor(typeof(ImageViewModel))]
+public partial class ImageView : UserControl
 {
     public ImageViewModel ViewModel { get; }
 
@@ -24,7 +25,6 @@ public partial class ImageView : UserControl, IPageView
         InitializeComponent();
         ViewModel   = viewModel;
         DataContext = viewModel;
-        viewModel.Host = this;   // what opens beside the pictures — their Markdown — opens in this tab's window
 
         ConfigureCollageSurface();
 
@@ -38,16 +38,6 @@ public partial class ImageView : UserControl, IPageView
             ViewModel.OnDeactivated();
             CloseFullScreen();
         };
-    }
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("view", out var view))
-            ViewModel.ViewMode = ImageTabRegistration.ParseView(view);
     }
 
     // ── Keyboard: carousel navigation, the turns' history, Edit and Print; Esc exits full-screen ──

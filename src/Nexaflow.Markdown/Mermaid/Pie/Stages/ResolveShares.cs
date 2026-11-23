@@ -10,7 +10,8 @@ namespace Nexaflow.Markdown.Mermaid.Pie.Stages;
 /// <para>
 /// None of it is in the slice's own characters. A share is its value against every other slice's; its place among the
 /// slices that count is how many before it had a value of nought or more, which is what gives a slice worth nought its
-/// colour in the legend though it has no wedge, as Mermaid's does; and whether it is listed and what its row shows
+/// colour in the legend though it has no wedge, as Mermaid's does — and a slice called what one above it is called counts for
+/// nothing, Mermaid keeping only the first slice of a label; and whether it is listed and what its row shows
 /// depend on whether somebody is writing the chart and on the <c>showData</c> word in its header. So a builder is
 /// handed the answers and only lays them out.
 /// </para>
@@ -28,11 +29,12 @@ public sealed class ResolveShares(bool writing) : IAstStage
     {
         var showsData = false;
         var worths = new List<double?>();
+        var repeats = PieStandIns.Repeats(tree);
 
         foreach (var node in tree.SelfAndDescendants())
         {
             if (node.Kind == PieKinds.ShowData) showsData = true;
-            else if (node.Kind == PieKinds.Slice) worths.Add(Worth(node));
+            else if (node.Kind == PieKinds.Slice) worths.Add(repeats[worths.Count] ? null : Worth(node));
         }
 
         var total = worths.Sum(worth => worth ?? 0);

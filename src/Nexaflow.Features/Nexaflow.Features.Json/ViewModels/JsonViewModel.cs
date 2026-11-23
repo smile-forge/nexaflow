@@ -215,6 +215,14 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         finally { IsLoading = false; }
     }
 
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        var path = pageParams.GetValueOrDefault("path") ?? string.Empty;
+        if (path == FilePath) return;
+        FilePath = path;
+        _ = LoadAsync(CancellationToken.None);
+    }
+
     // After initial load, estimate the total item count from the first+last objects,
     // then pre-populate the display list with virtual placeholders up to that count.
     // This gives the scrollbar the correct size without loading the whole file.
@@ -1378,13 +1386,13 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     /// panel's header names the file. A fresh control each time the chip is selected, per the contract; it copies
     /// what it shows.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview()
+    public object CreateContextPreview()
     {
         var focus = SelectedNode ?? Root;
         var meta  = FileSizeText
                   + (focus is { Parent: not null } ? $" · {focus.GetJsonPath()}" : string.Empty)
                   + (IsModified ? $" · {Str.Get("Json.Preview.UnsavedEdits")}" : string.Empty);
-        return new ReadOnlyTextPreview(meta, JsonContextOutline.Of(focus));
+        return new TextContextPreview(meta, JsonContextOutline.Of(focus));
     }
 
     public string? GetSecurityContext() => FilePath;

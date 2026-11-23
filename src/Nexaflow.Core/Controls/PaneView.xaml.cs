@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Nexaflow.Core.Models;
+using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
@@ -92,6 +93,16 @@ public partial class PaneView : UserControl
     {
         get => (ICommand?)GetValue(ReceiveTabCommandProperty);
         set => SetValue(ReceiveTabCommandProperty, value);
+    }
+
+    public static readonly DependencyProperty OpenDroppedCommandProperty =
+        DependencyProperty.Register(nameof(OpenDroppedCommand), typeof(ICommand), typeof(PaneView));
+
+    /// <summary>Opens what was dropped on this pane's tabs.</summary>
+    public ICommand? OpenDroppedCommand
+    {
+        get => (ICommand?)GetValue(OpenDroppedCommandProperty);
+        set => SetValue(OpenDroppedCommandProperty, value);
     }
 
     public ICommand? OpenPageCommand
@@ -186,26 +197,20 @@ public partial class PaneView : UserControl
     {
         var page = Pane?.ActivePage;
 
-        // Read before GetOrCreateContent, which is the thing that would build it: null here means this page
-        // has never been shown, and only that first show earns the settle-in animation.
-        var firstShow = page?.Content is null;
+        // Read before ViewOf, which is the thing that would build it: no view yet means this page has never been shown,
+        // and only that first show earns the settle-in animation.
+        var firstShow = page is null || PageViews.Instance.Shown(page) is null;
 
-        var content = page?.GetOrCreateContent();
-
-        // GetOrCreateContent no longer throws — it records the failure and hands back a blank control. A
-        // blank tab is indistinguishable from a feature that drew nothing, so swap in the panel that says
-        // what happened. Cached back onto the page so switching away and back doesn't rebuild it.
-        if (page?.LoadException is { } error)
-            content = page.Content as PageLoadErrorView
-                   ?? page.ReplaceContent(new PageLoadErrorView(page, error));
+        // Never throws: a page whose view-model or view could not be made is drawn by the panel that says why.
+        var content = page is null ? null : PageViews.Instance.ViewOf(page);
 
         if (ReferenceEquals(ContentHost.Content, content)) return;
 
         MeasureSwitch(page, firstShow);
 
-        // A page's content control is cached and shared as it moves between panes/windows; a WPF element
-        // can have only one parent. Detach it from a prior host (e.g. the other side of a collapsing
-        // split) before adopting, so re-parenting never throws.
+        // A page's view is cached and shared as it moves between panes/windows; a WPF element can have only one
+        // parent. Detach it from a prior host (e.g. the other side of a collapsing split) before adopting, so
+        // re-parenting never throws.
         DetachFromParent(content);
         ContentHost.Content = content;
         if (content is null) return;

@@ -2,7 +2,8 @@ using System.Text;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Llama;
 using Nexaflow.AiHost.Models;
-using Nexaflow.IO.Common.Audio;
+
+using Nexaflow.AiHost.Speech;
 
 namespace Nexaflow.AiHost.Generation;
 
@@ -28,7 +29,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         var model = lease.As<ChatModel>();
         string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools, request.Thinks);
         var media = ChatPrompt.Media(model, request.Turns);
-        using var use = model.Enter(request.Turns, request.Priority, () => media.Count == 0 ? model.Model.Tokenize(prompt).Length : null);
+        using var use = model.Enter(request.Turns, request.Priority, () => media.Count == 0 ? model.Model.Tokenize(prompt).Length : null, models.SpareOn);
         var lane = use.Lane;
         using var answering = await lane.Conversations.AnsweringAsync(ct);
         using var attended = gpu.Engage(request.Priority, model.Spec.Device);   // a young job on its card waits for this reply
@@ -159,7 +160,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     /// for by the rest. One that could not be read is let go, and its prompts read whole.</summary>
     private async Task<bool> OpenedAsync(ChatModel model, ChatLane lane, PromptOpening opening, RequestPriority priority, CancellationToken ct)
     {
-        if (!opening.Claim()) return await opening.Ready.Task.WaitAsync(ct);
+        if (!opening.Claim()) return await RequestActivity.WaitAsync(opening.Ready.Task.WaitAsync(ct));
         try
         {
             await lane.Conversations.MakeRoomAsync(opening.Holder, opening.Tokens.Length, ct);
@@ -186,8 +187,9 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
                      : media.Path is { } path && File.Exists(path) ? File.ReadAllBytes(path)
                      : throw new HostRequestException(HostErrorKind.NotFound, $"The {media.Kind.ToString().ToLowerInvariant()} to read is not there: {media.Path}.");
         if (media.Kind != MediaKind.Audio) return bytes;
-        try { return WavAudio.ToMono(bytes); }
-        catch (InvalidDataException ex) { throw new HostRequestException(HostErrorKind.Invalid, $"The recording cannot be read: {ex.Message}"); }
+        if (media.Bytes is null || bytes.Length % 2 != 0)
+            throw new HostRequestException(HostErrorKind.Invalid, "A recording comes as its samples: 16-bit mono PCM at 16 kHz.");
+        return PcmSamples.Wav(bytes);
     }
 
     /// <param name="Continuable">Whether the conversation can be kept for the next request: its reply ended where the
@@ -211,6 +213,8 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         var written = new StringBuilder();
         int prompt = conversation.Tokens, generated = 0, thought = 0;
         var circles = new CircleWatch();
+        var (thinking, thoughts) = request.SendsReasoning && model.Thinking is { } said
+            ? (new ReplyText(model.Model), new ReasoningStream(said.Heading)) : (null, null);
         using var rounds = lane.Rounds.Join(conversation, request.Priority, async () => await gpu.NextAsync(request.Priority, model.Spec.Device, CancellationToken.None));
 
         Outcome Stop(StopReason reason, bool continuable, int token)
@@ -229,6 +233,8 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
                 reasoning = token != span.Close;
                 // Reasoning is not shown, so it is told as it goes: the app hears the reply is alive, however long it thinks.
                 if (++thought % ThinkingReport == 0) await reply(new Progress(request.RequestId, Thinking, thought, 0));
+                if (thoughts is not null && token != span.Open && token != span.Close && thoughts.Take(thinking!.Decode(token)) is { Length: > 0 } piece)
+                    await reply(new ReasoningDelta(request.RequestId, piece));
             }
             else
             {

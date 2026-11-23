@@ -22,22 +22,23 @@ using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Icons;
 using Nexaflow.Visuals.Icons;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.WindowsFileSystem.Views;
 
-public partial class FileSystemView : UserControl, IPageView, ISelectionProvider, IKeyboardHandler
+[ViewFor(typeof(FileSystemViewModel))]
+public partial class FileSystemView : UserControl, IDropTarget, ISelectionProvider, IKeyboardHandler
 {
     public FileSystemViewModel ViewModel { get; }
-
-    // ── IPageView ─────────────────────────────────────────────────────────────
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     // ── ISelectionProvider ────────────────────────────────────────────────────
     IReadOnlyList<string> ISelectionProvider.SelectedFilePaths
         => ViewModel.CurrentSelection.Select(e => e.FullPath).ToList();
 
     private readonly IKeyboardHandler _actionKeys;   // maps shortcut keys → file actions (this view IS the page handler)
-    private readonly IDropTarget      _dropTarget;
+    private readonly FileSystemDropTarget _dropTarget;
 
     // Drag-from-list tracking. DragArming, not a bare bool: arming that outlives its own gesture is
     // what let a press the list never saw released start a drag nobody asked for.
@@ -57,15 +58,12 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     private ListView? _rightMenuOnMouseUp;
     private List<FileSystemEntry> _rightMenuTargets = [];
 
-    // Which button is dragging, remembered from the hover — the drop cannot be asked. See DropChoiceLatch.
-    private readonly DropChoiceLatch _dropChoice = new();
-
     // The wash on the row a drop would land in — the destination, shown rather than spelled out.
     private readonly DropTargetHighlight _dropHighlight = new();
 
     // A question a drop has asked but that has not been put to the user yet, and whether our own drag
     // loop is still on the stack. See AskPendingChoice: a menu must not open inside DoDragDrop.
-    private (IDropChoiceTarget Target, DropPlan Plan)? _pendingChoice;
+    private DropPlan? _pendingChoice;
     private bool _localDragInFlight;
 
     // Drag-from-ActionStrip tracking
@@ -77,19 +75,12 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     private bool _fileViewActive;
     private int  _activeFullIndex;
 
-    /// <summary>
-    /// Raised whenever the current directory changes.
-    /// Subscribers (e.g. ShellViewModel) should update the tab's BreadcrumbSegments.
-    /// Each tuple contains (DisplayLabel, FullPath) — FullPath is empty for "This PC".
-    /// </summary>
-    public event Action<IReadOnlyList<(string Label, string Path)>>? NavigationChanged;
-
-    public FileSystemView(FileSystemViewModel viewModel, IKeyboardHandler keyboardHandler, IDropTarget dropTarget)
+    public FileSystemView(FileSystemViewModel viewModel)
     {
         InitializeComponent();
         ViewModel        = viewModel;
-        _actionKeys      = keyboardHandler;
-        _dropTarget      = dropTarget;
+        _actionKeys      = new FileSystemKeyboardHandler(viewModel);
+        _dropTarget      = new FileSystemDropTarget(viewModel);
         DataContext = viewModel;
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;
@@ -139,28 +130,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     }
 
     private void WireDragDrop()
-    {
-        FileListView.AllowDrop     = true;
-        FileListView.PreviewMouseMove += FileListView_PreviewMouseMove;
-        FileListView.DragOver  += OnListViewDragOver;
-        FileListView.DragLeave += OnDragLeave;
-        FileListView.Drop      += OnListViewDrop;
-
-        // This PC mode had no drop wiring at all, so a drag over a drive row did nothing and said
-        // nothing. It resolves the same way the file list does: the row under the cursor, or nowhere.
-        DriveListView.AllowDrop  = true;
-        DriveListView.DragOver  += OnListViewDragOver;
-        DriveListView.DragLeave += OnDragLeave;
-        DriveListView.Drop      += OnListViewDrop;
-
-        DirectoryTree.AllowDrop  = true;
-        DirectoryTree.DragOver  += OnTreeDragOver;
-        DirectoryTree.DragLeave += OnDragLeave;
-        DirectoryTree.Drop      += OnTreeDrop;
-
-        // Popup must be anchored to this UserControl so relative offsets work.
-        Loaded += (_, _) => DropTooltipPopup.PlacementTarget = this;
-    }
+        => FileListView.PreviewMouseMove += FileListView_PreviewMouseMove;
 
     private void WireActionStripDrag()
     {
@@ -208,24 +178,8 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         return null;
     }
 
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("path", out var path) && !string.IsNullOrEmpty(path))
-        {
-            if (string.Equals(path, ViewModel.CurrentPath, StringComparison.OrdinalIgnoreCase))
-                ViewModel.Refresh();
-            else
-                _ = ViewModel.BrowseToAsync(path);
-        }
-        else
-        {
-            ViewModel.GoToThisPc(rebuildTree: true);
-        }
-    }
-
     private void OnViewModelNavigationChanged(IReadOnlyList<(string Label, string Path)> segments)
     {
-        NavigationChanged?.Invoke(segments);
         UpdateListViewVisibility();
         RefreshViewlets(ViewModel.CurrentPath, ViewModel.IsThisPcMode);
     }
@@ -514,15 +468,15 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     // Ctrl+A is a view-level selection; the rest delegate to the shared FileSystemKeyboardHandler so they
     // take the same path as clicking the action strip. The shell already skips this while a TextBox is
     // focused, so an inline rename keeps its native editing keys.
-    public bool CanProcessKey(Key key, ModifierKeys modifiers)
+    public bool CanProcessKey(ConsoleKey key, KeyModifiers modifiers)
     {
-        if (key == Key.A && modifiers == ModifierKeys.Control) return true;
+        if (key == ConsoleKey.A && modifiers == KeyModifiers.Control) return true;
         return _actionKeys.CanProcessKey(key, modifiers);
     }
 
-    public bool ProcessKey(Key key, ModifierKeys modifiers)
+    public bool ProcessKey(ConsoleKey key, KeyModifiers modifiers)
     {
-        if (key == Key.A && modifiers == ModifierKeys.Control) { FileListView.SelectAll(); return true; }
+        if (key == ConsoleKey.A && modifiers == KeyModifiers.Control) { FileListView.SelectAll(); return true; }
         return _actionKeys.ProcessKey(key, modifiers);
     }
 
@@ -1093,135 +1047,96 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         AskPendingChoice();
     }
 
-    // ── Drag-drop: ListView (drops into current directory) ────────────────
-    private void OnListViewDragOver(object sender, DragEventArgs e)
+    // ── Drag-drop: the whole page is one target ───────────────────────────
+    private static readonly string[] DroppableKinds = [DragKinds.Files, DragKinds.FileContents];
+
+    public IReadOnlyList<string> AcceptedKinds => DroppableKinds;
+
+    /// <summary>Where in the browser a drop would land: the folder, the row washed to show it, and whether that is a tree's.</summary>
+    private readonly record struct DropPlace(string Destination, string? Name, UIElement? Row, TreeViewItem? Node);
+
+    /// <summary>
+    /// The folder under <paramref name="at"/> — a directory row, a tree node, or the open folder over a list's
+    /// background — or null where the point is on neither list nor tree.
+    /// </summary>
+    private DropPlace? DropPlaceAt(DropPoint at)
     {
-        var folder = FolderEntryUnderMouse(e);
+        var hit = this.ElementUnder(at);
+
+        if (DropHitTesting.IsInside(hit, DirectoryTree))
+        {
+            var item = DropHitTesting.Holding<TreeViewItem>(hit);
+            var node = item?.DataContext as FileSystemTreeNode;
+            // The header row, not the item: the item spans its whole expanded subtree.
+            var row = item is null ? null : item.Template?.FindName("RowBorder", item) as UIElement ?? item;
+            return new DropPlace(node?.FullPath ?? ViewModel.CurrentPath, node?.Name, row, item);
+        }
+
+        if (DropHitTesting.IsInside(hit, FileListView) || DropHitTesting.IsInside(hit, DriveListView))
+        {
+            return DropHitTesting.Holding<ListViewItem>(hit) is { DataContext: FileSystemEntry { IsDirectory: true } folder } row
+                ? new DropPlace(folder.FullPath, folder.Name, row, null)
+                : new DropPlace(ViewModel.CurrentPath, null, null, null);
+        }
+
+        return null;
+    }
+
+    public DropOffer? OfferDrop(DropRequest request)
+    {
+        if (DropPlaceAt(request.At) is not { } place)
+        {
+            EndDropFeedback();
+            return null;
+        }
 
         // Refused during the hover, not complained about after the drop: dropping something onto itself
         // means nothing, and four pixels of drift during an ordinary click is enough to produce one.
-        if (!_dropTarget.CanAcceptDrop(e.Data) ||
-            _dropTarget.IsSelfDrop(e.Data, folder?.FullPath ?? ViewModel.CurrentPath))
+        if (string.IsNullOrEmpty(place.Destination) || _dropTarget.IsSelfDrop(request.Payload, place.Destination))
         {
-            e.Effects = DragDropEffects.None;
             EndDropFeedback();
-            e.Handled = true;
-            return;
+            return DropOffer.Refused;
         }
 
-        string? folderName = folder?.Name;
-        HighlightDropRow(e, fromTree: false);
+        _dropHighlight.Show(place.Row);
+        ScheduleTreeReveal(place.Node);
 
-        // A right-drag has not decided anything yet, so the tooltip cannot promise a direction — but the
-        // effect still has to be something, or the drop is never delivered and there is nothing to ask about.
-        _dropChoice.Observe(e.KeyStates);
-        if (OfferedChoice() is { } choices)
-        {
-            e.Effects = DragDropEffects.Copy;
-            ShowDropTooltip(choices.GetChoicePrompt(folderName), e);
-            e.Handled = true;
-            return;
-        }
+        // A right-drag has not decided anything yet, so the hint cannot promise a direction — but the effect still has
+        // to be something, or the drop is never delivered and there is nothing to ask about.
+        if (request.AsksChoice) return new DropOffer(DropEffect.Copy, _dropTarget.GetChoicePrompt(place.Name));
 
-        bool isMove  = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-        e.Effects    = isMove ? DragDropEffects.Move : DragDropEffects.Copy;
-        ShowDropTooltip(_dropTarget.GetDropDescription(e.Data, folderName, isMove), e);
-        e.Handled = true;
+        bool isMove = IsMove(request);
+        return new DropOffer(isMove ? DropEffect.Move : DropEffect.Copy, _dropTarget.GetDropDescription(place.Name, isMove));
     }
 
-    private void OnListViewDrop(object sender, DragEventArgs e)
+    /// <summary>Shift moves — files that have a place to be moved from.</summary>
+    private static bool IsMove(DropRequest request)
+        => request.Modifiers.HasFlag(KeyModifiers.Shift) && request.Payload.Contains(DragKinds.Files);
+
+    public void AcceptDrop(DropRequest request)
     {
-        // Only the tooltip goes here — the destination wash is CompleteDrop's to keep or clear, since a
-        // right-drag is about to ask a question about the very row it is on.
-        HideDropTooltip();
-        if (!_dropTarget.CanAcceptDrop(e.Data)) { _dropHighlight.Clear(); return; }
+        if (DropPlaceAt(request.At) is not { } place) return;
 
-        // Resolve destination: a directory entry under the cursor, or current path.
-        string destination = FolderEntryUnderMouse(e)?.FullPath ?? ViewModel.CurrentPath;
-
-        // Belt and braces: nothing may escape an IDropTarget::Drop callback. A fault here is an unhandled
-        // UI-thread exception that abandons the rest of the drop with only a generic toast to show for it,
-        // which is one of the ways a folder drop used to disappear without explanation.
-        try
+        if (request.AsksChoice)
         {
-            if (string.IsNullOrEmpty(destination)) _dropHighlight.Clear();
-            else                                   CompleteDrop(e, destination);
-        }
-        catch (Exception ex)
-        {
-            _dropHighlight.Clear();
-            ViewModel.ReportError(ex.Message);
-        }
+            // Captured now, asked later. The payload dies with this callback, and a menu opened inside it would block
+            // the OLE drop on a thread with no message pump. The destination wash is deliberately left up: with the
+            // folder name out of the menu's labels it is the only thing saying where "here" is, so it comes down when
+            // the menu is answered, not when the menu appears.
+            if (_dropTarget.Capture(request.Payload, place.Destination) is not { } plan) return;
 
-        e.Handled = true;
-    }
-
-    // ── Drag-drop: TreeView (drops into hovered folder node) ─────────────
-    private void OnTreeDragOver(object sender, DragEventArgs e)
-    {
-        var node = ResolveTreeNodeUnderMouse(e);
-
-        if (!_dropTarget.CanAcceptDrop(e.Data) ||
-            _dropTarget.IsSelfDrop(e.Data, node?.FullPath ?? ViewModel.CurrentPath))
-        {
-            e.Effects = DragDropEffects.None;
-            EndDropFeedback();
-            e.Handled = true;
+            _pendingChoice = plan;
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, AskPendingChoice);
             return;
         }
 
-        string? folderName = node?.Name;
-        HighlightDropRow(e, fromTree: true);
-        ScheduleTreeReveal(e);
-
-        _dropChoice.Observe(e.KeyStates);
-        if (OfferedChoice() is { } choices)
-        {
-            e.Effects = DragDropEffects.Copy;
-            ShowDropTooltip(choices.GetChoicePrompt(folderName), e);
-            e.Handled = true;
-            return;
-        }
-
-        bool isMove  = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-        e.Effects    = isMove ? DragDropEffects.Move : DragDropEffects.Copy;
-        ShowDropTooltip(_dropTarget.GetDropDescription(e.Data, folderName, isMove), e);
-        e.Handled = true;
+        _dropTarget.Drop(request.Payload, place.Destination, IsMove(request));
     }
 
-    private void OnTreeDrop(object sender, DragEventArgs e)
+    public void EndDropHover()
     {
-        HideDropTooltip();
         StopTreeRevealTimer();
-        if (!_dropTarget.CanAcceptDrop(e.Data)) { _dropHighlight.Clear(); return; }
-
-        var node = ResolveTreeNodeUnderMouse(e);
-        var destination = node?.FullPath ?? ViewModel.CurrentPath;
-
-        // Belt and braces: nothing may escape an IDropTarget::Drop callback. A fault here is an unhandled
-        // UI-thread exception that abandons the rest of the drop with only a generic toast to show for it,
-        // which is one of the ways a folder drop used to disappear without explanation.
-        try
-        {
-            if (string.IsNullOrEmpty(destination)) _dropHighlight.Clear();
-            else                                   CompleteDrop(e, destination);
-        }
-        catch (Exception ex)
-        {
-            _dropHighlight.Clear();
-            ViewModel.ReportError(ex.Message);
-        }
-
-        e.Handled = true;
-    }
-
-    private FileSystemTreeNode? ResolveTreeNodeUnderMouse(DragEventArgs e)
-    {
-        if (e.OriginalSource is not DependencyObject src) return null;
-        var element = src;
-        while (element is not null && element is not TreeViewItem)
-            element = VisualTreeHelper.GetParent(element);
-        return (element as TreeViewItem)?.DataContext as FileSystemTreeNode;
+        if (_pendingChoice is null) _dropHighlight.Clear();   // else it is the menu's to take down
     }
 
     // ── Tree: reveal a node whose left edge is scrolled out of sight ──────────
@@ -1239,9 +1154,8 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     /// the ground under the pointer, so it does the least that makes the row readable.
     /// </para>
     /// </summary>
-    private void ScheduleTreeReveal(DragEventArgs e)
+    private void ScheduleTreeReveal(TreeViewItem? node)
     {
-        var node = ContainerUnderMouse<TreeViewItem>(e);
         if (ReferenceEquals(node, _treeRevealCandidate)) return;   // still the same row — let it run on
 
         _treeRevealCandidate = node;
@@ -1296,104 +1210,14 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         return null;
     }
 
-    private void OnDragLeave(object sender, DragEventArgs e) => EndDropFeedback();
-
-    // ── Drop tooltip Popup ────────────────────────────────────────────────
-    private void ShowDropTooltip(string text, DragEventArgs e)
-    {
-        var pos = e.GetPosition(this);
-        DropTooltipPopup.HorizontalOffset = pos.X + 14;
-        DropTooltipPopup.VerticalOffset   = pos.Y + 18;
-        DropTooltipText.Text              = text;
-        DropTooltipPopup.IsOpen           = true;
-    }
-
-    private void HideDropTooltip() => DropTooltipPopup.IsOpen = false;
-
-    /// <summary>
-    /// Stops saying what a drop would do. The tooltip always goes; the destination wash goes with it
-    /// unless a choice menu is about to be shown on that very destination, which is why the drop path
-    /// clears the two separately (see <see cref="CompleteDrop"/>).
-    /// </summary>
+    /// <summary>Stops saying where a drop would land.</summary>
     private void EndDropFeedback()
     {
-        HideDropTooltip();
         _dropHighlight.Clear();
         StopTreeRevealTimer();
     }
 
     // ── Drop: right-drag asks, left-drag is told ──────────────────────────────
-
-    /// <summary>
-    /// Whether the drag in flight wants to be asked, and the target that can answer.
-    /// <para>
-    /// The answer comes from <see cref="_dropChoice"/> rather than from the drop's own key state,
-    /// because the drop is the moment the button was released and so reports no button at all.
-    /// </para>
-    /// </summary>
-    private IDropChoiceTarget? OfferedChoice()
-        => _dropChoice.OffersChoice ? _dropTarget as IDropChoiceTarget : null;
-
-    /// <summary>The row container under the cursor, whatever kind of list it belongs to.</summary>
-    private static T? ContainerUnderMouse<T>(DragEventArgs e) where T : DependencyObject
-    {
-        if (e.OriginalSource is not DependencyObject src) return null;
-
-        var element = src;
-        while (element is not null and not T)
-            element = VisualTreeHelper.GetParent(element);
-
-        return element as T;
-    }
-
-    /// <summary>The directory row under the cursor, or null over a file row or the list background.</summary>
-    private static FileSystemEntry? FolderEntryUnderMouse(DragEventArgs e)
-        => ContainerUnderMouse<ListViewItem>(e) is { DataContext: FileSystemEntry { IsDirectory: true } entry }
-            ? entry
-            : null;
-
-    /// <summary>
-    /// Washes whichever row a drop would land in, so the destination is shown rather than spelled out.
-    /// A tree node is adorned on its header alone — adorning the item would cover its whole subtree.
-    /// </summary>
-    private void HighlightDropRow(DragEventArgs e, bool fromTree)
-    {
-        if (!fromTree)
-        {
-            var row = ContainerUnderMouse<ListViewItem>(e);
-            _dropHighlight.Show(row?.DataContext is FileSystemEntry { IsDirectory: true } ? row : null);
-            return;
-        }
-
-        var node = ContainerUnderMouse<TreeViewItem>(e);
-        _dropHighlight.Show(node is null ? null : node.Template?.FindName("RowBorder", node) as UIElement ?? node);
-    }
-
-    private void CompleteDrop(DragEventArgs e, string destination)
-    {
-        if (OfferedChoice() is { } choices)
-        {
-            // Captured now, asked later. The data object dies with this callback, and a menu opened
-            // inside it would block the OLE drop on a thread with no message pump — the very failure the
-            // drop path was restructured to avoid. The destination wash is deliberately left up: with the
-            // folder name out of the menu's labels it is the only thing saying where "here" is, so it
-            // comes down when the menu is answered, not when the menu appears.
-            if (choices.Capture(e.Data, destination) is { } plan)
-            {
-                _pendingChoice = (choices, plan);
-                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, AskPendingChoice);
-            }
-            else
-            {
-                _dropHighlight.Clear();
-            }
-
-            return;
-        }
-
-        _dropHighlight.Clear();
-        _dropTarget.Drop(e.Data, destination, move: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
-    }
 
     /// <summary>
     /// Puts the captured question to the user — but never while our own drag is still on the stack.
@@ -1412,7 +1236,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         if (_pendingChoice is not { } pending) return;
 
         _pendingChoice = null;
-        ShowDropChoiceMenu(pending.Target, pending.Plan);
+        ShowDropChoiceMenu(pending);
     }
 
     /// <summary>
@@ -1425,7 +1249,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     /// say what the highlight already says, and says it worse.
     /// </para>
     /// </summary>
-    private void ShowDropChoiceMenu(IDropChoiceTarget choices, DropPlan plan)
+    private void ShowDropChoiceMenu(DropPlan plan)
     {
         var textBrush     = (Brush)Application.Current.Resources["TextBrush"];
         var surface2Brush = (Brush)Application.Current.Resources["Surface2Brush"];
@@ -1444,14 +1268,14 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             if (answered) return;
             answered = true;
             _dropHighlight.Clear();
-            if (choice is { } made) choices.Execute(plan, made);
+            if (choice is { } made) _dropTarget.Execute(plan, made);
         }
 
         menu.Items.Add(BuildMenuItem(IconRef.Emoji("📋"), Str.Get("WindowsFileSystem.Drop.CopyHere"),
-            new RelayCommand(() => Answer(DropChoice.Copy), () => choices.CanExecute(plan, DropChoice.Copy)),
+            new RelayCommand(() => Answer(DropChoice.Copy), () => _dropTarget.CanExecute(plan, DropChoice.Copy)),
             textBrush, surface2Brush));
         menu.Items.Add(BuildMenuItem(IconRef.Emoji("➡"), Str.Get("WindowsFileSystem.Drop.MoveHere"),
-            new RelayCommand(() => Answer(DropChoice.Move), () => choices.CanExecute(plan, DropChoice.Move)),
+            new RelayCommand(() => Answer(DropChoice.Move), () => _dropTarget.CanExecute(plan, DropChoice.Move)),
             textBrush, surface2Brush));
         menu.Items.Add(BuildMenuSeparator());
         menu.Items.Add(BuildMenuItem(IconRef.Emoji("✕"), Str.Get("WindowsFileSystem.Common.Cancel"),

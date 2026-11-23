@@ -67,7 +67,7 @@ public class ImageModelTests
         var steps = replies.OfType<Progress>().Where(p => p.Stage == DrawHandler.Drawing && p.Done > 0).Select(p => p.Done).ToArray();
         CollectionAssert.AreEqual(Enumerable.Range(1, 9).Select(i => (long)i).ToArray(), steps, "each denoising step is reported as it finishes");
 
-        var png = replies.OfType<Drawn>().Single().Png;
+        var png = replies.OfType<Drawn>().Single().AsPng();
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, "drawn-fox.png");
         File.WriteAllBytes(saved, png);
         TestContext.AddResultFile(saved);   // to look at: the test checks its shape, a person checks what it shows
@@ -98,7 +98,7 @@ public class ImageModelTests
         {
             await foreach (var reply in client.SendAsync(id => new Draw(id, drawing, "A red fox asleep in the snow, watercolour.", 1024, 1024, 7, RequestPriority.Job),
                                                          TimeSpan.FromMinutes(5)))
-                if (reply is Drawn drawn) return PngReader.Read(drawn.Png);
+                if (reply is Drawn drawn) return PngReader.Read(drawn.AsPng());
             throw new AssertFailedException("nothing was drawn");
         }
 
@@ -124,7 +124,7 @@ public class ImageModelTests
         {
             byte[]? png = null;
             await foreach (var reply in client.SendAsync(id => new Draw(id, model, "A lighthouse at dusk.", 1024, 1024, 99, RequestPriority.Job), TimeSpan.FromMinutes(5)))
-                if (reply is Drawn drawn) png = drawn.Png;
+                if (reply is Drawn drawn) png = drawn.AsPng();
             return png!;
         }
 

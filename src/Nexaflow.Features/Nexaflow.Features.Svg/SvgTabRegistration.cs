@@ -3,7 +3,6 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Svg.Loaders;
 using Nexaflow.Features.Svg.ViewModels;
-using Nexaflow.Features.Svg.Views;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Svg;
@@ -36,7 +35,7 @@ public sealed class SvgTabRegistration : IPageRegistration
         {
             Title = title,
             Icon = "🎨",
-            ContentFactory = () => new SvgView(new SvgViewModel(path, _vfs, _loader)),
+            ViewModelFactory = () => new SvgViewModel(path, _vfs, _loader),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;

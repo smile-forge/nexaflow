@@ -160,12 +160,12 @@ internal sealed class XyBuilder : ContentBuilder
         {
             switch (part.Kind)
             {
-                case XyKinds.Orientation when part.Text.Equals(XyGrammar.Horizontal, StringComparison.OrdinalIgnoreCase):
+                case XyKinds.Orientation when part.Text.Equals(XyParser.Horizontal, StringComparison.OrdinalIgnoreCase):
                     orientation = XyOrientation.Horizontal;
                     break;
 
                 case XyKinds.Axis when Word(part) is { } word:
-                    if (word.Equals(XyGrammar.XAxis, StringComparison.OrdinalIgnoreCase)) x = Axised(part);
+                    if (word.Equals(XyParser.XAxis, StringComparison.OrdinalIgnoreCase)) x = Axised(part);
                     else y = Axised(part);
                     break;
 
@@ -214,7 +214,7 @@ internal sealed class XyBuilder : ContentBuilder
                          })
                          .ToList() ?? [];
 
-        var kind = word.Equals(XyGrammar.Line, StringComparison.OrdinalIgnoreCase) ? Drawn.Line : Drawn.Bar;
+        var kind = word.Equals(XyParser.Line, StringComparison.OrdinalIgnoreCase) ? Drawn.Line : Drawn.Bar;
         return new Series(part, kind, name.Words(), name.Hole(), points, order, colour);
     }
 

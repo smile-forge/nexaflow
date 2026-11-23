@@ -92,7 +92,7 @@ if ($LASTEXITCODE) { throw 'The build failed.' }
 & $py -I -X utf8 (Join-Path $Here 'depth_reference.py') $weights $upstream (Join-Path $Work 'reference') @pictures
 if ($LASTEXITCODE) { throw 'The reference could not be made.' }
 
-& $py -I -X utf8 (Join-Path $Here 'resampling_reference.py') (Join-Path $Work 'depth-resampling-reference.json')
+& $py -I -X utf8 (Join-Path $Here 'resampling_reference.py') (Join-Path $Work 'depth-cubic-reference.json') (Join-Path $Work 'depth-resampling-reference.json')
 if ($LASTEXITCODE) { throw 'The resampling reference could not be made.' }
 
 $target = Join-Path $Out 'estimator'

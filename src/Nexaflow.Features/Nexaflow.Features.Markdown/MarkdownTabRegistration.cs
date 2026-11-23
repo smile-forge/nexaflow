@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
-using Nexaflow.Features.Markdown.Views;
 using Nexaflow.IO.Common;
 using System;
 using System.Collections.Generic;
@@ -46,12 +45,12 @@ public sealed class MarkdownTabRegistration(IShellServices shell, IAIService ai,
             // Where in the document to land says nothing about which document it is: a tab open on it is brought forward and moved there.
             LocationParams = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "heading", PlaceParameter },
         };
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var viewModel = new MarkdownViewModel(filePath, shell, vfs, heading, draft, ai, place);
             viewModel.Moved += moved => Follow(page, moved);
             page.Closed     += (_, _) => viewModel.Release();
-            return new MarkdownView(viewModel);
+            return viewModel;
         };
         page.SetFileBreadcrumbs(filePath, title);
         return page;

@@ -218,7 +218,7 @@
 
             <TreeView x:Name="Tree" Grid.Column="0" ItemsSource="{Binding Roots}" AutomationProperties.AutomationId="Store_Tree"
                       ItemContainerStyle="{StaticResource FolderItem}" Background="{StaticResource Surface2Brush}" BorderThickness="0" Padding="2,4"
-                      AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop" ContextMenuOpening="OnTreeContextMenuOpening"
+                      ContextMenuOpening="OnTreeContextMenuOpening"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <TreeView.InputBindings>
                     <KeyBinding Key="F2" Command="{Binding RenameCommand}" CommandParameter="{Binding SelectedItem, ElementName=Tree}" />
@@ -242,7 +242,7 @@
                       b:ListActivation.Command="{Binding OpenCommand}" b:ListCopy.Enabled="True" b:ListSelection.ClearOnBlankClick="True"
                       Background="{StaticResource Surface2Brush}" BorderThickness="0"
                       ItemContainerStyle="{StaticResource EntryRow}"
-                      AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop" ContextMenuOpening="OnEntriesContextMenuOpening"
+                      ContextMenuOpening="OnEntriesContextMenuOpening"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListView.InputBindings>
                     <KeyBinding Key="Back" Command="{Binding UpCommand}" />

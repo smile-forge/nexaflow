@@ -3,7 +3,7 @@ using Nexaflow.Features.WslShell.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Shells;
-using Nexaflow.Visuals.Terminal.Views;
+
 
 namespace Nexaflow.Features.WslShell;
 
@@ -34,12 +34,7 @@ public sealed class WslShellTabRegistration(IShellServices shell, IAIService ai,
             PageParams  = new Dictionary<string, string> { ["path"] = folder },
             Breadcrumbs = { new BreadcrumbSegment { Label = title } },
         };
-        tab.ContentFactory = () =>
-        {
-            var vm = new WslShellViewModel(TerminalShellRoute.ForLocationShell(files, folder), shell, ai) { Tab = tab };
-            tab.Closed += (_, _) => vm.Dispose();
-            return new TerminalView(vm);
-        };
+        tab.ViewModelFactory = () => new WslShellViewModel(TerminalShellRoute.ForLocationShell(files, folder), shell, ai) { Tab = tab };
         return tab;
     }
 }

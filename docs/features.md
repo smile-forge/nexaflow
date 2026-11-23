@@ -13,15 +13,15 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 |------|----------|------|
 | Create project | yes | `net10.0-windows` WPF class library, reference `Features.Common` |
 | `IPageRegistration` | yes | Factory that produces a `Page` (expose `static string StaticPageKind`) |
-| `IPageView` on your `UserControl` | recommended | Shell lifecycle handle: `ViewModel` property + `Reinitialize` |
-| `IPageViewModel` on your ViewModel | recommended | AI pipeline contract: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` |
+| `IPageViewModel` on your ViewModel | yes | What the page is: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant`, `Reinitialize` |
+| `[ViewFor(typeof(YourViewModel))]` on your view | yes | The view that draws it, with one constructor taking the view-model |
 | Add project reference in `Nexaflow.Core.csproj` | yes | So the feature DLL ships and `FeatureManager` reflection-discovers it at startup |
 | Add a default-button entry in `src/Nexaflow.Core/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
 | Help page | recommended | `Localization/en/help/<StaticPageKind>.md` in your project — what the page can do, shown by the Help pane beside it; snaplink it as the feature's `docs` concern ([localization.md](localization.md#help-pages)) |
 | `IQueryHandler` | optional | Handle AI input bar text |
 | `IFileAction` / `IFolderAction` | optional | File browser context actions |
-| `IKeyboardHandler` / `IDropTarget` | optional | Global keyboard shortcuts / file drag-drop |
+| `IKeyboardHandler` / `IDropTarget` | optional | Global keyboard shortcuts / what can be dropped on the page |
 
 The wiring steps that used to fail silently are now **enforced**: `Nexaflow.Tests.Features/Architecture/FeatureTouchPointTests`
 goes red naming any feature directory missing its `Nexaflow.Core.csproj` or `Nexaflow.Tests.Features.csproj`
@@ -49,8 +49,8 @@ The one required contract. `FeatureManager.RegisterFeatures()` discovers it by r
 any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`, and its `IAIService`.
 
 - `CreatePageDefinition` must be **cheap and side-effect-free** — the shell builds definitions speculatively
-  just to read `Title`/`Icon` (menus, the AI "add context" list) and may discard them. Build the view-model and
-  view **inside the `ContentFactory` closure**, which runs lazily on first activation.
+  just to read `Title`/`Icon` (menus, the AI "add context" list) and may discard them. Build the view-model
+  **inside the `ViewModelFactory` closure**, which runs lazily on first need. The registration never names a view.
 - Advertise `Parameters` so the shell/AI can describe how to open the page; set
   `CanBeContextItem` / `CreatePageDefinitions` for pages (or page variants) offered in those menus.
 - Canonical examples: `Nexaflow.Features.Text/TextTabRegistration.cs` (plain single-file viewer);
@@ -58,11 +58,14 @@ any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`,
 
 ---
 
-## View & ViewModel — `IPageView` / `IPageViewModel`
+## View & ViewModel — `IPageViewModel` / `[ViewFor]`
 
-`IPageView` on the tab `UserControl` exposes its `ViewModel` and the `Reinitialize(pageParams)` hook — called
-on first activation **and** whenever the shell routes the tab a new param set (including re-clicking the active
-tab). `IPageViewModel` on the ViewModel is the AI-pipeline contract (`GetContext`, `GetClientTools`,
+The page is its view-model. `IPageViewModel.Reinitialize(pageParams)` is called whenever the shell routes the page a
+new param set (including re-clicking the active tab). The view is marked `[ViewFor(typeof(YourViewModel))]`
+(`Nexaflow.Visuals.Common.Viewing`), takes the view-model in its one constructor, and is made by Core when the page is
+first shown; nothing else refers to it, so no contract a page implements is WPF's. Anything a registration or the
+shell needs from the page — navigation, a title change, a page to open — comes from the view-model, never the view.
+`IPageViewModel` is also the AI-pipeline contract (`GetContext`, `GetClientTools`,
 `GetContextObject`, plus security-scope / readiness defaults — see its XML doc). A page that shows files says which
 with `GetContextGrant` — its file, its pictures, the folder it is in — and every assistant tool that takes a path is held
 to it ([Architecture.md → What a tool may reach on disk](Architecture.md#what-a-tool-may-reach-on-disk));
@@ -259,8 +262,15 @@ data beyond the `GetContext()` string. Handlers gate on it with a type check —
 
 ## Keyboard & drag-drop — `IKeyboardHandler` / `IDropTarget`
 
-Implement on the `UserControl` or ViewModel. The shell calls `CanProcessKey` / `CanAcceptDrop` before acting,
-so checks stay side-effect-free; it only queries the **active** page.
+Implement either on the `UserControl` or the ViewModel. Neither contract is WPF's (`Nexaflow.Interaction`).
+
+- **Keys:** the shell calls `CanProcessKey` before acting, on the **active** page only, with a `ConsoleKey` and
+  `KeyModifiers`.
+- **Drops:** the window's router finds the target under the pointer, so never set `AllowDrop` or handle a drag event
+  for one. Name the kinds taken in `AcceptedKinds`, answer `OfferDrop` without side effects, and read the payload in
+  `AcceptDrop` before the first await. An area of a view is given a target with `DropSurface.Target`. The rules:
+  [Architecture.md → `IDropTarget`](Architecture.md#idroptarget--drag-and-drop). Canonical examples:
+  `CompressedViewModel.Dropping.cs` (a whole page, from its ViewModel), `PostItControl` (one control).
 
 ---
 
@@ -348,8 +358,8 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | Interface | What it's for |
 |---|---|
 | `IPageRegistration` | Advertises one page kind; the cheap `CreatePageDefinition` factory the shell discovers by reflection. |
-| `IPageView` | Implemented by a tab `UserControl` — exposes its ViewModel and the `Reinitialize` lifecycle hook. |
-| `IPageViewModel` | The AI-pipeline contract on a ViewModel: context string, client tools, typed context, security scope. |
+| `IPageViewModel` | What a page is, on its view-model: context string, client tools, typed context, security scope, `Reinitialize`. |
+| `PlaceholderViewModel` | A page that only says why it is empty. |
 | `IContext` (+ `FileSystemContext`) | Marker for a strongly-typed context object a page offers to query handlers. |
 | `IContextItemReceiver` | A page VM that can receive another open page as a live context item (the conversation page). |
 | `IAirspaceContent` | A page hosting a native HWND child (e.g. WebView2) that must hide itself while a modal overlay covers it. |
@@ -360,7 +370,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IAIService` | Per-workspace AI service: the agent loop, conversation store, handler scoring, analysis. Injected like `IShellServices`. |
 | `IClientTool` | A locally-executed tool a page/shell exposes to the agent (use `DelegateClientTool` for one-liners). |
 | `IAIResponseHandler` | The sink the agent loop drives for all response UI (progress, approval, final). Default = shell overlay; a VM can implement it to render inline. |
-| `IChatEngagement` | A page VM opting to host AI responses in an inline banner instead of the modal overlay. |
+
 | `IQueryHandler` | Intercepts AI-input-bar text before the LLM (`Symbol` prefix / `CanProcess` score). Global or page-scoped. |
 
 ### AI input bar — key / preview / drop handlers (`Services/`)
@@ -378,9 +388,9 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IFileWatch` | Handle from `IShellServices.WatchFile`; `Enabled = false` holds + coalesces callbacks, dispose to unwatch. |
 | `IBackgroundTask` | Self-contained background work handed to `IShellServices.QueueBackgroundTask` (runs off the UI thread). |
 | `IShellAware` | A custom config-editor control that needs the shell handed to it (for the themed file/folder pickers). |
-| `IGenericObjectHandler` | "Do the default thing with this object" (open a path / URL, a `FileByteRange`, a `DraftFile`) — the non-drag sibling of `IDropTarget`. |
+| `IGenericObjectHandler` | "Do the default thing with this object" (open a path / URL, a `FileByteRange`, a `FileViewRequest`, a `DraftFile`). |
 | `IKeyboardHandler` | Claims global keyboard shortcuts; queried against the active page before the key is consumed. |
-| `IDropTarget` | Accepts file drag-drop; resolved from the active page by the file browser. |
+| `IDropTarget` (`Nexaflow.Interaction`) | Takes drops on a page, a control or an area; found under the pointer by the window's `DropRouter`. |
 
 ### File & folder actions (`FileActions/`) — discovered by `FileSystemFeatureRegistry`
 | Interface | What it's for |
@@ -403,9 +413,9 @@ long as the user keeps the icon it was pinned with.
 ### Folder viewlets (`Viewlets/`)
 | Interface | What it's for |
 |---|---|
-| `IFolderViewlet` | Inline view shown above the file list when the open folder matches (Git status, .NET build). |
-| `IViewletController` | Host handle passed to a viewlet's `CreateView` — read/set its display mode. |
-| `IViewletAiSurface` | Optional: a viewlet view feeding folder-specific context + tools into the host page's AI surface. |
+| `IFolderViewlet` | Shown above the file list when the open folder matches (Git status, .NET build): `CreateViewModel` returns its view-model, drawn by the view marked `[ViewFor]` it, which may also be its `IViewletAiSurface` / `IViewletQuiescible`. |
+| `IViewletController` | Host handle passed to a viewlet's `CreateViewModel` — read/set its display mode. |
+| `IViewletAiSurface` | Optional: a viewlet's view-model feeding folder-specific context + tools into the host page's AI surface. |
 
 ### Ribbon pinning (`Ribbon/`)
 | Interface | What it's for |

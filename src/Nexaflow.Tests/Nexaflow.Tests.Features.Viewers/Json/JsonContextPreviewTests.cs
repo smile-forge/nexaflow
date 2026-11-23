@@ -70,7 +70,7 @@ public class JsonContextPreviewTests
 
         UiThread.Run(() =>
         {
-            Assert.IsInstanceOfType(vm.CreateContextPreview(), typeof(ReadOnlyTextPreview));
+            Assert.IsInstanceOfType(vm.CreateContextPreview(), typeof(TextContextPreview));
             var whole = ContextPreviewProbe.VisibleTexts(vm.CreateContextPreview());
             Assert.AreEqual(vm.FileSizeText, whole[0], "nothing selected: no path to name, and the panel's header names the file");
             StringAssert.StartsWith(whole[1], "\"name\": \"nexaflow\"");

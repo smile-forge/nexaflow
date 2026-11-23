@@ -688,10 +688,10 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// have: only the grid views request thumbnails, and a single image never leaves the carousel. The request
     /// is the page's own (made once, shared with the album, cancelled with the page), not the preview's.
     /// </remarks>
-    public UserControl CreateContextPreview()
+    public object CreateContextPreview()
     {
         EnsureThumbnailsRequested();
-        return new ImageContextPreview { DataContext = this };
+        return new PagePreview<ImageViewModel>(this);
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────
@@ -783,8 +783,15 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             async (_, ct) => await ReadPageToolAsync(ct)),
     ];
 
-    /// <summary>The tab showing the pictures, set by its view: what opens beside it opens in its window.</summary>
-    public IPageView? Host { get; set; }
+    /// <summary>The tab showing the pictures, set by its registration: what opens beside it opens in its window.</summary>
+    public Nexaflow.Features.Common.Page? Host { get; set; }
+
+    /// <summary>A re-open that names a sub-view shows the pictures that way.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue("view", out var view))
+            ViewMode = ImageTabRegistration.ParseView(view);
+    }
 
     /// <summary>The picture on screen read as a page — or found read before — for the assistant.</summary>
     private async Task<ToolResult> ReadPageToolAsync(CancellationToken ct)

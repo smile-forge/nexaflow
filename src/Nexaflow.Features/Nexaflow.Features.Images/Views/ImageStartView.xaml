@@ -3,6 +3,7 @@
              xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:Nexaflow.Features.Images.Views"
+                          xmlns:viewing="clr-namespace:Nexaflow.Visuals.Common.Viewing;assembly=Nexaflow.Visuals.Common"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="Images_Start">
@@ -61,7 +62,7 @@
                     <StackPanel>
                         <TextBlock Text="{loc:Str Images.Start.Generate}" Style="{StaticResource StartHeading}"/>
                         <StackPanel Visibility="{Binding OffersGeneration, Converter={StaticResource BoolVis}}">
-                            <ContentControl Content="{Binding Generation.View}" Focusable="False"/>
+                            <viewing:ModelHost Model="{Binding Generation}" Focusable="False"/>
                             <Button Command="{Binding GenerateCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" HorizontalAlignment="Left" Margin="0,14,0,0" Padding="16,5"
                                     Visibility="{Binding Generation.IsReady, Converter={StaticResource BoolVis}}"
                                     ToolTip="{loc:Str Images.Start.GenerateTip}" AutomationProperties.AutomationId="Images_StartGenerate">

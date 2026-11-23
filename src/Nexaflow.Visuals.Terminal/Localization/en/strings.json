@@ -13,7 +13,9 @@
   "Terminal.Console.Header": "Console",
   "Terminal.Console.Copy": "Copy",
   "Terminal.Console.Paste": "Paste",
-  "Terminal.Console.NeedsAttention": "Console: a background command needs your attention — open the tab to see it.",
+  "Terminal.Console.RunningFormat": "Running {0} in the console",
+  "Terminal.Console.FinishedFormat": "{0} finished",
+  "Terminal.Console.WaitingFormat": "{0} is waiting for input",
   "Terminal.Console.Unreachable": "This shell cannot reach '{0}'.",
 
   "Terminal.EnvEdit.Header": "Environment variable",

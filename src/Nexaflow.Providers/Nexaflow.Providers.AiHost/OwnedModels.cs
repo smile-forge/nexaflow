@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Imaging;
+
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Providers.AiHost;
 
@@ -224,42 +226,10 @@ internal sealed record OwnedSampler(DrawingMethod Method, int Steps, float Shift
                                    bool NegativePrompts = false, OwnedEditing? Editing = null);
 
 /// <summary>
-/// How a model works from pictures: how many it reads, whether a mask over the first keeps what it does not cover, and
-/// the size it reads each at — its own proportions, within <paramref name="Pixels"/>, each side a multiple of
-/// <paramref name="Multiple"/>, by its <paramref name="Sizing"/>. A picture made from them is the first one's size.
+/// How a model works from pictures: how many it reads, and whether a mask over the first keeps what it does not cover. The
+/// size it reads each at is its own, and the host's to apply; a picture made from them is drawn at the first one's.
 /// </summary>
-internal sealed record OwnedEditing(int Sources, bool Masks, int Pixels, int Multiple, OwnedSizing Sizing = OwnedSizing.Within)
-{
-    /// <summary>The size a picture <paramref name="width"/> × <paramref name="height"/> is read at — its proportions kept
-    /// to within the multiple.</summary>
-    public (int Width, int Height) SizeOf(int width, int height)
-    {
-        if (Sizing == OwnedSizing.Filled) return PatchFitting.SizeOf(width, height, (int)Math.Sqrt(Pixels), Multiple);
-        if (Sizing == OwnedSizing.Rounded)
-        {
-            double ratio = (double)width / height, w = Math.Sqrt(Pixels * ratio), h = w / ratio;
-            return ((int)Math.Round(w / Multiple) * Multiple, (int)Math.Round(h / Multiple) * Multiple);
-        }
-        double scale = Math.Min(1.0, Math.Sqrt((double)Pixels / ((long)width * height)));
-        int Fit(int side) => Math.Max(Multiple, (int)(side * scale) / Multiple * Multiple);
-        return (Fit(width), Fit(height));
-    }
-}
-
-/// <summary>How a model that works from pictures sizes each to its pixels.</summary>
-internal enum OwnedSizing
-{
-    /// <summary>Scaled down, never up, to within them, each side then cut to the multiple — as diffusers' pipelines do.</summary>
-    Within,
-
-    /// <summary>Scaled up or down to fill them, the largest size of whole multiples within them — as HiDream-O1 reads
-    /// every picture (<see cref="PatchFitting"/>); its pixels a square's.</summary>
-    Filled,
-
-    /// <summary>Scaled up or down to about them, each side rounded to the multiple — as Qwen-Image-Edit's
-    /// calculate_dimensions sizes every picture.</summary>
-    Rounded,
-}
+internal sealed record OwnedEditing(int Sources, bool Masks);
 
 /// <summary>
 /// A LoRA an image model draws with when asked, as its makers apply it: unmerged, at <paramref name="Strength"/>, its
@@ -337,7 +307,7 @@ internal static partial class OwnedModels
     private sealed record Choice(float Temperature, int TopK, float TopP, float PresencePenalty);
     private sealed record Sampler(DrawingMethod? Method, int Steps, float Shift, float Guidance, Dictionary<string, int[]>? Sizes, bool NegativePrompts,
                                   Editing? Editing);
-    private sealed record Editing(int Sources, bool Masks, int Pixels, int Multiple, OwnedSizing Sizing = OwnedSizing.Within);
+    private sealed record Editing(int Sources, bool Masks);
     private sealed record Voice(string? Language, string? Part, string? File, string? Lexicon);
     private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
@@ -491,12 +461,9 @@ internal static partial class OwnedModels
         OwnedEditing? editing = null;
         if (s.Editing is { } e)
         {
-            if (e is not { Sources: > 0, Pixels: > 0, Multiple: > 0 })
-                throw new InvalidDataException($"Owned model '{modelId}' works from pictures without saying how many, or at what size.");
-            int side = (int)Math.Sqrt(e.Pixels);
-            if (e.Sizing == OwnedSizing.Filled && (long)side * side != e.Pixels)
-                throw new InvalidDataException($"Owned model '{modelId}' fills pictures to {e.Pixels} pixels, which is no square's.");
-            editing = new OwnedEditing(e.Sources, e.Masks, e.Pixels, e.Multiple, e.Sizing);
+            if (e.Sources <= 0)
+                throw new InvalidDataException($"Owned model '{modelId}' works from pictures without saying how many.");
+            editing = new OwnedEditing(e.Sources, e.Masks);
         }
         return new OwnedSampler(method, s.Steps, s.Shift, s.Guidance, sizes, s.NegativePrompts, editing);
     }

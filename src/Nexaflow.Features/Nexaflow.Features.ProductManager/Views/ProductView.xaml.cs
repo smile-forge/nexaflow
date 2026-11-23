@@ -9,10 +9,12 @@ using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Visuals.Common.Controls;
 using System.Windows.Controls.Primitives;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.ProductManager.Views;
 
-public partial class ProductView : UserControl, IPageView
+[ViewFor(typeof(ProductViewModel))]
+public partial class ProductView : UserControl
 {
     public ProductViewModel ViewModel { get; }
 
@@ -27,37 +29,11 @@ public partial class ProductView : UserControl, IPageView
         Sunburst.ArcRightClicked += (_, e)  => ShowNodeMenu(e.Id);
     }
 
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    /// <summary>Deep-link: the Integrity page asks this tab to focus the node owning a broken snaplink.
-    /// (An existing Product tab, whose params are just <c>path</c>, is adopted and re-initialised.)</summary>
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("node", out var nodeId) && !string.IsNullOrWhiteSpace(nodeId))
-            ViewModel.NavigateTo(nodeId);
-    }
-
     private void AddRoot_Click(object sender, RoutedEventArgs e) => ViewModel.AddChild(null);
 
     // Snaplink picker: bridge the read-only TreeView.SelectedItem to the picker VM.
     private void PickerTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         => ViewModel.Picker?.SelectFile(e.NewValue as FileNode);
-
-    // "Drop URL here" target in the Link URL tab.
-    private void UrlDrop_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(DataFormats.UnicodeText) || e.Data.GetDataPresent(DataFormats.Text)
-            ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void UrlDrop_Drop(object sender, DragEventArgs e)
-    {
-        var url = e.Data.GetData(DataFormats.UnicodeText) as string
-                  ?? e.Data.GetData(DataFormats.Text) as string;
-        if (url is not null) ViewModel.SetDroppedUrl(url);
-        e.Handled = true;
-    }
 
     // Version actions (⋮). Flat menu, per the global MenuItem-style submenu caveat.
     private void VersionMenu_Click(object sender, RoutedEventArgs e)

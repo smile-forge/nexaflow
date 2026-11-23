@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid.Gantt;
 [CoversNode("gantt-ast")]
 public class GanttStagesTests
 {
-    private static GanttBlockNode Chart(string source) => (GanttBlockNode)MermaidStaged.Read(source);
+    private static GanttBlockNode Chart(string source) => (GanttBlockNode)GanttParserTests.Staged(source);
 
     private static IReadOnlyList<(string Says, GanttTaskNode Task)> Tasks(ContentNode chart) =>
         [.. chart.SelfAndDescendants().OfType<GanttTaskNode>().Select(task => (Said(task), task))];
@@ -26,7 +26,7 @@ public class GanttStagesTests
     [TestMethod]
     public void ATaskStartsWhenItSaysOrWhenTheOneBeforeItEnds_AndEndsADateOrALengthLater()
     {
-        var chart = Chart(GanttGrammarTests.First);
+        var chart = Chart(GanttParserTests.First);
 
         Assert.AreEqual((new DateTime(2014, 1, 1), new DateTime(2014, 1, 31)), (Task(chart, "A task").Start, Task(chart, "A task").End));
         Assert.AreEqual((new DateTime(2014, 1, 31), new DateTime(2014, 2, 20)), (Task(chart, "Another task").Start, Task(chart, "Another task").End), "after a1");
@@ -56,7 +56,7 @@ public class GanttStagesTests
     [TestMethod]
     public void UntilWaitsForATaskWrittenAfterIt()
     {
-        var chart = Chart(GanttGrammarTests.Syntax);
+        var chart = Chart(GanttParserTests.Syntax);
 
         Assert.AreEqual(new DateTime(2014, 1, 27), Task(chart, "Add to mermaid").End, "the milestone starts on Saturday the 25th, and an end that is no date is pushed past the weekend");
         Assert.AreEqual(17, Tasks(chart).Count);
@@ -65,7 +65,7 @@ public class GanttStagesTests
     [TestMethod]
     public void ExcludedDaysPushALengthsEndOn_ButNotADatesEnd()
     {
-        var chart = Chart(GanttGrammarTests.Syntax);
+        var chart = Chart(GanttParserTests.Syntax);
 
         Assert.AreEqual(new DateTime(2014, 1, 14), Task(chart, "Active task").End, "three days from Thursday, over a weekend");
         Assert.AreEqual(new DateTime(2014, 1, 8), Task(chart, "Completed task").End, "an end written as a date stays");

@@ -38,21 +38,21 @@ public sealed class ResolveOptions(RadarConfig config) : IAstStage
                 options[word.Text] = node;
         }
 
-        var min = options.GetValueOrDefault(RadarGrammar.Min).Number() ?? 0;
-        var max = options.GetValueOrDefault(RadarGrammar.Max).Number() ?? greatest ?? min;
+        var min = options.GetValueOrDefault(RadarParser.Min).Number() ?? 0;
+        var max = options.GetValueOrDefault(RadarParser.Max).Number() ?? greatest ?? min;
 
-        if ((options.GetValueOrDefault(RadarGrammar.Graticule) ?? options.GetValueOrDefault(RadarGrammar.Ticks)) is { } shaping)
+        if ((options.GetValueOrDefault(RadarParser.Graticule) ?? options.GetValueOrDefault(RadarParser.Ticks)) is { } shaping)
             tree = AstRewrite.Each(tree, node => ReferenceEquals(node, shaping) ? new RadarShapingNode(node) : node);
 
         return new RadarBlockNode(tree, config)
         {
             Min = min,
             Max = max > min ? max : min + 1,
-            Ticks = options.GetValueOrDefault(RadarGrammar.Ticks).Number() is { } ticks ? (int)ticks : Rings,
-            Graticule = string.Equals(Setting(options.GetValueOrDefault(RadarGrammar.Graticule)), RadarGrammar.Polygon, StringComparison.OrdinalIgnoreCase)
+            Ticks = options.GetValueOrDefault(RadarParser.Ticks).Number() is { } ticks ? ticks : Rings,
+            Graticule = string.Equals(Setting(options.GetValueOrDefault(RadarParser.Graticule)), RadarParser.Polygon, StringComparison.OrdinalIgnoreCase)
                 ? RadarGraticule.Polygon
                 : RadarGraticule.Circle,
-            ShowsLegend = !string.Equals(Setting(options.GetValueOrDefault(RadarGrammar.ShowLegend)), "false", StringComparison.OrdinalIgnoreCase),
+            ShowsLegend = !string.Equals(Setting(options.GetValueOrDefault(RadarParser.ShowLegend)), "false", StringComparison.OrdinalIgnoreCase),
         };
     }
 

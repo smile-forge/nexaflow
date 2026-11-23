@@ -4,7 +4,6 @@ using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Dicom.Services;
 using Nexaflow.Features.Dicom.ViewModels;
-using Nexaflow.Features.Dicom.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -59,11 +58,10 @@ public sealed class DicomTabRegistration : IPageRegistration
             ? new Dictionary<string, string>(pageParams)
             : new Dictionary<string, string> { ["path"] = paths.FirstOrDefault() ?? string.Empty };
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new DicomViewModel(paths, _shell, _vfs, originParams);
-            page.Closed += (_, _) => vm.Dispose();
-            return new DicomView(vm);
+            return vm;
         };
 
         // A DICOMDIR/folder points its parent crumb at the containing folder; a single file at its directory.

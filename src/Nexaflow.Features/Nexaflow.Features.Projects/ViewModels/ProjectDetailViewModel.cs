@@ -90,6 +90,12 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     [RelayCommand]
     private void Refresh() => Load();
 
+    /// <summary>Shown again with no parameters (its tab re-clicked): reads the project again.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.Count == 0) Refresh();
+    }
+
     private void Load()
     {
         // A reload replaces every backlog row, so a search's filter would be holding ids that are gone.

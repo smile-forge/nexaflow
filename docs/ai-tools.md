@@ -92,7 +92,7 @@ part is taken from the registry for an answer and given back after it, so an ope
 part stays loaded only until another model needs its room, or the host closes for having stood idle. Masks go back by file, at the size each ask names: the picture's own for a cut-out, smaller for showing one.
 
 **The port.** `SelectHandler` and `PictureSelecting` run the makers' paths around the graphs: the picture squashed to
-1008 square by PIL's bilinear resize, as SAM 3.1's predictor prepares a frame (`PictureResampling.ResizeBilinearAsPil`,
+1008 square by PIL's bilinear resize, as SAM 3.1's predictor prepares a frame (`ReferenceResampling.ResizeBilinearAsPil`,
 matched to PIL exactly); the click decoder's best mask chosen by predicted IoU for one click; a phrase's finds kept above
 a score of 0.5 joined with the presence score; masks brought to size by PyTorch's bilinear resize
 (`ResizePlaneBilinear`). `ClipTokenizer` is the makers' CLIP tokenizer over their vocabulary, its cleaning ftfy's but for
@@ -130,8 +130,8 @@ built from the input's size (`fourier_matmul.py`): ONNX Runtime's CUDA provider 
 O(n²) off powers of two — over two minutes for a 1800×1200 picture. A width's parity is a tensor comparison in the
 graph, since a test of it in Python is settled once, at the size the graph was traced at.
 
-**The port.** `ErasePicture` works each part of the mask in a region of its surroundings (`InpaintRegions` in
-`IO.Common`): as much picture again on every side, at least 512 pixels each way, regions whose surroundings overlap
+**The port.** `ErasePicture` works each part of the mask in a region of its surroundings (`ErasingRegions` in
+the host; content-aware fill plans its regions alike with `IO.Common`'s `InpaintRegions`): as much picture again on every side, at least 512 pixels each way, regions whose surroundings overlap
 joined, a region past 1536 square worked smaller — down by PIL's bilinear resize, which averages over the reduction, its
 mask marking every pixel a hole reaches — and its fill brought back up by Lanczos. `ErasingHandover` hands a region over
 as LaMa's predict does: RGB over 255, the mask taken where it is not 0, symmetric padding to a multiple of 8, the result
@@ -174,7 +174,7 @@ with cubic weight matrices built from the size in the graph, the same sums run a
 keeps the trained grid untouched, as the makers' code does.
 
 **The port.** `EstimateSceneDepth` prepares the picture as `infer_image` does (`SceneDepthHandover`): RGB over 255,
-brought by OpenCV's cubic resize (`PictureResampling.ResizeCubicAsOpenCv`, in double precision with OpenCV's single
+brought by OpenCV's cubic resize (`ReferenceResampling.ResizeCubicAsOpenCv`, in double precision with OpenCV's single
 precision weights) to the lower bound of 518 — the shorter side 518, both sides the nearest multiple of the ViT's 14-pixel
 patch — and normalised by ImageNet's mean and deviation. A picture more than three times as long as it is wide is brought
 to 1554 along its length instead, so the estimator peaks under 3 GB. The host answers with the disparity at
@@ -293,7 +293,7 @@ written in page order, cuts the figures (`PageFigures`), numbered in page order 
 it, and panels read one after another over one caption, are one picture (`PageFigures.Whole`) — and described by its
 caption. Its drawing replaces it only once shown to hold what it does, and every step can only keep the picture: the
 model names its kind from a list that includes what Mermaid cannot draw (a circuit, a sketch, a plot), and only a kind
-Mermaid draws is drawn; the drawing must be one `MermaidDiagrams.Troubles` finds nothing wrong with; the words the model
+Mermaid draws is drawn; the drawing must be one `ContentEngine.Troubles` finds nothing wrong with; the words the model
 reads in the picture must be the words the drawing draws (`DiagramPicture.WordsAsync`, laid out by the engine); and shown
 the two side by side as one picture (`DiagramPicture.SideBySideAsync`), the model must list nothing that differs — asked
 what differs, never whether they match. An accepted drawing has the picture linked under it; `PagesRead.Drawings` says

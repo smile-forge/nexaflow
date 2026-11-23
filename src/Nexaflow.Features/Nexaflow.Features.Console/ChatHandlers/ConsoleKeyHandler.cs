@@ -1,8 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.ViewModels;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Terminal.ChatHandlers;
 using Nexaflow.Visuals.Terminal.ViewModels;
-using System.Windows.Input;
 
 namespace Nexaflow.Features.Console.ChatHandlers;
 

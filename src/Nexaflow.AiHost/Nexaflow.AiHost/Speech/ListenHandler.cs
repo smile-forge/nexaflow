@@ -3,7 +3,7 @@ using System.Threading.Channels;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
-using Nexaflow.IO.Common.Audio;
+
 
 namespace Nexaflow.AiHost.Speech;
 
@@ -70,7 +70,7 @@ internal sealed class PcmFrames(int frameSamples)
             if (_filled < _pending.Length) yield break;
 
             _filled = 0;
-            yield return Pcm16.ToSamples(_pending);
+            yield return PcmSamples.ToSamples(_pending);
         }
     }
 }

@@ -8,17 +8,17 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.ViewModels;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Tabular.Views;
 
-public partial class TabularView : UserControl, IPageView
+[ViewFor(typeof(TabularViewModel))]
+public partial class TabularView : UserControl
 {
-    public IPageViewModel? ViewModel { get; }
-    public TabularViewModel VM => (TabularViewModel)ViewModel!;
+    private TabularViewModel VM { get; }
 
     /// <summary>Separator characters offered in the Split-by submenu, in menu order. Only those that
     /// appear in the column's sample data are enabled at right-click time.</summary>
@@ -27,7 +27,7 @@ public partial class TabularView : UserControl, IPageView
     public TabularView(TabularViewModel vm)
     {
         InitializeComponent();
-        ViewModel   = vm;
+        VM          = vm;
         DataContext = vm;
 
         GridControl.HeaderContextMenuOpening += (col, menu) => PopulateHeaderContextMenu((TabularColumnViewModel)col, menu);
@@ -327,9 +327,4 @@ public partial class TabularView : UserControl, IPageView
 
     private static decimal? ParseDec(string s) =>
         decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : null;
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        // File path is fixed at tab creation; opening a different file creates a new tab.
-    }
 }

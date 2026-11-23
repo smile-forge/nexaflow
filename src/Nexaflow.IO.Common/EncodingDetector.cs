@@ -53,6 +53,19 @@ public static class EncodingDetector
         return new(Encoding.Latin1, false, 0);
     }
 
+    /// <summary>How much of a file's start <see cref="HoldsText"/> wants.</summary>
+    public const int TextSniffBytes = 8192;
+
+    /// <summary>
+    /// Whether a file that starts with <paramref name="head"/> is text: a wide encoding, or no NUL in it. The encoding is
+    /// asked first, because UTF-16 is full of NULs and would otherwise read as binary.
+    /// </summary>
+    public static bool HoldsText(byte[] head)
+    {
+        using var stream = new MemoryStream(head, writable: false);
+        return Detect(stream).Encoding.CodePage is 1200 or 1201 or 12000 or 12001 || System.Array.IndexOf(head, (byte)0) < 0;
+    }
+
     private static bool LooksLikeUtf8(byte[] buf, int len)
     {
         int i = 0;

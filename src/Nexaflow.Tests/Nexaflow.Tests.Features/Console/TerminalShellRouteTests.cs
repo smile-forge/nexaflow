@@ -174,10 +174,14 @@ public sealed class TerminalShellRouteTests
     public async Task AFolderCmdPrints_IsNotItsFolder(string printed)
     {
         var terminal = await StartedOn(@"C:\work");
+        terminal.Tab = new Page();
 
         _local.Emit(Encoding.UTF8.GetBytes(printed));
 
         Assert.AreEqual(@"C:\work", terminal.CurrentPath);
+        CollectionAssert.AreEqual(new[] { @"C:\work" }, terminal.GetContextGrant().Folders.ToArray(), "nor what the assistant may reach");
+        if (terminal.Tab.PageParams is { } reopens)
+            Assert.AreEqual(@"C:\work", reopens["path"], "nor the folder the tab reopens at");
     }
 
     [TestMethod]

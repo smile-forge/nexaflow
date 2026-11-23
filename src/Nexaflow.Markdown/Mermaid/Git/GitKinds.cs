@@ -20,6 +20,12 @@ public static class GitKinds
 
     /// <summary>Which way the graph runs, written after the keyword: <c>gitGraph LR:</c>.</summary>
     public const string Direction = "git-direction";
+
+    /// <summary>A backslash and the character it keeps, in a name or a message in quotes: <c>\"</c>.</summary>
+    public const string Escape = "git-escape";
+
+    /// <summary>A line ending a name or a message in quotes runs across.</summary>
+    public const string Break = "git-break";
 }
 
 /// <summary>What a piece of a <c>gitGraph</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -30,4 +36,7 @@ public static class GitRoles
 
     /// <summary>Which way the graph runs.</summary>
     public const string Way = "git-way";
+
+    /// <summary>A commit's message, written in quotes after the word — <c>commit "Initial commit"</c> — as older diagrams write one.</summary>
+    public const string Message = "git-message";
 }

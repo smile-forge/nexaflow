@@ -18,7 +18,7 @@ public class RadarStagesTests
     [TestMethod]
     public void TheDocumentedChartIsReadWhole()
     {
-        var tree = MermaidStaged.Read(RadarGrammarTests.Restaurants);
+        var tree = RadarParserTests.Staged(RadarParserTests.Restaurants);
         var chart = (RadarBlockNode)tree;
 
         Assert.AreEqual("Restaurant Comparison", MermaidBlock.Of(tree).TitleText);
@@ -36,7 +36,7 @@ public class RadarStagesTests
     [TestMethod]
     public void ACurveNamingItsAxesReachesThemInTheOrderTheAxesAreWritten()
     {
-        var curves = Curves(MermaidStaged.Read(RadarGrammarTests.Details));
+        var curves = Curves(RadarParserTests.Staged(RadarParserTests.Details));
 
         CollectionAssert.AreEqual(new double?[] { 20, 10, 30 }, curves.Single(curve => Name(curve) == "id4").Points.ToArray());
         CollectionAssert.AreEqual(new double?[] { 7, 8, 9 }, curves.Single(curve => Name(curve) == "id3").Points.ToArray(),
@@ -46,7 +46,7 @@ public class RadarStagesTests
     [TestMethod]
     public void AnAxisOrACurveWithNoLabelIsCalledByItsName()
     {
-        var tree = MermaidStaged.Read("radar-beta\n  axis A, B\n  curve c1{1, 2}");
+        var tree = RadarParserTests.Staged("radar-beta\n  axis A, B\n  curve c1{1, 2}");
 
         CollectionAssert.AreEqual(new[] { "A", "B" }, Spokes(tree).Select(Says).ToArray());
         Assert.AreEqual("c1", Says(Curves(tree).Single()));
@@ -55,7 +55,7 @@ public class RadarStagesTests
     [TestMethod]
     public void ACurveGivingAnAxisNothingHasNoPointOnIt()
     {
-        var curves = Curves(MermaidStaged.Read("radar-beta\n  axis a, b, c\n  curve x{ a: 1, c: 3 }\n  curve y{ a: 1, z: 2 }"));
+        var curves = Curves(RadarParserTests.Staged("radar-beta\n  axis a, b, c\n  curve x{ a: 1, c: 3 }\n  curve y{ a: 1, z: 2 }"));
 
         CollectionAssert.AreEqual(new double?[] { 1, null, 3 }, curves[0].Points.ToArray());
         CollectionAssert.AreEqual(new double?[] { 1, null, null }, curves[1].Points.ToArray(), "and a value naming no axis is for none");
@@ -64,12 +64,12 @@ public class RadarStagesTests
     [TestMethod]
     public void WithNoMaxTheRimIsTheGreatestValue_AndMaxAndMinAreWhatIsWritten()
     {
-        var chart = (RadarBlockNode)MermaidStaged.Read("radar-beta\n  axis a, b\n  curve x{2, 8}\n  curve y{4, 1}");
+        var chart = (RadarBlockNode)RadarParserTests.Staged("radar-beta\n  axis a, b\n  curve x{2, 8}\n  curve y{4, 1}");
 
         Assert.AreEqual(8, chart.Max);
         Assert.AreEqual(0, chart.Min);
 
-        var capped = (RadarBlockNode)MermaidStaged.Read("radar-beta\n  axis a, b\n  curve x{2, 8}\n  max 4\n  min 2");
+        var capped = (RadarBlockNode)RadarParserTests.Staged("radar-beta\n  axis a, b\n  curve x{2, 8}\n  max 4\n  min 2");
 
         Assert.AreEqual(4, capped.Max, "a value past max does not move the rim");
         Assert.AreEqual(2, capped.Min);
@@ -78,7 +78,7 @@ public class RadarStagesTests
     [TestMethod]
     public void AChartOfNothingButNoughtsStillHasAScale()
     {
-        var chart = (RadarBlockNode)MermaidStaged.Read("radar-beta\n  axis a, b\n  curve x{0, 0}");
+        var chart = (RadarBlockNode)RadarParserTests.Staged("radar-beta\n  axis a, b\n  curve x{0, 0}");
         Assert.IsTrue(chart.Max > chart.Min);
     }
 
@@ -86,7 +86,7 @@ public class RadarStagesTests
     public void TheOptionsSetTheRingsAndTheLegend_TheLastWrittenWinning()
     {
         const string source = "radar-beta\n  axis a, b, c\n  curve x{1, 2, 3}\n  ticks 8\n  showLegend false\n  ticks 3";
-        var tree = MermaidStaged.Read(source);
+        var tree = RadarParserTests.Staged(source);
         var chart = (RadarBlockNode)tree;
 
         Assert.AreEqual(3, chart.Ticks);
@@ -101,23 +101,23 @@ public class RadarStagesTests
     {
         const string source = "radar-beta\n  axis a, b, \n  curve c{1, 2}\n  curve d";
 
-        Assert.AreEqual(2, Spokes(MermaidStaged.Read(source)).Count, "a chart only being read has a spoke for each axis named");
-        Assert.AreEqual(3, Spokes(MermaidStaged.Read(source, holes: true)).Count, "and one being written for the axis still to name too");
+        Assert.AreEqual(2, Spokes(RadarParserTests.Staged(source)).Count, "a chart only being read has a spoke for each axis named");
+        Assert.AreEqual(3, Spokes(RadarParserTests.Staged(source, holes: true)).Count, "and one being written for the axis still to name too");
 
-        CollectionAssert.AreEqual(new[] { true, false }, Curves(MermaidStaged.Read(source)).Select(curve => curve.Listed).ToArray(),
+        CollectionAssert.AreEqual(new[] { true, false }, Curves(RadarParserTests.Staged(source)).Select(curve => curve.Listed).ToArray(),
                                   "a curve with nothing to draw is listed only while the chart is being written");
-        CollectionAssert.AreEqual(new[] { true, true }, Curves(MermaidStaged.Read(source, holes: true)).Select(curve => curve.Listed).ToArray());
-        CollectionAssert.AreEqual(new double?[] { 1, 2, null }, Curves(MermaidStaged.Read(source, holes: true))[0].Points.ToArray(),
+        CollectionAssert.AreEqual(new[] { true, true }, Curves(RadarParserTests.Staged(source, holes: true)).Select(curve => curve.Listed).ToArray());
+        CollectionAssert.AreEqual(new double?[] { 1, 2, null }, Curves(RadarParserTests.Staged(source, holes: true))[0].Points.ToArray(),
                                   "and a curve gives the spoke still to name nothing");
     }
 
     [TestMethod]
     public void WhatTheStagesWriteIsNoPartOfTheSource()
     {
-        foreach (var source in new[] { RadarGrammarTests.Restaurants, RadarGrammarTests.Details, "radar-beta\n  axis a, b, \n  curve c{1, }\n  ticks 3" })
+        foreach (var source in new[] { RadarParserTests.Restaurants, RadarParserTests.Details, "radar-beta\n  axis a, b, \n  curve c{1, }\n  ticks 3" })
         {
-            Assert.AreEqual(source, MermaidStaged.Read(source).Print(), "a stage leaves the characters alone");
-            Assert.AreEqual(source, MermaidStaged.Read(source, holes: true).Print());
+            Assert.AreEqual(source, RadarParserTests.Staged(source).Print(), "a stage leaves the characters alone");
+            Assert.AreEqual(source, RadarParserTests.Staged(source, holes: true).Print());
         }
     }
 
@@ -169,7 +169,7 @@ public class RadarStagesTests
     [TestMethod]
     public void WhatNoFrontMatterWritesIsMermaidsShape_AndTheThemesEverythingElse()
     {
-        var config = ((RadarBlockNode)MermaidStaged.Read("radar-beta\n  axis a")).Config;
+        var config = ((RadarBlockNode)RadarParserTests.Staged("radar-beta\n  axis a")).Config;
 
         Assert.AreEqual(1, config.AxisScaleFactor);
         Assert.AreEqual(1.05, config.AxisLabelFactor, 1e-9);
@@ -183,7 +183,7 @@ public class RadarStagesTests
     [TestMethod]
     public void ACurveTakesTheColourWrittenForItsPlace() =>
         CollectionAssert.AreEqual(new[] { "#FF0000", "#00FF00", "#0000FF" },
-                                  Curves(MermaidStaged.Read(RadarGrammarTests.Themed)).Select(curve => curve.Colour).ToArray());
+                                  Curves(RadarParserTests.Staged(RadarParserTests.Themed)).Select(curve => curve.Colour).ToArray());
 
     private static List<RadarAxisNode> Spokes(ContentNode tree) => [.. tree.SelfAndDescendants().OfType<RadarAxisNode>()];
 
@@ -196,4 +196,13 @@ public class RadarStagesTests
     private static string Says(ContentNode item) =>
         (item.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label) ?? item.Children.Single(child => child.Kind == MermaidKinds.Name))
             .Inner(Kinds.Words)!.Text;
+
+    [TestMethod]
+    public void AFractionalTicksIsReadAsWritten_AsMermaidSpacesItsRingsByIt()
+    {
+        var chart = (RadarBlockNode)RadarParserTests.Staged("radar-beta\n  axis a, b, c\n  curve x{1, 2, 3}\n  ticks 2.5");
+
+        Assert.AreEqual(2.5, chart.Ticks);
+        Assert.IsFalse(chart.SelfAndDescendants().Any(node => node.Trouble is not null));
+    }
 }

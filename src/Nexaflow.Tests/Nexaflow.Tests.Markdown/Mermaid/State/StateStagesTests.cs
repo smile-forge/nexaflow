@@ -17,7 +17,7 @@ public class StateStagesTests
 {
     /// <summary>The dot each <c>[*]</c> is, in the order they are written.</summary>
     private static (string Id, bool Stop)[] Dots(string source) =>
-        [.. MermaidStaged.Read(source).SelfAndDescendants().OfType<MarkerNode>().Select(marker => (marker.Id, marker.Stop))];
+        [.. StateParserTests.Staged(source).SelfAndDescendants().OfType<MarkerNode>().Select(marker => (marker.Id, marker.Stop))];
 
     [TestMethod, TestCategory("Unit")]
     public void EveryEdgeInOneScopeIsTheSameDot_CalledWhatAClassLineStylesItBy()
@@ -38,7 +38,7 @@ public class StateStagesTests
     [TestMethod, TestCategory("Unit")]
     public void ANameACompositeStateIsCalledByIsThatComposite_WrittenAboveItOrBelow()
     {
-        var tree = MermaidStaged.Read("stateDiagram-v2\n  [*] --> A\n  state A {\n    one\n  }\n  state B {\n    two\n  }\n  A --> B\n  note right of B : this");
+        var tree = StateParserTests.Staged("stateDiagram-v2\n  [*] --> A\n  state A {\n    one\n  }\n  state B {\n    two\n  }\n  A --> B\n  note right of B : this");
         var named = tree.SelfAndDescendants().OfType<GroupReferenceNode>()
                         .Select(reference => (reference.Children.First(child => child.Kind == MermaidKinds.Name).Words()!.Text, reference.Group))
                         .ToArray();
@@ -51,7 +51,7 @@ public class StateStagesTests
     public void EachCompositeStateIsGatheredWithWhatIsWrittenInIt()
     {
         const string source = "stateDiagram-v2\n  outside\n  state A {\n    inner\n    state B {\n      deeper\n    }\n  }";
-        var tree = MermaidStaged.Read(source);
+        var tree = StateParserTests.Staged(source);
         var a = tree.Children.Single(child => child.Kind == MermaidKinds.Group);
 
         Assert.AreEqual(1, a.Children.Count(child => child.Kind == MermaidKinds.Group), "B inside A");
@@ -61,7 +61,7 @@ public class StateStagesTests
     [TestMethod, TestCategory("Unit")]
     public void ClassesAndStylesReachTheStatesTheyName_AndTheDotsByWhatTheyAreCalled()
     {
-        var styles = MermaidStaged.Read("stateDiagram-v2\n  [*] --> one\n  one:::busy --> two\n  classDef busy fill:#fee\n  class two busy\n"
+        var styles = StateParserTests.Staged("stateDiagram-v2\n  [*] --> one\n  one:::busy --> two\n  classDef busy fill:#fee\n  class two busy\n"
                                         + "  style one stroke:#c00\n  style start fill:#0c0")
             .SelfAndDescendants().OfType<StyledNode>().ToDictionary(named => named.Words()!.Text, named => named.Style);
 
@@ -74,7 +74,7 @@ public class StateStagesTests
     [TestMethod, TestCategory("Unit")]
     public void TheFrontMatterIsApplied()
     {
-        var config = ((ConfiguredNode<StateConfig>)MermaidStaged.Read("---\nconfig:\n  state:\n    nodeSpacing: 40\n    wrappingWidth: 90\n    forkWidth: 60\n"
+        var config = ((ConfiguredNode<StateConfig>)StateParserTests.Staged("---\nconfig:\n  state:\n    nodeSpacing: 40\n    wrappingWidth: 90\n    forkWidth: 60\n"
                                                                       + "---\nstateDiagram-v2\n  one --> two")).Config;
 
         Assert.AreEqual(40, config.NodeSpacing, 0.01);

@@ -39,8 +39,6 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
         + "  subgraph Support\n    triage[Triage request]\n    answer[Send answer]\n  end\n"
         + "  request --> triage\n  triage -->|Known issue| answer\n  answer --> receive";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Swimlane;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("an order filled across three lanes", Order),

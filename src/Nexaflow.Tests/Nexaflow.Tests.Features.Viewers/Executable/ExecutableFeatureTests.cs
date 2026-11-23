@@ -38,7 +38,7 @@ public sealed class ExecutableFeatureTests
         shell.Received(1).OpenTab(
             ExecutableTabRegistration.StaticPageKind,
             Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\Windows\System32\kernel32.dll"),
-            Arg.Any<IPageView>(), Arg.Any<bool>());
+            Arg.Any<Page?>(), Arg.Any<bool>());
     }
 
     [TestMethod, TestCategory("Unit")]

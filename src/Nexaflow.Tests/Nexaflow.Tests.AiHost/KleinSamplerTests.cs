@@ -92,4 +92,11 @@ public class KleinSamplerTests
     [DataRow(1000, 1024, false)]
     public void ItDrawsWholeTokens_WithinAMegapixel(int width, int height, bool draws) =>
         Assert.AreEqual(draws, KleinSampler.Draws(width, height));
+
+    [TestMethod]
+    [DataRow(2000, 1000, 1440, 720)]
+    [DataRow(1024, 768, 1024, 768)]
+    [DataRow(100, 70, 96, 64)]
+    public void APictureToWorkFrom_IsReadAtItsProportions_WithinAMegapixel_NeverScaledUp(int width, int height, int readWidth, int readHeight) =>
+        Assert.AreEqual((readWidth, readHeight), KleinSampler.ReadSize(width, height));
 }

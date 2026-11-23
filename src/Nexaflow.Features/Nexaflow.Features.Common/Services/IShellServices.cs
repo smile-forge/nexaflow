@@ -26,7 +26,7 @@ public interface IShellServices
     /// </para>
     /// </summary>
     void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
-                 IPageView? caller = null, bool inRightPane = false);
+                 Page? caller = null, bool inRightPane = false);
 
     /// <summary>Closes and removes a tab from the global tab registry.</summary>
     void CloseTab(Page tab);
@@ -35,8 +35,8 @@ public interface IShellServices
     /// Lightweight <see cref="Page"/> definitions for the pages that can be created without specific
     /// context (<see cref="IPageRegistration.CanBeContextItem"/>) in this workspace — surfaced in the
     /// AI conversation's "add context" menu, which reads each page's Title/Icon. Built per-workspace,
-    /// so it reflects the active workspace's enablement (e.g. Projects only when enabled). Content is not
-    /// realized; pin a chosen page by calling <c>GetOrCreateContent</c> on it.
+    /// so it reflects the active workspace's enablement (e.g. Projects only when enabled). No view-model is
+    /// made; pin a chosen page by calling <c>GetOrCreateViewModel</c> on it.
     /// </summary>
     IReadOnlyList<Page> GetContextItemPages();
 
@@ -265,7 +265,7 @@ public interface IShellServices
     /// <summary>
     /// Shows <paramref name="overlayViewModel"/> as a shell-modal overlay in the focused window. The shell
     /// renders it lazily via a <c>DataTemplate</c> matched on the VM's type — ship that template in a
-    /// <see cref="System.Windows.ResourceDictionary"/> advertised through your feature's
+    /// <c>ResourceDictionary</c> advertised through your feature's
     /// <see cref="IThemeContribution"/>. Implement <see cref="IShellOverlay"/> on the VM to opt into
     /// backdrop-click dismissal. Dismiss via <see cref="CloseOverlay"/> or the VM's own command.
     /// </summary>
@@ -277,10 +277,10 @@ public interface IShellServices
 
     /// <summary>
     /// Pins <paramref name="payload"/> to the focused window's ribbon using the
-    /// <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> that accepts the drag-data
-    /// <paramref name="format"/>.
+    /// <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> that accepts <paramref name="kind"/> — as if
+    /// <paramref name="payload"/> had been dragged there as that kind.
     /// </summary>
-    void PinToRibbon(string format, object payload);
+    void PinToRibbon(string kind, object payload);
 
     /// <summary>
     /// Dispatches <paramref name="obj"/> to the first registered

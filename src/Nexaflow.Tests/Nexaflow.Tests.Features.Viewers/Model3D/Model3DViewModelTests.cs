@@ -197,8 +197,8 @@ public class Model3DViewModelTests
 
         UiThread.Run(() =>
         {
-            var first  = vm.CreateContextPreview();
-            var second = vm.CreateContextPreview();
+            var first  = ContextPreviewProbe.Draw(vm.CreateContextPreview());
+            var second = ContextPreviewProbe.Draw(vm.CreateContextPreview());
 
             Assert.IsInstanceOfType(first, typeof(Model3DContextPreview));
             Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own snapshot");

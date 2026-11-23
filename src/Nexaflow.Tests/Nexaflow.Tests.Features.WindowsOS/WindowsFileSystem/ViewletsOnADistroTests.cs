@@ -42,7 +42,7 @@ public sealed class ViewletsOnADistroTests
         public bool   AppliesToDrives => false;
         public bool   RunsOnLocationHost => true;
         public string[]? ContainsFolderGlobs => [".git"];
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     /// <summary>Matches a project and runs its tools on the host — stands in for .NET.</summary>
@@ -52,7 +52,7 @@ public sealed class ViewletsOnADistroTests
         public bool   AppliesToDrives => false;
         public bool   RunsOnLocationHost => true;
         public string[]? ContainsFileGlobs => ["*.csproj"];
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     /// <summary>Changes the folder with Windows' own tools — stands in for the AI summary.</summary>
@@ -61,7 +61,7 @@ public sealed class ViewletsOnADistroTests
         public string DisplayName => "Windows tool";
         public bool   AppliesToDrives => false;
         public bool   RequiresLocalFolder => true;
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     [TestMethod]

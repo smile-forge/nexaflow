@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
-using Nexaflow.Features.Text.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.IO;
@@ -28,7 +27,7 @@ public sealed class TextTabRegistration(IShellServices shell, IVirtualFileSystem
         {
             Title       = title,
             Icon        = "📄",
-            ContentFactory = () => new TextView(vm),
+            ViewModelFactory = () => vm,
         };
         page.SetFileBreadcrumbs(path, title);
         vm.DirtyChanged += dirty => page.Title = dirty ? "*" + title : title;

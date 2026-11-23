@@ -13,7 +13,7 @@ public class MindmapConfigTests
     [TestMethod]
     public void TheFrontMatterIsRead()
     {
-        var config = ((ConfiguredNode<MindmapConfig>)MermaidStaged.Read("---\nconfig:\n  layout: tidy-tree\n  mindmap:\n    padding: 14\n    maxNodeWidth: 150\n  themeVariables:\n    cScale1: \"#ff0000\"\n    git0: \"#00ff00\"\n---\nmindmap\n  r((root))")).Config;
+        var config = ((ConfiguredNode<MindmapConfig>)MindmapParserTests.Staged("---\nconfig:\n  layout: tidy-tree\n  mindmap:\n    padding: 14\n    maxNodeWidth: 150\n  themeVariables:\n    cScale1: \"#ff0000\"\n    git0: \"#00ff00\"\n---\nmindmap\n  r((root))")).Config;
 
         Assert.AreEqual(("tidy-tree", 14d, 150d, "#ff0000", "#00ff00"), (config.Layout, config.Padding!.Value, config.MaxNodeWidth!.Value, config.Scale[1], config.RootFill));
     }

@@ -37,8 +37,6 @@ public class RequirementBuilderTests : MermaidBuilderContract
         "requirementDiagram\na - contains -> b\na - copies -> c\na - derives -> d\na - satisfies -> e\n"
         + "a - verifies -> f\na - refines -> g\na - traces -> h\ni <- contains - a";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Requirement;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the documentation's own", Intro),

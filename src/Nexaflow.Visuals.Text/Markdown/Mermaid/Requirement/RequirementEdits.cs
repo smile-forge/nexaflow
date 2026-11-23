@@ -25,8 +25,11 @@ internal sealed class RequirementEdits : IOnEdit
     {
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
-        if (part.Role is RequirementRoles.Id or RequirementRoles.Class) return MermaidWriting.Only(caret, text, RequirementGrammar.Bare);
+        if (part.Role is RequirementRoles.Id or RequirementRoles.Class) return MermaidWriting.Only(caret, text, RequirementParser.Bare);
         if (part.Role is RequirementRoles.Towards) return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
+
+        // A brace closes the fields wherever it stands, as Mermaid reads them, so a value cannot hold one.
+        if (part.Role is RequirementRoles.Value) return MermaidWriting.Only(caret, text, character => character is not ('{' or '}'));
 
         return null;
     }

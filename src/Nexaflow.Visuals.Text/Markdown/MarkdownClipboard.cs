@@ -5,9 +5,11 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 
+using Nexaflow.Interaction;
 using Nexaflow.IO.Documents;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Text.Markdown.Export;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -87,20 +89,16 @@ public static class MarkdownClipboard
     /// markdown, else plain text. Returns null if the payload carries none of these.
     /// </summary>
     public static string? ReadBestMarkdown(IDataObject? data)
+        => data is null ? null : ReadBestMarkdown(new WindowsDragPayload(data));
+
+    /// <inheritdoc cref="ReadBestMarkdown(IDataObject?)"/>
+    public static string? ReadBestMarkdown(IDragPayload data)
     {
-        if (data is null) return null;
-        try
-        {
-            if (data.GetDataPresent(MarkdownFormat) &&
-                data.GetData(MarkdownFormat) is string md && !string.IsNullOrEmpty(md))
-                return md;
-        }
-        catch { /* ignore malformed format */ }
+        if (data.Read(MarkdownFormat) is string { Length: > 0 } md) return md;
 
         try
         {
-            if (data.GetDataPresent(DataFormats.Html) &&
-                data.GetData(DataFormats.Html) is string html && !string.IsNullOrWhiteSpace(html))
+            if (data.Html() is { } html && !string.IsNullOrWhiteSpace(html))
             {
                 var converted = HtmlToMarkdown.ConvertClipboardHtml(html);
                 if (!string.IsNullOrWhiteSpace(converted)) return converted;
@@ -122,15 +120,10 @@ public static class MarkdownClipboard
     /// </para>
     /// </summary>
     public static string? ReadPlainText(IDataObject? data)
-    {
-        if (data is null) return null;
+        => data is null ? null : ReadPlainText(new WindowsDragPayload(data));
 
-        if (data.GetDataPresent(DataFormats.UnicodeText))
-            return data.GetData(DataFormats.UnicodeText) as string;
-        if (data.GetDataPresent(DataFormats.Text))
-            return data.GetData(DataFormats.Text) as string;
-        return null;
-    }
+    /// <inheritdoc cref="ReadPlainText(IDataObject?)"/>
+    public static string? ReadPlainText(IDragPayload data) => data.Text();
 
     // ── Selection → source range ────────────────────────────────────────────
 

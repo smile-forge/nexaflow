@@ -17,6 +17,12 @@ public static class ArchitectureKinds
 
     /// <summary>An <c>align row</c> or <c>align column</c> line: the services that share a row or a column.</summary>
     public const string Align = "architecture-align";
+
+    /// <summary>A backslash and the character it keeps, inside a title in quotes: <c>\"</c>, <c>\\</c>, <c>\t</c>.</summary>
+    public const string Escape = "architecture-escape";
+
+    /// <summary>A line ending inside a title in quotes, which it may run across.</summary>
+    public const string Break = "architecture-break";
 }
 
 /// <summary>What a piece of an <c>architecture-beta</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -45,4 +51,7 @@ public static class ArchitectureRoles
 
     /// <summary>Whether an <c>align</c> line shares a row or a column.</summary>
     public const string Axis = "architecture-axis";
+
+    /// <summary>What a service shows in its icon's place, in quotes after its id: <c>service fn "λ"[Lambda]</c>.</summary>
+    public const string IconText = "architecture-icon-text";
 }

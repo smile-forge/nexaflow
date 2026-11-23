@@ -70,6 +70,7 @@ internal static class ChatPrompt
                 ("type", "function"),
                 ("function", JinjaValues.Mapping([("name", c.Name), ("arguments", Json(c.Arguments))])),
             ])).ToList();
+        if (turn.Reasoning is { Length: > 0 } reasoning) message["reasoning_content"] = reasoning;   // both families' templates read it
         if (turn.Answers is { } answered)
         {
             message["tool_call_id"] = answered.Id;

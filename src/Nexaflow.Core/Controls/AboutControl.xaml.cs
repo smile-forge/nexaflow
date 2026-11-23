@@ -14,8 +14,9 @@ using Nexaflow.Markdown.Editing;
 namespace Nexaflow.Core.Controls;
 
 /// <summary>
-/// Read-only About page for the Options panel: app version, source link and the
-/// bundled third-party notices (rendered from <c>Assets/ThirdPartyNotices.md</c>).
+/// About page for the Options panel: app version and whether a newer release is offered (with Check for updates /
+/// Update), source link, the system components Nexaflow relies on, and the bundled third-party notices (rendered from
+/// <c>Assets/ThirdPartyNotices.md</c>).
 /// </summary>
 public partial class AboutControl : UserControl
 {
@@ -37,10 +38,18 @@ public partial class AboutControl : UserControl
 
         ShowComponents();
         ExternalDependencyRegistry.Instance.StartProbe();
+
+        // The startup check, a toast's Update or this page's own buttons can each move it on while the page is open.
+        App.Updates.Changed -= OnUpdatesChanged;
+        App.Updates.Changed += OnUpdatesChanged;
+        ShowUpdateStatus();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
-        => ExternalDependencyRegistry.Instance.Updated -= OnComponentsUpdated;
+    {
+        ExternalDependencyRegistry.Instance.Updated -= OnComponentsUpdated;
+        App.Updates.Changed -= OnUpdatesChanged;
+    }
 
     private void OnComponentsUpdated(object? sender, EventArgs e) => ShowComponents();
 
@@ -90,6 +99,46 @@ public partial class AboutControl : UserControl
         catch { /* the registry already degrades a failed probe to Unknown; nothing to add here */ }
         finally { ShowComponents(); }
     }
+
+    private void OnUpdatesChanged(object? sender, EventArgs e) => ShowUpdateStatus();
+
+    /// <summary>
+    /// Shows where this build stands against its newest release, and offers the one thing to do about it: Update while
+    /// a release is offered, Check for updates otherwise — disabled while either is under way.
+    /// </summary>
+    private void ShowUpdateStatus()
+    {
+        var status = App.Updates.Status;
+
+        UpdateStatusText.Text = status.Stage switch
+        {
+            AppUpdateStage.Checking      => Str.Get("Shell.About.Updates.Checking"),
+            AppUpdateStage.Current       => Str.Get("Shell.About.Updates.Current"),
+            AppUpdateStage.Available     => Str.Format("Shell.About.Updates.AvailableFormat", status.Offer?.Version ?? string.Empty),
+            AppUpdateStage.CheckFailed   => Str.Get("Shell.About.Updates.CheckFailed"),
+            AppUpdateStage.Installing    => Str.Format("Shell.About.Updates.InstallingFormat", status.Offer?.Version ?? string.Empty),
+            AppUpdateStage.InstallFailed => Str.Get("Shell.About.Updates.InstallFailed"),
+            _                            => Str.Get("Shell.About.Updates.Unchecked"),
+        };
+
+        var tone = status.Stage switch
+        {
+            AppUpdateStage.Available                                => "AccentBrush",
+            AppUpdateStage.CheckFailed or AppUpdateStage.InstallFailed => "WarningBrush",
+            _                                                       => "TextMutedBrush",
+        };
+    if (ResolveBrush(tone) is { } brush) UpdateStatusText.Foreground = brush;
+        UpdateStatusText.ToolTip = status.Failure;
+
+        InstallUpdateButton.Visibility = status.IsOffered ? Visibility.Visible : Visibility.Collapsed;
+        InstallUpdateButton.IsEnabled  = status.CanInstall;
+        CheckUpdatesButton.Visibility  = status.IsOffered ? Visibility.Collapsed : Visibility.Visible;
+        CheckUpdatesButton.IsEnabled   = status.CanCheck;
+    }
+
+    private void OnCheckUpdatesClick(object sender, RoutedEventArgs e) => _ = App.Updates.CheckAsync();
+
+    private void OnInstallUpdateClick(object sender, RoutedEventArgs e) => _ = App.Updates.InstallAsync();
 
     private static string LoadNotices()
     {

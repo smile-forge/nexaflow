@@ -4,13 +4,16 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Nexaflow.Features.Common;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
 namespace Nexaflow.Visuals.Terminal.Views;
 
-public partial class TerminalView : UserControl, IPageView
+[ViewFor(typeof(TerminalViewModel))]
+public partial class TerminalView : UserControl, IDropTarget
 {
     public TerminalViewModel ViewModel { get; }
 
@@ -22,8 +25,7 @@ public partial class TerminalView : UserControl, IPageView
         ViewModel   = vm;
         DataContext = vm;
 
-        // Hand the VM the empty host the shell injects its inline AI banner into (bottom of the console).
-        vm.SetEngagementHost(EngagementHost);
+
 
         vm.ScrollRequested += (_, _) => ScrollToBottom();
 
@@ -48,10 +50,6 @@ public partial class TerminalView : UserControl, IPageView
             _sizeSettle.Start();
         };
         Loaded += (_, _) => Dispatcher.BeginInvoke(ApplyTerminalSize, DispatcherPriority.Loaded);
-
-        // Dispose the PTY session when the tab is actually closed.
-        if (vm.Tab is { } t)
-            t.Closed += (_, _) => vm.Dispose();
     }
 
     private readonly DispatcherTimer _sizeSettle;
@@ -136,20 +134,19 @@ public partial class TerminalView : UserControl, IPageView
         e.Handled = true;
     }
 
-    private void Terminal_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
+    private static readonly string[] PathKinds = [DragKinds.Files, DragKinds.FileContents];
 
-    private void Terminal_Drop(object sender, DragEventArgs e)
+    public IReadOnlyList<string> AcceptedKinds => PathKinds;
+
+    /// <summary>The console takes files as their paths, typed. The panels beside it do not: the files panel is where
+    /// they are dragged from.</summary>
+    public DropOffer? OfferDrop(DropRequest request)
+        => DropHitTesting.IsInside(this.ElementUnder(request.At), TerminalSurface) ? new DropOffer(DropEffect.Copy) : null;
+
+    public void AcceptDrop(DropRequest request)
     {
-        var text = ViewModel.FormatDroppedPaths(e.Data);
-        if (text is not null)
-        {
+        if (ViewModel.FormatDroppedPaths(request.Payload) is { } text)
             ViewModel.SendText(text);
-            e.Handled = true;
-        }
     }
 
     private void CopyTerminal_Click(object sender, RoutedEventArgs e) => CopyTerminalText();
@@ -197,18 +194,5 @@ public partial class TerminalView : UserControl, IPageView
     {
         if (e.Key == Key.Enter)  { ViewModel.ConfirmEnvEditCommand.Execute(null); e.Handled = true; }
         if (e.Key == Key.Escape) { ViewModel.CancelEnvEditCommand.Execute(null);  e.Handled = true; }
-    }
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        ScrollToBottom();
-        var newPath = pageParams.GetValueOrDefault("path");
-        var envName = pageParams.GetValueOrDefault("env");
-        if (newPath is not null || envName is not null)
-            ViewModel.ApplyParams(newPath, envName);
     }
 }

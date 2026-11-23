@@ -755,8 +755,12 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     /// <summary>What the assistant can do here: <see cref="ArtistTools"/>.</summary>
     public IReadOnlyList<IClientTool> GetClientTools() => [.. _tools.All(), .. _depthTools.All()];
 
-    /// <summary>The tab editing the picture, set by its view: what opens beside it opens in its window.</summary>
-    public IPageView? Host { get; set; }
+    /// <summary>A re-open that names a tool opens the editor on it, while a picture is being edited.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (ArtistTabRegistration.ParseTool(pageParams.GetValueOrDefault("tool")) is { } tool && IsEditing)
+            Editor.Tool = tool;
+    }
 
     public void Dispose()
     {

@@ -1,6 +1,6 @@
 # Markdown — Diagrams: planning & time
 
-Diagrams for what happens, in what order, and who it is for: requirements, Gantt charts, git graphs, kanban boards, mindmaps, timelines and user journeys.
+Diagrams for what happens, in what order, and who it is for: requirements, Gantt charts, git graphs, event models, kanban boards, mindmaps, timelines and user journeys.
 
 ---
 
@@ -80,6 +80,38 @@ gitGraph
 ````
 
 ![A git graph with a branch and a merge](images/markdown/mermaid-gitgraph.png)
+
+---
+
+## Event model
+
+A system's flow laid out along time: screens and processors, the commands they send, the events those record and the read
+models built from them, each frame in its own swimlane, with an arrow to every frame it feeds. A frame is fed by the
+nearest frame above it in another lane unless `->>` says which; a reset frame (`rf`) starts a flow afresh. Data goes on a
+frame's row or in a block it names, and a note or a Given/When/Then specification sits under the frame it is about.
+A frame's name and data are typed into where they are drawn, and Enter on a frame starts the next one. Right-click a frame
+to change its type, or to make it a reset frame.
+
+````markdown
+```mermaid
+eventmodeling
+title Shopping cart
+tf 01 ui CartScreen
+tf 02 cmd AddItem { sku: string }
+tf 03 evt ItemAdded [[Added]]
+tf 04 rmo CartItems
+rf 05 evt Inventory.StockChanged
+tf 06 pcr StockWatcher
+data Added {
+  sku: "A-1", quantity: 1
+}
+note 02 {
+  Only a signed-in shopper adds to a cart
+}
+```
+````
+
+![An event model: a cart screen sending a command, the event it records and the read model built from it, then a reset frame starting a new flow](images/markdown/mermaid-eventmodeling.png)
 
 ---
 

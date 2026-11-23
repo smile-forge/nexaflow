@@ -1,14 +1,14 @@
-using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Compressed.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Compressed.Views;
 
-public partial class CompressedView : UserControl, IPageView
+[ViewFor(typeof(CompressedViewModel))]
+public partial class CompressedView : UserControl
 {
     private readonly CompressedViewModel _vm;
 
@@ -17,15 +17,6 @@ public partial class CompressedView : UserControl, IPageView
         InitializeComponent();
         _vm = vm;
         DataContext = vm;
-        Drop += OnDrop;
-        DragOver += OnDragOver;
-    }
-
-    public IPageViewModel? ViewModel => _vm;
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        // Single-archive tab — params don't change after creation; nothing to re-init.
     }
 
     private void EntryList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -47,20 +38,5 @@ public partial class CompressedView : UserControl, IPageView
     {
         if (e.Key == Key.Enter) PasswordOk_Click(sender, e);
         else if (e.Key == Key.Escape) _vm.CancelPasswordCommand.Execute(null);
-    }
-
-    private static bool HasFiles(DragEventArgs e) => e.Data.GetDataPresent(DataFormats.FileDrop);
-
-    private void OnDragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = HasFiles(e) && _vm.CanModify ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private async void OnDrop(object sender, DragEventArgs e)
-    {
-        if (!HasFiles(e)) return;
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
-        await _vm.AddSourcesAsync(paths.ToList());
     }
 }

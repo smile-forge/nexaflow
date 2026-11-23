@@ -73,6 +73,7 @@
   "Compressed.Status.DecryptedFormat": "Decrypted copy written: {0}",
   "Compressed.Status.DecryptFailed": "Decrypt failed — wrong password or not an encrypted zip.",
   "Compressed.Status.NoOptions": "No applicable options.",
+  "Compressed.Drop.AddToArchive": "Add to the archive",
   "Compressed.Status.ReadOnly": "This format is read-only.",
   "Compressed.Status.Adding": "Adding…",
   "Compressed.Status.AddedOne": "Added {0} file.",

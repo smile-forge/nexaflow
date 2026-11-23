@@ -144,7 +144,7 @@ public class ToolCallSyntaxTests
     public void ReasoningSpans_AreTheOnesTheVocabularyHolds()
     {
         Assert.AreEqual(new ThinkingSyntax(21, 22, "<think>", "</think>"), ThinkingSyntax.Of(Special(new() { ["<think>"] = 21, ["</think>"] = 22 })));
-        Assert.AreEqual(new ThinkingSyntax(31, 32, "<|channel>", "<channel|>"), ThinkingSyntax.Of(Special(new() { ["<|channel>"] = 31, ["<channel|>"] = 32 })));
+        Assert.AreEqual(new ThinkingSyntax(31, 32, "<|channel>", "<channel|>", Heading: "thought"), ThinkingSyntax.Of(Special(new() { ["<|channel>"] = 31, ["<channel|>"] = 32 })));
         Assert.IsNull(ThinkingSyntax.Of(Special([])));
     }
 

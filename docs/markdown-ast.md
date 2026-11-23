@@ -164,11 +164,11 @@ unless the name is a subgraph's own, which is written in words. Where the part c
 is written — and a language whose parser implements nothing has nothing written into it, because a key that does
 nothing is better than characters spliced into a syntax nothing vouched for.
 
-A language within a kit may own its parser: a flowchart is read by `FlowchartParser` rather than by the shared
-`MermaidParser`, reusing its internals for the frame every Mermaid block shares and reading its own statements, because
-a flowchart's statement does not end where a line does — a quoted value spans lines and is one run of words.
-`MermaidDiagrams.ParserFor` names the parser a diagram is read by and is the only place that choice is made, so the
-shipped language and the tests read a block the same way.
+A diagram written in Mermaid's syntax is a language of its own and owns its parser: a flowchart is read by
+`FlowchartParser` rather than by the shared `MermaidParser`, calling its pieces for the frame every block in Mermaid's
+syntax shares and reading its own statements, because a flowchart's statement does not end where a line does — a quoted
+value spans lines and is one run of words. Its language entry (`Shipped.Flowchart`) names that parser, and its tests read
+with it.
 
 **A parser is not a stage.** A parser reads: it says what the characters are as written, and holds nothing of what they
 mean and nothing between one reading and the next. It marks an id only where the syntax says one goes; anything that
@@ -497,7 +497,7 @@ Offsets are the document's, because a language is laid at the offset its source 
 as settling, so a formula settles what is half-written where a document starts its next paragraph. Markdown writes
 typed markup behind a backslash, continues a list on Enter and joins two paragraphs on backspace (`MarkdownEdits`);
 LaTeX spells a command as itself and settles it on Space or Enter (`LatexEdits`); every diagram has a handler of its
-own (`DiagramEdits`), which escapes what a place cannot hold as it is typed and leaves every other key to do what it
+own (`<Type>Edits`, named by its language entry), which escapes what a place cannot hold as it is typed and leaves every other key to do what it
 does anywhere.
 
 **A right-click asks the same language.** The engine walks from the piece under the pointer as it does for a key and
@@ -857,12 +857,14 @@ alone.
 
 ### Mermaid
 
-One parser for every diagram, because they all open the same way: front matter, comments, directives, the header (the
-first line that says anything, naming the diagram — `MermaidDiagrams`), accessibility lines; every other line a
-statement its diagram's grammar reads (`IMermaidGrammar`). The front matter nests: each line holds, after its own
-ending, the lines indented under it, so `config:` holds `pie:`, which holds `legendPosition:`, and a handler writing an
-option walks down to its node rather than reading lines. The grammar names the diagram's stages, and every diagram's
-grammar and builder are built from the kit. How a diagram is added and what the kit holds:
+Mermaid is not a language here: it is a third party's bundle of diagram syntaxes, read so that what is written for it
+reads here too. Every diagram is a language of its own — its parser, the stages it offers, its builder — and the engine
+runs it like any other. A `mermaid` fence is a language that reads only the header and hands the block whole to whichever
+language written in Mermaid's syntax reads the word it starts with (`MermaidFenceParser`). Every block in that syntax opens
+the same way — front matter, comments, directives, the header, accessibility lines — so each diagram's parser reads that
+frame with `MermaidParser`'s shared pieces and reads its own statements itself. The front matter nests: each line holds,
+after its own ending, the lines indented under it, so `config:` holds `pie:`, which holds `legendPosition:`, and a handler
+writing an option walks down to its node rather than reading lines. How a diagram is added and what the kit holds:
 [mermaid-diagrams.md](mermaid-diagrams.md).
 
 ### ABC

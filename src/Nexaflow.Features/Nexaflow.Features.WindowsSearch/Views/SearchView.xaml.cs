@@ -1,4 +1,3 @@
-using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsSearch.ViewModels;
 using System.ComponentModel;
 using System.Windows;
@@ -6,10 +5,12 @@ using System.Windows.Controls;
 using System.Windows.Data;
 
 using Nexaflow.Features.WindowsSearch.Services;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.WindowsSearch.Views;
 
-public partial class SearchView : UserControl, IPageView
+[ViewFor(typeof(SearchViewModel))]
+public partial class SearchView : UserControl
 {
     private readonly SearchViewModel _vm;
 
@@ -33,22 +34,6 @@ public partial class SearchView : UserControl, IPageView
             _searchStarted = true;
             await _vm.RunSearchAsync(CancellationToken.None);
         };
-    }
-
-    // ── IPageView ────────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => _vm;
-
-    // ── IPageView (Reinitialize) ──────────────────────────────────────────────
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        var q = pageParams.GetValueOrDefault("query", string.Empty);
-        var r = pageParams.GetValueOrDefault("root",  string.Empty);
-        if (q == _vm.SearchQuery && r == _vm.SearchRoot) return;
-        _vm.SearchQuery = q;
-        _vm.SearchRoot  = r;
-        _ = _vm.RunSearchAsync(CancellationToken.None);
     }
 
     // ── Column sort ──────────────────────────────────────────────────────────

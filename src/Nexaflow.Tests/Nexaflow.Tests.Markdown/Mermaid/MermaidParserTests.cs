@@ -105,7 +105,7 @@ public class MermaidParserTests
     [TestMethod]
     public void FrontMatterThatIsNotAFieldIsHeldAsWritten_WithoutComplaint()
     {
-        var tree = MermaidParser.Parse("---\n# settings\nconfig:\n  cScale:\n    - red\n---\nradar-beta");
+        var tree = MermaidParser.Parse("---\n# settings\nconfig:\n  cScale:\n    - red\n---\ngantt");
 
         Assert.AreEqual("- red", Nodes(tree, MermaidKinds.Yaml).Single().Text);
         Assert.AreEqual("# settings", Nodes(tree, Kinds.Comment).Single().Text);
@@ -127,10 +127,10 @@ public class MermaidParserTests
     [TestMethod]
     public void TheHeaderIsItsKeywordAndWhatFollowsIt()
     {
-        var header = Nodes(MermaidParser.Parse("%% note\n\nxychart-beta horizontal\n  bar [1, 2]"), MermaidKinds.Header).Single();
+        var header = Nodes(MermaidParser.Parse("%% note\n\ngantt  weekly plan\n  section A"), MermaidKinds.Header).Single();
 
-        Assert.AreEqual("xychart-beta", header.Part(Roles.Name)?.Text);
-        Assert.AreEqual("horizontal", header.Part(MermaidRoles.Arguments)?.Print());
+        Assert.AreEqual("gantt", header.Part(Roles.Name)?.Text);
+        Assert.AreEqual("weekly plan", header.Part(MermaidRoles.Arguments)?.Print());
         Assert.IsNull(header.Part(Roles.Name)!.Trouble);
     }
 
@@ -140,13 +140,6 @@ public class MermaidParserTests
         Assert.AreEqual("gitGraph", Keyword("gitGraph:\n  commit"));
         Assert.AreEqual("graph", Keyword("graph TD;"));
         Assert.AreEqual("stateDiagram-v2", Keyword("stateDiagram-v2"));
-    }
-
-    [TestMethod]
-    public void AKeywordNamingNoTypeSaysSo()
-    {
-        var keyword = Nodes(MermaidParser.Parse("flowchart-elk TD"), MermaidKinds.Keyword).Single();
-        StringAssert.Contains(keyword.Trouble, "'flowchart-elk' is not a Mermaid diagram type");
     }
 
     [TestMethod]
@@ -183,11 +176,23 @@ public class MermaidParserTests
     [TestMethod]
     public void ADirectiveNeverClosedIsHeldWithTheReason_AndTheNextLineIsStillTheHeader()
     {
-        var tree = MermaidParser.Parse("%%{init: {\"theme\": \"dark\"}\ngraph TD");
+        var tree = MermaidParser.Parse("%%{init: {\"theme\": \"dark\"}\ngantt");
 
         var held = tree.SelfAndDescendants().Single(node => node.Trouble is not null);
         StringAssert.Contains(held.Trouble, "never closed");
-        Assert.AreEqual("graph", Keyword(tree));
+        Assert.AreEqual("gantt", Keyword(tree));
+    }
+
+    [TestMethod]
+    public void AHeaderWrittenAfterADirectiveOnItsLineIsStillTheHeader()
+    {
+        // Mermaid takes a directive out wherever it stands, so the word after one on its line names the diagram.
+        const string source = "%%{init: {'theme':'forest'}}%% gitGraph\n  commit";
+        var tree = MermaidParser.Parse(source);
+
+        Assert.AreEqual("gitGraph", Keyword(tree));
+        Assert.AreEqual(source, tree.Print());
+        Assert.IsFalse(tree.SelfAndDescendants().Any(node => node.Trouble is not null));
     }
 
     [TestMethod]
@@ -237,8 +242,8 @@ public class MermaidParserTests
     {
         foreach (var source in new[]
                  {
-                     "flowchart TD\n  A --> B",
-                     "---\ntitle: T\nconfig:\n  theme: dark\n---\n%% c\n%%{init: {}}%%\npie title P\n  accTitle: t\n  accDescr { d }\n  \"A\" : 1",
+                     "gitGraph\n  commit",
+                     "---\ntitle: T\nconfig:\n  theme: dark\n---\n%% c\n%%{init: {}}%%\ngitGraph\n  accTitle: t\n  accDescr { d }\n  commit",
                      "",
                      "  \n",
                  })

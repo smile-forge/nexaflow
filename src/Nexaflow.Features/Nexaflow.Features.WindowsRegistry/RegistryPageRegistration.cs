@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Features.WindowsRegistry.ViewModels;
-using Nexaflow.Features.WindowsRegistry.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry;
@@ -39,13 +38,12 @@ public sealed class RegistryPageRegistration(IShellServices shell) : IPageRegist
             Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("WindowsRegistry.Page.Title") } },
         };
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
-            var vm   = new RegistryViewModel(shell);
-            var view = new RegistryView(vm);
+            var vm = new RegistryViewModel(shell);
 
             bool applying = false;
-            view.NavigationChanged += segments =>
+            vm.NavigationChanged += segments =>
             {
                 if (applying) return;
                 applying = true;
@@ -54,9 +52,9 @@ public sealed class RegistryPageRegistration(IShellServices shell) : IPageRegist
             };
 
             // Free the VM's resources (export/import cancellation, etc.) on permanent tab close.
-            page.Closed += (_, _) => vm.Dispose();
 
             // Honour an initial hive/path param. A path roots the tree at that key; a bare hive just browses it.
+            // Rooting happens once, here: re-activating the tab (re-click / routing) keeps the user's position.
             var hive = pageParams?.GetValueOrDefault("hive");
             var path = pageParams?.GetValueOrDefault("path");
             if (!string.IsNullOrWhiteSpace(hive))
@@ -65,7 +63,7 @@ public sealed class RegistryPageRegistration(IShellServices shell) : IPageRegist
                 else                                 vm.RootAt($"{hive}\\{path}");
             }
 
-            return view;
+            return vm;
         };
         return page;
     }

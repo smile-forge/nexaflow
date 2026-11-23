@@ -14,18 +14,18 @@ Runs the Windows command prompt in a tab. Type in the console to work in it your
 - Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the [File System](help:FileSystem) page. It starts in that folder. Cmd Here is offered on this computer's folders; a WSL distro's offer Shell Here, which opens the distro's own shell.
 
 ## With the assistant
-- Say what you want done in [the AI bar](locate:AiInputBox) — `what is filling this disk?`. Answers appear in a banner under the console, which clears when you start typing.
+- Say what you want done in [the AI bar](locate:AiInputBox) — `what is filling this disk?`. The assistant answers in the AI bar, as on every page.
 - The assistant reads what the commands it runs print, and can see what else is on the screen then, so a password or token shown there is seen too.
 - While a program is running, what you type goes to that program, so a `y` or a password is never treated as a question or kept in history.
 - The assistant knows the console's folder and that cmd.exe runs there, so it uses cmd's syntax.
 - What the assistant may reach is the console's folder and everything under it. That folder is where the shell really is, asked of Windows, never read off the screen, so printing a file cannot move it.
-- A shell started inside the console — PowerShell, another cmd, a nested bash — keeps a folder of its own. The path bar, the Files tab and the assistant stay on the console's own shell until you leave it.
+- A shell started inside the console — PowerShell, or another cmd — keeps a folder of its own. The path bar, the Files tab and the assistant stay on the console's own cmd until you leave it.
 - With your approval it can run commands in this console, read the output and carry on. Plain output reaches it as text; a full-screen program reaches it as its screen.
-- A command that keeps going is watched in the background, and you are told the result when it finishes. If you have moved to another tab, a notification with an Open button brings you back.
+- A command the assistant ran that keeps going becomes one of its background tasks, which you can see and stop. When it finishes, or stops to wait for input, and you are still in the console, the assistant picks it up there; anywhere else, a notification tells you.
 - Ask a follow-up while a command it started is still going and it knows what that command has printed so far.
 - A process that will never return to a prompt, such as a web server, is reported as long-running. One waiting for input is answered, or you are asked.
 - It can put a suggested command in the AI bar with a `>` in front, for you to edit and run.
-- Type into the console or press Ctrl+C and the background watch stops.
+- Type into the console or press Ctrl+C and the background task stops watching it.
 
 ## The AI bar
 - A line that is clearly a command runs in the console, and no model sees it: `git status`, `./build.sh`, anything with flags such as `dir /s`.

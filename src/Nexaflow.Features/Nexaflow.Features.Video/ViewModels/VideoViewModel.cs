@@ -822,7 +822,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     /// conversation is about, not the player. The panel's header names the file. A fresh control each time the chip
     /// is selected, per the contract; it binds to the poster the scene strip already made and owns none of it.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview() => new VideoContextPreview { DataContext = this };
+    public object CreateContextPreview() => new PagePreview<VideoViewModel>(this);
 
     public void Dispose()
     {

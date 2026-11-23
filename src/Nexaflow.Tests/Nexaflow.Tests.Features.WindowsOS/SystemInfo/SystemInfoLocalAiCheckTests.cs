@@ -75,7 +75,7 @@ public class SystemInfoLocalAiCheckTests
         await check.Command.ExecuteAsync(null);
 
         shell.Received(1).OpenTab("Markdown", Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\ai\reports\local-ai-check.md"),
-                                  Arg.Any<IPageView?>(), Arg.Any<bool>());
+                                  Arg.Any<Page?>(), Arg.Any<bool>());
         Assert.AreEqual(("Passed — the report is open in a tab", SystemInfoStatus.Good), (check.Outcome, check.OutcomeStatus));
         Assert.AreEqual("Check this machine", check.Label, "the button says what it does again once the check is done");
     }
@@ -92,7 +92,7 @@ public class SystemInfoLocalAiCheckTests
 
         await check.Command.ExecuteAsync(null);
 
-        shell.DidNotReceive().OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>(), Arg.Any<IPageView?>(), Arg.Any<bool>());
+        shell.DidNotReceive().OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>(), Arg.Any<Page?>(), Arg.Any<bool>());
         Assert.AreEqual(("The AI host could not be reached.", SystemInfoStatus.Bad), (check.Outcome, check.OutcomeStatus));
     }
 }

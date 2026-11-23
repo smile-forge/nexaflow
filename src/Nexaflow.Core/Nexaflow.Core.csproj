@@ -109,6 +109,7 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Local\Nexaflow.Providers.Local.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Aria\Nexaflow.Providers.Aria.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Claude\Nexaflow.Providers.Claude.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Ollama\Nexaflow.Providers.Ollama.csproj" />
@@ -123,6 +124,7 @@
     <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Media\Nexaflow.Media.csproj" />
     <!-- Location backends: found by the catalog's sweep of Nexaflow.IO.Location.*.dll beside the features, so referenced
          only to land there. The WSL one brings its in-distro helpers with it, under wsl-helper\. -->
     <ProjectReference Include="..\Nexaflow.IO.Location.Wsl\Nexaflow.IO.Location.Wsl.csproj" />

@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.IO.Common;
-using System.Windows;
 
 namespace Nexaflow.Features.Git.Viewlets;
 
@@ -36,8 +35,8 @@ public sealed class GitWorktreeViewlet : IFolderViewlet
     public ViewletDisplayMode   DefaultDisplayMode => ViewletDisplayMode.SingleBar;
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar];
 
-    public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new GitViewletView(_options, _shell, _files, folderPath, controller);
+    public object CreateViewModel(string folderPath, IViewletController controller)
+        => new ViewModels.GitViewletViewModel(_options, _shell, _files, folderPath, controller);
 
     /// <summary>Removing a worktree changes the folder, so on a location it runs on its host's git and through the location.</summary>
     public bool RunsOnLocationHost => true;

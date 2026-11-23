@@ -15,7 +15,7 @@ A saved chat with the assistant that can read and act on the pages you pin to it
 ## Pinning pages and files
 
 - The Context Items banner holds everything the assistant can see.
-- Pin something by dragging a tab onto the banner, dropping files on it, or choosing from your open tabs and the pages this workspace can make. [Show me](locate:Conversation_AddContext)
+- Pin something by dragging a tab or dropping files anywhere on the conversation, or by choosing from your open tabs and the pages this workspace can make. [Show me](locate:Conversation_AddContext)
 - A pinned tab stays live: pin a folder and the assistant gets its current listing — names, sizes and dates — not just a path. See [File System](help:FileSystem).
 - Dropped files are attached with their text read in. One that has since been moved or deleted is marked.
 - Pinning an open tab leaves it in the tab strip, and pinning the same thing twice flashes the chip you already have.

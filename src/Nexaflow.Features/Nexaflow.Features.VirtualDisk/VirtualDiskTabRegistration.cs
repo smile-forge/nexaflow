@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.VirtualDisk.ViewModels;
-using Nexaflow.Features.VirtualDisk.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -30,8 +29,7 @@ public sealed class VirtualDiskTabRegistration(IShellServices shell, IVirtualFil
             Title = title,
             Icon = "💽",
             PageParams = pageParams,
-            ContentFactory = () => new VirtualDiskView(
-                new VirtualDiskViewModel(path, shell, vfs)),
+            ViewModelFactory = () => new VirtualDiskViewModel(path, shell, vfs),
         };
 
         // "folder › disk.vhdx" — the folder crumb opens a file-browser tab there.

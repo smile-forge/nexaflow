@@ -39,4 +39,15 @@ internal sealed class FakeWindowHost : IWindowHost
     public void InsertChatInput(string text) { }
     public IReadOnlyList<QuickOpenTarget> GetRibbonQuickOpenTargets() => [];
     public void SubmitAiQuery(string query) { }
+
+    public Page? ActiveTab { get; set; }
+
+    /// <summary>The ended background work this window was asked to pick up, in order.</summary>
+    public List<(IPageViewModel Context, string About, string Outcome)> PickedUp { get; } = [];
+
+    public Task ContinueAfterBackgroundJobAsync(IPageViewModel context, string about, string outcome)
+    {
+        PickedUp.Add((context, about, outcome));
+        return Task.CompletedTask;
+    }
 }

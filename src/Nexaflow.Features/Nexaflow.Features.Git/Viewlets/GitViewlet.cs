@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.IO.Common;
-using System.Windows;
 
 namespace Nexaflow.Features.Git.Viewlets;
 
@@ -28,8 +27,8 @@ public sealed class GitViewlet : IFolderViewlet
     public ViewletDisplayMode   DefaultDisplayMode => ViewletDisplayMode.SingleBar;
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar];
 
-    public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new GitViewletView(_options, _shell, _files, folderPath, controller);
+    public object CreateViewModel(string folderPath, IViewletController controller)
+        => new ViewModels.GitViewletViewModel(_options, _shell, _files, folderPath, controller);
 
     /// <summary>Pulling and switching branch rewrite the working tree, so on a location they run on its host's git.</summary>
     public bool RunsOnLocationHost => true;

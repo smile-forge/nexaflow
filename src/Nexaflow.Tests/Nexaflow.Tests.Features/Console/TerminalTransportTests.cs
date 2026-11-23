@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
@@ -54,6 +55,30 @@ public sealed class TerminalTransportTests
 
         Assert.AreEqual(folder, _transport.Launched!.WorkingDirectory);
         Assert.AreEqual("build", _transport.Launched.Environment!["NEXA_MODE"]);
+    }
+
+    [TestMethod]
+    public async Task TheShellsFolder_IsWhereItsHostSaysItIs_WhateverIsPrinted()
+    {
+        var terminal = Terminal();
+        await terminal.Start();
+        _transport.WorkingDirectory = @"C:\work\src";
+
+        _transport.Emit("anything at all"u8.ToArray());
+
+        Assert.AreEqual(@"C:\work\src", terminal.CurrentPath);
+    }
+
+    [TestMethod]
+    public async Task AFolderTheHostNamesThatIsNoDrivePath_IsNotFollowed()
+    {
+        var terminal = Terminal();
+        await terminal.Start();
+        _transport.WorkingDirectory = "/home/adam";
+
+        _transport.Emit("x"u8.ToArray());
+
+        Assert.AreEqual(TestTemp.Root, terminal.CurrentPath, ignoreCase: true);
     }
 
     [TestMethod]

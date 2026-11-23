@@ -110,6 +110,8 @@
   "Images.Action.RevertConfirmManyFormat": "Retirer les modifications de {0} images ? Les images elles-mêmes ne changent pas.",
   "Images.Companion.EditedTip": "Modifiée (le fichier d'origine est inchangé)",
 
+  "Images.Drop.AddAsLayer": "Ajouter comme calque",
+  "Images.Drop.OpenInArtist": "Ouvrir dans Artiste",
   "Images.LoadFailed": "Impossible d'ouvrir cette image.",
 
   "Images.Edit.Edited": "modifiée",

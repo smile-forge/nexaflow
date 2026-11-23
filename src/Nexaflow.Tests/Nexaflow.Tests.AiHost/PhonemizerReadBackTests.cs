@@ -6,6 +6,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Speech;
 using Nexaflow.AiHost.Speech.Phonemes;
 using Nexaflow.IO.Common.Audio;
+using Nexaflow.Media.Audio;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;

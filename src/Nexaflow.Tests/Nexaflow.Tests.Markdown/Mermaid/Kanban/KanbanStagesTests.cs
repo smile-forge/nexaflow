@@ -17,7 +17,7 @@ public class KanbanStagesTests
     [TestMethod]
     public void TheDocumentedBoardIsItsColumnsAndTheCardsUnderEach()
     {
-        var nodes = MermaidStaged.Read(KanbanGrammarTests.Full).SelfAndDescendants().Where(node => node is KanbanColumnNode or KanbanCardNode).ToList();
+        var nodes = KanbanParserTests.Staged(KanbanParserTests.Full).SelfAndDescendants().Where(node => node is KanbanColumnNode or KanbanCardNode).ToList();
 
         var under = new List<int>();
         foreach (var node in nodes)
@@ -32,12 +32,12 @@ public class KanbanStagesTests
     [TestMethod]
     public void ACardsMetadataIsReadWithoutItsQuotes_AndItsTicketLinked()
     {
-        var card = Cards(MermaidStaged.Read(KanbanGrammarTests.Full)).Single(card => card.Ticket == "MC-2038");
+        var card = Cards(KanbanParserTests.Staged(KanbanParserTests.Full)).Single(card => card.Ticket == "MC-2038");
 
         Assert.AreEqual(("K.Sveidqvist", "High"), (card.Assigned, card.Priority));
         Assert.IsTrue(card.Linked, "the front matter says where tickets are");
 
-        var labelled = Cards(MermaidStaged.Read("kanban\n  todo[Todo]\n    a[Card]@{ assigned: 'Smith, J', label: 'Renamed', ticket: 7 }")).Single();
+        var labelled = Cards(KanbanParserTests.Staged("kanban\n  todo[Todo]\n    a[Card]@{ assigned: 'Smith, J', label: 'Renamed', ticket: 7 }")).Single();
         Assert.AreEqual(("Smith, J", "Renamed"), (labelled.Assigned, labelled.Label));
         Assert.IsFalse(labelled.Linked, "and without it a ticket links nowhere");
     }
@@ -45,14 +45,14 @@ public class KanbanStagesTests
     [TestMethod]
     public void AColumnsLabelIsItsMetadatas()
     {
-        var column = MermaidStaged.Read("kanban\n  todo[Todo]@{ label: \"Doing\" }\n    a[Card]").SelfAndDescendants().OfType<KanbanColumnNode>().Single();
+        var column = KanbanParserTests.Staged("kanban\n  todo[Todo]@{ label: \"Doing\" }\n    a[Card]").SelfAndDescendants().OfType<KanbanColumnNode>().Single();
         Assert.AreEqual("Doing", column.Label);
     }
 
     [TestMethod]
     public void ANodeWrittenLeftOfTheFirstColumnIsNeither_AndSaysWhy()
     {
-        var tree = MermaidStaged.Read("kanban\n    todo[Todo]\n      a[Card]\n  b[Stray]");
+        var tree = KanbanParserTests.Staged("kanban\n    todo[Todo]\n      a[Card]\n  b[Stray]");
 
         Assert.AreEqual(1, tree.SelfAndDescendants().OfType<KanbanColumnNode>().Count());
         Assert.AreEqual(1, Cards(tree).Count);
@@ -62,17 +62,17 @@ public class KanbanStagesTests
     [TestMethod]
     public void WhatTheStageWritesIsNoPartOfTheSource()
     {
-        foreach (var source in new[] { KanbanGrammarTests.Full, "kanban\n  todo[Todo]\n    [\"\"]", "kanban\n    todo\n  b" })
+        foreach (var source in new[] { KanbanParserTests.Full, "kanban\n  todo[Todo]\n    [\"\"]", "kanban\n    todo\n  b" })
         {
-            Assert.AreEqual(source, MermaidStaged.Read(source).Print(), "a stage leaves the characters alone");
-            Assert.AreEqual(source, MermaidStaged.Read(source, holes: true).Print());
+            Assert.AreEqual(source, KanbanParserTests.Staged(source).Print(), "a stage leaves the characters alone");
+            Assert.AreEqual(source, KanbanParserTests.Staged(source, holes: true).Print());
         }
     }
 
     [TestMethod]
     public void TheFrontMatterIsRead()
     {
-        var config = ((ConfiguredNode<KanbanConfig>)MermaidStaged.Read("---\nconfig:\n  kanban:\n    sectionWidth: 250\n  themeVariables:\n    cScale2: \"#ff0000\"\n    background: \"#101010\"\n---\nkanban\n  Todo")).Config;
+        var config = ((ConfiguredNode<KanbanConfig>)KanbanParserTests.Staged("---\nconfig:\n  kanban:\n    sectionWidth: 250\n  themeVariables:\n    cScale2: \"#ff0000\"\n    background: \"#101010\"\n---\nkanban\n  Todo")).Config;
 
         Assert.AreEqual((250d, "#ff0000", "#101010"), (config.SectionWidth!.Value, config.Scale[2], config.Background));
     }

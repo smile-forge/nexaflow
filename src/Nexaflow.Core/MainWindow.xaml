@@ -210,6 +210,7 @@
                            PinTabToRibbonCommand="{Binding DataContext.PinTabToRibbonCommand,   RelativeSource={RelativeSource AncestorType=Window}}"
                            TearOffTabCommand="{Binding DataContext.TearOffTabCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
                            ReceiveTabCommand="{Binding DataContext.ReceiveTabCommand,           RelativeSource={RelativeSource AncestorType=Window}}"
+                           OpenDroppedCommand="{Binding DataContext.OpenDroppedCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                            OpenPageCommand="{Binding DataContext.OpenPageCommand,               RelativeSource={RelativeSource AncestorType=Window}}"
                            SplitTabCommand="{Binding DataContext.SplitRightCommand,             RelativeSource={RelativeSource AncestorType=Window}}"
                            SplitEmptyCommand="{Binding DataContext.SplitEmptyCommand,           RelativeSource={RelativeSource AncestorType=Window}}"

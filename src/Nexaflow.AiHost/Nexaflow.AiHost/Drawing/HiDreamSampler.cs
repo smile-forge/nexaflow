@@ -1,4 +1,5 @@
 using Nexaflow.AiHost.Sampling;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Drawing;
 
@@ -131,10 +132,10 @@ internal static class HiDreamSampler
     /// <summary>Values in one of the vision tower's patches: three channels, two identical frames, 16 × 16 pixels.</summary>
     public const int ReaderPatchWidth = Channels * 2 * ReaderPatch * ReaderPatch;
 
-    /// <summary>Whether an edit is drawn at this size, and a picture to work from read at it: whole patches within
-    /// <see cref="EditSide"/>².</summary>
-    public static bool Reads(int width, int height) =>
-        width >= Patch && height >= Patch && width % Patch == 0 && height % Patch == 0 && (long)width * height <= (long)EditSide * EditSide;
+    /// <summary>The size an edit is drawn at from a <paramref name="width"/> × <paramref name="height"/> first picture, and each
+    /// picture to work from read at: scaled up or down to the largest size of whole patches within <see cref="EditSide"/>², as
+    /// HiDream's <c>resize_pilimage</c> fits it (<see cref="PatchFitting"/>).</summary>
+    public static (int Width, int Height) ReadSize(int width, int height) => PatchFitting.SizeOf(width, height, EditSide, Patch);
 
     /// <summary>The side of the square each of <paramref name="sources"/> pictures is read within as clean patches, for a
     /// <paramref name="width"/> × <paramref name="height"/> edit: the picture's longest side for one, three quarters of it

@@ -1,5 +1,7 @@
 using System.Runtime.Intrinsics.X86;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 using Whisper.net;
 
 namespace Nexaflow.Providers.Whisper;

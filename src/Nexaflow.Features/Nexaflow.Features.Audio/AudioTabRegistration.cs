@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Nexaflow.Features.Audio.ViewModels;
-using Nexaflow.Features.Audio.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
@@ -93,11 +92,10 @@ public sealed class AudioTabRegistration : IPageRegistration
                 _shell.CloseTab(page);
             };
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new AudioViewModel(paths, index, _shell, _vfs, _config, autoPlay) { Draft = draft };
-            page.Closed += (_, _) => vm.Dispose();
-            return new AudioView(vm);
+            return vm;
         };
 
         return page;

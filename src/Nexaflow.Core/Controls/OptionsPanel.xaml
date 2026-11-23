@@ -293,11 +293,12 @@
             <!-- Right: custom control (when section has [CustomControl]) or property grid -->
             <Grid Grid.Column="1">
                 <!-- Custom control mode -->
-                <ContentControl AutomationProperties.AutomationId="Options_CustomSection"
-                                Content="{Binding SelectedSection.CustomControlInstance}"
-                                Visibility="{Binding SelectedSection.HasCustomControl, Converter={StaticResource BoolVis}}"/>
+                <local:OptionsSectionHost AutomationProperties.AutomationId="Options_CustomSection"
+                                          Content="{Binding SelectedSection.CustomControlInstance}"
+                                          Visibility="{Binding SelectedSection.HasCustomControl, Converter={StaticResource BoolVis}}"/>
                 <!-- Property grid mode -->
-                <ScrollViewer Padding="20,12"
+                <ScrollViewer AutomationProperties.AutomationId="Options_PropertyGrid"
+                              Padding="20,12"
                               HorizontalScrollBarVisibility="Disabled"
                               Visibility="{Binding SelectedSection.HasCustomControl, Converter={StaticResource InverseBoolVis}}">
                     <ItemsControl ItemsSource="{Binding SelectedSection.Properties}"

@@ -182,7 +182,7 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Sandbox` | `net10.0-windows` exe | Not a test project: [runs the journeys in Windows Sandbox](#running-journeys-in-windows-sandbox) and drives the app there | FlaUI + `Nexaflow.Tests.Fixtures` **and nothing else** — like the journeys, it knows the app as a running process |
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome and services **only** — config/workspaces, the feature catalog and DI, shell services, the agent loop, the `?` search route, theming | `Nexaflow.Core`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Visuals` | `net10.0-windows`, MSTest exe | `Nexaflow.Visuals.*` — markdown/LaTeX/music rendering, the inline editor, the shared controls and layout, the WebView surface, and the editor-side highlighting | `Visuals.Common/.Text/.Web`, `Syntax`, `Search`, `IO.Common`, `Features.Common`, `Nexaflow.Tests.Fixtures` — **never Core** |
-| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts`, `Nexaflow.Media` (codecs) | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
+| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts`, `Nexaflow.Interaction` (drag payloads, drop staging), `Nexaflow.Media` (codecs) | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the folder viewlets (Git, Dotnet) and the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
 | `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus. A feature registering no page is not a viewer: the Git and Dotnet viewlets live in `.Features` | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info, USB devices and their live tools, the serial terminal | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
@@ -923,9 +923,10 @@ least able to fail for a reason that is not about its subject.
 
 - **`Common/`** — `Base64Codec`, `DirectoryMover`, `FileSplitter`, `Glob`, `Hashing`, `OverlayTextFile`,
   `TextLineIndex`, `TextTransforms`, and `FileTransferEngine`'s verified copies (a test seam changes what landed
-  before the read-back). `Common/Audio/` holds the test signals and the meter's arithmetic, sample by sample, and the
-  float WAV round trip. `AudioEndpointCatalogTests` and `SerialPortCatalogTests` list this machine's audio endpoints
-  and COM ports without opening any.
+  before the read-back). `Common/Audio/` holds the speech devices' tests; `SerialPortCatalogTests` lists this machine's
+  COM ports without opening any. The USB probe's audio test signals, meter and endpoint catalog are that feature's own,
+  tested in `Tests.Features.WindowsOS/UsbProbe/`; WAV, PNG and resampling are `Nexaflow.Media`'s, tested in
+  `Tests.Components/Media/`.
 - **`Location/`** — the location provider contract, written once as `LocationSessionContract` and inherited per
   backend (listing, ranged reads, atomic and conflict-checked writes, rename, delete, cancellation, reconnect), run
   against an in-memory host at 0, 80 and 250 ms of latency so a change that adds round trips shows as time; plus the

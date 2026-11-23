@@ -1,4 +1,4 @@
-using System.Windows.Input;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Common;
 
@@ -10,8 +10,8 @@ namespace Nexaflow.Features.Common;
 public interface IKeyboardHandler
 {
     /// <summary>Returns true when this handler can act on the given key combination.</summary>
-    bool CanProcessKey(Key key, ModifierKeys modifiers);
+    bool CanProcessKey(ConsoleKey key, KeyModifiers modifiers);
 
     /// <summary>Performs the action for the key combination. Returns true if the key was consumed.</summary>
-    bool ProcessKey(Key key, ModifierKeys modifiers);
+    bool ProcessKey(ConsoleKey key, KeyModifiers modifiers);
 }

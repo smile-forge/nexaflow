@@ -2,7 +2,7 @@ using System.Threading.Channels;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
-using Nexaflow.IO.Common.Audio;
+
 
 namespace Nexaflow.AiHost.Speech;
 
@@ -55,7 +55,7 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
                         wave = synthesizer.Synthesize(piece, synthesizer.Voice(voice.VoiceFile), request.Speed);
                     }
                     for (int at = 0; at < wave.Length; at += ChunkSamples)
-                        await reply(new SpokenAudio(request.RequestId, text.Segment, Pcm16.FromSamples(wave.AsSpan(at, Math.Min(ChunkSamples, wave.Length - at)))));
+                        await reply(new SpokenAudio(request.RequestId, text.Segment, PcmSamples.FromSamples(wave.AsSpan(at, Math.Min(ChunkSamples, wave.Length - at)))));
                     spokenSamples += wave.Length;
                 }
                 await reply(new SpokenSegmentEnd(request.RequestId, text.Segment));

@@ -13,11 +13,13 @@ using System.Windows.Shapes;
 using Nexaflow.Core.Converters;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.Common;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
-public partial class TabStrip : UserControl
+public partial class TabStrip : UserControl, IDropTarget
 {
     // ── Dependency properties ─────────────────────────────────────────────
 
@@ -67,6 +69,16 @@ public partial class TabStrip : UserControl
     /// <summary>Marks this strip's pane the focused one (parameter = the Pane).</summary>
     public static readonly DependencyProperty PaneActivatedCommandProperty =
         DependencyProperty.Register(nameof(PaneActivatedCommand), typeof(ICommand), typeof(TabStrip));
+
+    /// <summary>Invoked with what was dropped on the strip to be opened: file requests, or a link.</summary>
+    public static readonly DependencyProperty OpenDroppedCommandProperty =
+        DependencyProperty.Register(nameof(OpenDroppedCommand), typeof(ICommand), typeof(TabStrip));
+
+    public ICommand? OpenDroppedCommand
+    {
+        get => (ICommand?)GetValue(OpenDroppedCommandProperty);
+        set => SetValue(OpenDroppedCommandProperty, value);
+    }
 
     public ObservableCollection<Page>? Tabs
     {
@@ -132,9 +144,6 @@ public partial class TabStrip : UserControl
     public TabStrip()
     {
         InitializeComponent();
-        AllowDrop = true;
-        Drop      += TabStrip_Drop;
-        DragOver  += TabStrip_DragOver;
         OverflowPopup.CustomPopupPlacementCallback = PlaceOverflowPopup;
 
         // Empty-area right-click → "Split" / "Close pane". Tab borders carry their own menu (built in
@@ -495,33 +504,56 @@ public partial class TabStrip : UserControl
             => new FrameworkElementAutomationPeer(this);
     }
 
-    // ── Cross-window drop target ──────────────────────────────────────────
+    // ── Drop target ───────────────────────────────────────────────────────
 
-    private void TabStrip_DragOver(object sender, DragEventArgs e)
+    private static readonly string[] TabKinds = [Page.DragKind, DragKinds.Files, DragKinds.FileContents, DragKinds.Link];
+
+    public IReadOnlyList<string> AcceptedKinds => TabKinds;
+
+    /// <summary>A tab moves here; a file, or a link, opens here.</summary>
+    public DropOffer? OfferDrop(DropRequest request)
+        => request.Payload.Contains(Page.DragKind)
+            ? new DropOffer(DropEffect.Move)
+            : new DropOffer(DropEffect.Copy, Str.Get("Shell.Drop.OpenInTab"));
+
+    public void AcceptDrop(DropRequest request)
     {
-        if (e.Data.GetDataPresent(typeof(Page)))
-            e.Effects = DragDropEffects.Move;
-        else
-            e.Effects = DragDropEffects.None;
-        e.Handled = true;
+        if (request.Payload.Read(Page.DragKind) is Page tab)
+        {
+            ReceiveTab(tab);
+            return;
+        }
+
+        // Read now, while the drag is live; opened once it has returned, since building a page inside Windows' drop
+        // callback holds the application it came from still.
+        IReadOnlyList<object> dropped = request.Payload.CarriesFiles()
+            ? [.. request.Payload.FilesOnDisk().Select(path => new FileViewRequest(path))]
+            : request.Payload.Link() is { } link ? [link] : [];
+        if (dropped.Count == 0) return;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            FocusPane();
+            if (OpenDroppedCommand?.CanExecute(dropped) == true) OpenDroppedCommand.Execute(dropped);
+        });
     }
 
-    private void TabStrip_Drop(object sender, DragEventArgs e)
+    private void ReceiveTab(Page tab)
     {
-        if (!e.Data.GetDataPresent(typeof(Page))) return;
-        var tab = (Page)e.Data.GetData(typeof(Page));
-
         // If the tab already belongs to this strip, nothing to do
         if (Tabs?.Contains(tab) == true) return;
 
         // Focus this strip's pane first so the receive lands here — whether the tab comes from another
         // pane of this window (a cross-pane move) or from another window (a cross-window move).
-        if (Pane is not null && PaneActivatedCommand?.CanExecute(Pane) == true)
-            PaneActivatedCommand.Execute(Pane);
+        FocusPane();
 
         if (ReceiveTabCommand?.CanExecute(tab) == true)
             ReceiveTabCommand.Execute(tab);
+    }
 
-        e.Handled = true;
+    private void FocusPane()
+    {
+        if (Pane is not null && PaneActivatedCommand?.CanExecute(Pane) == true)
+            PaneActivatedCommand.Execute(Pane);
     }
 }

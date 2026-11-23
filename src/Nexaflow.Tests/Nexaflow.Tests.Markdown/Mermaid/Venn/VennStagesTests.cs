@@ -18,14 +18,14 @@ public class VennStagesTests
 {
     /// <summary>What styles each region and item, by what it is known by.</summary>
     private static Dictionary<string, MermaidStyle> Styles(string source) =>
-        MermaidStaged.Read(source).SelfAndDescendants().OfType<StyledNode>()
+        VennStaged.Read(source).SelfAndDescendants().OfType<StyledNode>()
                      .ToDictionary(node => node.Kind == VennKinds.Region ? node.Said(VennRoles.Key)! : node.Children.First(child => child.Kind == MermaidKinds.Name).Inner(Kinds.Words)!.Text,
                                    node => node.Style);
 
     [TestMethod]
     public void ASetAndTheItemsIndentedUnderItAreOneRegionOfTheTree()
     {
-        var tree = MermaidStaged.Read(VennGrammarTests.Styled);
+        var tree = VennStaged.Read(VennParserTests.Styled);
         var regions = tree.Children.Where(child => child.Kind == VennKinds.Region).ToList();
 
         Assert.AreEqual(3, regions.Count, "set A with its items, set B, and the union");
@@ -34,14 +34,14 @@ public class VennStagesTests
         Assert.AreEqual("A", regions[0].Said(VennRoles.Key), "known by its set's name");
         Assert.AreEqual("A,B", regions[2].Said(VennRoles.Key));
 
-        Assert.AreEqual(VennGrammarTests.Styled, tree.Print(), "and gathering them changes nothing written");
+        Assert.AreEqual(VennParserTests.Styled, tree.Print(), "and gathering them changes nothing written");
     }
 
     [TestMethod]
     public void ACommentBetweenItemsGoesWithThem_AndOneAfterTheLastDoesNot()
     {
         const string source = "venn-beta\n  set A\n    text A1\n    %% more\n    text A2\n  %% the styles\n  style A fill:red";
-        var region = MermaidStaged.Read(source).Children.Single(child => child.Kind == VennKinds.Region);
+        var region = VennStaged.Read(source).Children.Single(child => child.Kind == VennKinds.Region);
 
         Assert.AreEqual(4, Lines(region).Count(), "the set, both items and the comment between them");
         StringAssert.EndsWith(region.Print(), "text A2\n");
@@ -52,7 +52,7 @@ public class VennStagesTests
     {
         foreach (var source in new[] { "venn-beta\n  text A1", "venn-beta\nset A\ntext A,C X" })
         {
-            var trouble = MermaidStaged.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
+            var trouble = VennStaged.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
             StringAssert.Matches(trouble.Trouble, new System.Text.RegularExpressions.Regex("sits in|No set or union"), source);
         }
     }
@@ -60,14 +60,14 @@ public class VennStagesTests
     [TestMethod]
     public void AUnionOfOneSetSaysSo()
     {
-        var trouble = MermaidStaged.Read("venn-beta\n  set A\n  union A,A").SelfAndDescendants().Single(node => node.Trouble is not null);
+        var trouble = VennStaged.Read("venn-beta\n  set A\n  union A,A").SelfAndDescendants().Single(node => node.Trouble is not null);
         StringAssert.Contains(trouble.Trouble, "two sets or more");
     }
 
     [TestMethod]
     public void AStyleOfSomethingNotWrittenSaysSo()
     {
-        var trouble = MermaidStaged.Read("venn-beta\n  set A\n  style Z fill:red").SelfAndDescendants().Single(node => node.Trouble is not null);
+        var trouble = VennStaged.Read("venn-beta\n  set A\n  style Z fill:red").SelfAndDescendants().Single(node => node.Trouble is not null);
         StringAssert.Contains(trouble.Trouble, "Nothing called Z");
     }
 
@@ -106,7 +106,7 @@ public class VennStagesTests
                      ("venn-beta\n  set A\n  set B\n    text A A1", "Indented under a set"),
                  })
         {
-            var trouble = MermaidStaged.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
+            var trouble = VennStaged.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
             StringAssert.Contains(trouble.Trouble, reason, source);
         }
     }
@@ -115,7 +115,7 @@ public class VennStagesTests
     public void AUnionOfASetNotWrittenAboveItSaysSoOnTheName()
     {
         const string source = "venn-beta\n  set A\n  union A,B\n  set B";
-        var trouble = MermaidStaged.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
+        var trouble = VennStaged.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
 
         Assert.AreEqual("B", trouble.Text);
         StringAssert.Contains(trouble.Trouble, "not a set written above");
@@ -124,7 +124,7 @@ public class VennStagesTests
     [TestMethod]
     public void AnItemAtTheStartOfALineSitsInTheRegionItNames()
     {
-        var tree = MermaidStaged.Read("venn-beta\nset A\nset B\nunion B,A\ntext A,B AB1[\"OpenAPI\"]\ntext A A1");
+        var tree = VennStaged.Read("venn-beta\nset A\nset B\nunion B,A\ntext A,B AB1[\"OpenAPI\"]\ntext A A1");
         var items = tree.SelfAndDescendants().Where(node => node.Kind == VennKinds.Text).Select(item => item.Said(VennRoles.Key)).ToArray();
 
         CollectionAssert.AreEqual(new[] { "A,B", "A" }, items, "named in another order, the same overlap");
@@ -146,7 +146,7 @@ public class VennStagesTests
     [TestMethod]
     public void TheFrontMatterIsHungOnTheBlock_AndWithNoneItIsMermaids()
     {
-        static VennConfig Config(string source) => ((ConfiguredNode<VennConfig>)MermaidStaged.Read(source)).Config;
+        static VennConfig Config(string source) => ((ConfiguredNode<VennConfig>)VennStaged.Read(source)).Config;
 
         var config = Config("venn-beta\n  set A");
         Assert.IsNull(config.Width);

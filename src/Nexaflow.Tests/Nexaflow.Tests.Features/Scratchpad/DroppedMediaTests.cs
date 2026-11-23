@@ -1,9 +1,10 @@
 using System;
 using System.IO;
-using System.Windows;
 using Nexaflow.Features.Scratchpad.Services;
+using Nexaflow.Interaction;
 
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Tests.Features.Scratchpad;
 
@@ -11,12 +12,7 @@ namespace Nexaflow.Tests.Features.Scratchpad;
 [CoversNode("universal-drop-target")]
 public class DroppedMediaTests
 {
-    private static DataObject Text(string s)
-    {
-        var d = new DataObject();
-        d.SetData(DataFormats.UnicodeText, s);
-        return d;
-    }
+    private static DragPayload Text(string s) => new((DragKinds.Text, s));
 
     [TestMethod]
     public void TryGetSingleUrl_BareHttpUrl_Succeeds()
@@ -42,7 +38,37 @@ public class DroppedMediaTests
 
     [TestMethod]
     public void TryGetSingleUrl_NoText_Fails()
-        => Assert.IsFalse(DroppedMedia.TryGetSingleUrl(new DataObject(), out _));
+        => Assert.IsFalse(DroppedMedia.TryGetSingleUrl(new DragPayload(), out _));
+
+    [TestMethod]
+    public void KeepIn_AFileThatCameAsContent_IsTheNotesOwn_UnderItsOwnName()
+    {
+        var root = TestTemp.CreateSubdirectory("dm-keep-").FullName;
+        var staged = Path.Combine(root, "report.pdf");
+        File.WriteAllText(staged, "content");
+
+        var kept = DroppedMedia.KeepIn(staged, Path.Combine(root, "attachments"));
+        File.Delete(staged);
+
+        Assert.IsNotNull(kept);
+        Assert.AreEqual("report.pdf", Path.GetFileName(kept));
+        Assert.AreEqual("content", File.ReadAllText(kept), "it outlives the staged copy");
+    }
+
+    [TestMethod]
+    public void KeepIn_AFolder_IsKeptWholeWithWhatIsInIt()
+    {
+        var root = TestTemp.CreateSubdirectory("dm-keep-").FullName;
+        var staged = Path.Combine(root, "album");
+        Directory.CreateDirectory(Path.Combine(staged, "inner", "empty"));
+        File.WriteAllText(Path.Combine(staged, "inner", "a.txt"), "a");
+
+        var kept = DroppedMedia.KeepIn(staged, Path.Combine(root, "attachments"));
+
+        Assert.IsNotNull(kept);
+        Assert.AreEqual("a", File.ReadAllText(Path.Combine(kept, "inner", "a.txt")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(kept, "inner", "empty")));
+    }
 
     [TestMethod]
     public void IsImageFile_RecognisesImageExtensionsCaseInsensitively()
@@ -79,6 +105,32 @@ public class DroppedMediaTests
             StringAssert.StartsWith(DroppedMedia.FileLinkMarkdown(dir), "[📁 ");
         }
         finally { Directory.Delete(dir); }
+    }
+
+    [TestMethod]
+    public void FileLinkMarkdown_ANameShapedLikeALink_CannotPointAnywhereElse()
+    {
+        var path = Path.Combine(TestTemp.Root, "invoice](calc.exe) [x.pdf");
+
+        var md = DroppedMedia.FileLinkMarkdown(path);
+
+        StringAssert.Contains(md, @"invoice\](calc.exe) \[x.pdf", "the label is not ended by the name");
+        var address = md[(md.LastIndexOf("](file:", StringComparison.Ordinal) + 2)..^1];
+        Assert.IsFalse(address.Contains('(') || address.Contains(')'), "the address is not ended by the name");
+        Assert.AreEqual(path, new Uri(address).LocalPath);
+    }
+
+    [TestMethod]
+    public void EmbedMarkdown_AnyName_IsFoundAgainByWhatShowsTheNote()
+    {
+        var dir = TestTemp.CreateSubdirectory("dm-embed-").FullName;
+        const string name = "my photo (1)](x) #2 100%.png";
+        File.WriteAllText(Path.Combine(dir, name), "picture");
+
+        var address = DroppedMedia.EmbedMarkdown(name)[4..^1];
+
+        Assert.IsFalse(address.Any(c => c is ' ' or '(' or ')'), address);
+        Assert.AreEqual(Path.Combine(dir, name), MarkdownPictures.Under(address, dir));
     }
 
     [TestMethod]

@@ -5,7 +5,7 @@ using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.Shells;
-using Nexaflow.Visuals.Terminal.Views;
+
 
 namespace Nexaflow.Features.Console;
 
@@ -72,13 +72,12 @@ public sealed class ConsoleTabRegistration : IPageRegistration
             Breadcrumbs = {new BreadcrumbSegment { Label = title }}
         };
 
-        tab.ContentFactory = () =>
+        tab.ViewModelFactory = () =>
         {
-            vm.Tab = tab;          // wire so the VM can mutate its own page title/breadcrumbs
-            var view = new TerminalView(vm);
+            vm.Tab = tab;                           // wire so the VM can mutate its own page title/breadcrumbs
             if (pickerPending && initialPath is not null)
                 vm.ShowEnvironmentPicker(_config.Environments, initialPath);
-            return view;
+            return vm;
         };
 
         return tab;

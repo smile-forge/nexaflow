@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
+using System.Threading;
 using Nexaflow.Features.Solver.Solving;
 using Nexaflow.Tests.Fixtures;
 
@@ -43,33 +44,44 @@ public class HalfWrittenInputTests
         // The gate's whole promise, asserted by absence: while parsing something the renderer rejected,
         // the engine is not entered at all — no exception of any kind comes from inside it, not even
         // the parse exception it would otherwise have raised.
-        var entered = new List<string>();
-        var reading = string.Empty;
+        using var watch = new EngineEntries();
 
-        void Watch(object? sender, FirstChanceExceptionEventArgs e)
+        foreach (var (mode, candidate) in EveryStateOnTheWay())
         {
-            if (e.Exception.StackTrace?.Contains("AngouriMath", StringComparison.Ordinal) != true) return;
-            entered.Add($"\"{reading}\" reached the engine ({e.Exception.GetType().Name})");
+            var input = new SolverInput(mode, candidate, AngleUnit.Radians, 6);
+            if (!ExpressionParser.IsStillBeingWritten(input)) continue;   // the renderer was content
+
+            watch.Reading = candidate;
+            Assert.IsFalse(ExpressionParser.TryParse(input, AngleUnit.Radians, out _),
+                $"\"{candidate}\" cannot be read, so it cannot be solved");
         }
 
-        AppDomain.CurrentDomain.FirstChanceException += Watch;
-        try
-        {
-            foreach (var (mode, candidate) in EveryStateOnTheWay())
-            {
-                var input = new SolverInput(mode, candidate, AngleUnit.Radians, 6);
-                if (!ExpressionParser.IsStillBeingWritten(input)) continue;   // the renderer was content
-
-                reading = candidate;
-                Assert.IsFalse(ExpressionParser.TryParse(input, AngleUnit.Radians, out _),
-                    $"\"{candidate}\" cannot be read, so it cannot be solved");
-            }
-        }
-        finally { AppDomain.CurrentDomain.FirstChanceException -= Watch; }
-
-        Assert.AreEqual(0, entered.Count,
+        Assert.AreEqual(0, watch.Entered.Count,
             "these were rejected on screen and still went to the engine:\n  "
-            + string.Join("\n  ", entered.Take(8)));
+            + string.Join("\n  ", watch.Entered.Take(8)));
+    }
+
+    [TestMethod]
+    public void AnotherThreadsParsingIsNotThisThreadsEntry()
+    {
+        // Exceptions are observed process-wide, and the suite runs its methods in parallel: every other
+        // test that hands the engine something unreadable raises the very exception the gate promises
+        // not to cause. A watch that counted those would fail whenever two such parses overlapped, so
+        // it counts only what is thrown on the thread that asked.
+        using var watch = new EngineEntries();
+        int seenThere = 0;
+
+        var elsewhere = new Thread(() =>
+        {
+            using var there = new EngineEntries();
+            ExpressionParser.TryParse(new SolverInput(DefinitionMode.Calc, "x+", AngleUnit.Radians, 6), AngleUnit.Radians, out _);
+            seenThere = there.Entered.Count;
+        });
+        elsewhere.Start();
+        elsewhere.Join();
+
+        Assert.IsTrue(seenThere > 0, "the other thread was meant to enter the engine, or this proves nothing");
+        Assert.AreEqual(0, watch.Entered.Count, "an exception raised on another thread was taken for this one's");
     }
 
     [TestMethod]
@@ -138,6 +150,33 @@ public class HalfWrittenInputTests
             for (var i = 0; i < seed.Length; i++) states.Add(seed[i..]);            // eaten from the front
 
             foreach (var state in states) yield return (mode, state);
+        }
+    }
+
+    /// <summary>
+    /// The times the algebra engine raised an exception on the thread that made this, as "reading … reached
+    /// the engine". The runtime reports first-chance exceptions for the whole process, so the thread is the
+    /// only way to tell this work's entries from those of tests running beside it.
+    /// </summary>
+    private sealed class EngineEntries : IDisposable
+    {
+        private readonly int _owner = Environment.CurrentManagedThreadId;
+        private readonly List<string> _entered = [];
+
+        public EngineEntries() => AppDomain.CurrentDomain.FirstChanceException += OnRaised;
+
+        /// <summary>What is being parsed now, named in each entry.</summary>
+        public string Reading { get; set; } = string.Empty;
+
+        public IReadOnlyList<string> Entered => _entered;
+
+        public void Dispose() => AppDomain.CurrentDomain.FirstChanceException -= OnRaised;
+
+        private void OnRaised(object? sender, FirstChanceExceptionEventArgs e)
+        {
+            if (Environment.CurrentManagedThreadId != _owner) return;
+            if (e.Exception.StackTrace?.Contains("AngouriMath", StringComparison.Ordinal) != true) return;
+            _entered.Add($"\"{Reading}\" reached the engine ({e.Exception.GetType().Name})");
         }
     }
 }

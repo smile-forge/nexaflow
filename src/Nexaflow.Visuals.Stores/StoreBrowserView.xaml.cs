@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Behaviors;
+using Nexaflow.Visuals.Common.Dropping;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Stores;
 
@@ -9,7 +12,7 @@ namespace Nexaflow.Visuals.Stores;
 /// folder's, or the open folder's), and where something dragged in from this PC lands. What each then does is the
 /// <see cref="StoreBrowser"/>'s.
 /// </summary>
-public partial class StoreBrowserView : UserControl
+public partial class StoreBrowserView : UserControl, IDropTarget
 {
     public StoreBrowserView() => InitializeComponent();
 
@@ -61,25 +64,34 @@ public partial class StoreBrowserView : UserControl
 
     /// <summary>Files dragged in from the file browser or Windows copy into the folder under the pointer — a folder
     /// row or tree node — or into the folder open.</summary>
-    void OnDragOver(object sender, DragEventArgs e)
+    static readonly string[] DroppableKinds = [DragKinds.Files, DragKinds.FileContents];
+
+    public IReadOnlyList<string> AcceptedKinds => DroppableKinds;
+
+    /// <summary>Files dragged in from the file browser or Windows copy into the folder under the pointer — a folder
+    /// row or tree node — or into the folder open.</summary>
+    public DropOffer? OfferDrop(DropRequest request)
     {
-        e.Effects = Browser is { } browser && e.Data.GetDataPresent(DataFormats.FileDrop) && browser.CanDropInto(DropTarget(sender, e))
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
-        e.Handled = true;
+        if (Browser is not { } browser) return null;
+
+        var hit = this.ElementUnder(request.At);
+        if (!DropHitTesting.IsInside(hit, Tree) && !DropHitTesting.IsInside(hit, Entries)) return null;
+
+        return browser.CanDropInto(FolderUnder(hit))
+            ? new DropOffer(DropEffect.Copy, Str.Get("Stores.Drop.CopyHere"))
+            : DropOffer.Refused;
     }
 
-    void OnDrop(object sender, DragEventArgs e)
+    public void AcceptDrop(DropRequest request)
     {
-        e.Handled = true;
-        if (Browser is not { } browser || e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } paths) return;
-        _ = browser.DropAsync(paths, DropTarget(sender, e));
+        if (Browser is not { } browser) return;
+
+        var folder = FolderUnder(this.ElementUnder(request.At));
+        if (request.Payload.FilesOnDisk() is { Count: > 0 } paths) _ = browser.DropAsync(paths, folder);
     }
 
-    object? DropTarget(object sender, DragEventArgs e)
-    {
-        if (e.OriginalSource is not DependencyObject hit) return null;
-        if (sender == Tree) return PointerMenus.ItemUnder<TreeViewItem>(hit, Tree)?.DataContext as StoreFolderNode;
-        return ItemsControl.ContainerFromElement(Entries, hit) is ListViewItem { DataContext: StoreRow { IsFolder: true } folder } ? folder : null;
-    }
+    object? FolderUnder(DependencyObject? hit)
+        => DropHitTesting.IsInside(hit, Tree)
+            ? DropHitTesting.Holding<TreeViewItem>(hit)?.DataContext as StoreFolderNode
+            : DropHitTesting.Holding<ListViewItem>(hit) is { DataContext: StoreRow { IsFolder: true } folder } ? folder : null;
 }

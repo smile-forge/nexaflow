@@ -2,8 +2,11 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Scratchpad.Converters;
 using Nexaflow.Features.Scratchpad.Services;
 using Nexaflow.Features.Scratchpad.ViewModels;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Layout;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;
 using System.Globalization;
@@ -15,12 +18,10 @@ using System.Windows.Media;
 namespace Nexaflow.Features.Scratchpad.Views;
 
 /// <summary>
-/// IDropTarget is implemented for intra-app drops from the FileSystemView.
-/// Note: IDropTarget.Drop does not receive drop coordinates, so notes land at the viewport
-/// centre. External OS-level drops (from other applications) are handled by the XAML
-/// DragOver/Drop event handlers on the surface, which DO have position information.
+/// The board. Anything dropped on it that no note took becomes a note where it was let go.
 /// </summary>
-public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget, IPageView
+[ViewFor(typeof(ScratchpadViewModel))]
+public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget
 {
     private ScratchpadViewModel Vm => (ScratchpadViewModel)DataContext;
 
@@ -93,83 +94,97 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     // text box is focused — so a RichTextBox inside a PostIt keeps Ctrl+V for text paste, while Ctrl+V on the
     // canvas background lands here and pastes into the scratchpad.
 
-    public bool CanProcessKey(Key key, ModifierKeys modifiers)
-        => (key == Key.V        && modifiers == ModifierKeys.Control)
-        || (key == Key.Add      && modifiers == ModifierKeys.Control)
-        || (key == Key.Subtract && modifiers == ModifierKeys.Control)
-        || (key == Key.D0       && modifiers == ModifierKeys.Control);
+    public bool CanProcessKey(ConsoleKey key, KeyModifiers modifiers)
+        => modifiers == KeyModifiers.Control
+        && key is ConsoleKey.V or ConsoleKey.Add or ConsoleKey.Subtract or ConsoleKey.D0;
 
-    public bool ProcessKey(Key key, ModifierKeys modifiers)
+    public bool ProcessKey(ConsoleKey key, KeyModifiers modifiers)
     {
-        if (key == Key.V && modifiers == ModifierKeys.Control)
+        if (!CanProcessKey(key, modifiers)) return false;
+
+        switch (key)
         {
-            // Same classification as a drop, so pasting an image / file / URL behaves consistently.
-            try { HandleDrop(Clipboard.GetDataObject(), ViewportCenter()); } catch { }
-            return true;
+            case ConsoleKey.V:
+                // Same classification as a drop, so pasting an image / file / URL behaves consistently.
+                PasteAsNotes(ViewportCenter());
+                break;
+            case ConsoleKey.Add:      Surface.ZoomBy(1.15);         break;
+            case ConsoleKey.Subtract: Surface.ZoomBy(1 / 1.15);     break;
+            case ConsoleKey.D0:       Surface.RestoreView(1, 0, 0); break;
         }
-        if (key == Key.Add      && modifiers == ModifierKeys.Control) { Surface.ZoomBy(1.15);      return true; }
-        if (key == Key.Subtract && modifiers == ModifierKeys.Control) { Surface.ZoomBy(1 / 1.15);  return true; }
-        if (key == Key.D0       && modifiers == ModifierKeys.Control) { Surface.RestoreView(1, 0, 0); return true; }
-        return false;
+        return true;
     }
 
-    // ── IDropTarget (intra-app drops from FileSystemView) ─────────────────
+    // ── IDropTarget ──────────────────────────────────────────────────────
 
-    public bool CanAcceptDrop(IDataObject data)
-        => data.GetDataPresent(DataFormats.Text)
-        || data.GetDataPresent(DataFormats.UnicodeText)
-        || data.GetDataPresent(DataFormats.FileDrop)
-        || data.GetDataPresent(DataFormats.Bitmap);
+    public IReadOnlyList<string> AcceptedKinds => DroppedMedia.Kinds;
 
-    /// <summary>Nothing here is a file on disk, so no drop can land on its own source.</summary>
-    public bool IsSelfDrop(IDataObject data, string destinationPath) => false;
+    public DropOffer? OfferDrop(DropRequest request)
+        => new(DropEffect.Copy, Str.Get("Scratchpad.Drop.CreatePostIt"));
 
-    public string GetDropDescription(IDataObject data, string? targetFolderName, bool isMove)
-        => Str.Get("Scratchpad.Drop.CreatePostIt");
+    public void AcceptDrop(DropRequest request) => AddAsNotes(request.Payload, CanvasPointOf(request.At));
 
-    // IDropTarget.Drop carries no coordinates, so intra-app drops land at the viewport centre.
-    public new void Drop(IDataObject data, string destinationPath, bool move)
-        => HandleDrop(data, ViewportCenter());
+    /// <summary>Where on the board a drop on this page is: under the pointer, or the middle of what shows for one let
+    /// go over the toolbar or status bar.</summary>
+    private Point CanvasPointOf(DropPoint at)
+    {
+        var point = TranslatePoint(new Point(at.X, at.Y), Surface);
+        return new Rect(Surface.RenderSize).Contains(point) ? ScreenToCanvas(point) : ViewportCenter();
+    }
 
     /// <summary>
-    /// Classifies dropped/pasted data into the right kind of post-it (shared by both drop paths
-    /// and Ctrl+V):
-    /// image file → image note; non-image file → file-link note; raw bitmap → image note;
-    /// a bare URL → URL note (with background preview); otherwise plain text/markdown.
+    /// Classifies dropped/pasted data into the right kind of post-it (shared by drops and Ctrl+V):
+    /// image file → image note; other file → file-link note, or its attachment where it came as content only; raw
+    /// picture → image note; a bare URL → URL note (with background preview); otherwise plain text/markdown.
     /// Multiple files cascade so they don't stack exactly.
     /// </summary>
-    private void HandleDrop(IDataObject? data, Point canvasPt)
+    private void AddAsNotes(IDragPayload payload, Point canvasPt)
     {
-        if (data is null) return;
-        if (data.GetDataPresent(DataFormats.FileDrop) &&
-            data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+        if (payload.CarriesFiles())
         {
-            for (int i = 0; i < files.Length; i++)
+            // Content has no place of its own to link to, so the note keeps it.
+            bool contentOnly = !payload.Contains(DragKinds.Files);
+            var files = payload.FilesOnDisk();
+            for (int i = 0; i < files.Count; i++)
             {
                 var pt = new Point(canvasPt.X + i * 24, canvasPt.Y + i * 24);
                 if (DroppedMedia.IsImageFile(files[i])) Vm.AddImageNote(files[i], pt);
+                else if (contentOnly)                   Vm.AddAttachedFileNote(files[i], pt);
                 else                                    Vm.AddFileLinkNote(files[i], pt);
             }
             return;
         }
 
-        // Browser image drag with no backing file → a raw bitmap.
-        if (data.GetDataPresent(DataFormats.Bitmap) &&
-            data.GetData(DataFormats.Bitmap) is System.Windows.Media.Imaging.BitmapSource bmp)
+        // Browser image drag with no backing file → a raw picture.
+        if (payload.Image() is { } png)
         {
-            Vm.AddBitmapNote(bmp, canvasPt);
+            Vm.AddBitmapNote(png, canvasPt);
             return;
         }
 
-        if (DroppedMedia.TryGetSingleUrl(data, out var url))
+        if (DroppedMedia.TryGetSingleUrl(payload, out var url))
         {
             Vm.AddUrlNote(url, canvasPt);
             return;
         }
 
-        var content = MarkdownClipboard.ReadBestMarkdown(data);
+        var content = MarkdownClipboard.ReadBestMarkdown(payload);
         if (!string.IsNullOrEmpty(content))
             Vm.AddNoteWithContent(content, canvasPt);
+    }
+
+    /// <summary>What the clipboard holds, as notes at <paramref name="canvasPt"/>.</summary>
+    private void PasteAsNotes(Point canvasPt)
+    {
+        try
+        {
+            if (Clipboard.GetDataObject() is { } held) AddAsNotes(new WindowsDragPayload(held), canvasPt);
+        }
+        catch (System.Runtime.InteropServices.ExternalException) { /* another application has the clipboard open */ }
+        catch (Exception failure) when (failure is System.IO.IOException or UnauthorizedAccessException)
+        {
+            // A copied attachment could not be written out, so there is nothing to make a note of.
+        }
     }
 
     // ── Note mini-ribbon (rendered at ScratchpadView level, never rotated) ─
@@ -249,24 +264,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         return false;
     }
 
-    // ── External drag+drop (from other applications / OS) ────────────────
-
-    private void Surface_DragOver(object sender, DragEventArgs e)
-    {
-        if (CanAcceptDrop(e.Data))
-            e.Effects = DragDropEffects.Copy;
-        else
-            e.Effects = DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void Surface_Drop(object sender, DragEventArgs e)
-    {
-        // Use actual drop position for placement — unavailable via IDropTarget.Drop
-        HandleDrop(e.Data, ScreenToCanvas(e.GetPosition(Surface)));
-        e.Handled = true;
-    }
-
     // ── Canvas right-click → new post-it ──────────────────────────────────
 
     private Point _newNoteCanvasPt;
@@ -280,10 +277,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     private void NewNoteHere_Click(object sender, RoutedEventArgs e)
         => Vm.AddNote(_newNoteCanvasPt);
 
-    private void PasteHere_Click(object sender, RoutedEventArgs e)
-    {
-        try { HandleDrop(Clipboard.GetDataObject(), _newNoteCanvasPt); } catch { }
-    }
+    private void PasteHere_Click(object sender, RoutedEventArgs e) => PasteAsNotes(_newNoteCanvasPt);
 
     private static bool ClipboardHasContent()
     {
@@ -354,10 +348,6 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     private static Brush NoteColorToBrush(string color)
         => (Brush)_fillConverter.Convert(color, typeof(Brush), null!, CultureInfo.InvariantCulture);
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => Vm;
 
     // ── Coordinate helpers ────────────────────────────────────────────────
 

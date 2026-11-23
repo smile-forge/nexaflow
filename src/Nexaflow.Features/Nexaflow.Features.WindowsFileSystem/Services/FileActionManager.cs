@@ -118,6 +118,11 @@ list.AddRange(TemplatedCreateRegistry.Instance.BuildCreateActions(_registry.Vfs)
         return filtered;
     }
 
+    /// <summary>The viewer of exactly <paramref name="experienceId"/>, whatever is mapped to it, or null.</summary>
+    public IFileAction? ViewerOf(string experienceId)
+        => File.FirstOrDefault(action => action.OpensViewer
+                                      && string.Equals(action.ExperienceId, experienceId, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>
     /// True unless <paramref name="action"/> is about a companion (<see cref="IFileAction.RequiredCompanionSuffix"/>)
     /// that some selected item lacks — a folder, or a file with none beside it. A companion is looked for beside a file on

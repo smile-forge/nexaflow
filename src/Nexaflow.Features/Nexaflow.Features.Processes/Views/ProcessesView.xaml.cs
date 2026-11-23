@@ -5,15 +5,15 @@ using System.Windows.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.ViewModels;
 using Nexaflow.Visuals.Common;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Processes.Views;
 
-public partial class ProcessesView : UserControl, IPageView
+[ViewFor(typeof(ProcessesViewModel))]
+public partial class ProcessesView : UserControl
 {
     public ProcessesViewModel ViewModel { get; }
     private WindowMinimizeWatcher? _minimizeWatcher;
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     public ProcessesView(ProcessesViewModel viewModel)
     {

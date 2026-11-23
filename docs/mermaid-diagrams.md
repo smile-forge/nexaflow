@@ -1,65 +1,87 @@
-# Mermaid diagrams on the shared layout tree
+# Diagrams written in Mermaid's syntax
 
-A Mermaid diagram on the shared layout tree is read and drawn in four steps, like every other language the Markdown
-renderer draws ([markdown-ast.md](markdown-ast.md)):
+Mermaid is a third party's bundle of diagram syntaxes, and a `mermaid` fence is its way of saying which one a block is
+written in. Nexaflow reads those syntaxes so that what is written for Mermaid reads here too; it does not structure itself
+the way Mermaid does. **Every diagram is a language of its own** in the language table, read and drawn like every other
+language the Markdown renderer draws ([markdown-ast.md](markdown-ast.md)): **parser → stages → builder**, the language
+offering each and the engine running them. A `mermaid` fence is a language that reads only the header, and hands the
+block whole to whichever language written in Mermaid's syntax reads the word it starts with (`MermaidFenceParser`).
 
-**grammar → stages → builder.** The grammar reads the lines and says what each is. The stages write into the tree
-everything the lines mean — what goes together, what the front matter asks with its defaults filled in, the current date,
-what is shown while somebody is writing — so the builder is handed the answers. The builder lays the tree out, mostly a
-`switch` from a node to what is drawn for it, emitting pieces of the layout tree each standing for the part of the source
-it was drawn from — which is what makes a diagram selectable, pressable and written in where it is drawn.
+The parser reads the block — what every statement says, and where a statement ends, which is not always where a line
+does. The stages the language offers write into the tree everything the lines mean — what goes together, what the front
+matter asks with its defaults filled in, the current date, what is shown while somebody is writing — so the builder is
+handed the answers. The builder lays the tree out, mostly a `switch` from a node to what is drawn for it, emitting pieces
+of the layout tree each standing for the part of the source it was drawn from — which is what makes a diagram selectable,
+pressable and written in where it is drawn.
+
+**What these diagrams share is code they call — the kit — never a controller they are handed to.** `MermaidParser`'s
+pieces for the frame every block in this syntax shares, `MermaidLine` for reading a statement, the shared stages
+(`WithConfig`, `WithHoles`, …) and the pieces every drawing is made of are decided once, and each language calls what it
+needs. Every diagram is a language entry of its own: its parser (`<Type>Parser`) reads its block, and its entry
+(`Shipped.<Type>`) offers its stages, names its builder (`ContentLayouts.<Type>`) and its edit handler. Nothing registers
+a diagram by its type: a `mermaid` fence hands its block to whichever of the languages written in Mermaid's syntax reads
+the word its header starts with (`MermaidFenceParser`), and the shared `MermaidParser` reads no more of a block than the
+frame every one shares.
 
 No diagram has a model type. What the lines mean together is its stages' to say, in the tree; what is drawn for them is its
 builder's, reading the tree in the order it is written.
 
-Every diagram is drawn this way, and each is built from **the Mermaid kit**: the pieces every diagram shares, decided
-once. Pie, Venn and radar are the
-references — pie the smallest whole diagram, Venn one with stages, names, styles and a layout of its own, radar one whose
+Every diagram is built from **the kit**: the pieces every diagram shares, decided once. Sankey and Venn are the
+references for a diagram as a language of its own — its parser over the kit's pieces, its stages offered by its language
+entry; Venn the one with stages of its own. Pie, Venn
+and radar are the references for the rest — pie the smallest whole diagram, Venn one with stages, names, styles and a layout of its own, radar one whose
 lines list items with values and whose options share a line, xychart one with axes, ranges and series in brackets.
 
 ## What a diagram is made of
 
 | File | What it is | Pie / Venn |
 |---|---|---|
-| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what it writes across several lines rather than one (`Stretches`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
-| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Edits.cs` | The diagram's own `IOnEdit`, named in `DiagramEdits.For`: what a key means in it — what typing a character a place cannot hold is written as (`Escaping`, through `DiagramWriting.Typed`); where the diagram has decided it, what Enter, Shift+Enter, Tab, Delete, Insert and a drop mean, and what its ribbon offers (`Offers`) and a choice on it writes, down the front matter's nodes; every other key left to do what it does anywhere | `PieEdits`, `VennEdits`, `RadarEdits` |
+| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Parser.cs` | The diagram's reading, both ways (`ITranspile`). `Parse` drives the read: the frame every block in Mermaid's syntax shares through `MermaidParser`'s pieces (`Fences`, `FrontMatter`, `Row`, `Line`, `StatementLine`, `Directive`, `Accessibility`, `SpacedDescription`), its own header, every statement read through `MermaidLine`, ending where the diagram says a statement ends. `Holds` says where a hole stands, and `Rewrite` spells what is written into the diagram | `SankeyParser`, `VennParser`, `QuadrantParser`, `TimelineParser`, `PieParser`, `RadarParser`, `XyParser`, `IshikawaParser`, `ClassParser`, `ArchitectureParser`, `C4Parser`, `C4SequenceParser`, `SequenceParser`, `JourneyParser`, `CynefinParser`, `MindmapParser`, `KanbanParser`, `FlowchartParser`, `SwimlaneParser`, `ErParser`, `BlockParser`, `StateParser`, `RequirementParser`, `GanttParser`, `GitParser` |
+
+| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Edits.cs` | The diagram's own `IOnEdit`, named by its language entry: what a key means in it — what typing a character a place cannot hold is written as (`Escaping`, through `DiagramWriting.Typed`); where the diagram has decided it, what Enter, Shift+Enter, Tab, Delete, Insert and a drop mean, and what its ribbon offers (`Offers`) and a choice on it writes, down the front matter's nodes; every other key left to do what it does anywhere | `PieEdits`, `VennEdits`, `RadarEdits` |
 | `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds`, `RadarKinds` |
 | `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together that the order they are written in does not already say, worked out and said in the diagram's own nodes — `PieSliceNode` — or, where it is only a word, hung underneath as a fact, as a message's `autonumber` number is; and what is wrong that only the whole block shows. The front matter goes on the block through `WithConfig` | `ResolveSlices`, `ResolveShares`; `GroupRegions`, `ResolveRegions`; `ResolveCurves`, `ResolveOptions` |
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
 | `…/<Type>/<Type>Nodes.cs` | What the stages say lines mean where it is more than a word, as the diagram's own nodes — internal, and printing as what was written. A diagram with nothing of the kind to say has none | `PieNodes`, `RadarNodes`, `GanttNodes` |
 | `src/Nexaflow.Markdown/Layout/Mermaid/<Type>/<Type>Builder.cs` | A `ContentBuilder` made from the kit: `Build` lays the tree out at the origin, reading the lines in the order they are written and what its stages wrote, with the front matter from `DiagramConfig.Of` — see [The builders](#the-builders) | `PieBuilder`, `SankeyBuilder`, `RadarBuilder` |
 | `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Piece.cs` | The names of the pieces the diagram lays, shared by its builder and its tests | `PiePiece`, `SankeyPiece`, `RadarPiece` |
-| `MermaidDiagrams.Grammar` · `ContentLayouts.Diagram` | Where the diagram is named — both, or neither. The second names the builder's type, which makes the diagram a language of its own (`Shipped.Diagrams`) | |
+| `Shipped.<Type>` (`src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs`) | The diagram's language entry: the words it reads (`Reads`), its parser, the stages it offers the engine, its builder (`ContentLayouts.<Type>`), its edit handler, its write half and its bindings. It is in the language table (`ContentLanguages`) and among the languages a `mermaid` fence may hold (`Shipped.WrittenInMermaid`). | `Shipped.Sankey`, `Shipped.Venn`, `Shipped.Packet` |
 
 **A language of its own is read as one, and its diagrams share it.** C4 is not a Mermaid dialect — it is C4-PlantUML's
 macro set, one shape throughout, which Mermaid has borrowed a slice of. So the language is read once, apart from any one
-diagram: `C4Grammar` says only what a line *is*, and one stage, `ResolveMacros`, says what each macro means — its card, its
+diagram: `C4Parser` says only what a line *is*, and one stage, `ResolveMacros`, says what each macro means — its card, its
 ends and its number, its box, what each argument is to what is drawn — with `C4Macro`, `C4Elements`, `C4Said` and
 `C4Counter` saying what a macro says, what its name makes it, what the whole block is switched to show, and how the
 numbering counts. A diagram of C4's is then only the drawing of a picture — `C4Builder` a graph,
 `C4SequenceBuilder` a timeline — and the two cannot disagree about what `ContainerDb(…, $tags="x")` means, because neither of them decides it.
 
 **A type written in another language may still be the same diagram.** A C4 sequence is a sequence diagram said in
-C4-PlantUML's words, so `C4SequenceGrammar` claims the macros and hands every other line to `SequenceGrammar`, its stages
+C4-PlantUML's words, so `C4SequenceParser` reads its own block, claims the macros with `C4Parser`'s pieces and reads every
+other line with `SequenceParser`'s, its stages
 are a sequence diagram's with C4's added, and `C4SequenceBuilder` draws with the sequence diagram's own drawing
 (`SequenceDrawing`), handing it a dialect of its own (`C4Dialect`) whose reader takes the macro lines onto the very
 same timeline — giving them first refusal on each line, and leaving the rest to the sequence diagram's reader. One picture,
 one drawing, two ways of writing it.
 
-**A type Mermaid reads as another shares its grammar and its drawing.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
-the two with one parser and draws them with one renderer; so `MermaidDiagrams.Grammar` names `FlowchartGrammar` for both,
-`SwimlaneBuilder` draws with the flowchart's own drawing (`FlowchartDrawing`) and says only that its outermost subgraphs are lanes, and only what the lanes
-themselves ask for is its own (`SwimlaneConfig`, which the stages hang on a swimlane's block with the chart's own inside it). Its tests are its own either way — the grammar contract over `swimlane-beta` blocks,
-and a builder's over what it draws.
+**A type Mermaid reads as another calls that one's reading and its drawing.** A swimlane is a flowchart laid out in lanes, and Mermaid
+reads the two with one parser and draws them with one renderer; so `SwimlaneParser` runs its own read and reads each line with the
+flowchart's pieces (`FlowchartParser.Heading`, `Ended` and `Statement`), `Shipped.Swimlane` offers the flowchart's stages,
+`SwimlaneBuilder` draws with the flowchart's own drawing (`FlowchartDrawing`) and says only that its outermost subgraphs are
+lanes, and only what the lanes themselves ask for is its own (`SwimlaneConfig`, which its entry hangs on a swimlane's block with
+the chart's own inside it). Its tests are its own — the parser contract over `swimlane-beta` blocks, and a builder's over what it
+draws.
 
 **A type Mermaid draws may be a language of its own here.** A packet is nothing but its fields, and its label is a string as
 Mermaid's newer grammars write one — in either quote, a backslash keeping what follows, running across a line ending — so it
 is read by a parser of its own (`PacketParser`), reusing `MermaidParser`'s pieces for the frame every block shares, worked
-over by its own pipeline (`PacketPipeline`), and drawn by `PacketBuilder` from the kit's sheet, words and ink, with no
-grammar in `MermaidDiagrams.Grammar` and no builder in `ContentLayouts.Diagram`. `MermaidDiagrams` names it only so a
-`mermaid` block headed `packet` is handed to it, as it would be to any diagram. A treemap and a tree view are the same:
-each its own parser driving the read (`TreemapParser`, `TreeViewParser`) with the shared pieces under it, its own pipeline
-and its own builder (`TreemapBuilder`, `TreeViewBuilder`).
+over by the stages its language entry offers the engine (`Shipped.Packet`), and drawn by `PacketBuilder` from the kit's
+sheet, words and ink. A `mermaid` block headed `packet` is
+handed to it as to any language written in Mermaid's syntax that reads the word its header starts with. A treemap and a tree view are the same:
+each its own parser driving the read (`TreemapParser`, `TreeViewParser`) with the shared pieces under it, the stages its
+language entry offers, and its own builder (`TreemapBuilder`, `TreeViewBuilder`). Each takes bindings as every diagram does.
+An event model reads Mermaid's syntax too, and a `mermaid` fence hands it over the same way, but it uses none of this kit:
+its parser, stage, builder and edit handler (`EventModelingParser`, `ResolveTimeline`, `EventModelingBuilder`,
+`EventModelingEdits`) are built on the engine's contracts alone, in folders of their own.
 
 The sheet (`DiagramSheet`) draws everything round the diagram: the title (a `title` line, a header's title, or the
 front matter's), what could not be read set beneath it, and the card. The element the block is shown and written in is the
@@ -81,14 +103,14 @@ for drawing; a diagram's own code sits in a folder of its own under each, and it
 
 | To | Use |
 |---|---|
-| read a statement written across several lines — a note written until its `end note` | `MermaidStretch`, named in the grammar's `Stretches`: the parser finds the stretch, from the line that opens one to the line that ends it, and hands each line back to be read; the whole of it is one line of the tree |
-| read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead — `Keyword` and `Word` take what carries a word on, for one punctuation may close (`complex-->clear`) |
+| read a statement written across several lines — a note written until its `end note`, the members between a class's braces | the diagram's own parser, from the line opening it to the line ending it, each line between read on its own and the whole made one line of the tree — as `StateParser` reads a note and `ClassParser` a class's members |
+| end a statement where the diagram's own lexer ends one — at a `;`, past a closed string, before a keyword starting the next — so several may stand on one row | `MermaidParser.StatementLine(source, start, from, said, end, lines)`: the line ends mid-row where more is written after the statement, and the next is read from there; `MermaidParser.Directive` reads on past a `}%%` the same way, so a header after a directive on its row is still the header |
+| read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead — `Keyword` and `Word` take what carries a word on, for one punctuation may close (`complex-->clear`); `ExactKeyword` where the diagram's lexer matches its words case and all, so `End` is a name and only `end` a keyword; `HashComment` where a `#` opens a comment too, and `EntityLength` to tell one from an entity code (`#59;`) |
 | read a title | `MermaidLine.Title` — every builder sets it over the diagram |
-| read a name, bare or in quotes, or names with a separator between — each item more than its name where `item` says, a name still to write before `ends` | `Name`, `Names` |
-| read a label in brackets — `[…]`, `(…)`, `{{…}}` — quoted or bare | `Label(open, close, role)` |
-| read a number after a separator, still to come or written — to the end, `until` a character or a `stop` token ends it | `Room`, then `Amount` with `MermaidNumber.Positive` or `Where` |
+| read a name, bare or in quotes, or names with a separator between — each item more than its name where `item` says, a name still to write before `ends` | `Name`, `Names` — `Name(role, ends)` where a rule of the diagram's own says where a bare name stops |
+| read a label in brackets — `[…]`, `(…)`, `{{…}}` — quoted or bare | `Label(open, close, role, quotesInWords)` — `quotesInWords` where a quote may stand in a bare label's words, as a mindmap's may, a label opening with one being a string only where a quote closes it hard against its bracket |
+| read a number after a separator, still to come or written — to the end, `until` a character or a `stop` token ends it | `Room`, then `Amount` with `MermaidNumber.Positive` or `Where` — or with an `end` where the diagram has said where the number stops |
 | read what an option is set to — a word from a few, `true` or `false` | `Setting` |
-
 | read or write a date in a day.js format, a length of time, or a date in a d3 axis format | `MermaidDate.Read`/`Write`, `MermaidDuration.Read`/`After`, `MermaidTimeFormat.Write` |
 | say what is wrong with a piece as a whole — braces never closed | `Close(kind, role, trouble)` |
 | read `key: value` properties — a style's, metadata closed by a brace, or options written one after another with only space between them | `Properties(known, ends, what, spaced)`, and `MermaidStyle.With` in the model |
@@ -102,9 +124,10 @@ for drawing; a diagram's own code sits in a folder of its own under each, and it
 | say where a line that goes into the group opened above it has none above it — a timeline's events before any period, a Cynefin diagram's items before any domain | `MermaidGrouping.Unopened`; which group each other line is in is the order the builder reads them in |
 | say what each line is inside where groups nest and close with a word of their own — a block diagram's composites, a flowchart's subgraphs, a C4 diagram's boundaries | `MermaidNesting.Nest`, which gathers each group with the lines written in it into a `MermaidKinds.Group`, so the builder reads what is inside what by walking down the tree — several opening kinds where one word closes them all, as a sequence diagram's `box` and its frames both end with `end`, and several closing kinds where a block is written in two languages at once, as a C4 sequence's `}` closes a boundary where its `end` closes a frame; a name that names a group rather than anything drawn in one — an ER relationship or a flowchart link joining a subgraph, a transition reaching a composite state — says which as a `GroupReferenceNode`, the groups counted in the order they are opened |
 | tell a colour written where a line may start with one from the start of what follows it — `box Aqua Group` | `MermaidColour.At`, which reads a name CSS knows, a `#` and its digits, or a colour written as its parts |
+| end an outline diagram's statement as Mermaid's mindmap and kanban lexers do — a bare title running across line endings to its own closing bracket, a `%%` in a title or a bare id being part of it | `MermaidOutline.OpenedAt`, `Runs` and `CommentAt` |
 | read a node as an id and a label in the brackets that say its shape | `MermaidOutline.Node` with `MermaidShapes.Brackets` — `spaced: false` where a diagram writes several nodes to a line, `ends` where a rule of the diagram's own says where the id stops — then `MermaidShapes.Of` for the shape that was written, or `MermaidShapes.Named` for one `@{ shape: … }` names |
-| read a link between two nodes, and what its characters draw | `MermaidLinks.At` — whether one is written there at all, and whether it is the whole of one or the opening of a labelled one — then `MermaidLinks.Of` for its heads, its line and how many ranks it reaches |
-| read the `classDef`, `class` and `style` lines, and work out what everything is styled with | `MermaidStyling`, given the diagram's own roles: `Defined`, `Applied`, `Styled`; from a stage, `Resolve` for what is missing and `Style` for what each thing is drawn with, hung on the name first writing it as a `StyledNode` the builder reads with `DiagramText.StyleOf` — keyed by what something stands for, through `idOf`, where that is not the name written, as a state diagram's `[*]` is the dot its scope starts or stops at (a diagram still with a model: `Styles` there) |
+| read a link between two nodes, and what its characters draw | `MermaidLinks.Ending` to tell whether a link is the last thing on a row, which joins the next row's node where a diagram's lexer takes the space after a link; `MermaidLinks.At` — whether one is written there at all, and whether it is the whole of one or the opening of a labelled one — then `MermaidLinks.Of` for its heads, its line and how many ranks it reaches |
+| read the `classDef`, `class` and `style` lines, and work out what everything is styled with | `MermaidStyling`, given the diagram's own roles: `Defined`, `Applied`, `Styled`; from a stage, `Style` for what each thing is drawn with — `making` naming the lines whose names make what they name where nothing else writes it, as a flowchart's `style` line does — hung on the name first writing it as a `StyledNode` the builder reads with `DiagramText.StyleOf` — keyed by what something stands for, through `idOf`, where that is not the name written, as a state diagram's `[*]` is the dot its scope starts or stops at (a diagram still with a model: `Styles` there) |
 | draw only part of a graph-shaped diagram, as a `config: nexaflow:` block asks | the builder hands its folding (`DiagramFolding`) its nodes and links with `Fold` (`DiagramChart`) before placing anything, then asks `Draws`, and draws chips with `Chipped` and leftovers with `Spilled` |
 | read words to where a rule of the diagram's own says they end, rather than to a character | `MermaidLine.Words(role, end)` |
 | lay a style over the classes something is given | `MermaidStyle.Over` |
@@ -160,7 +183,7 @@ for drawing; a diagram's own code sits in a folder of its own under each, and it
 | reach something the diagram draws but writes nowhere as words — a node's shape, its fill | only the ribbon: nothing drawn stands for those characters, so no caret lands in them and no key reaches them. Write them where the source already says them, which for a thing said more than once is wherever it is said **last** — a flowchart's shape is the brackets round its label, or the `shape:` of an `id@{ … }` line after them, and a line of its own goes in after them all where nothing said it |
 | hang a node off one with too many children, offering the rest | `Spilled` on the folding for the cells and lines, added to what `DiagramLayers.Lay` is given, then `Draw` after the nodes. Layout only: it stands for no part of the source, and its press is the same `expand` verb a chip declares |
 | say what a run of words says — entity codes read back, a binding replaced by what it stands for | `Words.Written`/`Shown`, which ask the tree: the grammar handed the run to `ContentWords` when it read it, so each `{{…}}` is a part of its own and a builder never looks at a character to find one. What a binding stands for is hung under it by the `WithBindings` stage before the builder sees the tree |
-| draw lines the host supplies — a binding on a line of its own | nothing: `MermaidParser.Bind` reads what it comes to into the block as lines of its own (`Roles.Supplied`) before any stage runs, so a grammar, its stages and its builder read them as they read the rest and never learn a line was supplied. The engine keeps them read-only and picks them out whole |
+| draw lines the host supplies — a binding on a line of its own | nothing: `MermaidParser.Bind` reads what it comes to into the block as lines of its own (`Roles.Supplied`) before any stage runs, so a parser, its stages and its builder read them as they read the rest and never learn a line was supplied. The engine keeps them read-only and picks them out whole |
 | draw another language inside a label — a tune on a node, a formula on a class | `Words.Inset` for the label, which is a `LayoutInset` where the grammar read a `Kinds.Nested` node there; `Set` it where the words would have gone. The engine parsed the inner content with its own language before the builder was made; `Inset` asks it to lay that out, positioned where it was written, and the two trees are grafted into one layout — `ContentNested` and `ContentEngine` |
 | show a block with nothing to draw | `Sheet.AsWritten` |
 
@@ -240,18 +263,21 @@ handed the kit's pieces and whatever the diagrams sharing it draw differently, a
    it does not. What is cut short to fit and how it is said whole. Which of the clipboard's ways mean what they say where. Every
    answer is a row of [the editing kit](#editing); one with no row is a piece the kit lacks, and is added to it.
 1. **Read Mermaid's syntax page for it** (`https://mermaid.ai/open-source/syntax/<type>.html`) and support all of it.
-2. **The grammar and its kinds**, reading every line through `MermaidLine`, named in `MermaidDiagrams.Grammar`. Its
-   tests derive from `MermaidGrammarContract` and list every construct, and what nobody means to write, in `Blocks`, and
-   the documentation's examples in `DocumentedBlocks`. A diagram reading its own statements instead of one line at a
-   time names its parser in `MermaidDiagrams.ParserFor`, and the contract then holds that parser rather than the shared
-   one.
-3. **Stages** for what lines mean together, and `Holds` for where a hole stands while the diagram is written.
-4. **The config**, hung on the block by a stage, and **stages writing the rest** of what the builder needs — a share, a
-   place in the order, whether something is listed — so the builder only lays out.
-5. **The builder**, `<Type>Builder`, named in `ContentLayouts.Diagram`: layers by how the diagram looks, each piece
-   standing for the part it was drawn from, its pieces named in `<Type>Piece` beside the grammar. Its tests derive from
+2. **The parser and its kinds**, `<Type>Parser`: `Parse` driving the read over the kit's pieces, every statement read
+   through `MermaidLine` and ending where Mermaid's own grammar ends it — read that grammar, not only the syntax page, for
+   a string that runs across a line ending — with `Holds`, and `Rewrite` its write half. Its tests derive from
+   `ContentParserContract`, list every construct, and what nobody means to write, in `Blocks`, the documentation's
+   examples in `DocumentedBlocks`, and name the stages its language entry offers in `Stages`.
+3. **The language entry**, `Shipped.<Type>`: the words it reads, its parser, the stages it offers the engine, its builder,
+   its edit handler, its write half and its bindings — in the language table, and among the languages a `mermaid` fence
+   may hold.
+4. **The stages it offers**: the config, hung on the block by `WithConfig`; `WithHoles` with the parser's `Holds` while
+   somebody writes; and **stages writing the rest** of what the builder needs — a share, a place in the order, whether
+   something is listed — so the builder only lays out.
+5. **The builder**, `<Type>Builder`, named in `ContentLayouts` and its language entry: layers by how the diagram looks,
+   each piece standing for the part it was drawn from, its pieces named in `<Type>Piece` beside the parser. Its tests derive from
    `MermaidBuilderContract` and list what it draws in `Drawn`.
-6. **Writing in place**: the diagram's edit handler, `<Type>Edits`, named in `DiagramEdits.For` — its `Escaping`, what any
+6. **Writing in place**: the diagram's edit handler, `<Type>Edits`, named in its language entry — its `Escaping`, what any
    key means in it that is its own, and everything decided in step 0, made from [the editing kit](#editing) — with editing
    tests like `PieEditingTests`, `VennEditingTests` and `PacketEditingTests`.
 7. **The rest of the product**: a section in `MarkdownSamples`, the help page's example and its figure
@@ -268,9 +294,9 @@ the layout tree cannot draw goes into the tree and the medium (`src/Nexaflow.Mar
 
 | Test | Holds |
 |---|---|
-| `MermaidGrammarContract` (Tests.Markdown) | Every block and every prefix prints as written; the grammar only copies; the documented blocks have nothing wrong; anything typed anywhere something is written still reads; every new line is one the grammar reads; a rename is written so its uses still read |
-| `MermaidBuilderContract` (Tests.Visuals) | Every block draws read, written in, wide and narrow, and while every character is typed; everything drawn stands inside the source; words a caret goes into are the characters written; the Markdown renderer shows it on the shared tree. It hands a diagram's own tests `Pieces`, `Written`, `Middle` and `Fill` to ask what it drew |
+| `ContentParserContract` (Tests.Markdown) | Read by the language's parser and worked over by the stages its test names as the language entry offers them: every block and every prefix prints as written, after every stage, half-typed blocks with their holes included; the parser only copies; every piece says where it was read; the documented blocks have nothing wrong |
+
+| `MermaidBuilderContract` (Tests.Visuals) | Read through the engine by the language its fence word names — so every stage the language offers is held to keeping the characters it was handed — every block draws read, written in, wide and narrow, and while every character is typed; everything drawn stands inside the source; words a caret goes into are the characters written; the Markdown renderer shows it on the shared tree. It hands a diagram's own tests `Pieces`, `Written`, `Middle` and `Fill` to ask what it drew |
 | `MermaidEditing` (Tests.Visuals) | What writing in a diagram is tested through: the block in a real editor, `PressPast` some words it draws, `Write` a keystroke |
-| `MermaidKitRulesTests` (Tests.Markdown) | Every grammar is named in `MermaidDiagrams.Grammar` and tested against the contract |
-| `MermaidBuilderRulesTests` (Tests.Visuals) | A diagram has a grammar and a builder, or neither; every builder is tested against the contract |
-| `MermaidDiagramRulesTests` (Tests.Features.Architecture) | A diagram's own reading and drawing go through the kit — a grammar reads a line through `MermaidLine` and never a `Regex`, a builder asks `DiagramInk` for an ink and `DiagramText` for what it says, and neither reaches for a control |
+
+| `MermaidDiagramRulesTests` (Tests.Features.Architecture) | A diagram's own reading and drawing go through the kit — its reading reads a statement through `MermaidLine` and never a `Regex`, a builder asks `DiagramInk` for an ink and `DiagramText` for what it says, and neither reaches for a control |

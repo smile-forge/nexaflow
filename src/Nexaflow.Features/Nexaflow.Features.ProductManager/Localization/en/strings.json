@@ -97,6 +97,7 @@
   "ProductManager.Snaplinks.PickHint": "Pick a file, then a heading / class / method",
   "ProductManager.Snaplinks.AddSelected": "+ Add selected",
   "ProductManager.Snaplinks.LinkUrl": "Link URL",
+  "ProductManager.Snaplinks.DropSetsUrl": "Link to this address",
   "ProductManager.Snaplinks.DropUrl": "Drop a URL here",
   "ProductManager.Snaplinks.AddUrl": "🔗 Add URL",
   "ProductManager.Picker.PickFile": "Pick a file from the tree",

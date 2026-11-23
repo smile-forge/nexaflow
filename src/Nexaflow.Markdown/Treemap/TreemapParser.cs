@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 
@@ -103,6 +104,18 @@ public sealed class TreemapParser : ITranspile
             return row.Stop;
         }
 
+        // A binding standing on a line of its own is items supplied by whatever the treemap is shown against. Held as written;
+        // read into its place before the treemap is worked over.
+        if (BoundText.Path(text) is not null)
+        {
+            lines.Add(MermaidParser.Line(source, row.Start, from,
+                [headed
+                    ? ContentNode.Leaf(Kinds.BoundContent, text, offset: from)
+                    : ContentNode.Shown(text, "A diagram is not bound whole: its first line names its type, and a binding after it supplies lines of it.", offset: from)],
+                to, row));
+            return row.Stop;
+        }
+
         if (!headed)
         {
             headed = true;
@@ -115,9 +128,15 @@ public sealed class TreemapParser : ITranspile
 
         if (MermaidParser.Accessibility(source, row, from, to, lines) is { } stop) return stop;
 
-        var said = Statement(text, from);
-        lines.Add(MermaidParser.Line(source, row.Start, from, [said], from + said.Width, row));
-        return row.Stop;
+        // A label in quotes runs across line endings to its closing quote, as Mermaid's grammar reads one.
+        var end = from < row.End && source[from] is '"' or '\'' && source.IndexOf(source[from], from + 1) is var close and >= 0 && close >= row.End
+            ? MermaidParser.Row.Containing(source, close).End
+            : to;
+
+        var said = Statement(source[from..end], from);
+        var last = MermaidParser.Row.Containing(source, Math.Max(from, end - 1));
+        lines.Add(MermaidParser.Line(source, row.Start, from, [said], from + said.Width, last));
+        return last.Stop;
     }
 
     /// <summary>The header — <c>treemap-beta</c> or <c>treemap</c> — or null where the line says something else, which a treemap fence needs no header before.</summary>
@@ -211,11 +230,47 @@ public sealed class TreemapParser : ITranspile
 
         line.Open();
         line.Add(ContentNode.Leaf(Kinds.Token, quote, Roles.Open, offset: at));
-        line.Add(ContentNode.Leaf(Kinds.Words, written[1..close], TreemapRoles.Label, offset: at + 1));
+        line.Add(Said(written[1..close], at + 1));
         line.Add(ContentNode.Leaf(Kinds.Token, quote, Roles.Close, offset: at + close));
         line.Close(TreemapKinds.Label);
 
         return true;
+    }
+
+    /// <summary>
+    /// What is between a label's quotes, as the words it is written with — and, where it runs across a line ending, each line ending
+    /// as a <see cref="TreemapKinds.Break"/> of its own between them, which <see cref="TreemapStandIns"/> says reads as a space.
+    /// </summary>
+    private static ContentNode Said(string text, int at)
+    {
+        if (text.AsSpan().IndexOfAny('\n', '\r') < 0) return ContentNode.Leaf(Kinds.Words, text, TreemapRoles.Label, offset: at);
+
+        var pieces = new List<ContentNode>();
+        var from = 0;
+
+        for (var place = 0; place < text.Length;)
+        {
+            var length = text[place] switch
+            {
+                '\r' when place + 1 < text.Length && text[place + 1] == '\n' => 2,
+                '\r' or '\n' => 1,
+                _ => 0,
+            };
+
+            if (length == 0)
+            {
+                place++;
+                continue;
+            }
+
+            if (place > from) pieces.Add(ContentNode.Leaf(Kinds.Words, text[from..place], TreemapRoles.Label, offset: at + from));
+            pieces.Add(ContentNode.Leaf(TreemapKinds.Break, text.Substring(place, length), offset: at + place));
+            from = place += length;
+        }
+
+        if (from < text.Length) pieces.Add(ContentNode.Leaf(Kinds.Words, text[from..], TreemapRoles.Label, offset: at + from));
+
+        return ContentNode.Branch(Kinds.Words, pieces, TreemapRoles.Label, at);
     }
 
     /// <summary>What is wrong with a value as it is written — null where it is a number as Mermaid reads one.</summary>

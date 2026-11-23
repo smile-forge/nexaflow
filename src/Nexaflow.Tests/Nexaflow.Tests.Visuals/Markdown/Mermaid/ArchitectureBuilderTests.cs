@@ -29,8 +29,6 @@ public class ArchitectureBuilderTests : MermaidBuilderContract
         + "    service disk1(disk)[Storage] in api\n    service disk2(disk)[Storage] in api\n    service server(server)[Server] in api\n\n"
         + "    db:L -- R:server\n    disk1:T -- B:server\n    disk2:T -- B:db";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Architecture;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("the parts of a cloud", Cloud),

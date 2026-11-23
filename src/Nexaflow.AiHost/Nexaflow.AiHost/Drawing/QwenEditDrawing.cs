@@ -2,7 +2,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
 using Nexaflow.AiHost.Sampling;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Drawing;
 
@@ -21,7 +21,7 @@ internal sealed class QwenEditDrawing(ModelRegistry models, GpuScheduler gpu) : 
 
     public bool Draws(int width, int height) => false;
 
-    public bool Reads(int width, int height) => QwenEditSampler.Reads(width, height);
+    public (int Width, int Height) ReadSize(int width, int height) => QwenEditSampler.ReadSize(width, height);
 
     public bool TakesNegativePrompts => false;
 
@@ -47,9 +47,9 @@ internal sealed class QwenEditDrawing(ModelRegistry models, GpuScheduler gpu) : 
             foreach (var source in request.Sources)
             {
                 var (conditionWidth, conditionHeight) = QwenEditSampler.SizeWithin(QwenEditSampler.ConditionArea, source.Width, source.Height);
-                var condition = PictureResampling.ResizeAsPil(source.Rgb, source.Width, source.Height, 3, conditionWidth, conditionHeight, PilFilter.Lanczos);
+                var condition = ReferenceResampling.ResizeAsPil(source.Rgb, source.Width, source.Height, 3, conditionWidth, conditionHeight, PilFilter.Lanczos);
                 var (readWidth, readHeight) = QwenEditSampler.ProcessorSize(conditionWidth, conditionHeight);
-                var read = PictureResampling.ResizeAsTorch(condition, conditionWidth, conditionHeight, 3, readWidth, readHeight, PilFilter.Bicubic);
+                var read = ReferenceResampling.ResizeAsTorch(condition, conditionWidth, conditionHeight, 3, readWidth, readHeight, PilFilter.Bicubic);
                 using (await lane.NextAsync(model.Parts[DrawingParts.PictureReader].Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
@@ -86,7 +86,7 @@ internal sealed class QwenEditDrawing(ModelRegistry models, GpuScheduler gpu) : 
                 var (width, height) = QwenEditSampler.SizeWithin(QwenEditSampler.VaeArea, source.Width, source.Height);
                 var rgb = (width, height) == (source.Width, source.Height)
                     ? source.Rgb
-                    : PictureResampling.ResizeAsPil(source.Rgb, source.Width, source.Height, 3, width, height, PilFilter.Lanczos);
+                    : ReferenceResampling.ResizeAsPil(source.Rgb, source.Width, source.Height, 3, width, height, PilFilter.Lanczos);
                 using (await lane.NextAsync(model.Parts[DrawingParts.PictureEncoder].Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();

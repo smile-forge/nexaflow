@@ -4,11 +4,11 @@ using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Editing.Paged;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Windows;
@@ -24,26 +24,23 @@ namespace Nexaflow.Features.Pdf.Views;
 /// The PDF reader tab: the document's pages drawn natively by the paged host, with the reader's toolbar over them and
 /// Nexaflow's document panel beside them.
 /// </summary>
-public partial class PdfView : UserControl, IPageView, IDisposable
+[ViewFor(typeof(PdfViewModel))]
+public partial class PdfView : UserControl
 {
-    private readonly IShellServices _shell;
-
     /// <summary>How much one press of a zoom button zooms by.</summary>
     private const double ZoomStep = 1.25;
 
     public PdfViewModel ViewModel { get; }
 
-    public PdfView(PdfViewModel viewModel, IShellServices shell)
+    public PdfView(PdfViewModel viewModel)
     {
         InitializeComponent();
         ViewModel   = viewModel;
-        _shell      = shell;
         DataContext = viewModel;
 
         ViewModel.NavigateToPage = (page, offsetFromTop) =>
             Pages.GoToPage(page - 1, (offsetFromTop ?? 0) * PdfPageLayout.DipsPerPoint);
-        ViewModel.Host           = this;   // what opens beside the document — its scans' Markdown — opens in its window
-        Pages.LinkActivated += (_, link) => FollowLink(link);
+        Pages.LinkActivated += (_, link) => ViewModel.FollowLink(link);
         Pages.CopyRequested += (_, text) => ViewModel.CopyTextCommand.Execute(text);
         Pages.PageLaid      += (_, _) => ShowFindHits(reveal: false);
         DependencyPropertyDescriptor.FromProperty(PagedLayoutElement.CurrentPageProperty, typeof(PagedLayoutElement))
@@ -61,7 +58,7 @@ public partial class PdfView : UserControl, IPageView, IDisposable
                     break;
                 case nameof(PdfViewModel.FoundRanges): ShowFindHits(reveal: false); break;
                 case nameof(PdfViewModel.FindIndex):   ShowFindHits(reveal: true); break;
-                case nameof(PdfViewModel.Pages):       OpenPending(); break;
+                case nameof(PdfViewModel.Pages):       ViewModel.OpenPendingPage(); break;
                 case nameof(PdfViewModel.CurrentPage): RevealCurrentThumbnail(); break;
             }
         };
@@ -84,14 +81,6 @@ public partial class PdfView : UserControl, IPageView, IDisposable
         var paper = TryFindResource("Pdf.Paper") as Brush ?? Brushes.White;
         await ViewModel.LoadAsync(paper.IsFrozen ? paper : (Brush)paper.GetCurrentValueAsFrozen());
         Pages.Focus();
-    }
-
-    /// <summary>A page asked for before the pages were ready (an initial "page" param), applied once they are.</summary>
-    private int? _pendingPage;
-
-    private void OpenPending()
-    {
-        if (_pendingPage is int page && ViewModel.GoToPage(page)) _pendingPage = null;
     }
 
     /// <summary>The panel width to restore: whatever the user last dragged the splitter to.</summary>
@@ -155,13 +144,6 @@ public partial class PdfView : UserControl, IPageView, IDisposable
 
     private const double PanelMinWidth = 220;
     private const double SplitterWidth = 4;
-
-    /// <summary>Sets the page the document should open at, once its pages are read.</summary>
-    public void OpenAtPage(int page)
-    {
-        _pendingPage = page > 0 ? page : null;
-        OpenPending();
-    }
 
     /// <summary>
     /// Jumps to the clicked row's destination.
@@ -256,24 +238,8 @@ public partial class PdfView : UserControl, IPageView, IDisposable
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _shell.ShowError(Str.Format("Pdf.Error.PrintFormat", ex.Message));
+            ViewModel.ShowPrintFailure(ex);
         }
-    }
-
-    /// <summary>A link on a page: a place in this document is scrolled to, anything else opened as an address.</summary>
-    private void FollowLink(PageLink link)
-    {
-        if (PdfLinks.TryRead(link.Href, out var target))
-        {
-            ViewModel.GoToTarget(link.Page, target);
-            return;
-        }
-
-        if (!Uri.TryCreate(link.Href, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto"))
-            return;
-
-        try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
-        catch (Exception ex) { _shell.ShowError(Str.Format("Pdf.Error.OpenLinkFormat", ex.Message)); }
     }
 
     /// <summary>
@@ -311,40 +277,8 @@ public partial class PdfView : UserControl, IPageView, IDisposable
 
     private void PagesMenu_Closed(object sender, RoutedEventArgs e) => _areaMarker?.Show(null);
 
-    /// <summary>
-    /// Opens the file in the default PDF application — the file as saved, so with unsaved page edits the reader is asked
-    /// first.
-    /// </summary>
-    private async void OpenExternal_Click(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel.IsDirty
-            && !await _shell.ConfirmAsync(Str.Get("Pdf.OpenExternal.UnsavedTitle"), Str.Get("Pdf.OpenExternal.UnsavedMessage")))
-            return;
-
-        try
-        {
-            Process.Start(new ProcessStartInfo(await ViewModel.ExternalPathAsync()) { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            _shell.ShowError(Str.Format("Pdf.Error.OpenExternalFormat", ex.Message));
-        }
-    }
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    /// <summary>Re-activating the tab with a "page" param jumps to it rather than opening a second tab.</summary>
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (!pageParams.TryGetValue("page", out var raw) || !int.TryParse(raw, out var page) || page < 1)
-            return;
-
-        OpenAtPage(page);
-    }
-
-    public void Dispose() => ViewModel.Dispose();
+    /// <summary>Opens the file in the default PDF application.</summary>
+    private async void OpenExternal_Click(object sender, RoutedEventArgs e) => await ViewModel.OpenExternalAsync();
 
     // ── Pages tab ─────────────────────────────────────────────────────────
 

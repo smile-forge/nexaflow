@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 
+using Nexaflow.Interaction;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
@@ -22,7 +24,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// sentence.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface
+public sealed partial class MarkdownSurface : IDropTarget
 {
     /// <summary>Puts the caret at the end of what is written and takes the keyboard — for a note just made, to be written in.</summary>
     public void BeginEdit()
@@ -76,41 +78,47 @@ public sealed partial class MarkdownSurface
 
     // ── Something dropped ───────────────────────────────────────────────────
 
-    /// <inheritdoc/>
-    protected override void OnDragOver(DragEventArgs e)
-    {
-        base.OnDragOver(e);
-        if (e.Handled) return;
-
-        e.Effects = IsReadOnly ? DragDropEffects.None : DragDropEffects.Copy;
-        e.Handled = true;
-    }
+    private static readonly string[] WrittenKinds = [DragKinds.Text, DragKinds.Html, MarkdownClipboard.MarkdownFormat];
 
     /// <inheritdoc/>
-    protected override void OnDrop(DragEventArgs e)
-    {
-        base.OnDrop(e);
-        if (e.Handled || IsReadOnly) return;
+    public IReadOnlyList<string> AcceptedKinds => WrittenKinds;
 
-        DropContent(e.Data, e.GetPosition(this));
-        e.Handled = true;
-    }
+    /// <summary>Words are written here. Files are not, whatever words come with them: those are the host's, which takes
+    /// them as a target of its own around this one.</summary>
+    public DropOffer? OfferDrop(DropRequest request)
+        => IsReadOnly || request.Payload.CarriesFiles() ? null : new DropOffer(DropEffect.Copy);
+
+    /// <inheritdoc/>
+    public void AcceptDrop(DropRequest request) => DropContent(request.Payload, new Point(request.At.X, request.At.Y));
 
     /// <summary>
-    /// What was dragged in from somewhere else, written where it was let go. Whoever answers says what it comes to in words and
-    /// in markdown — a drop carries whatever the thing dragged put in it, and turning that into something a document can be
-    /// written from is the host's, not the content's — or deals with it itself and marks it handled having said neither.
+    /// What was dragged in from somewhere else, written where it was let go — at the end, where that was past the last of
+    /// what is written. The host is asked first (<see cref="Dropping"/>) and either says what it comes to in words and in
+    /// markdown or deals with it itself, marking it handled having said neither. Words nobody claimed are written as a
+    /// paste of them would be read; files nobody claimed are not.
     /// </summary>
-    public void DropContent(IDataObject data, Point pointInEditor)
+    public void DropContent(IDragPayload data, Point pointInEditor)
     {
-        if (IsReadOnly || Spot(pointInEditor) is not { } at) return;
+        if (IsReadOnly) return;
 
         var asked = new ContentDroppingEventArgs(DroppingEvent, data, pointInEditor);
         RaiseEvent(asked);
 
-        if (!asked.Handled) return;
+        string? words, markdown;
+        if (asked.Handled)
+        {
+            (words, markdown) = (asked.Words, asked.Markdown);
+        }
+        else
+        {
+            if (data.CarriesFiles()) return;
+            (words, markdown) = (MarkdownClipboard.ReadPlainText(data), MarkdownClipboard.ReadBestMarkdown(data));
+        }
+        if (string.IsNullOrEmpty(words) && string.IsNullOrEmpty(markdown)) return;
 
-        _engine.Brought(asked.Words ?? string.Empty, asked.Markdown ?? string.Empty, at.ToLayout());
+        var size = _shown.Laid.Size;
+        var at = Spot(pointInEditor) ?? new Point(size.Width, Math.Max(0, size.Height - 1));
+        _engine.Brought(words ?? string.Empty, markdown ?? string.Empty, at.ToLayout());
     }
 
     /// <summary>

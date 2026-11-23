@@ -40,11 +40,6 @@ public class ConversationContextReadinessTests
         public event PropertyChangedEventHandler? PropertyChanged;
     }
 
-    private sealed class FakePageView : UserControl, IPageView
-    {
-        public IPageViewModel? ViewModel { get; init; }
-    }
-
     /// <param name="id">Distinguishes two pinned pages. The strip dedups by page kind + parameters (so a
     /// restored conversation doesn't stack a second copy of its own context), which makes two pages with
     /// the same kind and no parameters genuinely the <em>same</em> item — hence the id.</param>
@@ -55,17 +50,17 @@ public class ConversationContextReadinessTests
             PageKind       = "Fake",
             Title          = "Fake",
             PageParams     = new Dictionary<string, string> { ["id"] = id },
-            ContentFactory = () => new FakePageView { ViewModel = vm },
+            ViewModelFactory = () => vm,
         };
-        page.GetOrCreateContent();   // realize Content so the aggregate can read its ViewModel
+        page.GetOrCreateViewModel();   // made, as a pinned page is, so the aggregate can read it
         return page;
     }
 
     private static ConversationViewModel NewConversation()
         => new(Substitute.For<IAIService>(), Substitute.For<IShellServices>(), new AiChatConfig(), new Page());
 
-    // Pinning realizes a WPF UserControl (Page.Content), which must be built on an STA thread. The whole
-    // body runs there so the view-models live on the same thread that raises their PropertyChanged.
+    // The conversation is a UI-thread view-model. The whole body runs on one STA thread so the view-models live on
+    // the same thread that raises their PropertyChanged.
     private static void Sta(Action body)
     {
         Exception? error = null;

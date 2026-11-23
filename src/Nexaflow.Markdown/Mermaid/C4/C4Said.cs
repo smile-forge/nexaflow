@@ -200,7 +200,7 @@ internal sealed class C4Said
 
         foreach (var macro in Macros(tree))
         {
-            if (!C4Grammar.Elemental(macro.Name)) continue;
+            if (!C4Parser.Elemental(macro.Name)) continue;
 
             var (level, shape, external) = C4Elements.Sorted(macro.Name);
             var says = C4Elements.Stereotyped(level, external, technology: null, over: null, hidden: false).Trim('[', ']');

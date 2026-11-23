@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Providers.Common;
@@ -107,8 +108,8 @@ public sealed class LocalModelDownloads
         }
         catch (Exception ex)
         {
-            activity?.Fail(ex.Message);
-            download.Finish(ex.Message);
+            activity?.Fail(ModelRoomText.MessageOf(ex));
+            download.Finish(ModelRoomText.MessageOf(ex));
             return false;
         }
         finally

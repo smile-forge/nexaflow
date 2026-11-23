@@ -1,7 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Video.ViewModels;
-using Nexaflow.Features.Video.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Visuals.Common.Localization;
@@ -58,10 +57,9 @@ public sealed class VideoTabRegistration : IPageRegistration
             };
 
         // Build the engine lazily on first activation; dispose its native resources when the tab closes.
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new VideoViewModel(path, _shell, _vfs, _config.EnableHardwareDecoding) { Draft = draft };
-            page.Closed += (_, _) => vm.Dispose();
 
             // A fatal engine error closes the tab with a notice rather than leaving a broken player open.
             vm.FatalError += message =>
@@ -70,7 +68,7 @@ public sealed class VideoTabRegistration : IPageRegistration
                 _shell.CloseTab(page);
             };
 
-            return new VideoView(vm);
+            return vm;
         };
 
         return page;

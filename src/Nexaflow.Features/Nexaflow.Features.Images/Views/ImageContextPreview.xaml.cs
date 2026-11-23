@@ -1,4 +1,6 @@
+using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -9,9 +11,14 @@ namespace Nexaflow.Features.Images.Views;
 /// the tab, the current one highlighted. Pure XAML over the page's thumbnails — see
 /// <c>ImageContextPreview.xaml</c>; the code here only opens the list on the current image.
 /// </summary>
+[ViewFor(typeof(PagePreview<ImageViewModel>))]
 public partial class ImageContextPreview : UserControl
 {
-    public ImageContextPreview() => InitializeComponent();
+    public ImageContextPreview(PagePreview<ImageViewModel> preview)
+    {
+        InitializeComponent();
+        DataContext = preview.Page;
+    }
 
     // Open on the image the AI is being shown rather than the top of the set, where in a long folder it is
     // off-screen. Scrolled by index through the panel, since that card may not have been realised yet.

@@ -1,4 +1,5 @@
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Core.AI;
 

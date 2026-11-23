@@ -195,6 +195,9 @@ internal sealed class StateBuilder : ContentBuilder
         /// <summary>What each name is styled with, said on the one first writing it — a <c>[*]</c>'s by the dot it is.</summary>
         private readonly Dictionary<string, MermaidStyle> styles = new(StringComparer.Ordinal);
 
+        /// <summary>The <c>class</c> and <c>style</c> lines, where they stand: a state only one of them names is one they make.</summary>
+        private readonly List<(ContentPart Line, string? Scope, int Region)> restyled = [];
+
         private Diagram(StateConfig config) => Config = config;
 
         public StateConfig Config { get; }
@@ -216,6 +219,7 @@ internal sealed class StateBuilder : ContentBuilder
         {
             var diagram = new Diagram(config);
             diagram.Read(root, null);
+            diagram.Unwritten();
 
             foreach (var node in diagram.Nodes) node.Style = diagram.styles.GetValueOrDefault(node.Id, MermaidStyle.None);
             foreach (var group in diagram.Groups) group.Style = diagram.styles.GetValueOrDefault(group.Id, MermaidStyle.None);
@@ -270,6 +274,10 @@ internal sealed class StateBuilder : ContentBuilder
                         Notes.Add(Noted(stated));
                         break;
 
+                    case StateKinds.Class or StateKinds.Style:
+                        this.restyled.Add((stated, scope, region));
+                        break;
+
                     case StateKinds.Direction when Wayward(Setting(stated, StateRoles.Towards)) is { } way:
                         if (inside is null) Way = way;
                         else inside.Way = way;
@@ -284,6 +292,29 @@ internal sealed class StateBuilder : ContentBuilder
             foreach (var named in stated.SelfAndDescendants().Where(part => part.Kind == StateKinds.Named))
                 if (Name(named) is { } name && ((named.Node as MarkerNode)?.Id ?? name.Words()?.Text) is { Length: > 0 } id)
                     styles.TryAdd(id, DiagramText.StyleOf(name));
+        }
+
+        /// <summary>
+        /// The states only a <c>class</c> or a <c>style</c> line names — no composite, nor a dot's own name — which Mermaid makes where
+        /// the line stands, drawn as the id written there and styled as the line says.
+        /// </summary>
+        private void Unwritten()
+        {
+            foreach (var (line, scope, region) in this.restyled)
+            {
+                foreach (var name in line.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
+                {
+                    if (name.Children.FirstOrDefault(child => child.Kind == Kinds.Words && child.Role == StateRoles.Id) is not { Text.Length: > 0 } words) continue;
+
+                    var id = words.Text;
+                    if (known.ContainsKey(id) || StateParser.Pseudo.Contains(id, StringComparer.Ordinal) || Groups.Any(group => group.Id == id)) continue;
+
+                    var node = new Node(words, id, scope, region) { Form = Form.Plain, Said = words };
+                    Nodes.Add(node);
+                    known[id] = node;
+                    styles.TryAdd(id, DiagramText.StyleOf(name));
+                }
+            }
         }
 
         /// <summary>A state written on its own: what is drawn on it, and what it is drawn as.</summary>

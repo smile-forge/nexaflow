@@ -48,7 +48,9 @@ public static class UiFixtures
         WriteProject(Path.Combine(shelf, "Gamma"), "Gamma", "A shelved project.");
 
         // Only the Contexts subtree is staged into a test's throwaway config dir; the project folders stay
-        // here, which is why these paths are absolute.
+        // here, so the config points at them. The paths are anchored on RootToken rather than written out:
+        // the corpus is reached at a different absolute path wherever the journeys run (Windows Sandbox maps
+        // the checkout elsewhere), and staging resolves the token against the root it finds there.
         var cfgDir = Path.Combine(ProjectsRoot, "Contexts", "Default", "projects");
         Directory.CreateDirectory(cfgDir);
 
@@ -57,9 +59,9 @@ public static class UiFixtures
         var json = $$"""
         {
           "EnableProjects": true,
-          "ProjectDirectory": {{Str(ProjectsActive)}},
-          "ShelfDirectory": {{Str(shelf)}},
-          "ArchiveDirectory": {{Str(archive)}}
+          "ProjectDirectory": {{Str(AnchoredOnRoot(ProjectsActive))}},
+          "ShelfDirectory": {{Str(AnchoredOnRoot(shelf))}},
+          "ArchiveDirectory": {{Str(AnchoredOnRoot(archive))}}
         }
         """;
         File.WriteAllText(Path.Combine(cfgDir, "config_0.0.0.1.json"), json);
@@ -157,6 +159,18 @@ public static class UiFixtures
         }
         catch { /* best-effort temp cleanup */ }
     }
+
+    /// <summary>Stands for <see cref="Root"/> inside a staged fixture file, so the file does not record where the corpus
+    /// happened to be built — a config seeded on the host has to open the same folders inside Windows Sandbox.</summary>
+    public const string RootToken = "{ui-fixture-root}";
+
+    /// <summary>The path with its leading <see cref="Root"/> replaced by <see cref="RootToken"/>.</summary>
+    private static string AnchoredOnRoot(string path) => RootToken + path[Root.Length..];
+
+    /// <summary>Staged JSON text with <see cref="RootToken"/> replaced by the root the corpus is at now, escaped as
+    /// a JSON string body — the anchored paths sit inside string literals.</summary>
+    public static string ResolveRootInJson(string json) =>
+        json.Replace(RootToken, JsonEncodedText.Encode(Root).ToString(), StringComparison.Ordinal);
 
     /// <summary>JSON-encodes a string (quoted + escaped) — needed for Windows paths with backslashes.</summary>
     private static string Str(string s) => JsonSerializer.Serialize(s);

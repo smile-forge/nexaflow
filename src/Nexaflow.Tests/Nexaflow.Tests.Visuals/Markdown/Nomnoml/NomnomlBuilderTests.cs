@@ -27,9 +27,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.Nomnoml;
 [CoversNode("class-diagram")]
 public class NomnomlBuilderTests : MermaidBuilderContract
 {
-    /// <summary>A nomnoml block is not a Mermaid diagram: its fence's language names it, so no keyword does.</summary>
-    public override MermaidDiagram Diagram => MermaidDiagram.Unknown;
-
     /// <inheritdoc/>
     public override string Language => "nomnoml";
 

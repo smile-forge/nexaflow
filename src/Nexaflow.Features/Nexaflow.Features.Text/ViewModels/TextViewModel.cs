@@ -1320,7 +1320,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     /// <summary>A compact, read-only preview for the conversation's context panel: the file name, a meta line,
     /// and a capped snippet of the resident text. Built fresh each time — it never re-hosts the live editor.</summary>
-    public System.Windows.Controls.UserControl CreateContextPreview()
+    public object CreateContextPreview()
     {
         var lines = LineCount == 1
             ? Str.Format("Text.Viewer.Preview.LineOne", LineCount)
@@ -1334,7 +1334,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         const int cap = 8000;
         var text = Document.Text;
         var body = text.Length > cap ? text[..cap] + "\n" + Str.Get("Text.Viewer.Preview.Truncated") : text;
-        return new ReadOnlyTextPreview(meta, body);
+        return new TextContextPreview(meta, body);
     }
 
     public string? GetAiSystemPromptGuidance() =>

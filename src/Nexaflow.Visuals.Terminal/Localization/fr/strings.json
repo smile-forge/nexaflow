@@ -13,7 +13,9 @@
   "Terminal.Console.Header": "Console",
   "Terminal.Console.Copy": "Copier",
   "Terminal.Console.Paste": "Coller",
-  "Terminal.Console.NeedsAttention": "Console : une commande en arrière-plan demande votre attention — ouvrez l’onglet pour la voir.",
+  "Terminal.Console.RunningFormat": "Exécution de {0} dans la console",
+  "Terminal.Console.FinishedFormat": "{0} est terminé",
+  "Terminal.Console.WaitingFormat": "{0} attend une saisie",
   "Terminal.Console.Unreachable": "Ce shell ne peut pas atteindre « {0} ».",
 
   "Terminal.EnvEdit.Header": "Variable d’environnement",

@@ -1,5 +1,5 @@
 using Nexaflow.AiHost.Erasing;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost.Erasing;
@@ -22,7 +22,7 @@ public class PictureErasingHandoverTests
     {
         // 5 x 3: padded to 8 x 8; column 5 repeats column 4, 6 is 3, 7 is 2; row 3 repeats row 2, then 1, 0, 0, 1.
         var rgba = Picture(5, 3);
-        var prepared = ErasingHandover.Prepare(rgba, 5, new byte[15], new InpaintRegion(0, 0, 5, 3, 5, 3));
+        var prepared = ErasingHandover.Prepare(rgba, 5, new byte[15], new ErasingRegion(0, 0, 5, 3, 5, 3));
 
         Assert.AreEqual((8, 8), (prepared.Width, prepared.Height));
         int[] columns = [0, 1, 2, 3, 4, 4, 3, 2], rows = [0, 1, 2, 2, 1, 0, 0, 1];
@@ -36,7 +36,7 @@ public class PictureErasingHandoverTests
     {
         var mask = new byte[64];
         (mask[3], mask[10]) = (1, 255);
-        var prepared = ErasingHandover.Prepare(Picture(8, 8), 8, mask, new InpaintRegion(0, 0, 8, 8, 8, 8));
+        var prepared = ErasingHandover.Prepare(Picture(8, 8), 8, mask, new ErasingRegion(0, 0, 8, 8, 8, 8));
 
         Assert.AreEqual(2, prepared.Mask.Count(v => v == 1f));
         Assert.AreEqual((1f, 1f), (prepared.Mask[3], prepared.Mask[10]));
@@ -49,7 +49,7 @@ public class PictureErasingHandoverTests
         var before = rgba.ToArray();
         var mask = new byte[64];
         mask[9] = 255;
-        var region = new InpaintRegion(0, 0, 8, 8, 8, 8);
+        var region = new ErasingRegion(0, 0, 8, 8, 8, 8);
         var prepared = ErasingHandover.Prepare(rgba, 8, mask, region);
         var inpainted = new float[3 * 64];
         Array.Fill(inpainted, 0.5f);            // 127.5 truncates to 127
@@ -69,7 +69,7 @@ public class PictureErasingHandoverTests
         var before = rgba.ToArray();
         var mask = new byte[32 * 16];
         for (int y = 4; y < 8; y++) for (int x = 8; x < 16; x++) mask[y * 32 + x] = 255;
-        var region = new InpaintRegion(0, 0, 32, 16, 16, 8);
+        var region = new ErasingRegion(0, 0, 32, 16, 16, 8);
 
         var prepared = ErasingHandover.Prepare(rgba, 32, mask, region);
         Assert.AreEqual((16, 8), (prepared.Width, prepared.Height));

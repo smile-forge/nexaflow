@@ -9,7 +9,8 @@
              xmlns:beh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
                           xmlns:views="clr-namespace:Nexaflow.Features.WindowsFileSystem.Views"
              Background="{StaticResource BgBrush}"
-             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             xmlns:viewing="clr-namespace:Nexaflow.Visuals.Common.Viewing;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -287,7 +288,6 @@
             <TreeView x:Name="DirectoryTree"
                       Background="Transparent"
                       BorderThickness="0"
-                      AllowDrop="True"
                       ItemsSource="{Binding TreeRoots}"
                       ItemContainerStyle="{StaticResource TreeItemStyle}"
                       SelectedItemChanged="DirectoryTree_SelectedItemChanged"
@@ -791,7 +791,6 @@
                       ItemContainerStyle="{StaticResource FileListRowStyle}"
                       Background="{StaticResource BgBrush}"
                       BorderThickness="0"
-                      AllowDrop="True"
                       SelectionMode="Extended"
                       SelectionChanged="FileListView_SelectionChanged"
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
@@ -1248,7 +1247,7 @@
                     </StackPanel>
 
                     <!-- Above the name: the options the chosen type asks for, when it asks for any -->
-                    <ContentControl x:Name="CreateOptionsHost" DockPanel.Dock="Bottom" Content="{Binding SelectedCreateOptions.View}" Focusable="False"/>
+                    <viewing:ModelHost x:Name="CreateOptionsHost" DockPanel.Dock="Bottom" Model="{Binding SelectedCreateOptions}" Focusable="False"/>
 
                     <!-- Middle: scrollable type icons — ~5 columns, 2 visible rows then scroll
                          (each 84×74 cell + 3px margin = 90×80; 2 rows ≈ 160px). -->
@@ -1547,22 +1546,6 @@
                     </ScrollViewer>
                 </DockPanel>
             </vcc:ModalCard>
-
-        <!-- ── Drop tooltip: follows cursor during drag-over ────────────── -->
-        <Popup x:Name="DropTooltipPopup"
-               Grid.Column="0" Grid.ColumnSpan="3"
-               AllowsTransparency="True"
-               Placement="Relative"
-               IsOpen="False"
-               IsHitTestVisible="False">
-            <Border Background="#CC000000"
-                    CornerRadius="4"
-                    Padding="8,4">
-                <TextBlock x:Name="DropTooltipText"
-                           Foreground="White"
-                           FontSize="12"/>
-            </Border>
-        </Popup>
 
     </Grid>
 

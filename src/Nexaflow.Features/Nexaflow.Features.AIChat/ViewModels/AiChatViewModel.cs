@@ -143,6 +143,9 @@ public partial class AiChatViewModel : ObservableObject, IPageViewModel
             () => { });
     }
 
+    /// <summary>Shown again: re-resolves the list and the selected analysis, so analyses completed in the background appear.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams) => _ = RefreshAsync();
+
     /// <summary>Reloads the conversation list from disk, then applies the active filter. Called on (re)activation.</summary>
     public async Task RefreshAsync()
     {

@@ -50,10 +50,10 @@ internal static class QwenEditSampler
     private const double BaseShift = 0.5, MaxShift = 0.9, BaseTokens = 256, MaxTokens = 8192;
     private const double TerminalSigma = 0.02;
 
-    /// <summary>Whether an edit is drawn at this size, and a picture to work from read at it: whole tokens, about a megapixel.</summary>
-    public static bool Reads(int width, int height) =>
-        width >= 2 * PixelsPerToken && height >= 2 * PixelsPerToken && width % PixelsPerToken == 0 && height % PixelsPerToken == 0
-        && (long)width * height <= MaxPixels;
+    /// <summary>The size an edit is drawn at from a <paramref name="width"/> × <paramref name="height"/> first picture, and each
+    /// picture to work from read at: scaled up or down to about <see cref="VaeArea"/>, each side rounded to 32, as the pipeline
+    /// sizes every picture it works from.</summary>
+    public static (int Width, int Height) ReadSize(int width, int height) => SizeWithin(VaeArea, width, height);
 
     /// <summary>The size a picture of these proportions is read at within <paramref name="area"/>, each side rounded to
     /// 32, as the pipeline's <c>calculate_dimensions</c> sizes it.</summary>

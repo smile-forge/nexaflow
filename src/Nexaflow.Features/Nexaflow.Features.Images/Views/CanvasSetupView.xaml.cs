@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace Nexaflow.Features.Images.Views;
 
 /// <summary>A new canvas's size and background: bound to a <see cref="CanvasSetup"/>, which it tells the screen's size in
-/// pixels once it is shown on one.</summary>
+/// pixels once it is shown on one. Used by Artist's start screen and the New picker's layered-picture options.</summary>
 public partial class CanvasSetupView : UserControl
 {
     public CanvasSetupView()

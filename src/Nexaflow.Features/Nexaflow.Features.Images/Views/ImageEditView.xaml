@@ -38,8 +38,7 @@
         </Border>
 
         <!-- ══ Canvas: the picture and the editing chrome over it, on the shared pan/zoom surface ══ -->
-        <Grid x:Name="CanvasHost" Grid.Column="0" ClipToBounds="True" SizeChanged="CanvasHost_SizeChanged"
-              AllowDrop="True" DragOver="CanvasHost_DragOver" Drop="CanvasHost_Drop">
+        <Grid x:Name="CanvasHost" Grid.Column="0" ClipToBounds="True" SizeChanged="CanvasHost_SizeChanged">
             <vcl:PanZoomSurface x:Name="Surface" Background="{StaticResource BgBrush}" AutomationProperties.AutomationId="Image_EditCanvas"
                                 ZoomOnPlainWheel="True" MinScale="0.1"/>
             <TextBlock Text="{loc:Str Images.LoadFailed}" Foreground="{StaticResource TextMutedBrush}"

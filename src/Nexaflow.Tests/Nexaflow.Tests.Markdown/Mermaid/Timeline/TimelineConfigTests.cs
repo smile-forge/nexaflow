@@ -13,7 +13,7 @@ public class TimelineConfigTests
     [TestMethod]
     public void TheFrontMattersOptionsAndColourSlotsAreRead()
     {
-        var config = ((ConfiguredNode<TimelineConfig>)MermaidStaged.Read("---\nconfig:\n  timeline:\n    disableMulticolor: true\n    padding: 4\n"
+        var config = ((ConfiguredNode<TimelineConfig>)TimelineParserTests.Staged("---\nconfig:\n  timeline:\n    disableMulticolor: true\n    padding: 4\n"
             + "  themeVariables:\n    cScale2: \"#4e79a7\"\n    cScaleLabel2: \"#ffffff\"\n---\ntimeline\n    2002 : LinkedIn")).Config;
 
         Assert.IsTrue(config.DisableMulticolor);

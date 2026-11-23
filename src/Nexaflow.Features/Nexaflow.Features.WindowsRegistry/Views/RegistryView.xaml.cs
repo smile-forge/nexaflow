@@ -2,31 +2,22 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsRegistry.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.WindowsRegistry.Views;
 
-public partial class RegistryView : UserControl, IPageView
+[ViewFor(typeof(RegistryViewModel))]
+public partial class RegistryView : UserControl
 {
     public RegistryViewModel ViewModel { get; }
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    /// <summary>Re-raised from the VM so the page can refresh its breadcrumb/title.</summary>
-    public event Action<IReadOnlyList<(string Label, string Path)>>? NavigationChanged;
 
     public RegistryView(RegistryViewModel viewModel)
     {
         InitializeComponent();
         ViewModel   = viewModel;
         DataContext = viewModel;
-        ViewModel.NavigationChanged += segs => NavigationChanged?.Invoke(segs);
     }
-
-    // Re-activating an existing tab (re-click / routing) must NOT re-root — rooting happens once, when
-    // the page is created (see RegistryPageRegistration.ContentFactory). Preserve the user's position.
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams) { }
 
     private void KeyTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {

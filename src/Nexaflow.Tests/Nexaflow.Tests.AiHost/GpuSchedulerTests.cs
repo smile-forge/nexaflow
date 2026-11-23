@@ -37,6 +37,43 @@ public class GpuSchedulerTests
     }
 
     [TestMethod]
+    public async Task WhilePeopleKeepACardBusy_WorkBelowThemHasOneTurnInEight()
+    {
+        var gpu = new GpuScheduler();
+        var running = await gpu.NextAsync(RequestPriority.Interactive, Card, default);
+
+        var order = new List<string>();
+        var waits = new List<Task> { TurnAsync(gpu, order, "analysis", RequestPriority.Background) };
+        for (int i = 1; i <= 10; i++) waits.Add(TurnAsync(gpu, order, $"reply {i}", RequestPriority.Interactive));
+
+        running.Dispose();
+        await Task.WhenAll(waits);
+
+        Assert.AreEqual(GpuScheduler.ShareOfTurns - 1, order.IndexOf("analysis"), "seven replies' turns go by, then the analysis has one");
+    }
+
+    [TestMethod]
+    public async Task Speech_IsNeverKeptWaiting_ForWorkBelowIt()
+    {
+        var gpu = new GpuScheduler();
+        var running = await gpu.NextAsync(RequestPriority.Background, Card, default);
+
+        var order = new List<string>();
+        var waits = new List<Task> { TurnAsync(gpu, order, "analysis", RequestPriority.Background) };
+        for (int i = 1; i <= 10; i++) waits.Add(TurnAsync(gpu, order, $"speech {i}", RequestPriority.Voice));
+
+        running.Dispose();
+        await Task.WhenAll(waits);
+
+        Assert.AreEqual(10, order.IndexOf("analysis"), "every piece of speech first");
+    }
+
+    /// <summary>Waits for a turn on the card, notes it, and hands it straight on.</summary>
+    private static Task TurnAsync(GpuScheduler gpu, List<string> order, string name, RequestPriority priority)
+        => gpu.NextAsync(priority, Card, default).AsTask()
+              .ContinueWith(t => { lock (order) order.Add(name); t.Result.Dispose(); }, TaskScheduler.Default);
+
+    [TestMethod]
     public async Task ARequestThatStopsWaiting_IsPassedOver()
     {
         var gpu = new GpuScheduler();
@@ -166,54 +203,5 @@ public class GpuSchedulerTests
         using var analysis = gpu.Engage(RequestPriority.Background, Card);
 
         Assert.IsTrue(gpu.Open(RequestPriority.Job).NextAsync(Card, default).AsTask().IsCompleted);
-    }
-
-    /// <summary>Time that moves only when told, firing the timers it passes.</summary>
-    private sealed class ManualClock : TimeProvider
-    {
-        private readonly List<Timer> _timers = [];
-        private DateTimeOffset _now = new(2026, 10, 15, 9, 0, 0, TimeSpan.Zero);
-
-        public override DateTimeOffset GetUtcNow() { lock (_timers) return _now; }
-
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            var timer = new Timer(this, callback, state);
-            timer.Change(dueTime, period);
-            return timer;
-        }
-
-        public void Advance(TimeSpan by)
-        {
-            List<Timer> due;
-            lock (_timers)
-            {
-                _now += by;
-                due = [.. _timers.Where(t => t.Due <= _now)];
-                foreach (var timer in due) _timers.Remove(timer);
-            }
-            foreach (var timer in due) timer.Fire();
-        }
-
-        private sealed class Timer(ManualClock clock, TimerCallback callback, object? state) : ITimer
-        {
-            public DateTimeOffset Due { get; private set; }
-
-            public bool Change(TimeSpan dueTime, TimeSpan period)
-            {
-                lock (clock._timers)
-                {
-                    clock._timers.Remove(this);
-                    if (dueTime == Timeout.InfiniteTimeSpan) return true;
-                    Due = clock._now + dueTime;
-                    clock._timers.Add(this);
-                }
-                return true;
-            }
-
-            public void Fire() => callback(state);
-            public void Dispose() { lock (clock._timers) clock._timers.Remove(this); }
-            public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
-        }
     }
 }

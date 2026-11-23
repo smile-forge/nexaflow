@@ -127,7 +127,9 @@ public sealed record ChatToolCall(string Id, string Name, string Arguments);
 
 public enum MediaKind { Image, Audio }
 
-/// <summary>An image or a recording in a turn: a file on this machine, or its bytes.</summary>
+/// <summary>An image or a recording in a turn. An image is a file on this machine or its encoded bytes, which the model's
+/// projector reads whatever its format; a recording is its <paramref name="Bytes"/> as 16-bit mono PCM at 16 kHz — decoding and
+/// resampling it is the app's.</summary>
 public sealed record ChatMedia(MediaKind Kind, string? Path, byte[]? Bytes);
 
 /// <summary>One turn of a conversation, as the app holds it.</summary>
@@ -138,6 +140,13 @@ public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedi
 
     /// <summary>On a <see cref="TurnRole.Tool"/> turn: the call it answers.</summary>
     public ChatToolCall? Answers { get; init; }
+
+    /// <summary>
+    /// On an <see cref="TurnRole.Assistant"/> turn: what the model reasoned before it, as <see cref="ReasoningDelta"/>s sent it,
+    /// given back for the model's template to place where its makers have it read — a call's reasoning, which the next step of the
+    /// same task reads; null for none. A turn the host already holds is read as the model wrote it, its reasoning with it.
+    /// </summary>
+    public string? Reasoning { get; init; }
 }
 
 /// <summary>
@@ -148,9 +157,11 @@ public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedi
 /// </summary>
 /// <param name="Tools">The tools the model may call, in its own protocol; none for a model that calls none.</param>
 /// <param name="Decoding">How the model's makers have it write beyond choosing each token; none for most models.</param>
+/// <param name="SendsReasoning">Send the model's reasoning as it is written (<see cref="ReasoningDelta"/>), for an app that keeps it;
+/// otherwise it is read and never sent, and its progress alone is told.</param>
 public sealed record Generate(long RequestId, ModelSpec Model, IReadOnlyList<ChatTurn> Turns, int? MaxNewTokens,
                               RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null, bool Thinks = true,
-                              TokenSampling? Sampling = null, ReplyDecoding? Decoding = null) : HostRequest(RequestId);
+                              TokenSampling? Sampling = null, ReplyDecoding? Decoding = null, bool SendsReasoning = false) : HostRequest(RequestId);
 
 /// <summary>
 /// How a reply chooses each token from the model's scores, as the model's makers recommend for it: the
@@ -176,6 +187,10 @@ public sealed record ReplyDecoding(int? WrittenWindow = null, RepeatBan? RepeatB
 public sealed record RepeatBan(int Run, int Within);
 
 public sealed record TextDelta(long RequestId, string Text) : HostReply(RequestId);
+
+/// <summary>The model's reasoning as it is written, for a request that asked for it (<see cref="Generate.SendsReasoning"/>): never
+/// part of the reply's text.</summary>
+public sealed record ReasoningDelta(long RequestId, string Text) : HostReply(RequestId);
 
 /// <summary>The model called one of the tools it was offered; its turn ends with its calls.</summary>
 public sealed record ToolCallMade(long RequestId, ChatToolCall Call) : HostReply(RequestId);

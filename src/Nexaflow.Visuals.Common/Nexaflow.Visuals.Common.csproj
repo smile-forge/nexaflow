@@ -18,6 +18,8 @@
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <!-- The shell layer draws icons kept in a file's resources, which Nexaflow.Icons names (ShellIconRef, Shell/). -->
     <ProjectReference Include="..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
+    <!-- What a drag carries and what takes a drop: Dropping/ routes Windows' drags to those, for any window. -->
+    <ProjectReference Include="..\Nexaflow.Interaction\Nexaflow.Interaction.csproj" />
   </ItemGroup>
 
   <ItemGroup>

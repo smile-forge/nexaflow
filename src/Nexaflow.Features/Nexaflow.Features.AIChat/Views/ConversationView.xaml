@@ -8,6 +8,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:viewing="clr-namespace:Nexaflow.Visuals.Common.Viewing;assembly=Nexaflow.Visuals.Common"
              xmlns:beh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
@@ -257,8 +258,7 @@
                 Background="{StaticResource Surface2Brush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1"
-                CornerRadius="10"
-                AllowDrop="True">
+                CornerRadius="10">
             <Grid Margin="16,10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -829,8 +829,8 @@
                 </Grid>
 
                 <!-- The page's own preview -->
-                <ContentControl Grid.Row="1"
-                                Content="{Binding PreviewContent}"
+                <viewing:ModelHost Grid.Row="1"
+                                   Model="{Binding PreviewContent}"
                                 Visibility="{Binding HasPreviewContent, Converter={StaticResource BoolVis}}"/>
 
                 <!-- …or the placeholder, for a page that offers no IContextPreview -->

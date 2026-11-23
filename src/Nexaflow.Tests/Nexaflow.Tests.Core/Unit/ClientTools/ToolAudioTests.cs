@@ -7,6 +7,7 @@ using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common.Audio;
+using Nexaflow.Media.Audio;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 

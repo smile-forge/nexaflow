@@ -54,7 +54,7 @@ public class DiagramKeyTests
     [
         ("type a", 416),
         ("space", 191),
-        ("enter", 918),
+        ("enter", 789),
         ("backspace", 271),
     ];
 
@@ -182,7 +182,7 @@ public class DiagramKeyTests
         var trouble = 0;
 
         foreach (var (start, end) in Diagrams(source))
-            trouble += MermaidParser.Parse(source[start..end]).SelfAndDescendants()
+            trouble += MermaidStaged.Parsed(source[start..end]).SelfAndDescendants()
                            .Count(node => node is { Kind: Kinds.Verbatim, Trouble: not null });
 
         return trouble;

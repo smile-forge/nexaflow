@@ -112,6 +112,13 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
 
     // ── Loading ──────────────────────────────────────────────────────────────
 
+    /// <summary>A re-open — an "As Font" open landing on this tab — loads the fonts it routes here, so they aren't silently dropped.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue("paths", out var paths) && !string.IsNullOrWhiteSpace(paths))
+            _ = OpenFilesAsync(paths.Split('|', StringSplitOptions.RemoveEmptyEntries));
+    }
+
     /// <summary>
     /// Loads the fonts at <paramref name="paths"/> into the compare list (deduping by path) and selects
     /// the first. Called from the view's <c>Reinitialize</c> when the shell re-routes this tab a font set.
@@ -234,7 +241,7 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
     /// A fresh control every time the chip is selected, per the contract — it binds to the page's
     /// <see cref="Fonts"/> items but owns none of them, and is discarded on deselect.
     /// </remarks>
-    public UserControl CreateContextPreview() => new FontContextPreview { DataContext = this };
+    public object CreateContextPreview() => new PagePreview<FontViewModel>(this);
 
     /// <summary>
     /// The scope this page's tools act within — a signature of the compared font set, so two font pages

@@ -59,7 +59,7 @@ public class ViewletBackingTests
         public string DisplayName => "Tooling";
         public bool   AppliesToDrives => false;
         public string[]? ContainsFileGlobs => ["*.csproj"];
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     /// <summary>Matches on nothing at all — the contract permits it (both glob sets default to null), so
@@ -68,7 +68,7 @@ public class ViewletBackingTests
     {
         public string DisplayName => "Always";
         public bool   AppliesToDrives => false;
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     private static FileSystemFeatureRegistry Registry()
@@ -134,7 +134,7 @@ public class ViewletBackingTests
         public bool   AppliesToDrives => false;
         public bool   RequiresLocalFolder => true;
         public string[]? ContainsFileGlobs => ["*.csproj"];
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     /// <summary>Changes the folder with tools that run on a location's own host there — stands in for Git and .NET.</summary>
@@ -144,7 +144,7 @@ public class ViewletBackingTests
         public bool   AppliesToDrives => false;
         public bool   RunsOnLocationHost => true;
         public string[]? ContainsFolderGlobs => [".git"];
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     private sealed class SameNames : Nexaflow.IO.Common.Locations.ILocationNativePaths

@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Git.ViewModels;
-using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Viewing;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,14 +16,15 @@ namespace Nexaflow.Features.Git.Viewlets;
 /// The Git viewlet's surface. Everything observable or triggerable lives on <see cref="GitViewletViewModel"/>;
 /// this owns only what is genuinely view-level — the hand-built branch menu and the result line's fade.
 /// </summary>
-public partial class GitViewletView : UserControl, IViewletAiSurface
+[ViewFor(typeof(GitViewletViewModel))]
+public partial class GitViewletView : UserControl
 {
     private readonly GitViewletViewModel _vm;
 
-    public GitViewletView(GitOptions options, IShellServices shell, IVirtualFileSystem files, string folderPath, IViewletController controller)
+    public GitViewletView(GitViewletViewModel vm)
     {
         InitializeComponent();
-        _vm = new GitViewletViewModel(options, shell, files, folderPath, controller);
+        _vm = vm;
         DataContext = _vm;
 
         _vm.PropertyChanged += OnVmPropertyChanged;
@@ -82,9 +83,4 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
         };
         PullResultText.BeginAnimation(OpacityProperty, fade);
     }
-
-    // ── IViewletAiSurface — delegate to the VM, which owns the repo services ──────────────────────
-
-    string? IViewletAiSurface.GetContext() => _vm.GetContext();
-    IReadOnlyList<IClientTool> IViewletAiSurface.GetClientTools() => _vm.GetClientTools();
 }

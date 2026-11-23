@@ -31,8 +31,6 @@ public class RadarBuilderTests : MermaidBuilderContract
         "radar-beta\n  title Restaurant Comparison\n  axis food[\"Food Quality\"], service[\"Service\"], price[\"Price\"]\n  axis ambiance[\"Ambiance\"]\n"
         + "  curve a[\"Restaurant A\"]{4, 3, 2, 4}\n  curve b[\"Restaurant B\"]{3, 4, 3, 3}\n  max 5";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Radar;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("restaurants", Restaurants),

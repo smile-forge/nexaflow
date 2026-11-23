@@ -31,8 +31,6 @@ public class CynefinBuilderTests : MermaidBuilderContract
         + "  complicated\n    \"Consult an expert\"\n  clear\n    \"Apply the runbook\"\n  chaotic\n    \"Stop the bleeding\"\n"
         + "  confusion\n    \"Unclassified A\"\n    \"Unclassified B\"\n  chaotic --> complex : \"Stabilised\"\n  complex --> clear : \"Learned\"";
 
-    public override MermaidDiagram Diagram => MermaidDiagram.Cynefin;
-
     protected override IEnumerable<(string What, string Source)> Drawn =>
     [
         ("making sense of the work", Sense),

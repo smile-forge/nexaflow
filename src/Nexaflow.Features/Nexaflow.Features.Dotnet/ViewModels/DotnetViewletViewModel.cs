@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Dotnet.ClientTools;
 using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.Features.Dotnet.Services;
@@ -25,7 +26,7 @@ namespace Nexaflow.Features.Dotnet.ViewModels;
 /// error toast + notification. The NuGet check runs as a shell background task (reported in the
 /// activity ticker; it no longer blocks the AI input bar).
 /// </summary>
-public sealed partial class DotnetViewletViewModel : ObservableObject
+public sealed partial class DotnetViewletViewModel : ObservableObject, IViewletAiSurface, IViewletQuiescible
 {
     private readonly IShellServices _shell;
     private readonly string _folderPath;

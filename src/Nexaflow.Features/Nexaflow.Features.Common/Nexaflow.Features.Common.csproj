@@ -4,7 +4,9 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <UseWPF>true</UseWPF>
+    <!-- The contracts name no toolkit: what a page, preview, viewlet or task shows is a model, drawn by the UI layer's
+         [ViewFor] views. ArchitectureRulesTests keeps WPF out. -->
+    <UseWPF>false</UseWPF>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
 
@@ -30,6 +32,9 @@
     <!-- An action's icon is named, not drawn: IconRef for its glyph, ShellIconRef for a picture in a file's resources.
          Both are WPF-free; the views that draw them are Nexaflow.Visuals.Icons'. -->
     <ProjectReference Include="..\..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
+        <!-- The input vocabulary the contracts speak — modifiers, drag payloads, IDropTarget. A leaf rather than here
+             because the shared visuals implement it too, and their plugins' hosts must not hand them this assembly. -->
+        <ProjectReference Include="..\..\Nexaflow.Interaction\Nexaflow.Interaction.csproj" />
   </ItemGroup>
 
 </Project>

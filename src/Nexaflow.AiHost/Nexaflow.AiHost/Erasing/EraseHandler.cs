@@ -1,12 +1,12 @@
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
-using Nexaflow.IO.Common.Imaging;
+
 
 namespace Nexaflow.AiHost.Erasing;
 
 /// <summary>
-/// Erases what a mask covers from a picture as LaMa's predict fills one, a region at a time (<see cref="InpaintRegions"/>,
+/// Erases what a mask covers from a picture as LaMa's predict fills one, a region at a time (<see cref="ErasingRegions"/>,
 /// <see cref="ErasingHandover"/>): the inpainter held while the picture's regions go through it, in the room the picture
 /// borrowed, each region taking the GPU at the request's priority and reported.
 /// </summary>
@@ -22,7 +22,7 @@ internal sealed class EraseHandler(ModelRegistry models, GpuScheduler gpu) : Hos
         if (mask.Length != request.Width * request.Height)
             throw new HostRequestException(HostErrorKind.Invalid, $"{request.Mask} holds {mask.Length} bytes, not a {request.Width}x{request.Height} mask.");
 
-        var regions = InpaintRegions.Of(mask, request.Width, request.Height);
+        var regions = ErasingRegions.Of(mask, request.Width, request.Height);
         if (regions.Count > 0)
         {
             var lane = gpu.Open(request.Priority);

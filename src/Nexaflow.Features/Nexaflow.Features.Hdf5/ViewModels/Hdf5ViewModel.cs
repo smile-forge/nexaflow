@@ -151,6 +151,18 @@ public sealed partial class Hdf5ViewModel : ObservableObject, IPageViewModel, ID
         ApplyTreeFilter();
     }
 
+    /// <summary>A re-open that names another object in this file selects it here.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.GetValueOrDefault("node") is { Length: > 0 } node) _ = NavigateWhenOpenAsync(node);
+    }
+
+    private async Task NavigateWhenOpenAsync(string node)
+    {
+        await Loaded;
+        await NavigateToAsync(node);
+    }
+
     /// <summary>
     /// Selects the object at a path, expanding its ancestors and paging through large groups to reach it. A path
     /// may name a dataset's projected file (<c>/g/data.npy</c>), the name it has when the file is browsed as a folder. Stops at the deepest

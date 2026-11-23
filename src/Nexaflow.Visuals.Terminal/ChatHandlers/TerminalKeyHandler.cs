@@ -1,4 +1,4 @@
-using System.Windows.Input;
+using Nexaflow.Interaction;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
@@ -13,7 +13,7 @@ public abstract class TerminalKeyHandler : IChatKeyHandler
 
     public bool CanHandle(IPageViewModel? pageVm) => pageVm is TerminalViewModel terminal && Serves(terminal);
 
-    public ChatKeyResult HandleKey(Key key, ModifierKeys modifiers, string currentText, int caretIndex, IPageViewModel? pageVm)
+    public ChatKeyResult HandleKey(ConsoleKey key, KeyModifiers modifiers, string currentText, int caretIndex, IPageViewModel? pageVm)
         => pageVm is TerminalViewModel terminal && Serves(terminal)
             ? terminal.HandleChatKey(key, modifiers, currentText, caretIndex)
             : ChatKeyResult.NotHandled;

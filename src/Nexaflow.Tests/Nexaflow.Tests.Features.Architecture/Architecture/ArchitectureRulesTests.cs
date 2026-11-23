@@ -38,6 +38,22 @@ public class ArchitectureRulesTests
     }
 
     [TestMethod]
+    [TestCategory("Unit")]
+    public void Features_Common_references_no_UI_toolkit()
+    {
+        // Every contract hands out a model, never a control, so another toolkit can draw the same features.
+        string[] toolkit = ["PresentationCore", "PresentationFramework", "WindowsBase", "System.Xaml"];
+        var referenced = typeof(Nexaflow.Features.Common.Page).Assembly.GetReferencedAssemblies()
+            .Select(name => name.Name)
+            .Where(name => toolkit.Contains(name))
+            .ToList();
+
+        Assert.AreEqual(0, referenced.Count,
+            "Features.Common names no UI toolkit: a contract returns a model, drawn by a [ViewFor] view. " +
+            $"Referenced: {string.Join(", ", referenced)}");
+    }
+
+    [TestMethod]
     public void Features_never_reference_another_feature()
     {
         var offenders = new List<string>();

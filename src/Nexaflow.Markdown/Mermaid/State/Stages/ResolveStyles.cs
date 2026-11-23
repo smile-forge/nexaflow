@@ -4,8 +4,8 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Mermaid.State.Stages;
 
 /// <summary>
-/// Works out what styles each state, and says where a <c>class</c> or a <c>style</c> line names something nothing writes — a state
-/// written nowhere, or a class no <c>classDef</c> declares. Mermaid lets the styling be written above what it styles or below it, so
+/// Works out what styles each state. A <c>class</c> or a <c>style</c> line naming a state written nowhere makes that state, as
+/// Mermaid does, and a class no <c>classDef</c> declares styles nothing. Mermaid lets the styling be written above what it styles or below it, so
 /// both are facts about the whole block (<see cref="MermaidStyling"/>): what styles a state is said on the name first writing it,
 /// a <c>[*]</c> being styled as the dot it is (<see cref="MarkerNode"/>).
 /// </summary>
@@ -15,14 +15,10 @@ public sealed class ResolveStyles : IAstStage
 
     public ContentNode Run(ContentNode tree)
     {
-        var styling = StateGrammar.Styling;
+        var styling = StateParser.Styling;
 
-        tree = styling.Resolve(tree, [StateKinds.Named], StateKinds.ClassDef, StateKinds.Class, StateKinds.Style,
-                               id => StateGrammar.Pseudo.Contains(id, StringComparer.Ordinal)
-                                   ? null
-                                   : $"No state {id} is written in this diagram.");
-
-        return styling.Style(tree, [StateKinds.Named], StateKinds.ClassDef, StateKinds.Class, StateKinds.Style, Given, Marked);
+        return styling.Style(tree, [StateKinds.Named], StateKinds.ClassDef, StateKinds.Class, StateKinds.Style, Given, Marked,
+                             making: [StateKinds.Class, StateKinds.Style]);
     }
 
     private static string? Marked(ContentNode named) => (named as MarkerNode)?.Id;

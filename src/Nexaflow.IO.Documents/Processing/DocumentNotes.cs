@@ -60,10 +60,23 @@ public sealed class DocumentNotesFolder : IDocumentNotes
         var file = FileOf(shelf, key);
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
 
-        // Written beside it and moved into place, so a note is never read half-written.
-        var writing = file + ".writing";
-        await File.WriteAllTextAsync(writing, text, ct);
-        File.Move(writing, file, overwrite: true);
+        // Written beside it and moved into place, so a note is never read half-written — beside it under a name of its own, so
+        // two runs keeping the same note at once (a passage the document repeats, translated side by side) never write one file.
+        var writing = $"{file}.{Guid.NewGuid():N}.writing";
+        try
+        {
+            await File.WriteAllTextAsync(writing, text, ct);
+            File.Move(writing, file, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && File.Exists(file))
+        {
+            // Another run kept this note first and has it open. A note is worked out from everything its key is made of, so the
+            // one kept serves as well as this.
+        }
+        finally
+        {
+            TryDelete(writing);
+        }
     }
 
     public bool Holds(string shelf, string key) => File.Exists(FileOf(shelf, key));

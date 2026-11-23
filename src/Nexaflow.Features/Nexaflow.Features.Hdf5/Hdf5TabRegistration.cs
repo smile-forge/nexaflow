@@ -1,7 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Hdf5.ViewModels;
-using Nexaflow.Features.Hdf5.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Hdf5;
 using Nexaflow.Visuals.Common.Localization;
@@ -39,12 +38,11 @@ public sealed class Hdf5TabRegistration(IShellServices shell, IVirtualFileSystem
             PageParams = normalized,
         };
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             // Built here so defining a tab stays cheap: the view-model opens the file as it is constructed.
             var vm = new Hdf5ViewModel(file, node, shell, vfs, Hdf5SourceCache.Shared);
-            page.Closed += (_, _) => vm.Dispose();
-            return new Hdf5View(vm);
+            return vm;
         };
 
         page.SetFileBreadcrumbs(file, title);

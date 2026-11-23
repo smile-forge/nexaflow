@@ -326,15 +326,14 @@
                         </Border>
 
                         <!-- Inline AI banner host: the shell injects its dissolvable response banner here. -->
-                        <ContentControl x:Name="EngagementHost" DockPanel.Dock="Bottom"/>
+                        
 
                         <!-- Focusable terminal surface: clicking it focuses; keystrokes go to the shell. -->
                         <Border x:Name="TerminalSurface" Background="Transparent"
-                                Focusable="True" AllowDrop="True"
+                                Focusable="True"
                                 PreviewKeyDown="Terminal_PreviewKeyDown"
                                 PreviewTextInput="Terminal_PreviewTextInput"
-                                PreviewMouseDown="Terminal_PreviewMouseDown"
-                                DragOver="Terminal_DragOver" Drop="Terminal_Drop">
+                                PreviewMouseDown="Terminal_PreviewMouseDown">
                             <Border.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="{loc:Str Terminal.Console.Copy}"  Click="CopyTerminal_Click"/>

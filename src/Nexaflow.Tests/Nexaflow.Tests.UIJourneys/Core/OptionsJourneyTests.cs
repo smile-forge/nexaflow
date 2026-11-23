@@ -48,6 +48,7 @@ public class OptionsJourneyTests : OptionsOverlayJourney
             // Selecting a section builds its editor: a [CustomControl] instance, or a reflected property
             // grid. Either way something must appear on the right — a section that selects to a blank
             // pane is the exact failure this journey exists to catch.
+            var panel = WaitForId("Chrome_OptionsPanel", 5);
             foreach (var section in sections)
             {
                 var name = Label(section);
@@ -57,13 +58,7 @@ public class OptionsJourneyTests : OptionsOverlayJourney
                 {
                     section.Patterns.SelectionItem.PatternOrDefault?.Select();
                     Wait.UntilInputIsProcessed();
-                    System.Threading.Thread.Sleep(120);
-
-                    // A custom control names itself; a property grid renders rows. Either is a pass, and
-                    // a section with genuinely no settings still renders its (empty) grid host.
-                    return WaitForId("Options_CustomSection", 1) is not null
-                        || MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Chrome_OptionsPanel"))
-                                     ?.FindAllDescendants().Length > 0;
+                    return panel is not null && SectionEditorShows(panel);
                 });
             }
 
@@ -71,6 +66,14 @@ public class OptionsJourneyTests : OptionsOverlayJourney
             SelectSection(list, "About", "About_ComponentsToggle");
 
             CheckPresent("System components heading", "About_ComponentsToggle", 10);
+
+            // ── About → Updates ──────────────────────────────────────────────
+            // Exactly one is offered: Update while a newer release is known, Check for updates otherwise. Update
+            // installs and restarts, so it is only ever looked for, never pressed.
+            Check("Updates offers a check or an install", () =>
+                Exists("About_CheckForUpdates") != Exists("About_InstallUpdate"));
+            if (Exists("About_CheckForUpdates"))
+                CheckDoes("Check for updates asks now and settles", "About_CheckForUpdates", UpdatesSettled);
 
             // Expanded only when something is missing, so open it explicitly rather than assuming.
             Expand("About_ComponentsToggle");
@@ -160,6 +163,33 @@ public class OptionsJourneyTests : OptionsOverlayJourney
                   .Where(n => n.Length > 0)
                   .ToArray();
     }
+
+    /// <summary>
+    /// True once a check for updates has finished: either a release is offered (Update shows) or Check for updates is
+    /// enabled again — this build is current, or the releases could not be reached. Both are a settled page; one stuck
+    /// on a disabled Check is not.
+    /// </summary>
+    private bool UpdatesSettled()
+    {
+        var settling = System.Diagnostics.Stopwatch.StartNew();
+        while (settling.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            if (Exists("About_InstallUpdate")) return true;
+            if (MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("About_CheckForUpdates")) is { IsEnabled: true }) return true;
+            System.Threading.Thread.Sleep(250);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// True once the selected section's editor shows on the right: its custom control, or its property grid — a section
+    /// with no settings still shows the grid, empty. Both hosts are looked for inside the panel in one search, since this
+    /// runs once per section and a search of the whole window costs about a third of a second.
+    /// </summary>
+    private static bool SectionEditorShows(AutomationElement panel)
+        => WaitForFs(() => panel.FindAllDescendants(cf => cf.ByAutomationId("Options_CustomSection")
+                                                             .Or(cf.ByAutomationId("Options_PropertyGrid")))
+                                .Any(host => !host.IsOffscreen), 3);
 
     /// <summary>Shell: Enhanced AI Protection Mode is on until the user turns it off, and its switch turns it off and on
     /// again — the edit discarded with the rest when the panel is cancelled.</summary>

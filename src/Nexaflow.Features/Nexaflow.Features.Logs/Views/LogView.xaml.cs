@@ -10,10 +10,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Logs.Views;
 
-public partial class LogView : UserControl, IPageView
+[ViewFor(typeof(LogViewModel))]
+public partial class LogView : UserControl
 {
     private readonly LogViewModel                  _vm;
     private readonly LogLevelColorizer             _levelColorizer;
@@ -68,10 +70,6 @@ public partial class LogView : UserControl, IPageView
         Loaded   += async (_, _) => await vm.LoadAsync(CancellationToken.None);
         Unloaded += OnUnloaded;
     }
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

@@ -131,7 +131,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// offers none — in which case the panel falls back to an identity placeholder.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPreviewContent))]
-    private UserControl? _previewContent;
+    private object? _previewContent;
 
     public bool   IsPreviewOpen     => SelectedContextItem is not null;
     public bool   HasPreviewContent => PreviewContent is not null;
@@ -215,6 +215,13 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _shell.QueueBackgroundTask(new ConversationAnalysisTask(_aiService, Conversation));
     }
 
+    /// <summary>A re-open that names a conversation loads it here.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue("conversationId", out var id))
+            _ = LoadAsync(id);
+    }
+
     /// <summary>Loads a persisted conversation by id and pulls the model context window.</summary>
     public async Task LoadAsync(string conversationId)
     {
@@ -244,7 +251,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         _restoring = true;
         try
         {
-            // Reactivating the tab re-runs this (IPageView.Reinitialize), so start from empty — otherwise
+            // Reactivating the tab re-runs this (IPageViewModel.Reinitialize), so start from empty — otherwise
             // every reactivation stacks another copy of the saved context onto the strip.
             ClearContext();
 
@@ -255,7 +262,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             // IAIService rebuilds the page definitions; we realize them and own their lifetime.
             foreach (var page in _aiService.RestoreContextPages(rec))
             {
-                page.GetOrCreateContent();   // realize the VM so GetContext/tools resolve
+                page.GetOrCreateViewModel();   // realize the VM so GetContext/tools resolve
                 _ownedContextPages.Add(page);
                 AddContextItem(page);
             }
@@ -355,6 +362,27 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         IsAgentRunning = true;
         AddTurnItem(new TimelineUserMessage(user));
         MarkLastUserMessage();
+        _activity = new TimelineActivity { Text = Str.Get("AIChat.Conversation.Activity.Considering") };
+        AddTurnItem(_activity);
+    });
+
+    /// <summary>
+    /// A turn the user did not ask for: work this conversation set going has ended while the user was here. What came of it is kept
+    /// as any ended work is — the assistant's, not the user's words — and the assistant's reply follows it.
+    /// </summary>
+    public void BeginFollowUp(string about, string outcome) => OnUi(() =>
+    {
+        _turnItems.Clear();
+        _pendingUserMessages.Clear();
+        _currentToolBatch = null;
+        _draft            = null;
+
+        var said = new ConversationMessage { Text = outcome, IsUser = false, Timestamp = DateTime.Now };
+        Timeline.Add(new TimelineAssistantMessage(outcome));
+        Messages.Add(said);
+        Conversation?.Messages.Add(said);
+
+        IsAgentRunning = true;
         _activity = new TimelineActivity { Text = Str.Get("AIChat.Conversation.Activity.Considering") };
         AddTurnItem(_activity);
     });
@@ -879,15 +907,15 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         if (oldValue is not null) oldValue.IsSelected = false;
         if (newValue is not null) newValue.IsSelected = true;
 
-        // Built fresh per selection and dropped on deselect — a page's live tab content is already parented
-        // in the tab host and cannot be re-hosted here, so IContextPreview hands back a separate element.
+        // Built fresh per selection and dropped on deselect — a page's live tab view is already parented
+        // in the tab host and cannot be re-hosted here, so IContextPreview hands back a preview of its own.
         PreviewContent = newValue is null ? null : BuildPreview(newValue.Page);
         OnPropertyChanged(nameof(PreviewFallbackText));
     }
 
-    private static UserControl? BuildPreview(Page page)
+    private static object? BuildPreview(Page page)
     {
-        if ((page.Content as IPageView)?.ViewModel is not IContextPreview previewable) return null;
+        if (page.ViewModel is not IContextPreview previewable) return null;
         try   { return previewable.CreateContextPreview(); }
         catch { return null; }   // a broken preview must not take the conversation down with it
     }
@@ -910,7 +938,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         OnPropertyChanged(nameof(IsContextReady));
         NotifyCollapsedSummary();
         if (_riskSubscriptions.ContainsKey(page)) return;
-        if ((page.Content as IPageView)?.ViewModel is not INotifyPropertyChanged source) return;
+        if (page.ViewModel is not INotifyPropertyChanged source) return;
 
         PropertyChangedEventHandler handler = (_, _) =>
         {
@@ -925,14 +953,14 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     private void UntrackRisk(Page page)
     {
         if (!_riskSubscriptions.Remove(page, out var handler)) return;
-        if ((page.Content as IPageView)?.ViewModel is INotifyPropertyChanged source)
+        if (page.ViewModel is INotifyPropertyChanged source)
             source.PropertyChanged -= handler;
     }
 
     private void UntrackAllRisk()
     {
         foreach (var (page, handler) in _riskSubscriptions)
-            if ((page.Content as IPageView)?.ViewModel is INotifyPropertyChanged source)
+            if (page.ViewModel is INotifyPropertyChanged source)
                 source.PropertyChanged -= handler;
         _riskSubscriptions.Clear();
     }
@@ -943,7 +971,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         => ContextItems.Select(c => c.Page.SecurityRisk).DefaultIfEmpty(ContextSecurityRisk.Low).Max();
 
     private static void UpdateRisk(Page page)
-        => page.SecurityRisk = (page.Content as IPageView)?.ViewModel?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low;
+        => page.SecurityRisk = page.ViewModel?.GetContextSecurityRisk() ?? ContextSecurityRisk.Low;
 
     [RelayCommand]
     private void RemoveContextItemCmd(ContextItemViewModel item) => RemoveContextItem(item);
@@ -980,7 +1008,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             return;
         }
 
-        page.GetOrCreateContent();   // realize VM so GetContext/GetClientTools resolve
+        page.GetOrCreateViewModel();   // realize VM so GetContext/GetClientTools resolve
         _ownedContextPages.Add(page);
         AddContextItem(page);
     }
@@ -1016,8 +1044,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
 
     private static string GetContextFor(Page page)
     {
-        var view = page.Content as IPageView;
-        if (view?.ViewModel is not IPageViewModel vm) return string.Empty;
+        if (page.ViewModel is not IPageViewModel vm) return string.Empty;
 
         var baseText = vm.GetContext();
 
@@ -1087,7 +1114,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// messages are not being condensed (<see cref="CondenseIfOutgrownAsync"/>). Re-evaluated whenever a
     /// pinned page changes (risk subscription), the set of items changes, or condensing starts or ends.</summary>
     public bool IsContextReady =>
-        !_condensing && ContextItems.All(c => (c.Page.Content as IPageView)?.ViewModel?.IsContextReady ?? true);
+        !_condensing && ContextItems.All(c => c.Page.ViewModel?.IsContextReady ?? true);
 
     /// <summary>
     /// Combined context handed to the AI on every call: pinned context items, attachments, then
@@ -1104,7 +1131,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         // When ≥2 pinned pages have DISTINCT security contexts, label each block with its context
         // handle so the agent can match a listing to a tool's security_context selector.
         var multiContext = ContextItems
-            .Select(c => (c.Page.Content as IPageView)?.ViewModel?.GetSecurityContext())
+            .Select(c => c.Page.ViewModel?.GetSecurityContext())
             .Where(s => s is not null)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count() >= 2;
@@ -1115,7 +1142,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             var part = GetContextFor(page);
             if (string.IsNullOrWhiteSpace(part)) continue;
             sb.AppendLine("---");
-            var security = (page.Content as IPageView)?.ViewModel?.GetSecurityContext();
+            var security = page.ViewModel?.GetSecurityContext();
             sb.AppendLine(multiContext && security is not null
                 ? $"[Context item: {page.Title} — security context: {NameFor(security)} (scope: {security})]"
                 : $"[Context item: {page.Title}]");
@@ -1228,7 +1255,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         var entries = new List<(string? Security, IClientTool Tool)>();
         foreach (var c in ContextItems)
         {
-            if ((c.Page.Content as IPageView)?.ViewModel is not IPageViewModel vm) continue;
+            if (c.Page.ViewModel is not IPageViewModel vm) continue;
             var security = vm.GetSecurityContext();
             foreach (var t in vm.GetClientTools())
                 entries.Add((security, t));
@@ -1261,7 +1288,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     {
         var grant = ContextGrant.OfFiles(Attachments);
         foreach (var c in ContextItems)
-            if ((c.Page.Content as IPageView)?.ViewModel is IPageViewModel vm) grant = grant.With(vm.GetContextGrant());
+            if (c.Page.ViewModel is IPageViewModel vm) grant = grant.With(vm.GetContextGrant());
         return grant;
     }
 

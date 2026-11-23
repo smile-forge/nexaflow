@@ -117,7 +117,7 @@ public class ProcessesSurfaceTests
 
         shell.Received(1).OpenTab(Arg.Any<string>(),
             Arg.Is<Dictionary<string, string>>(p => p["pid"] == "4242"),
-            Arg.Any<IPageView?>());
+            Arg.Any<Page?>());
     }
 
     [TestMethod]
@@ -192,7 +192,7 @@ public class ProcessesSurfaceTests
         vm.OpenLocationCommand.Execute(Row(vm, "known.exe"));
         shell.Received(1).OpenTab("FileSystem",
             Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\Windows\System32"),
-            Arg.Any<IPageView?>());
+            Arg.Any<Page?>());
 
         vm.OpenLocationCommand.Execute(Row(vm, "unknown.exe"));
         shell.Received().ShowError(Arg.Is<string>(m => m.Contains("unknown.exe")));

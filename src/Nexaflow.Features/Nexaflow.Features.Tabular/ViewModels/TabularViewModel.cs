@@ -199,7 +199,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     /// panel's header names the file. A fresh control each time the chip is selected, per the contract; it copies
     /// what it shows.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview()
+    public object CreateContextPreview()
     {
         var rows = KnownRowCount is { } known ? known.ToString("N0") : $"~{EstimatedRowCount:N0}";
         var meta = SelectedRowIndices.Count > 0
@@ -214,7 +214,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             Columns.Select(c => c.Header).ToList(),
             shown.Take(PreviewRowCount).Select(r => r.Cells));
 
-        return new ReadOnlyTextPreview(meta, body);
+        return new TextContextPreview(meta, body);
     }
 
     public string? GetSecurityContext() => FilePath;
