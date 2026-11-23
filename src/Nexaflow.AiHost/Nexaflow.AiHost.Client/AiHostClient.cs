@@ -35,6 +35,10 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     /// Raised on a pool thread.</summary>
     public event EventHandler<AiHostExitedEventArgs>? HostExited;
 
+    /// <summary>Files arrived in the host's model store, verified, or left it, whichever app asked: their paths in the store. Raised on
+    /// a pool thread.</summary>
+    public event EventHandler<IReadOnlyList<string>>? ModelFilesChanged;
+
     public bool IsRunning => _connection is { IsAlive: true };
 
     /// <summary>What the next host is started with. A host already running with something else serves out the
@@ -80,6 +84,19 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Bytes to fill and send in the next request: an array when small; else a shared section the host made for them, so a large
+    /// picture is written once, in place, and never copied through the pipe. Dispose them once the request has been sent — or if they
+    /// never are, which frees the section.
+    /// </summary>
+    /// <exception cref="AiHostException">No host could be started, or it refused the section.</exception>
+    public async Task<SharedBytes> AllocateAsync(int length, CancellationToken ct = default)
+    {
+        if (length <= SharedBytes.InlineLimit) return SharedBytes.Of(new byte[length]);
+        var connection = await ConnectAsync(ct).ConfigureAwait(false);
+        return await connection.AllocateAsync(length, ct).ConfigureAwait(false);
+    }
+
     /// <summary>The live connection, starting a host first when there is none — or when the one running was started
     /// with another environment, once it has finished what it was doing.</summary>
     private async Task<HostConnection> ConnectAsync(CancellationToken ct)
@@ -106,6 +123,7 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
 
             // Started off the caller's thread: launching the process and waiting on its handshake is no work for a UI thread.
             _connection = await Task.Run(() => HostConnection.StartAsync(_launcher, environment, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
+            _connection.FilesChanged += (_, paths) => ModelFilesChanged?.Invoke(this, paths);
             return _connection;
         }
         finally { _starting.Release(); }

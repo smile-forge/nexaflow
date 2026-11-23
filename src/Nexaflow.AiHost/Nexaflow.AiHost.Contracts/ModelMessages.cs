@@ -7,7 +7,8 @@ namespace Nexaflow.AiHost.Contracts;
 /// </summary>
 /// <param name="Id">Unique among the models the host holds: the catalog id, with its part for a model made of several.</param>
 /// <param name="Runner">What loads and runs it — <c>llama-chat</c> for a language model; a family of speech models each has its own.</param>
-/// <param name="Folder">Where its files were downloaded.</param>
+/// <param name="Folder">Its folder in the host's model store, as the store names it (<c>models/kokoro-82m</c>): where that lies on
+/// disk is the host's to know, and a path that leaves the store is refused.</param>
 /// <param name="File">The file it is — a language model's GGUF, a single graph; null for a model whose runner reads several files from its folder.</param>
 /// <param name="Adapter">What turns the downloaded files into what the runner reads; null when they are used as downloaded.</param>
 /// <param name="MemoryBytes">Memory it holds loaded where <see cref="Device"/> places it, with its context — what
@@ -127,10 +128,9 @@ public sealed record ChatToolCall(string Id, string Name, string Arguments);
 
 public enum MediaKind { Image, Audio }
 
-/// <summary>An image or a recording in a turn. An image is a file on this machine or its encoded bytes, which the model's
-/// projector reads whatever its format; a recording is its <paramref name="Bytes"/> as 16-bit mono PCM at 16 kHz — decoding and
-/// resampling it is the app's.</summary>
-public sealed record ChatMedia(MediaKind Kind, string? Path, byte[]? Bytes);
+/// <summary>An image or a recording in a turn, as its bytes: an image encoded — a PNG, a JPEG — which the model's projector reads
+/// whatever its format; a recording as 16-bit mono PCM at 16 kHz — decoding and resampling it is the app's.</summary>
+public sealed record ChatMedia(MediaKind Kind, SharedBytes Bytes);
 
 /// <summary>One turn of a conversation, as the app holds it.</summary>
 public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedia>? Media = null)

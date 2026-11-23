@@ -1,9 +1,11 @@
 using System.Text;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
+using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Providers.Support;
 
 namespace Nexaflow.Tests.Providers;
@@ -33,7 +35,7 @@ public class OwnedPageReadingTests
     public void TheShippedTool_IsUnlimitedOcrAndItsTextFinder_TheReaderUnder8Gb_TheFinderOnTheCpu()
     {
         var reading = Reading(new FakeModelStore(), new FakeAiHost());
-        var tool = OwnedModels.Tools.Single(t => t.Kind == OwnedToolKind.PageReading);
+        var tool = OwnedModels.Tools.Single(t => t.Kind == HostedToolKind.PageReading);
 
         Assert.IsTrue(reading.RunsHere);
         Assert.AreEqual("unlimited-ocr", reading.Catalog!.Id);
@@ -51,10 +53,10 @@ public class OwnedPageReadingTests
     {
         var host = Answering(r => r is FindTextInPicture find ? [new TextFoundInPicture(find.RequestId, [new TextRegion(0.1f, 0.2f, 0.3f, 0.02f, 0.9f)])] : []);
 
-        var regions = await Reading(Here(), host).FindTextAsync(@"C:\page.rgba", 640, 480, CancellationToken.None);
+        var regions = await Reading(Here(), host).FindTextAsync(new byte[640 * 480 * 4], 640, 480, CancellationToken.None);
 
         var request = (FindTextInPicture)host.Requests.Single();
-        Assert.AreEqual((@"C:\page.rgba", 640, 480), (request.Pixels, request.Width, request.Height));
+        Assert.AreEqual((640 * 480 * 4, 640, 480), (request.Pixels.Length, request.Width, request.Height));
         Assert.AreEqual("text-finder", request.Finder.Runner);
         Assert.IsNull(request.Finder.Device, "the CPU, not the GPU");
         Assert.AreEqual(0.9f, regions.Single().Score);
@@ -68,12 +70,15 @@ public class OwnedPageReadingTests
                new GenerationEnded(g.RequestId, StopReason.EndOfTurn, 900, 900, 3)]
             : []);
         var pieces = new List<string>();
+        var page = TestTemp.CreateFile(".png");
+        File.WriteAllBytes(page, [137, 80, 78, 71, 13, 10, 26, 10]);
 
-        string read = await Reading(Here(), host).ReadPageAsync(@"C:\page.png", waiting: true, new Inline<string>(pieces.Add), CancellationToken.None);
+        string read = await Reading(Here(), host).ReadPageAsync(page, waiting: true, new Inline<string>(pieces.Add), CancellationToken.None);
 
         var request = (Generate)host.Requests.Single();
         var turn = request.Turns.Single();
-        Assert.AreEqual((TurnRole.User, OwnedPageReading.Instruction, @"C:\page.png"), (turn.Role, turn.Text, turn.Media!.Single().Path));
+        Assert.AreEqual((TurnRole.User, OwnedPageReading.Instruction), (turn.Role, turn.Text));
+        CollectionAssert.AreEqual(File.ReadAllBytes(page), turn.Media!.Single().Bytes.ToArray(), "the page goes to the host as its file holds it");
         Assert.AreEqual(new ReplyDecoding(128, new RepeatBan(35, 128), WritesControlTokens: true), request.Decoding);
         Assert.IsNull(request.Sampling, "greedy, as the makers decode");
         Assert.IsFalse(request.Thinks);
@@ -88,7 +93,10 @@ public class OwnedPageReadingTests
     {
         var host = Answering(r => r is Generate g ? [new GenerationEnded(g.RequestId, StopReason.EndOfTurn, 1, 1, 1)] : []);
 
-        await Reading(Here(), host).ReadPageAsync(@"C:\page.png", waiting: false, null, CancellationToken.None);
+        var page = TestTemp.CreateFile(".png");
+        File.WriteAllBytes(page, [137, 80, 78, 71, 13, 10, 26, 10]);
+
+        await Reading(Here(), host).ReadPageAsync(page, waiting: false, null, CancellationToken.None);
 
         Assert.AreEqual(RequestPriority.Job, ((Generate)host.Requests.Single()).Priority);
     }
@@ -100,7 +108,7 @@ public class OwnedPageReadingTests
         var store = new FakeModelStore();
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Reading(store, host).ReadPageAsync(@"C:\page.png", true, null, CancellationToken.None));
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Reading(store, host).FindTextAsync(@"C:\page.rgba", 64, 64, CancellationToken.None));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Reading(store, host).FindTextAsync(new byte[64 * 64 * 4], 64, 64, CancellationToken.None));
 
         Assert.AreEqual(0, host.Requests.Count);
         Assert.AreEqual(0, store.Fetched.Count, "a download is the person's to start");
@@ -117,7 +125,7 @@ public class OwnedPageReadingTests
                                       { "path": "tools/t/finder/f.onnx", "url": "https://example.com/f.onnx", "size": 1, "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } ] } ] }
             """);
 
-        var ex = Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.ReadTools(json));
+        var ex = Assert.ThrowsExactly<InvalidDataException>(() => HostCatalog.Read(json));
 
         StringAssert.Contains(ex.Message, "runs its textFinder on the CPU everywhere, so it holds no GPU memory");
     }

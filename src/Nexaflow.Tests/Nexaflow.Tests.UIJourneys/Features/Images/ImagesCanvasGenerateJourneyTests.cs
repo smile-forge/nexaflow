@@ -13,7 +13,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// what is described into the canvas it makes — shown in the layers panel with its Stop while it draws, its first layer once it
 /// arrives — and Generate layer draws a layer above the active one, which can be set up and let go, or stopped while it draws.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding Z-Image Turbo as the app keeps it, each file verified, which the
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding Z-Image Turbo as the app keeps it, each file verified, which the
 /// app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it the journey is inconclusive.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
@@ -24,7 +24,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [CoversNode("images-start")]
 public class ImagesCanvasGenerateJourneyTests : ImageEditJourneyBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
 

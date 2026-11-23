@@ -4,6 +4,7 @@ using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Providers.Support;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -24,13 +25,15 @@ public class OwnedPictureSelectionTests
 
     private static FakeModelStore Here() => new([.. Files, .. CudaRuntimePack.Files]);
 
-    private static readonly MaskTarget Mask = new("mask.bin", 16, 12);
+    private static readonly MaskTarget Mask = new(16, 12);
+
+    private static readonly byte[] Picture = new byte[640 * 480 * 4];
 
     /// <summary>A host that reads a picture and answers each click with the box of its turn.</summary>
     private static FakeAiHost Reading() => new()
     {
         Reply = (r, _) => r is SelectInPicture s ? [new PictureEncoded(s.RequestId)] : [],
-        Answer = i => i is SelectByPoints p ? [new PointsSelected(p.RequestId, p.Turn, new SelectionBox(p.Turn, 0, 10, 10))] : [],
+        Answer = i => i is SelectByPoints p ? [new PointsSelected(p.RequestId, p.Turn, new SelectionBox(p.Turn, 0, 10, 10), SharedBytes.Of(new byte[16 * 12]))] : [],
     };
 
     [TestMethod]
@@ -47,7 +50,7 @@ public class OwnedPictureSelectionTests
         Assert.IsTrue(Files.Any(f => f.RelativePath == "tools/sam3.1/text-encoder/bpe_simple_vocab_16e6.txt.gz"),
                       "the vocabulary lies beside the text encoder, where its runner reads it");
         Assert.IsTrue(Files.Any(f => f.RelativePath == "tools/sam3.1/image-encoder/LICENSE"), "the SAM License comes with the weights, as it asks");
-        Assert.IsTrue(OwnedModels.Tools.Single(t => t.Kind == OwnedToolKind.PictureSelection).Parts.All(p => p.MemoryBytes < 8L << 30));
+        Assert.IsTrue(OwnedModels.Tools.Single(t => t.Kind == HostedToolKind.PictureSelection).Parts.All(p => p.MemoryBytes < 8L << 30));
         Assert.IsFalse(selection.IsReady, "not until its files are here");
         Assert.IsTrue(Selection(Here(), new FakeAiHost()).IsReady);
     }
@@ -58,7 +61,7 @@ public class OwnedPictureSelectionTests
         var host = Reading();
         var selection = Selection(Here(), host);
 
-        await using (var session = await selection.OpenAsync("picture.rgba", 640, 480, CancellationToken.None))
+        await using (var session = await selection.OpenAsync(Picture, 640, 480, CancellationToken.None))
         {
             var first = await session.SelectAsync([new SelectionPoint(10, 20, SelectionPointKind.Include)], Mask, CancellationToken.None);
             var second = await session.SelectAsync([new SelectionPoint(10, 20, SelectionPointKind.Include), new SelectionPoint(30, 40, SelectionPointKind.Exclude)],
@@ -69,7 +72,7 @@ public class OwnedPictureSelectionTests
         var request = (SelectInPicture)host.Requests.Single();
         Assert.AreEqual(RequestPriority.Interactive, request.Priority);
         CollectionAssert.AreEquivalent(SelectingParts.All.ToArray(), request.Parts.Keys.ToArray());
-        Assert.AreEqual((640, 480, "picture.rgba"), (request.Width, request.Height, request.Pixels));
+        Assert.AreEqual((640, 480, 640 * 480 * 4), (request.Width, request.Height, request.Pixels.Length));
         Assert.IsInstanceOfType<InputEnd>(host.Inputs.Last(), "disposing the session ends its request, and the host lets the picture go");
     }
 
@@ -78,9 +81,10 @@ public class OwnedPictureSelectionTests
     {
         var host = Reading();
         host.Answer = i => i is SelectByPoints { Turn: 2 } p
-            ? [new PointsSelected(p.RequestId, 2, new SelectionBox(2, 0, 10, 10)), new PointsSelected(p.RequestId, 1, new SelectionBox(1, 0, 10, 10))]
+            ? [new PointsSelected(p.RequestId, 2, new SelectionBox(2, 0, 10, 10), SharedBytes.Of(new byte[16 * 12])),
+               new PointsSelected(p.RequestId, 1, new SelectionBox(1, 0, 10, 10), SharedBytes.Of(new byte[16 * 12]))]
             : [];
-        await using var session = await Selection(Here(), host).OpenAsync("picture.rgba", 640, 480, CancellationToken.None);
+        await using var session = await Selection(Here(), host).OpenAsync(Picture, 640, 480, CancellationToken.None);
 
         var first = session.SelectAsync([new SelectionPoint(1, 1, SelectionPointKind.Include)], Mask, CancellationToken.None);
         var second = session.SelectAsync([new SelectionPoint(2, 2, SelectionPointKind.Include)], Mask, CancellationToken.None);
@@ -94,7 +98,7 @@ public class OwnedPictureSelectionTests
     {
         var host = Reading();
         host.Answer = i => i is SelectByPhrase f ? [new Failed(f.RequestId, HostErrorKind.Invalid, "A search needs a phrase or an example.")] : [];
-        await using var session = await Selection(Here(), host).OpenAsync("picture.rgba", 640, 480, CancellationToken.None);
+        await using var session = await Selection(Here(), host).OpenAsync(Picture, 640, 480, CancellationToken.None);
 
         var failed = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => session.FindAsync("", [], Mask, CancellationToken.None));
         StringAssert.Contains(failed.Message, "needs a phrase");
@@ -107,7 +111,7 @@ public class OwnedPictureSelectionTests
         var store = new FakeModelStore();
         var host = Reading();
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Selection(store, host).OpenAsync("picture.rgba", 640, 480, CancellationToken.None));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Selection(store, host).OpenAsync(Picture, 640, 480, CancellationToken.None));
         Assert.AreEqual(0, store.Fetched.Count);
         Assert.AreEqual(0, host.Requests.Count);
     }

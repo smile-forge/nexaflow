@@ -3,8 +3,8 @@ using System.IO;
 namespace Nexaflow.Tests.UIJourneys.Infrastructure;
 
 /// <summary>
-/// A folder of Nexaflow's own models a journey runs on (<c>NEXAFLOW_TEST_AI_DIR</c>), checked before it starts for what the
-/// journey cannot do without. A journey's app downloads nothing, so a part missing from the folder would show only as a
+/// The test model store a journey runs on (<c>NEXAFLOW_TEST_STORE</c>), checked before it starts for what the journey cannot do
+/// without. A journey's app downloads nothing, so a part missing from the store would show only as a
 /// picture that never arrives; absent, the journey is inconclusive, naming the part — it says nothing about the app.
 /// </summary>
 public static class OwnedModelFolder

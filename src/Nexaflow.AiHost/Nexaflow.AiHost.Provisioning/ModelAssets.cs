@@ -23,25 +23,39 @@ public readonly record struct AssetProgress(long Received, long Total)
 }
 
 /// <summary>
-/// Where an app finds the files its local models need. Every model's files live under one root; a download resumes where
-/// an interrupted one stopped, and a file is handed out only once its size and hash match.
+/// The model store as whoever runs models sees it: which files are here, fetching and removing them, and the room a fetch would
+/// take. The AI host alone keeps the store and reads its files; an app asks it through this, and never learns a path.
 /// </summary>
 public interface IModelAssetStore
 {
-    /// <summary>The asset's path when it is on disk, complete and verified; null otherwise.</summary>
-    string? Locate(ModelAsset asset);
+    /// <summary>Whether the asset is in the store, complete and verified.</summary>
+    bool Has(ModelAsset asset);
 
-    /// <summary>Makes the asset present — downloading it, or resuming a download — and returns its path.</summary>
+    /// <summary>Makes every asset present — adopted, resumed or downloaded, then verified. Each archive they are packed in is
+    /// fetched once for all of them; <paramref name="progress"/> counts every byte the set still needs.</summary>
     /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
-    Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default);
+    /// <exception cref="ModelRoomException">The store's drive has too little room left; nothing was fetched.</exception>
+    Task EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null, CancellationToken ct = default);
 
-    /// <summary>Makes every asset present and returns their paths in order. Each archive they are packed in is fetched
-    /// once for all of them; <paramref name="progress"/> counts every byte the set still needs.</summary>
-    /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
-    Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null,
-                                               CancellationToken ct = default);
+    /// <summary>Makes the asset present, as <see cref="EnsureAllAsync"/>.</summary>
+    Task EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
+        => EnsureAllAsync([asset], progress, ct);
 
-    /// <summary>An asset arrived on disk, verified, or was removed — whoever downloaded or removed it. Whatever runs the
+    /// <summary>
+    /// What fetching <paramref name="assets"/> would take on the store's drive at its fullest, beside every fetch under way: each
+    /// file not here, less what an interrupted download of it kept, and each archive whole beside the entries unpacked from it.
+    /// Every fetch is refused with this when it does not fit.
+    /// </summary>
+    ModelRoom RoomFor(IEnumerable<ModelAsset> assets);
+
+    /// <summary>What fetching <paramref name="assets"/> downloads, in bytes: each file not here, less those an earlier version
+    /// kept verified — they are moved in.</summary>
+    long FetchBytes(IEnumerable<ModelAsset> assets);
+
+    /// <summary>Deletes an asset — the file, its verified mark, and any partial download — to free its space.</summary>
+    Task RemoveAsync(ModelAsset asset, CancellationToken ct = default);
+
+    /// <summary>An asset arrived in the store, verified, or was removed — whoever downloaded or removed it. Whatever runs the
     /// model it belongs to can run it now, or no longer. Raised on whichever thread made the change.</summary>
     event EventHandler<ModelAsset>? Changed;
 }
@@ -61,7 +75,7 @@ public sealed record ModelAssetEntry(string? Path, string? Url, long Size, strin
     /// SHA-256, or it is packed in an archive it does not fully describe.</exception>
     public ModelAsset ToAsset(string ownerId)
     {
-        if (string.IsNullOrWhiteSpace(Path) || System.IO.Path.IsPathRooted(Path) || Path.Split('/', '\\').Contains(".."))
+        if (!StorePath.IsPlain(Path))
             throw new InvalidDataException($"'{ownerId}' lists a file without a relative path.");
         if (!Uri.TryCreate(Url, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps)
             throw new InvalidDataException($"File '{Path}' has no https source.");

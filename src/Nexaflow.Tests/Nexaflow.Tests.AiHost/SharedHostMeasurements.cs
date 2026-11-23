@@ -11,11 +11,9 @@ namespace Nexaflow.Tests.AiHost;
 /// model and voice beside the background thinking of an app like Aria, whose engine builds its state through one-shot calls below
 /// people's priority. They report numbers, asserting only what the host promises; each is inconclusive where its models are not named.
 /// <list type="bullet">
-/// <item><c>NEXAFLOW_TEST_RUNTIME_PACK</c>: the CUDA pack. Every measurement is of the GPU.</item>
-/// <item><c>NEXAFLOW_TEST_SHARED_STORE</c>: the AI folder's <c>models</c> as the app keeps it, holding Gemma 4 26B A4B's QAT build and
-/// Kokoro.</item>
-/// <item><c>NEXAFLOW_TEST_ARIA_GGUF</c>: the GGUF the background app runs, a build of its own.</item>
-/// <item><c>NEXAFLOW_TEST_SECOND_GGUF</c>: a second people-facing model, for three apps on one card.</item>
+/// <item>The test store (<see cref="TestStore"/>), holding the CUDA pack — every measurement is of the GPU — Gemma 4 26B A4B's QAT
+/// build, Kokoro, and Gemma 4 E4B, the second people-facing model for three apps on one card.</item>
+/// <item><c>NEXAFLOW_TEST_ARIA_GGUF</c>: the GGUF the background app runs, a build of its own, by its path in the test store.</item>
 /// <item><c>NEXAFLOW_TEST_MEASUREMENTS</c>, optional: a file each measurement's lines are appended to.</item>
 /// </list>
 /// </summary>
@@ -32,35 +30,40 @@ public class SharedHostMeasurements
 
     public TestContext TestContext { get; set; } = null!;
 
-    private static string Pack()
-        => Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } pack && Directory.Exists(pack) ? pack
-           : throw new AssertInconclusiveException("NEXAFLOW_TEST_RUNTIME_PACK names no CUDA pack on this machine.");
+    /// <summary>A host keeping the test store, on the CUDA pack there: every measurement is of the GPU.</summary>
+    private static async Task<AiHostClient> HostOnTheCardAsync()
+        => await TestStore.HostAsync() ?? throw new AssertInconclusiveException(TestStore.Missing());
 
-    private static string Named(string variable, string what)
-        => Environment.GetEnvironmentVariable(variable) is { Length: > 0 } path && (File.Exists(path) || Directory.Exists(path)) ? path
-           : throw new AssertInconclusiveException($"{variable} names no {what} on this machine.");
+    /// <summary>The GGUF the background app runs, by its path in the test store, which <c>NEXAFLOW_TEST_ARIA_GGUF</c> names.</summary>
+    private static string AriaGguf()
+        => Environment.GetEnvironmentVariable("NEXAFLOW_TEST_ARIA_GGUF")?.Replace('\\', '/') is { Length: > 0 } path && path.Contains('/')
+           && TestStore.Root is not null && File.Exists(TestStore.PathOf(path)) ? path
+           : throw new AssertInconclusiveException("NEXAFLOW_TEST_ARIA_GGUF names no background app's GGUF in a folder of the test store.");
 
     /// <summary>Nexaflow's people-facing model: Gemma 4 26B A4B's QAT build, wholly on the first GPU, as the catalog has it.</summary>
-    private static ModelSpec People(string store)
-        => new("people/gemma-4-26b-a4b", "llama-chat", Path.Combine(store, "gemma-4-26b-a4b-it-qat"), "gemma-4-26B_q4_0-it.gguf", null,
-               18_790_481_920L + ContextCache.Q8.BytesPerToken(25_600) * 32_768, 32_768, ContextCache: ContextCache.Q8, Device: 0);
+    private static ModelSpec People()
+        => TestStore.Spec("gemma-4-26b-a4b-it", "chat", 0, 18_790_481_920L + ContextCache.Q8.BytesPerToken(25_600) * 32_768, 32_768)
+           with { Projector = null, ContextCache = ContextCache.Q8 };
 
-    /// <summary>A model named by its GGUF alone, on the first GPU: its file, what llama.cpp works in beside it, and its context.</summary>
+    /// <summary>A model named by its GGUF's path in the test store alone, on the first GPU: its file, what llama.cpp works in beside it,
+    /// and its context.</summary>
     private static ModelSpec Gguf(string id, string gguf, int contextTokens, long bytesPerToken)
-        => new(id, "llama-chat", Path.GetDirectoryName(gguf)!, Path.GetFileName(gguf), null,
-               new FileInfo(gguf).Length + 3 * GB + ContextCache.Q8.BytesPerToken(bytesPerToken) * contextTokens, contextTokens,
-               ContextCache: ContextCache.Q8, Device: 0, Checkpoints: 8);
+    {
+        if (TestStore.Root is null) throw new AssertInconclusiveException(TestStore.Missing());
+        int slash = gguf.LastIndexOf('/');
+        return new(id, "llama-chat", gguf[..slash], gguf[(slash + 1)..], null,
+                   new FileInfo(TestStore.PathOf(gguf)).Length + 3 * GB + ContextCache.Q8.BytesPerToken(bytesPerToken) * contextTokens, contextTokens,
+                   ContextCache: ContextCache.Q8, Device: 0, Checkpoints: 8);
+    }
 
-    private static VoiceSpec Voice(string store)
-        => new("en", new ModelSpec("speech/kokoro", "kokoro", Path.Combine(store, "kokoro-82m"), "onnx/model.onnx", null, 1 * GB, 0, Device: 0),
-               "voices/af_heart.bin");
+    /// <summary>A second people-facing model, for three apps on one card: Gemma 4 E4B's GGUF, as the background app's is named.</summary>
+    private static ModelSpec Second()
+    {
+        var chat = TestStore.Spec("gemma-4-e4b-it", "chat", 0);
+        return Gguf("people/second", $"{chat.Folder}/{chat.File}", 8_192, 17_920);
+    }
 
-    private static AiHostClient Host(string pack)
-        => new(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
-                                         TestTemp.CreateSubdirectory("nexaflow-shared-").FullName))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
+    private static VoiceSpec Voice() => TestStore.Voice("kokoro-82m", "en", 0, 1 * GB);
 
     private static async Task LoadAsync(AiHostClient host, ModelSpec model)
     {
@@ -88,11 +91,10 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task TwoHostsOnOneCard_EachLeavesTheOtherWhatItHolds()
     {
-        string pack = Pack();
-        var people = People(Named("NEXAFLOW_TEST_SHARED_STORE", "AI model folder"));
+        var people = People();
 
-        await using var first = Host(pack);
-        await using var second = Host(pack);
+        await using var first = await HostOnTheCardAsync();
+        await using var second = await HostOnTheCardAsync();
         var secondBefore = await GpuOfAsync(second);
         await LoadAsync(first, people);
 
@@ -132,13 +134,11 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task ThreeAppsOnOneCard_TwoPeopleReading_StillLeaveThinkingNobodyWatchesATurn()
     {
-        string pack = Pack();
-        string store = Named("NEXAFLOW_TEST_SHARED_STORE", "AI model folder");
-        var people = People(store);
-        var second = Gguf("people/second", Named("NEXAFLOW_TEST_SECOND_GGUF", "second people-facing GGUF"), 8_192, 17_920);
-        var aria = Gguf("aria/model", Named("NEXAFLOW_TEST_ARIA_GGUF", "background app's GGUF"), 16_384, 25_600);
+        var people = People();
+        var second = Second();
+        var aria = Gguf("aria/model", AriaGguf(), 16_384, 25_600);
 
-        await using var host = Host(pack);
+        await using var host = await HostOnTheCardAsync();
         foreach (var model in new[] { people, second, aria }) await LoadAsync(host, model);
 
         using var stop = new CancellationTokenSource(StallLimit + TimeSpan.FromSeconds(40));
@@ -283,22 +283,19 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task Voice_BesideThinkingNobodyWatches_InSeparateHostsAndInOne()
     {
-        string pack = Pack();
-        string store = Named("NEXAFLOW_TEST_SHARED_STORE", "AI model folder");
-        string ariaGguf = Named("NEXAFLOW_TEST_ARIA_GGUF", "background app's GGUF");
-        var people = People(store);
-        var aria = Gguf("aria/model", ariaGguf, 16_384, 25_600);
-        var voice = Voice(store);
+        var people = People();
+        var aria = Gguf("aria/model", AriaGguf(), 16_384, 25_600);
+        var voice = Voice();
 
-        await using (var alone = Host(pack))
+        await using (var alone = await HostOnTheCardAsync())
         {
             await LoadAsync(alone, people);
             await LoadAsync(alone, voice.Model);
             await MeasureAsync(new Setup("voice alone", alone, null, people, null), voice);
         }
 
-        await using (var nexaflow = Host(pack))
-        await using (var thinker = Host(pack))
+        await using (var nexaflow = await HostOnTheCardAsync())
+        await using (var thinker = await HostOnTheCardAsync())
         {
             await LoadAsync(nexaflow, people);
             await LoadAsync(nexaflow, voice.Model);
@@ -306,7 +303,7 @@ public class SharedHostMeasurements
             await MeasureAsync(new Setup("separate hosts, own models", nexaflow, thinker, people, aria), voice);
         }
 
-        await using (var shared = Host(pack))
+        await using (var shared = await HostOnTheCardAsync())
         {
             await LoadAsync(shared, people);
             await LoadAsync(shared, voice.Model);
@@ -314,7 +311,7 @@ public class SharedHostMeasurements
             await MeasureAsync(new Setup("one host, own models", shared, shared, people, aria), voice);
         }
 
-        await using (var shared = Host(pack))
+        await using (var shared = await HostOnTheCardAsync())
         {
             await LoadAsync(shared, people);
             await LoadAsync(shared, voice.Model);
@@ -327,9 +324,8 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task ABackgroundAppsConversation_ReadAppended_AgainstReadWholeEachCall()
     {
-        string pack = Pack();
-        var aria = Gguf("aria/model", Named("NEXAFLOW_TEST_ARIA_GGUF", "background app's GGUF"), 16_384, 25_600);
-        await using var host = Host(pack);
+        var aria = Gguf("aria/model", AriaGguf(), 16_384, 25_600);
+        await using var host = await HostOnTheCardAsync();
         await LoadAsync(host, aria);
 
         foreach (bool clockInSystemTurn in new[] { false, true })
@@ -377,9 +373,8 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task ABackgroundApp_IsSentItsModelsReasoning_WhenItAsks_AndCanGiveItBack()
     {
-        string pack = Pack();
-        var aria = Gguf("aria/model", Named("NEXAFLOW_TEST_ARIA_GGUF", "background app's GGUF"), 16_384, 25_600);
-        await using var host = Host(pack);
+        var aria = Gguf("aria/model", AriaGguf(), 16_384, 25_600);
+        await using var host = await HostOnTheCardAsync();
         await LoadAsync(host, aria);
 
         var turns = new List<ChatTurn> { new(TurnRole.System, "Be brief."), new(TurnRole.User, "A train leaves at 14:10 and arrives at 16:45. How long is it?") };

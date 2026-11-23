@@ -7,8 +7,8 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// Decoders run in tiles against the same decoders whole, in this process on the CUDA pack — where a machine has the models:
-/// <c>NEXAFLOW_TEST_IMAGE</c> and <c>NEXAFLOW_TEST_VIDEO</c> name their folders, <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the pack. The
+/// Decoders run in tiles against the same decoders whole, in this process on the CUDA pack — where the test store
+/// (<see cref="TestStore"/>) holds the pack and the models, <c>z-image-turbo</c> and <c>wan2.2-ti2v-5b</c>. The
 /// latents are smooth fields standing for a picture's; what is checked is that the tiles give the whole decode's picture, to within
 /// what each tile's own normalisation moves it, and hold the GPU to less doing it.
 /// </summary>
@@ -48,11 +48,10 @@ public class TiledDecodingTests
     [Timeout(600_000, CooperativeCancellation = true)]
     public void ZImagesDecoder_InTiles_GivesTheWholeDecodesPicture_HoldingLess()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_IMAGE") ?? "";
-        if (root.Length == 0 || Pack is null) Assert.Inconclusive("NEXAFLOW_TEST_IMAGE and NEXAFLOW_TEST_RUNTIME_PACK are not both set.");
+        if (Pack is null) Assert.Inconclusive(TestStore.Missing());
         const int rows = 192, cols = 192;   // 1536 × 1536
         var latent = Latent(ZImageSampler.Channels, rows, cols);
-        var spec = new ModelSpec("z-image-turbo/decoder", "z-image-decoder", Path.Combine(root, "decoder"), "decoder.onnx", null, 6L << 30, 0, Device: 0);
+        var spec = TestStore.InProcessSpec("z-image-turbo", DrawingParts.Decoder, 0, 6L << 30);
 
         float[] Decode(ModelSpec at, out long peak)
         {
@@ -75,10 +74,9 @@ public class TiledDecodingTests
     [Timeout(900_000, CooperativeCancellation = true)]
     public void WansDecoder_InTiles_GivesTheWholeDecodesFrames_HoldingLess()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_VIDEO") ?? "";
-        if (root.Length == 0 || Pack is null) Assert.Inconclusive("NEXAFLOW_TEST_VIDEO and NEXAFLOW_TEST_RUNTIME_PACK are not both set.");
+        if (Pack is null) Assert.Inconclusive(TestStore.Missing());
         const int rows = 44, cols = 80, frames = 6;   // 1280 × 704, 21 frames
-        var spec = new ModelSpec("wan2.2-ti2v-5b/decoder", "wan-decoder", Path.Combine(root, "decoder"), "decoder.onnx", null, 22L << 30, 0, Device: 0);
+        var spec = TestStore.InProcessSpec("wan2.2-ti2v-5b", FilmingParts.Decoder, 0, 22L << 30);
 
         byte[] Decode(ModelSpec at, out long peak)
         {
@@ -86,7 +84,7 @@ public class TiledDecodingTests
             using var decoder = (WanDecoder)new WanDecoderRunner().Load(at);
             using var decoding = decoder.Start(rows, cols);
             var clip = new List<byte>();
-            for (int f = 0; f < frames; f++) clip.AddRange(decoding.Next(Latent(WanSampler.Channels, rows, cols, f), f == frames - 1));
+            for (int f = 0; f < frames; f++) clip.AddRange(decoding.Next(Latent(WanSampler.Channels, rows, cols, f), f == frames - 1).ToArray());
             peak = watch.PeakBytes;
             return [.. clip];
         }

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -15,7 +16,7 @@ namespace Nexaflow.Providers.AiHost;
 public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalModelCatalog, IHostModelCatalog, ITracksModelUse, IAsyncDisposable
 {
     private readonly OwnedModelRuntime _runtime;
-    private readonly OwnedModel?       _model;
+    private readonly HostedModel?       _model;
 
     public OwnedTextToSpeechProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
                                      MachineCards hardware, ProviderModel model)
@@ -74,7 +75,7 @@ public sealed class OwnedTextToSpeechProvider : ITextToSpeechProvider, ILocalMod
                 var part = _model.PartNamed(v.Part, _runtime.ExecutionProvider);
                 // A voice loaded on demand is only placed here: the host loads it with the first sentence in its language.
                 var placed = part.LoadsOnDemand ? await _runtime.PlacedOnDemandAsync(_model, part.Name, ct) : await _runtime.PlacedAsync(_model, part.Name, ct);
-                voices.Add(new VoiceSpec(v.Language, placed, v.File, v.Lexicon is { } lexicon ? _runtime.Locate(_model, part, lexicon) : null));
+                voices.Add(new VoiceSpec(v.Language, placed, v.File, v.Lexicon is { } lexicon ? _runtime.FileOf(_model, part, lexicon) : null));
             }
 
             var host = _runtime.Host;

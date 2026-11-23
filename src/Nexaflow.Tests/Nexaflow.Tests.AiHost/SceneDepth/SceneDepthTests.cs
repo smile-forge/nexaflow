@@ -13,8 +13,8 @@ namespace Nexaflow.Tests.AiHost.SceneDepth;
 /// against what their pipeline made of it in fp32 (tools/ai-models/depth-anything-v2-small makes them) — what the network was
 /// given, what it gave at its working size, and that brought to the picture's size by the corner-aligned resize.
 /// <para>
-/// <c>NEXAFLOW_TEST_SCENE_DEPTH</c> names the graph's folder, <c>NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE</c> the reference set and
-/// <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack; without them every test is inconclusive.
+/// The graph is <c>depth-anything-v2-small</c>'s from the test store (<see cref="TestStore"/>), run on the CUDA pack there;
+/// <c>NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE</c> names the reference set. Without both every test is inconclusive.
 /// </para>
 /// </summary>
 [TestClass]
@@ -28,42 +28,30 @@ public class SceneDepthTests
     private const double Agreement = 0.01;
 
     private static AiHostClient? _client;
-    private static string? _graph, _reference;
-    private static string _work = "";
-
+    private static string? _reference;
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
-    public static void Start(TestContext context)
+    public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SCENE_DEPTH") is not { Length: > 0 } graph) return;
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE") is not { Length: > 0 } reference) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        (_graph, _reference) = (graph, reference);
-        _work = TestTemp.CreateSubdirectory("nexaflow-scene-depth-").FullName;
+        _client = await TestStore.HostAsync();
+        _reference = reference;
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
         if (_client is not null) await _client.DisposeAsync();
-        try { if (_work.Length > 0) Directory.Delete(_work, recursive: true); } catch (IOException) { }
     }
 
     private static IReadOnlyDictionary<string, ModelSpec> Parts(int? device)
     {
-        if (_client is null || _graph is null)
-            Assert.Inconclusive("NEXAFLOW_TEST_SCENE_DEPTH, NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE and NEXAFLOW_TEST_RUNTIME_PACK are not all set.");
+        if (_client is null || _reference is null)
+            Assert.Inconclusive($"{TestStore.Missing()} Or NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE is not set.");
         return new Dictionary<string, ModelSpec>
         {
-            [SceneDepthParts.Estimator] = new("depth-anything-v2-small/estimator", "scene-depth-estimator", Path.Combine(_graph!, "estimator"),
-                                              "depth-anything-v2-small.onnx", null, 2L << 30, 0, Device: device),
+            [SceneDepthParts.Estimator] = TestStore.Spec("depth-anything-v2-small", SceneDepthParts.Estimator, device, 2L << 30),
         };
     }
 
@@ -81,13 +69,13 @@ public class SceneDepthTests
 
     private async Task<(SceneDepthEstimated Done, float[] Disparity)> EstimateAsync(Case c, int? device)
     {
-        var into = Path.Combine(_work, $"{c.Name}-{device?.ToString() ?? "cpu"}.f32");
+        using var pixels = await _client!.ShareFileAsync(Path.Combine(_reference!, $"{c.Name}.rgba"));
         var replies = new List<HostReply>();
-        await foreach (var reply in _client!.SendAsync(id => new EstimateSceneDepth(id, Parts(device), Path.Combine(_reference!, $"{c.Name}.rgba"),
-                                                                                    c.Width, c.Height, into, RequestPriority.Job),
-                                                       TimeSpan.FromMinutes(5)))
+        await foreach (var reply in _client.SendAsync(id => new EstimateSceneDepth(id, Parts(device), pixels, c.Width, c.Height, RequestPriority.Job),
+                                                      TimeSpan.FromMinutes(5)))
             replies.Add(reply);
-        return (replies.OfType<SceneDepthEstimated>().Single(), Floats(into));
+        var done = replies.OfType<SceneDepthEstimated>().Single();
+        using (done.Disparity) return (done, MemoryMarshal.Cast<byte, float>(done.Disparity.Span).ToArray());
     }
 
     /// <summary>The largest difference between two sets of values, as a share of the reference's range.</summary>

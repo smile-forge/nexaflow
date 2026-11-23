@@ -17,6 +17,8 @@ internal sealed class HostConnection : IAsyncDisposable
 {
     private readonly IAiHostProcess _process;
     private readonly HostChannel _channel;
+
+    private readonly ClientSections _sections;
     private readonly AiHostTimings _timings;
     private readonly TimeProvider _time;
     private readonly CancellationTokenSource _life = new();
@@ -38,12 +40,13 @@ internal sealed class HostConnection : IAsyncDisposable
 
     private Task? _closed;
 
-    private HostConnection(IAiHostProcess process, AiHostEnvironment environment, HostChannel channel, AiHostTimings timings,
-                           TimeProvider time)
+    private HostConnection(IAiHostProcess process, AiHostEnvironment environment, HostChannel channel, ClientSections sections,
+                           AiHostTimings timings, TimeProvider time)
     {
         _process     = process;
         Environment  = environment;
         _channel     = channel;
+        _sections    = sections;
         _timings     = timings;
         _time        = time;
         _lastPong    = time.GetTimestamp();
@@ -135,7 +138,9 @@ internal sealed class HostConnection : IAsyncDisposable
             }
             await connected.ConfigureAwait(false);
 
-            var channel = new HostChannel(pipe);
+            HostChannel? opened = null;
+            var sections = new ClientSections(message => opened!.SendAsync(message));
+            var channel = opened = new HostChannel(pipe, sections);
             if (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false) is not Hello hello
                 || hello.ProtocolVersion != AiHostProtocol.Version
                 || !TokensMatch(hello.Token, token))
@@ -145,7 +150,7 @@ internal sealed class HostConnection : IAsyncDisposable
             }
             await channel.SendAsync(new Welcome(), timeout.Token).ConfigureAwait(false);
 
-            var connection = new HostConnection(process, environment, channel, timings, time);
+            var connection = new HostConnection(process, environment, channel, sections, timings, time);
             connection.Ended += onEnded;
             // The loops live as long as the host: on the thread pool, never on whatever context started it.
             connection._reading = Task.Run(connection.ReadAsync);
@@ -177,7 +182,7 @@ internal sealed class HostConnection : IAsyncDisposable
                                                PipeOptions.Asynchronous, PipeBuffer, PipeBuffer, security);
     }
 
-    private const int PipeBuffer = 64 * 1024;
+    private const int PipeBuffer = SharedBytes.InlineLimit;
 
     /// <summary>Sends the request <paramref name="create"/> makes; null when the connection is retiring and the request
     /// belongs on the next host.</summary>
@@ -199,6 +204,13 @@ internal sealed class HostConnection : IAsyncDisposable
         return new OpenRequest(this, request.RequestId, replies.Reader);
     }
 
+    /// <summary>Bytes to fill and send in a request on this connection: an array when small, else a section the host made.</summary>
+    public Task<SharedBytes> AllocateAsync(int length, CancellationToken ct) => _sections.AllocateAsync(length, ct);
+
+    /// <summary>Files arrived in the host's model store, verified, or left it, whichever app asked: their paths in the store. Raised
+    /// on the thread that reads the pipe.</summary>
+    public event EventHandler<IReadOnlyList<string>>? FilesChanged;
+
     private async Task ReadAsync()
     {
         try
@@ -209,6 +221,18 @@ internal sealed class HostConnection : IAsyncDisposable
                 {
                     case Pong:
                         Interlocked.Exchange(ref _lastPong, _time.GetTimestamp());
+                        break;
+                    case SectionAllocated allocated:
+                        _sections.Answer(allocated.Ticket, allocated);
+                        break;
+                    case SectionRefused refused:
+                        _sections.Answer(refused.Ticket, refused);
+                        break;
+                    case SectionClosed closed:
+                        _sections.Closed(closed.Id);
+                        break;
+                    case ModelFilesChanged changed:
+                        FilesChanged?.Invoke(this, changed.Paths);
                         break;
                     case HostReply reply when _open.TryGetValue(reply.RequestId, out var replies):
                         replies.Writer.TryWrite(reply);
@@ -271,6 +295,7 @@ internal sealed class HostConnection : IAsyncDisposable
     /// </summary>
     private async Task PipeLostAsync(string reason)
     {
+        _sections.Lose($"The AI host's pipe was lost: {reason}.");
         if (!IsAlive) return;
         int code;
         try

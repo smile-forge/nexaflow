@@ -29,12 +29,13 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         var model = lease.As<ChatModel>();
         string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools, request.Thinks);
         var media = ChatPrompt.Media(model, request.Turns);
-        using var use = model.Enter(request.Turns, request.Priority, () => media.Count == 0 ? model.Model.Tokenize(prompt).Length : null, models.SpareOn);
+        var remembered = ConversationMatch.Remembered(request.Turns);
+        using var use = model.Enter(remembered, request.Priority, () => media.Count == 0 ? model.Model.Tokenize(prompt).Length : null, models.SpareOn);
         var lane = use.Lane;
         using var answering = await lane.Conversations.AnsweringAsync(ct);
         using var attended = gpu.Engage(request.Priority, model.Spec.Device);   // a young job on its card waits for this reply
 
-        LiveConversation? conversation = lane.Conversations.TakeContinued(request.Turns);
+        LiveConversation? conversation = lane.Conversations.TakeContinued(remembered);
         bool kept = false;
         using var sampler = new LlamaSampler(request.Sampling, lane.Longest, request.Decoding?.RepeatBan);   // as the model's makers recommend
         try
@@ -64,7 +65,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             var outcome = await GenerateAsync(model, lane, conversation, request, model.Thinking?.Opens(prompt) == true, reply, ct);
             if (outcome.Continuable && !conversation.Forgets)
             {
-                conversation.Answered(request.Turns, outcome.Text, outcome.Calls, outcome.StoppedAt);
+                conversation.Answered(remembered, outcome.Text, outcome.Calls, outcome.StoppedAt);
                 lane.Conversations.Keep(conversation);
                 kept = true;
             }
@@ -181,15 +182,14 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     }
 
     /// <summary>A medium's bytes as the projector takes them: an image as its file, a recording as 16 kHz mono WAV.</summary>
-    private static byte[] Bytes(ChatMedia media)
+    private static ReadOnlyMemory<byte> Bytes(ChatMedia media)
     {
-        byte[] bytes = media.Bytes is { Length: > 0 } inline ? inline
-                     : media.Path is { } path && File.Exists(path) ? File.ReadAllBytes(path)
-                     : throw new HostRequestException(HostErrorKind.NotFound, $"The {media.Kind.ToString().ToLowerInvariant()} to read is not there: {media.Path}.");
-        if (media.Kind != MediaKind.Audio) return bytes;
-        if (media.Bytes is null || bytes.Length % 2 != 0)
+        if (media.Bytes.Length == 0)
+            throw new HostRequestException(HostErrorKind.Invalid, $"The {media.Kind.ToString().ToLowerInvariant()} to read is empty.");
+        if (media.Kind != MediaKind.Audio) return media.Bytes.Memory;
+        if (media.Bytes.Length % 2 != 0)
             throw new HostRequestException(HostErrorKind.Invalid, "A recording comes as its samples: 16-bit mono PCM at 16 kHz.");
-        return PcmSamples.Wav(bytes);
+        return PcmSamples.Wav(media.Bytes.Span);
     }
 
     /// <param name="Continuable">Whether the conversation can be kept for the next request: its reply ended where the

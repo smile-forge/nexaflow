@@ -6,9 +6,8 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The host drawing with Z-Image Turbo's real graphs. <c>NEXAFLOW_TEST_IMAGE</c> names a folder holding the built model
-/// as its catalog lays it out (<c>encoder/</c>, <c>denoiser/</c>, <c>decoder/</c>); <c>NEXAFLOW_TEST_RUNTIME_PACK</c>
-/// the CUDA pack, without which nothing is drawn — the model is built for the GPU. What is asserted is the shape of a
+/// The host drawing with Z-Image Turbo's real graphs, <c>z-image-turbo</c> from the test store (<see cref="TestStore"/>),
+/// on the CUDA pack there, without which nothing is drawn — the model is built for the GPU. What is asserted is the shape of a
 /// drawing — its steps, its size, that it is a picture — not what it shows.
 /// </summary>
 [TestClass]
@@ -25,19 +24,12 @@ public class ImageModelTests
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_IMAGE") is not { Length: > 0 } root) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
+        _client = await TestStore.HostAsync();
         _model = new DrawingModel(DrawingMethod.ZImage, new Dictionary<string, ModelSpec>
         {
-            [DrawingParts.PromptEncoder] = new("z-image-turbo/promptEncoder", "z-image-prompt-encoder", Path.Combine(root, "encoder"), "encoder.onnx", null, 5L << 30, 0, Device: 0),
-            [DrawingParts.Denoiser]      = new("z-image-turbo/denoiser", "z-image-denoiser", Path.Combine(root, "denoiser"), "denoiser.onnx", null, 10L << 30, 0, Device: 0),
-            [DrawingParts.Decoder]       = new("z-image-turbo/decoder", "z-image-decoder", Path.Combine(root, "decoder"), "decoder.onnx", null, 6L << 30, 0, Device: 0),
+            [DrawingParts.PromptEncoder] = TestStore.Spec("z-image-turbo", DrawingParts.PromptEncoder, 0, 5L << 30),
+            [DrawingParts.Denoiser]      = TestStore.Spec("z-image-turbo", DrawingParts.Denoiser, 0, 10L << 30),
+            [DrawingParts.Decoder]       = TestStore.Spec("z-image-turbo", DrawingParts.Decoder, 0, 6L << 30),
         }, Steps: 9, Shift: 3f, Guidance: 0f);
     }
 
@@ -49,7 +41,7 @@ public class ImageModelTests
 
     private static (AiHostClient Client, DrawingModel Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_IMAGE and NEXAFLOW_TEST_RUNTIME_PACK are not both set.");
+        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing());
         return (_client, _model);
     }
 
@@ -88,7 +80,7 @@ public class ImageModelTests
     {
         var (client, model) = Host();
         var denoiser = model.Parts[DrawingParts.Denoiser];
-        if (!File.Exists(Path.Combine(denoiser.Folder, "denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
+        if (!File.Exists(TestStore.PathOf($"{denoiser.Folder}/denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
         var streamed = model with
         {
             Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 5L << 30 } },
@@ -162,9 +154,7 @@ public class ImageModelTests
     [TestMethod]
     public void ThePromptEncoder_TokenisesAsQwen3Does()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_IMAGE") ?? "";
-        if (root.Length == 0) Assert.Inconclusive("NEXAFLOW_TEST_IMAGE is not set.");
-        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(root, "encoder", "tokenizer.json")));
+        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(TestStore.PartFolder("z-image-turbo", DrawingParts.PromptEncoder), "tokenizer.json")));
         const string template = "<|im_start|>user\n{0}<|im_end|>\n<|im_start|>assistant\n";
 
         // Token ids from the Hugging Face tokenizer Z-Image's pipeline uses, chat template applied.

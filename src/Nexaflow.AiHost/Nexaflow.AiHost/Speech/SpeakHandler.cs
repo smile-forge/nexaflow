@@ -18,7 +18,9 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
     protected override async Task HandleAsync(Speak request, Func<HostReply, Task> reply, ChannelReader<RequestInput> input, CancellationToken ct)
     {
         if (request.Voices.Count == 0) throw new HostRequestException(HostErrorKind.Invalid, "Speaking needs a voice.");
-        if (request.Voices.FirstOrDefault(v => !phonemizers.Reads(v.Language, v.Lexicon)) is { } unread)
+        // A voice's lexicon is a file of its model's, named in the model's folder: where it lies in the store is the host's to say.
+        var voices = request.Voices.Select(v => v.Lexicon is { } lexicon ? v with { Lexicon = models.Files.PathOf($"{v.Model.Folder}/{lexicon}") } : v).ToList();
+        if (voices.FirstOrDefault(v => !phonemizers.Reads(v.Language, v.Lexicon)) is { } unread)
             throw new HostRequestException(HostErrorKind.Invalid, $"This host cannot read {unread.Language} for a voice{(unread.Lexicon is null ? " without its lexicon" : "")}.");
 
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
@@ -34,14 +36,14 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
 
         try
         {
-            await SynthesizerOf(request.Voices[0]);   // the first voice reads every language without one: ready before the first segment
+            await SynthesizerOf(voices[0]);   // the first voice reads every language without one: ready before the first segment
 
             int spokenSamples = 0;
             Task Alive() => reply(new Progress(request.RequestId, "speaking", spokenSamples * 1000L / KokoroSynthesizer.SampleRate, 0));
             await foreach (var item in HostStreamInput.ReadAsync(input, Alive, ct))
             {
                 if (item is not TextToSpeak text) continue;
-                var voice = request.Voices.FirstOrDefault(v => string.Equals(v.Language, text.Language, StringComparison.OrdinalIgnoreCase)) ?? request.Voices[0];
+                var voice = voices.FirstOrDefault(v => string.Equals(v.Language, text.Language, StringComparison.OrdinalIgnoreCase)) ?? voices[0];
                 var synthesizer = await SynthesizerOf(voice);
                 string phonemes = phonemizers.For(voice.Language, voice.Lexicon).Phonemize(text.Text);
                 int? device = synthesizer.Spec.Device;

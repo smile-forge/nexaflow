@@ -33,6 +33,7 @@ using Nexaflow.Core.Services.Tools;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.AiHost.Provisioning;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Core;
 
@@ -315,10 +316,10 @@ public partial class App : Application
         // Which models are loaded ahead, and what they may hold, is this machine's to weigh: what it runs, what was used on it this week.
         var preloadConfig = (ModelPreloadConfig)ConfigManager.Instance.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
         var aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent);
-        // An earlier CUDA pack's folder is adopted from as well: a version that moves the pack on fetches only what changed.
-        var aiRoot = LocalAiFolder.Root();
-        var assets = new ModelAssetStore(aiRoot, [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models"), .. CudaRuntimePack.EarlierIn(aiRoot)],
-                                         downloadsAllowed: !UiTest);
+        // The model store is the AI host's: it alone reads and fetches the files, and the app sees the store as the host describes it,
+        // read here in the background — each file found there is told of as it is read, as each that arrives later is.
+        var assets = new AiHostModelStore(aiHost);
+        _ = ReadModelStoreAsync(assets);
         // The picture tools run in the same host, on the same plan of its GPUs, from the same store, as the owned models.
         var hostSetup = new HostModelSetup(aiHost);
         _residency = new ModelResidency(preloadConfig, new ModelUseHistory(Path.Combine(LocalAiFolder.Root(), "model-use.json")));
@@ -328,8 +329,8 @@ public partial class App : Application
         var hardware = MachineCards.Probe();
         StartupTimings.Mark("Init.HardwareProbe");
         // A machine that had the CUDA pack gets this version's in place of it, in the background, without being asked again.
-        var cudaPack = new CudaPackDownload(assets, aiRoot, hardware, activityManager);
-        if (!UiTest) _ = cudaPack.ReplaceEarlierAsync();
+        var cudaPack = new CudaPackDownload(assets, () => assets.HadEarlierRuntimePack, hardware, activityManager);
+        _cudaPack = cudaPack;
         var pictureTools = new PictureTools(new OwnedPictureTools(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
         var pageReading = new PageReading(new OwnedPageReading(activityManager, assets, aiHost, hostSetup, hardware), assets, activityManager);
@@ -452,17 +453,36 @@ public partial class App : Application
     private static AiHostClient? _aiHost;
     private static ModelResidency? _residency;
 
-    /// <summary>The app's one AI host client. A host that dies unasked is recorded like any crash: the next request
-    /// starts another, but the reason is worth keeping.</summary>
-    /// <param name="memoryShare">The share of this machine's memory, in percent, models on the host's CPU may hold.</param>
+    private static CudaPackDownload? _cudaPack;
+
+    /// <summary>
+    /// The app's AI host client. Its store is the machine's own (<c>%ProgramData%\Smile-Forge\Models</c>), into which the host moves the
+    /// files Nexaflow kept in its own folder before the host kept them — or, where <c>NEXAFLOW_AI_DIR</c> names a folder, that folder:
+    /// a test's. A UI test's host downloads nothing.
+    /// </summary>
     private static AiHostClient StartAiHost(int memoryShare)
     {
+        string? testStore = LocalAiFolder.Configured();
         _aiHost = new AiHostClient(new ProcessAiHostLauncher(AiHostInstall.ExecutablePath,
-                                                             LocalAiFolder.Root(), memoryShare,
-                                                             () => ShellSafetyLog.Instance.Folder));
+                                                             store: testStore,
+                                                             adoptFrom: testStore is null ? [LocalAiFolder.Root()] : [],
+                                                             memoryShare: memoryShare,
+                                                             logDirectory: () => ShellSafetyLog.Instance.Folder,
+                                                             downloads: !UiTest));
         // A host's end is recorded only while the user keeps logs; the request it took down fails on its own.
         _aiHost.HostExited += (_, e) => ShellSafetyLog.Instance.AiHostEnded(e);
         return _aiHost;
+    }
+
+    /// <summary>Reads the host's model store, starting the host; then a machine that had the CUDA pack gets this version's in place of
+    /// it, without being asked again. A host that cannot start leaves the store unread: every model shows as not here, and a download
+    /// says why.</summary>
+    private static async Task ReadModelStoreAsync(AiHostModelStore store)
+    {
+        _ = Task.Run(LocalAiFolder.RetireWhisperCpp);
+        try { await store.RefreshAsync(); }
+        catch (AiHostException) { return; }
+        if (!UiTest && _cudaPack is { } pack) await pack.ReplaceEarlierAsync();
     }
 
     /// <summary>

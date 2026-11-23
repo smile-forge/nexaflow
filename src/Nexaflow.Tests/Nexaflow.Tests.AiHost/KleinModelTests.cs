@@ -7,9 +7,8 @@ using Nexaflow.AiHost.Imaging;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The host drawing and editing with FLUX.2 [klein]'s real graphs. <c>NEXAFLOW_TEST_KLEIN</c> names a folder holding the
-/// built model as its catalog lays it out (<c>encoder/</c>, <c>denoiser/</c>, <c>picture-encoder/</c>, <c>decoder/</c>);
-/// <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack, without which nothing is drawn — the model is built for the GPU. What is
+/// The host drawing and editing with FLUX.2 [klein]'s real graphs, <c>flux2-klein-4b</c> from the test store
+/// (<see cref="TestStore"/>), on the CUDA pack there, without which nothing is drawn — the model is built for the GPU. What is
 /// asserted is the shape of a drawing — its steps, its size, that it is a picture — and, under a mask, that what the mask
 /// leaves is kept; not what it shows.
 /// </summary>
@@ -29,22 +28,14 @@ public class KleinModelTests
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_KLEIN") is not { Length: > 0 } root) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        ModelSpec Part(string folder, string runner, long bytes) =>
-            new($"flux2-klein-4b/{folder}", runner, Path.Combine(root, folder), $"{folder}.onnx", null, bytes, 0, Device: 0);
+        _client = await TestStore.HostAsync();
+        ModelSpec Part(string part, long bytes) => TestStore.Spec("flux2-klein-4b", part, 0, bytes);
         _model = new DrawingModel(DrawingMethod.Flux2Klein, new Dictionary<string, ModelSpec>
         {
-            [DrawingParts.PromptEncoder]  = Part("encoder", "klein-prompt-encoder", 5L << 30),
-            [DrawingParts.Denoiser]       = Part("denoiser", "klein-denoiser", 11L << 30),
-            [DrawingParts.PictureEncoder] = Part("picture-encoder", "klein-picture-encoder", 2L << 30),
-            [DrawingParts.Decoder]        = Part("decoder", "klein-decoder", 5L << 30),
+            [DrawingParts.PromptEncoder]  = Part(DrawingParts.PromptEncoder, 5L << 30),
+            [DrawingParts.Denoiser]       = Part(DrawingParts.Denoiser, 11L << 30),
+            [DrawingParts.PictureEncoder] = Part(DrawingParts.PictureEncoder, 2L << 30),
+            [DrawingParts.Decoder]        = Part(DrawingParts.Decoder, 5L << 30),
         }, Steps, Shift: 0f, Guidance: 0f);
     }
 
@@ -56,7 +47,7 @@ public class KleinModelTests
 
     private static (AiHostClient Client, DrawingModel Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_KLEIN and NEXAFLOW_TEST_RUNTIME_PACK are not both set.");
+        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing());
         return (_client, _model);
     }
 
@@ -103,7 +94,7 @@ public class KleinModelTests
     {
         var (_, model) = Host();
         var denoiser = model.Parts[DrawingParts.Denoiser];
-        if (!File.Exists(Path.Combine(denoiser.Folder, "denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
+        if (!File.Exists(TestStore.PathOf($"{denoiser.Folder}/denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
         var streamed = model with
         {
             Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 7L << 30 } },
@@ -132,7 +123,7 @@ public class KleinModelTests
         var large = ReferenceResampling.ResizeLanczos(source.Rgb, 1024, 768, 3, 2048, 1536);
 
         var (_, edited) = await DrawAsync(id => new Draw(id, model, "Make it night time, the street lamps lit.", 0, 0, 4, RequestPriority.Job)
-                                                { Sources = [new DrawingSource(2048, 1536, large)] },
+                                                { Sources = [new DrawingSource(2048, 1536, SharedBytes.Of(large))] },
                                           "edited-night-klein.png");
 
         Assert.AreEqual((1168, 880), (edited.Width, edited.Height), "2048x1536 at its proportions within a megapixel, each side cut to 16");
@@ -154,7 +145,7 @@ public class KleinModelTests
                 mask[y * width + x] = 255;
 
         var (_, filled) = await DrawAsync(id => new Draw(id, model, "a slice of chocolate cake", 0, 0, 6, RequestPriority.Job)
-                                                { Sources = [new DrawingSource(width, height, source.Rgb)], Mask = mask },
+                                                { Sources = [new DrawingSource(width, height, SharedBytes.Of(source.Rgb))], Mask = SharedBytes.Of(mask) },
                                           "filled-cake-klein.png");
 
         // What the mask leaves comes back through the VAE: the same picture to within its rounding. What it covers is drawn again.
@@ -172,7 +163,7 @@ public class KleinModelTests
 
         var ex = await Assert.ThrowsAsync<AiHostException>(async () =>
         {
-            await foreach (var _ in client.SendAsync(id => new Draw(id, model, "A cat.", 512, 512, 1, RequestPriority.Job) { Mask = new byte[512 * 512] },
+            await foreach (var _ in client.SendAsync(id => new Draw(id, model, "A cat.", 512, 512, 1, RequestPriority.Job) { Mask = SharedBytes.Of(new byte[512 * 512]) },
                                                      TimeSpan.FromMinutes(1))) { }
         });
         StringAssert.Contains(ex.Message, "mask");
@@ -181,9 +172,7 @@ public class KleinModelTests
     [TestMethod]
     public void APrompt_IsReadAsThePipelineWritesIt_ThinkingOff_PaddedTo512()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_KLEIN") ?? "";
-        if (root.Length == 0) Assert.Inconclusive("NEXAFLOW_TEST_KLEIN is not set.");
-        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(root, "encoder", "tokenizer.json")));
+        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(TestStore.PartFolder("flux2-klein-4b", DrawingParts.PromptEncoder), "tokenizer.json")));
         var encoder = new KleinPromptEncoder(null!, null!, tokenizer);
 
         // Token ids from the pipeline's tokenizer, its chat template applied with enable_thinking=False, padded to 512.

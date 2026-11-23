@@ -13,13 +13,10 @@ internal sealed class FindTextHandler(ModelRegistry models) : HostRequestHandler
     {
         if (request.Width <= 0 || request.Height <= 0)
             throw new HostRequestException(HostErrorKind.Invalid, "A picture to find text in has a size.");
-        if (!File.Exists(request.Pixels))
-            throw new HostRequestException(HostErrorKind.NotFound, $"The picture to find text in is not at {request.Pixels}.");
-        var rgba = await File.ReadAllBytesAsync(request.Pixels, ct);
-        if (rgba.Length != (long)request.Width * request.Height * 4)
-            throw new HostRequestException(HostErrorKind.Invalid, $"{request.Pixels} holds {rgba.Length} bytes, not {request.Width}x{request.Height} RGBA.");
+        if (request.Pixels.Length != (long)request.Width * request.Height * 4)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not {request.Pixels.Length} bytes of RGBA.");
 
-        var (input, width, height) = TextFinding.Prepare(rgba, request.Width, request.Height);
+        var (input, width, height) = TextFinding.Prepare(request.Pixels.Span, request.Width, request.Height);
         using var lease = await models.AcquireAsync(request.Finder, resident: false, stage => reply(new Progress(request.RequestId, stage, 0, 0)), ct);
         ct.ThrowIfCancellationRequested();
         var map = lease.As<TextFinder>().Find(input, width, height);

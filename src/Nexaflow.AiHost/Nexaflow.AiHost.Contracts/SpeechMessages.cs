@@ -40,8 +40,8 @@ public sealed record ListenPartial(long RequestId, string Text) : HostReply(Requ
 public sealed record ListenFinal(long RequestId, string Text) : HostReply(RequestId);
 
 /// <summary>A voice: the language it reads, the model that speaks it, and its file among the model's.</summary>
-/// <param name="Lexicon">The lexicon its language is read from — a path on this machine — for a language read from one
-/// (French, German); null for one the host reads without.</param>
+/// <param name="Lexicon">The lexicon its language is read from — its file among the model's, named in the model's folder — for a
+/// language read from one (French, German); null for one the host reads without.</param>
 public sealed record VoiceSpec(string Language, ModelSpec Model, string VoiceFile, string? Lexicon = null);
 
 /// <summary>

@@ -16,13 +16,17 @@ internal sealed class HostServer
     private readonly ConcurrentDictionary<long, RunningRequest> _running = new();
 
     private readonly TimeProvider _clock;
+    private readonly HostSections? _sections;
 
-    public HostServer(HostChannel channel, HostLog log, IEnumerable<IHostRequestHandler> handlers, TimeProvider? clock = null)
+    /// <param name="sections">The shared sections the host makes for this connection; null where it makes none and every block
+    /// crosses in its frame.</param>
+    public HostServer(HostChannel channel, HostLog log, IEnumerable<IHostRequestHandler> handlers, TimeProvider? clock = null, HostSections? sections = null)
     {
         _channel  = channel;
         _log      = log;
         _handlers = handlers.ToDictionary(h => h.RequestType);
         _clock    = clock ?? TimeProvider.System;
+        _sections = sections;
     }
 
     /// <summary>How long a request may say nothing before the server speaks for it (<see cref="RequestActivity"/>): well inside any
@@ -48,12 +52,26 @@ internal sealed class HostServer
                 case CancelRequest cancel:
                     if (_running.TryGetValue(cancel.RequestId, out var cancelled)) cancelled.Cancel();
                     break;
+                case AllocateSection allocate:
+                    await _channel.SendAsync(_sections?.Allocate(allocate.Length) is { } section
+                        ? new SectionAllocated(allocate.Ticket, section.SectionId!.Value, section.SectionName!, section.Capacity)
+                        : new SectionRefused(allocate.Ticket, _sections is null ? "This host makes no shared sections." : $"The app's shared sections already hold all one app may ({HostSections.MostBytes >> 30} GiB)."));
+                    break;
+                case ReleaseSection release:
+                    _sections?.Release(release.Id);
+                    break;
                 case RequestInput input:
-                    if (_running.TryGetValue(input.RequestId, out var receiving)) receiving.Receive(input);
+                    if (_running.TryGetValue(input.RequestId, out var receiving))
+                    {
+                        receiving.Sections.Take(_channel.Sections);
+                        receiving.Receive(input);
+                    }
+                    else foreach (var bytes in _channel.Sections) _sections?.Return(bytes);
                     break;
                 case HostRequest request:
                     // Registered before it runs, so input or a cancellation sent straight after it is never early.
-                    var running = new RunningRequest(_clock);
+                    var running = new RunningRequest(_clock, new RequestSections(_sections));
+                    running.Sections.Take(_channel.Sections);
                     _running[request.RequestId] = running;
                     serving.RemoveAll(t => t.IsCompleted);
                     serving.Add(Task.Run(() => ServeAsync(request, running)));
@@ -74,38 +92,43 @@ internal sealed class HostServer
     {
         HostReply end;
         running.Activity.Enter();
-        try
+        using (running.Sections.Enter())
         {
-            if (!_handlers.TryGetValue(request.GetType(), out var handler))
-                throw new HostRequestException(HostErrorKind.Invalid, $"this host does not handle {request.GetType().Name}");
-
-            await handler.HandleAsync(request, reply =>
+            try
             {
-                running.Activity.Said();
-                return _channel.SendAsync(reply, CancellationToken.None);
-            }, running.Input, running.Token);
-            end = new Completed(request.RequestId);
-        }
-        catch (OperationCanceledException) when (running.Token.IsCancellationRequested)
-        {
-            end = new Failed(request.RequestId, HostErrorKind.Cancelled, "cancelled");
-        }
-        catch (HostRequestException ex)
-        {
-            end = new Failed(request.RequestId, ex.Kind, ex.Message);
-        }
-        catch (Exception ex)
-        {
-            _log.Write($"{request.GetType().Name} #{request.RequestId} failed: {ex}");
-            end = new Failed(request.RequestId, HostErrorKind.Runtime, ex.Message);
-        }
-        finally
-        {
-            _running.TryRemove(request.RequestId, out _);
+                if (!_handlers.TryGetValue(request.GetType(), out var handler))
+                    throw new HostRequestException(HostErrorKind.Invalid, $"this host does not handle {request.GetType().Name}");
+
+                await handler.HandleAsync(request, reply =>
+                {
+                    running.Activity.Said();
+                    return _channel.SendAsync(reply, CancellationToken.None);
+                }, running.Input, running.Token);
+                end = new Completed(request.RequestId);
+            }
+            catch (OperationCanceledException) when (running.Token.IsCancellationRequested)
+            {
+                end = new Failed(request.RequestId, HostErrorKind.Cancelled, "cancelled");
+            }
+            catch (HostRequestException ex)
+            {
+                end = new Failed(request.RequestId, ex.Kind, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _log.Write($"{request.GetType().Name} #{request.RequestId} failed: {ex}");
+                end = new Failed(request.RequestId, HostErrorKind.Runtime, ex.Message);
+            }
+            finally
+            {
+                _running.TryRemove(request.RequestId, out _);
+            }
         }
 
         try { await _channel.SendAsync(end); }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException) { /* the app has gone */ }
+        // Its replies are in the pipe by now: what it was sent ends with it, and what it made for a reply it never sent.
+        finally { running.Sections.End(); }
     }
 
     /// <summary>Says for each request quiet for <see cref="Quiet"/> what it is doing — waiting, or going on between waits — until the
@@ -127,11 +150,14 @@ internal sealed class HostServer
         catch (Exception ex) when (ex is IOException or ObjectDisposedException) { /* the app has gone */ }
     }
 
-    /// <summary>A request being served: its cancellation, and the input the app sends it while it runs.</summary>
-    private sealed class RunningRequest(TimeProvider clock)
+    /// <summary>A request being served: its cancellation, the input the app sends it while it runs, and the shared sections it uses.</summary>
+    private sealed class RunningRequest(TimeProvider clock, RequestSections sections)
     {
         /// <summary>What it has done since it last said anything.</summary>
         public RequestActivity Activity { get; } = new(clock);
+
+        public RequestSections Sections { get; } = sections;
+
         // Never disposed: the reading loop may still cancel a request that has just ended, and a source with no
         // timer holds nothing to free.
         private readonly CancellationTokenSource _cancel = new();

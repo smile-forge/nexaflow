@@ -7,9 +7,9 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The real model in the real host — where a machine has it. <c>NEXAFLOW_TEST_GEMMA</c> names a folder holding Gemma
-/// 4 E4B's GGUF and projector as the catalog lays them out; <c>NEXAFLOW_TEST_RUNTIME_PACK</c>, when set, runs it on
-/// CUDA. What is checked is behaviour — the context appended rather than re-read, media read where it comes, calls
+/// The real model in the real host — where a machine has it: Gemma 4 E4B, <c>gemma-4-e4b-it</c> from the test store
+/// (<see cref="TestStore"/>), run on CUDA where the store holds the pack this machine runs, on the CPU otherwise. What is
+/// checked is behaviour — the context appended rather than re-read, media read where it comes, calls
 /// made and what came of them read on, cancellation honoured — never wording; the media is the sample dataset's, whose
 /// content is beside the point.
 /// </summary>
@@ -25,18 +25,11 @@ public class OwnedModelTests
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_GEMMA") is not { Length: > 0 } folder) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
+        _client = await TestStore.HostOnEitherAsync();
+        if (_client is null) return;
         // On the first GPU when the host runs from the pack, as the catalog has it there; on the CPU without.
-        _model = new ModelSpec("gemma-4-e4b-it", "llama-chat", folder, "gemma-4-E4B_q4_0-it.gguf", null,
-                               pack is null ? 0 : 5905580032L + 17920L * 16_384, 16_384, Projector: "gemma-4-E4B-it-mmproj.gguf",
-                               Device: pack is null ? null : 0);
+        bool cuda = _client.Environment.Cuda;
+        _model = TestStore.Spec("gemma-4-e4b-it", "chat", cuda ? 0 : null, cuda ? 5905580032L + 17920L * 16_384 : 0, 16_384);
         await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _model), TimeSpan.FromMinutes(3))) { }
     }
 
@@ -48,7 +41,7 @@ public class OwnedModelTests
 
     private static (AiHostClient Client, ModelSpec Model) Model()
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_GEMMA names no Gemma 4 E4B folder on this machine.");
+        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
         return (_client!, _model!);
     }
 
@@ -106,12 +99,8 @@ public class OwnedModelTests
 
         async Task<string[]> OnAFreshHostAsync()
         {
-            string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
-            await using var host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
-                                                                              TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName))
-            {
-                Environment = new AiHostEnvironment(pack),
-            };
+            // The same store on the same machine: the same runtime as the class's host, so the model loads as it did there.
+            await using var host = (await TestStore.HostOnEitherAsync())!;
             await foreach (var _ in host.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
             var replies = new List<string>();
             foreach (var seed in new uint[] { 11, 12, 13 })
@@ -136,7 +125,7 @@ public class OwnedModelTests
     public async Task AnImage_IsReadWithItsTurn()
     {
         var turns = Conversation("Describe this image in a few words.");
-        turns[^1] = turns[^1] with { Media = [new ChatMedia(MediaKind.Image, TestSampleData.Files("images").First(f => f.EndsWith(".png")), null)] };
+        turns[^1] = turns[^1] with { Media = [new ChatMedia(MediaKind.Image, SharedBytes.Of(File.ReadAllBytes(TestSampleData.Files("images").First(f => f.EndsWith(".png")))))] };
         var withImage = await AskAsync(turns);
 
         var plain = await AskAsync(Conversation("Describe this image in a few words."));
@@ -153,7 +142,7 @@ public class OwnedModelTests
         var turns = Conversation("Name a primary colour.");
         await AskAsync(turns);
         turns.Add(new ChatTurn(TurnRole.User, "Now describe this image in a few words.",
-                               [new ChatMedia(MediaKind.Image, TestSampleData.Files("images").First(f => f.EndsWith(".png")), null)]));
+                               [new ChatMedia(MediaKind.Image, SharedBytes.Of(File.ReadAllBytes(TestSampleData.Files("images").First(f => f.EndsWith(".png")))))]));
 
         var answer = await AskAsync(turns);
 
@@ -187,7 +176,7 @@ public class OwnedModelTests
     public async Task ARecording_IsReadWithItsTurn()
     {
         var turns = Conversation("What do you hear in this recording?");
-        turns[^1] = turns[^1] with { Media = [new ChatMedia(MediaKind.Audio, null, File.ReadAllBytes(TestSampleData.Files("audio").First(f => f.EndsWith("tone_mono.wav"))))] };
+        turns[^1] = turns[^1] with { Media = [new ChatMedia(MediaKind.Audio, SharedBytes.Of(File.ReadAllBytes(TestSampleData.Files("audio").First(f => f.EndsWith("tone_mono.wav")))))] };
 
         var answer = await AskAsync(turns);
 

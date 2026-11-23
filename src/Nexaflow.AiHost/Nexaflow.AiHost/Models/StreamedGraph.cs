@@ -112,7 +112,9 @@ internal sealed class StreamedGraph : IGraph
         string manifestPath = Path.Combine(spec.Folder, spec.File!);
         if (!File.Exists(manifestPath)) throw new HostRequestException(HostErrorKind.NotFound, $"{spec.Id}'s {spec.File} is not in {spec.Folder}.");
         var manifest = StreamManifest.Read(manifestPath);
-        string dataPath = Path.Combine(spec.Folder, manifest.Data);
+        if (!Provisioning.StorePath.IsPlain(manifest.Data))
+            throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id}'s manifest names its weights, '{manifest.Data}', outside its folder.");
+        string dataPath = Provisioning.StorePath.Resolve(spec.Folder, manifest.Data);
         if (!File.Exists(dataPath)) throw new HostRequestException(HostErrorKind.NotFound, $"{spec.Id}'s weights, {manifest.Data}, are not in {spec.Folder}.");
 
         var sessions = new List<InferenceSession>();

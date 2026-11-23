@@ -7,10 +7,9 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The host editing with Qwen-Image-Edit's real graphs. <c>NEXAFLOW_TEST_QWEN_EDIT</c> names a folder holding the built
-/// model as its catalog lays it out (<c>picture-reader/</c>, <c>prompt-encoder/</c>, <c>picture-encoder/</c>,
-/// <c>denoiser/</c>, <c>decoder/</c>); <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack, without which nothing is edited —
-/// the model is built for the GPU. What is asserted is the shape of an edit — its steps, its size, that it is a picture,
+/// The host editing with Qwen-Image-Edit's real graphs, <c>qwen-image-edit-2511</c> from the test store
+/// (<see cref="TestStore"/>), on the CUDA pack there, without which nothing is edited — the model is built for the GPU.
+/// What is asserted is the shape of an edit — its steps, its size, that it is a picture,
 /// and under a mask that what the mask leaves is kept — not what it shows.
 /// </summary>
 [TestClass]
@@ -29,23 +28,15 @@ public class QwenEditModelTests
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_QWEN_EDIT") is not { Length: > 0 } root) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        ModelSpec Part(string folder, string runner, long bytes) =>
-            new($"qwen-image-edit-2511/{folder}", runner, Path.Combine(root, folder), $"{folder}.onnx", null, bytes, 0, Device: 0);
+        _client = await TestStore.HostAsync();
+        ModelSpec Part(string part, long bytes) => TestStore.Spec("qwen-image-edit-2511", part, 0, bytes);
         _model = new DrawingModel(DrawingMethod.QwenImageEdit, new Dictionary<string, ModelSpec>
         {
-            [DrawingParts.PictureReader]  = Part("picture-reader", "qwen-edit-picture-reader", 2L << 30),
-            [DrawingParts.PromptEncoder]  = Part("prompt-encoder", "qwen-edit-prompt-encoder", 10L << 30),
-            [DrawingParts.PictureEncoder] = Part("picture-encoder", "qwen-edit-picture-encoder", 4L << 30),
-            [DrawingParts.Denoiser]       = Part("denoiser", "qwen-edit-denoiser", 24L << 30),
-            [DrawingParts.Decoder]        = Part("decoder", "qwen-edit-decoder", 6L << 30),
+            [DrawingParts.PictureReader]  = Part(DrawingParts.PictureReader, 2L << 30),
+            [DrawingParts.PromptEncoder]  = Part(DrawingParts.PromptEncoder, 10L << 30),
+            [DrawingParts.PictureEncoder] = Part(DrawingParts.PictureEncoder, 4L << 30),
+            [DrawingParts.Denoiser]       = Part(DrawingParts.Denoiser, 24L << 30),
+            [DrawingParts.Decoder]        = Part(DrawingParts.Decoder, 6L << 30),
         }, Steps, Shift: 0f, Guidance: 4f);
     }
 
@@ -57,7 +48,7 @@ public class QwenEditModelTests
 
     private static (AiHostClient Client, DrawingModel Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_QWEN_EDIT and NEXAFLOW_TEST_RUNTIME_PACK are not both set.");
+        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing());
         return (_client, _model);
     }
 
@@ -99,7 +90,7 @@ public class QwenEditModelTests
         var source = Scene(width, height);
 
         var (replies, edited) = await EditAsync(id => new Draw(id, model, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
-                                                     { Sources = [new DrawingSource(width, height, source)] },
+                                                     { Sources = [new DrawingSource(width, height, SharedBytes.Of(source))] },
                                                 "edited-night-qwen.png");
 
         var steps = replies.OfType<Progress>().Where(p => p.Stage == DrawHandler.Drawing && p.Done > 0).Select(p => p.Done).ToArray();
@@ -117,7 +108,7 @@ public class QwenEditModelTests
     {
         var (_, model) = Host();
         var denoiser = model.Parts[DrawingParts.Denoiser];
-        if (!File.Exists(Path.Combine(denoiser.Folder, "denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
+        if (!File.Exists(TestStore.PathOf($"{denoiser.Folder}/denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
         var streamed = model with
         {
             Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 8L << 30 } },
@@ -125,7 +116,7 @@ public class QwenEditModelTests
         const int width = 1184, height = 896;
         var source = Scene(width, height);
         Draw Edit(long id, DrawingModel drawing) => new(id, drawing, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
-                                                    { Sources = [new DrawingSource(width, height, source)] };
+                                                    { Sources = [new DrawingSource(width, height, SharedBytes.Of(source))] };
 
         PngReader.Picture whole, stream;
         
@@ -152,7 +143,7 @@ public class QwenEditModelTests
                 mask[y * width + x] = 255;
 
         var (_, filled) = await EditAsync(id => new Draw(id, model, "a bowl of oranges", 0, 0, 6, RequestPriority.Job)
-                                                { Sources = [new DrawingSource(width, height, source)], Mask = mask },
+                                                { Sources = [new DrawingSource(width, height, SharedBytes.Of(source))], Mask = SharedBytes.Of(mask) },
                                           "filled-oranges-qwen.png");
 
         // What the mask leaves comes back through the VAE: the same picture to within its rounding. What it covers is drawn again.
@@ -178,9 +169,7 @@ public class QwenEditModelTests
     [TestMethod]
     public void AnEditsPrompt_IsWrittenAsThePipelineWritesIt_EachPictureNumberedWithItsTokens()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_QWEN_EDIT") ?? "";
-        if (root.Length == 0) Assert.Inconclusive("NEXAFLOW_TEST_QWEN_EDIT is not set.");
-        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(root, "prompt-encoder", "tokenizer.json")));
+        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(TestStore.PartFolder("qwen-image-edit-2511", DrawingParts.PromptEncoder), "tokenizer.json")));
         var encoder = new QwenEditPromptEncoder(null!, null!, tokenizer);
         using var stream = typeof(QwenEditModelTests).Assembly.GetManifestResourceStream("qwen-image-edit.json")!;
         var prompts = JsonNode.Parse(stream)!["prompts"]!;

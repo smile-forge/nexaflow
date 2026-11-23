@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows.Media;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.Controls;
@@ -50,10 +51,7 @@ public class LocalAiRequirementsTests
     {
         var store = Substitute.For<IModelAssetStore>();
         var held = CudaRuntimePack.Files.Take(here).ToHashSet();
-        store.Locate(Arg.Any<ModelAsset>())
-             .Returns(call => held.Contains(call.Arg<ModelAsset>())
-                 ? Path.Combine(@"C:\models", call.Arg<ModelAsset>().RelativePath.Replace('/', '\\'))
-                 : null);
+        store.Has(Arg.Any<ModelAsset>()).Returns(call => held.Contains(call.Arg<ModelAsset>()));
         return store;
     }
 
@@ -176,7 +174,7 @@ public class LocalAiRequirementsTests
         var pack = CudaPack(machine, StoreHolding(PackFiles));
         Assert.AreEqual(ExternalDependencyState.Present, pack.State);
         Assert.AreEqual(CudaRuntimePack.Id, pack.DetectedVersion);
-        Assert.AreEqual(CudaRuntimePack.Locate(StoreHolding(PackFiles)), pack.Detail, "where the runtime loads it from");
+        Assert.AreEqual(CudaRuntimePack.Id, pack.Detail, "the pack the host runs on: where it keeps it is the host's own");
     }
 
     [TestMethod]
@@ -185,7 +183,7 @@ public class LocalAiRequirementsTests
         var pack = CudaPack(Machine(new Version(12, 8), Rtx3080), StoreHolding(PackFiles));
 
         Assert.AreEqual(ExternalDependencyState.Present, pack.State);
-        Assert.AreEqual(Str.Format("Shell.Components.CudaPack.UnusedFormat", CudaRuntimePack.Locate(StoreHolding(PackFiles)), Needed), pack.Detail);
+        Assert.AreEqual(Str.Format("Shell.Components.CudaPack.UnusedFormat", CudaRuntimePack.Id, Needed), pack.Detail);
     }
 
     [TestMethod]

@@ -16,12 +16,9 @@ internal sealed class SelectHandler(ModelRegistry models, GpuScheduler gpu) : Ho
     protected override async Task HandleAsync(SelectInPicture request, Func<HostReply, Task> reply, ChannelReader<RequestInput> input, CancellationToken ct)
     {
         Validate(request);
-        var rgba = await File.ReadAllBytesAsync(request.Pixels, ct);
-        if (rgba.Length != (long)request.Width * request.Height * 4)
-            throw new HostRequestException(HostErrorKind.Invalid, $"{request.Pixels} holds {rgba.Length} bytes, not {request.Width}x{request.Height} RGBA.");
-
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
-        var image = PictureSelecting.Prepare(rgba, request.Width, request.Height);
+        var image = PictureSelecting.Prepare(request.Pixels.Span, request.Width, request.Height);
+        RequestSections.Done(request.Pixels);
         PictureFeatures features;
         using (var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids))))
         {
@@ -66,15 +63,15 @@ internal sealed class SelectHandler(ModelRegistry models, GpuScheduler gpu) : Ho
                 (masks, ious, objectScore) = lease.As<ClickDecoder>().Decode(features, points, labels);
         }
 
-        var mask = new byte[ask.Mask.Width * ask.Mask.Height];
+        var mask = RequestSections.Create(ask.Mask.Width * ask.Mask.Height);
+        mask.Span.Clear();
         SelectionBox? bounds = null;
         if (PictureSelecting.Chosen(masks, ious, objectScore, ask.Points.Count) is { } low)
         {
-            PictureSelecting.Threshold(PictureSelecting.ClickMaskAt(low, ask.Mask.Width, ask.Mask.Height), mask);
-            bounds = PictureSelecting.Bounds(mask, ask.Mask.Width, ask.Mask.Height, request.Width, request.Height);
+            PictureSelecting.Threshold(PictureSelecting.ClickMaskAt(low, ask.Mask.Width, ask.Mask.Height), mask.Span);
+            bounds = PictureSelecting.Bounds(mask.Span, ask.Mask.Width, ask.Mask.Height, request.Width, request.Height);
         }
-        await File.WriteAllBytesAsync(ask.Mask.Into, mask, ct);
-        return new PointsSelected(request.RequestId, ask.Turn, bounds);
+        return new PointsSelected(request.RequestId, ask.Turn, bounds, mask);
     }
 
     private async Task<PhraseFound> FindAsync(SelectInPicture request, PictureFeatures features, SelectByPhrase ask,
@@ -119,14 +116,15 @@ internal sealed class SelectHandler(ModelRegistry models, GpuScheduler gpu) : Ho
         var kept = PictureSelecting.Kept(logits, presence, boxes, request.Width, request.Height);
         int size = ask.Masks.Width * ask.Masks.Height;
         const int plane = ClickDecoder.Side * ClickDecoder.Side;
-        var masks = new byte[(long)size * kept.Count];
+        if ((long)size * kept.Count > int.MaxValue)
+            throw new HostRequestException(HostErrorKind.Invalid, $"{kept.Count} masks at {ask.Masks.Width}x{ask.Masks.Height} are more than one reply carries.");
+        var masks = RequestSections.Create(size * kept.Count);
         Parallel.For(0, kept.Count, i =>
         {
             var logitsAt = PictureSelecting.FoundMaskAt(low.AsSpan(kept[i].Query * plane, plane).ToArray(), ask.Masks.Width, ask.Masks.Height);
-            PictureSelecting.Threshold(logitsAt, masks.AsSpan(i * size, size));
+            PictureSelecting.Threshold(logitsAt, masks.Span.Slice(i * size, size));
         });
-        await File.WriteAllBytesAsync(ask.Masks.Into, masks, ct);
-        return new PhraseFound(request.RequestId, ask.Turn, [.. kept.Select(k => k.Found)]);
+        return new PhraseFound(request.RequestId, ask.Turn, [.. kept.Select(k => k.Found)], masks);
     }
 
     private static void Validate(SelectInPicture request)
@@ -135,12 +133,13 @@ internal sealed class SelectHandler(ModelRegistry models, GpuScheduler gpu) : Ho
             if (!request.Parts.ContainsKey(role)) throw new HostRequestException(HostErrorKind.Invalid, $"A selection needs its {role}.");
         if (request.Width <= 0 || request.Height <= 0 || (long)request.Width * request.Height > SelectInPicture.MostPixels)
             throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not one a selection reads.");
+        if (request.Pixels.Length != (long)request.Width * request.Height * 4)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not {request.Pixels.Length} bytes of RGBA.");
     }
 
     private static void Validate(MaskTarget target)
     {
         if (target.Width is <= 0 or > SelectInPicture.MostMaskSide || target.Height is <= 0 or > SelectInPicture.MostMaskSide)
-            throw new HostRequestException(HostErrorKind.Invalid, $"A mask is not written at {target.Width}x{target.Height}.");
-        if (string.IsNullOrWhiteSpace(target.Into)) throw new HostRequestException(HostErrorKind.Invalid, "A mask needs a file to be written to.");
+            throw new HostRequestException(HostErrorKind.Invalid, $"A mask is not made at {target.Width}x{target.Height}.");
     }
 }

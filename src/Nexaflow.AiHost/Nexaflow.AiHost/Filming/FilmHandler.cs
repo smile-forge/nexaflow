@@ -27,7 +27,7 @@ internal interface IFilmingMethod
 /// <param name="Stepped">Each denoising step as it finishes: how many are done, of how many.</param>
 /// <param name="Decoded">Each latent frame decoded: how many are done, of how many.</param>
 /// <param name="Frames">The frames a latent frame decoded to, in order: interleaved 8-bit RGB, one after another.</param>
-internal sealed record FilmingCallbacks(Func<string, Task> Stage, Func<int, int, Task> Stepped, Func<int, int, Task> Decoded, Func<byte[], Task> Frames);
+internal sealed record FilmingCallbacks(Func<string, Task> Stage, Func<int, int, Task> Stepped, Func<int, int, Task> Decoded, Func<SharedBytes, Task> Frames);
 
 /// <summary>
 /// Makes a clip by the method its model films with (<see cref="IFilmingMethod"/>) and sends its frames as they are decoded, so the

@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.AiHost;
 internal static class HostPictures
 {
     /// <summary>A drawn picture as a PNG.</summary>
-    public static byte[] AsPng(this Drawn drawn) => PngEncoder.EncodeRgb(drawn.Rgb, drawn.Width, drawn.Height);
+    public static byte[] AsPng(this Drawn drawn) => PngEncoder.EncodeRgb(drawn.Rgb.Span, drawn.Width, drawn.Height);
 
     /// <summary>A clip's frames, as the host sent them, as an H.264 MP4.</summary>
     public static byte[] AsMp4(this IEnumerable<FilmedFrames> frames, int width, int height, int framesPerSecond)
@@ -20,7 +20,7 @@ internal static class HostPictures
         {
             int frameBytes = width * height * 3;
             foreach (var sent in frames)
-                for (int at = 0; at + frameBytes <= sent.Rgb.Length; at += frameBytes) encoder.AddFrame(sent.Rgb.AsSpan(at, frameBytes));
+                for (int at = 0; at + frameBytes <= sent.Rgb.Length; at += frameBytes) encoder.AddFrame(sent.Rgb.Span.Slice(at, frameBytes));
             encoder.Finish();
         }
         return mp4.ToArray();

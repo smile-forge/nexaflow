@@ -22,8 +22,7 @@ internal static class HostProgram
     public static async Task<int> RunAsync(string[] args)
     {
         string? pipeName = Argument(args, AiHostProtocol.PipeArgument);
-        string? aiDir    = Argument(args, AiHostProtocol.AiDirArgument);
-        if (pipeName is null || aiDir is null) return 2;
+        if (pipeName is null) return 2;
 
         using var log = new HostLog(Argument(args, AiHostProtocol.LogDirArgument));
         try
@@ -32,7 +31,12 @@ internal static class HostProgram
 
             var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             await pipe.ConnectAsync((int)AiHostProtocol.ConnectTimeout.TotalMilliseconds);
-            await using var channel = new HostChannel(pipe);
+            // Sections open to this host's own account: a private host's app runs as the same user.
+            HostChannel? opened = null;
+            using var sections = OperatingSystem.IsWindows()
+                ? new HostSections(System.Security.Principal.WindowsIdentity.GetCurrent().User!, TimeProvider.System, message => opened!.SendAsync(message))
+                : null;
+            await using var channel = opened = new HostChannel(pipe, sections);
 
             await channel.SendAsync(new Hello(token, AiHostProtocol.Version, Environment.ProcessId));
             if (await channel.ReceiveAsync() is not Welcome)
@@ -42,15 +46,23 @@ internal static class HostProgram
             }
 
             log.Write($"connected (process {Environment.ProcessId}, protocol {AiHostProtocol.Version})");
-            NativeRuntime.Load(Argument(args, AiHostProtocol.RuntimePackArgument));
+            // The store is the host's alone; its runtime is the CUDA pack from it, where this machine's cards and driver run the pack.
+            var store = new Store.HostModelStore(Argument(args, AiHostProtocol.StoreArgument) ?? Store.HostModelStore.DefaultRoot,
+                                                 Arguments(args, AiHostProtocol.AdoptArgument), Catalog.MachineCards.Probe(),
+                                                 downloadsAllowed: !args.Contains(AiHostProtocol.NoDownloadsArgument));
+            store.Changed += (_, path) => _ = TellAsync(channel, new ModelFilesChanged([path]));
+            NativeRuntime.Load(store.RuntimePack());
             int memoryShare = int.TryParse(Argument(args, AiHostProtocol.MemoryShareArgument), System.Globalization.CultureInfo.InvariantCulture, out var share)
                 ? share : AiHostProtocol.DefaultMemoryShare;
             using var runtime = new ExecutionRuntime(log, memoryShare);
-            using var models  = new ModelRegistry(runtime, ModelAdapters.Default, ModelRunners.Default, log, runtime.Memory);
+            using var models  = new ModelRegistry(runtime, ModelAdapters.Default, ModelRunners.Default, log, store, runtime.Memory);
             var scheduler = new GpuScheduler();
             var server = new HostServer(channel, log,
             [
                 new DescribeHostHandler(runtime),
+                new Store.DescribeModelStoreHandler(store),
+                new Store.FetchModelFilesHandler(store),
+                new Store.RemoveModelFilesHandler(store),
                 new LoadModelHandler(models),
                 new UnloadModelHandler(models),
                 new GenerateHandler(models, scheduler),
@@ -64,8 +76,8 @@ internal static class HostProgram
                 new FindTextHandler(models),
                 new Erasing.EraseHandler(models, scheduler),
                 new Checking.CheckPictureHandler(models),
-                new SceneDepth.SceneDepthHandler(models, scheduler),
-            ]);
+            new SceneDepth.SceneDepthHandler(models, scheduler),
+            ], sections: sections);
             await server.RunAsync();
             log.Write("the app closed the pipe; exiting");
             return 0;
@@ -81,5 +93,16 @@ internal static class HostProgram
     {
         int i = Array.IndexOf(args, name);
         return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+    }
+
+    /// <summary>Every value given for <paramref name="name"/>, in order.</summary>
+    private static IReadOnlyList<string> Arguments(string[] args, string name)
+        => [.. args.Select((a, i) => (a, i)).Where(p => p.a == name && p.i + 1 < args.Length).Select(p => args[p.i + 1])];
+
+    /// <summary>Tells the app something unasked; an app already gone hears nothing.</summary>
+    private static async Task TellAsync(HostChannel channel, HostMessage message)
+    {
+        try { await channel.SendAsync(message); }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
     }
 }

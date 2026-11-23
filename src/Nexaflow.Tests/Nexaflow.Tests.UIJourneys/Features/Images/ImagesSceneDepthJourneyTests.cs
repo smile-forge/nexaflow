@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// start and colour; selecting by a span of distance in Select and in Retouch; and the depth as a layer and as a mask — each
 /// made with nothing offered to download or try again.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding scene depth and picture selection as the app keeps them, which the app
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding scene depth and picture selection as the app keeps them, which the app
 /// is started on as its <c>NEXAFLOW_AI_DIR</c>; without it, or with one of them missing — the editor then offers it for download
 /// — the journey is inconclusive.
 /// </para>
@@ -22,7 +22,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [CoversNode("images-scene-depth")]
 public class ImagesSceneDepthJourneyTests : ImageEditJourneyBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
 

@@ -16,10 +16,7 @@ internal sealed class SceneDepthHandler(ModelRegistry models, GpuScheduler gpu) 
     protected override async Task HandleAsync(EstimateSceneDepth request, Func<HostReply, Task> reply, CancellationToken ct)
     {
         Validate(request);
-        var rgba = await File.ReadAllBytesAsync(request.Pixels, ct);
-        if (rgba.Length != request.Width * request.Height * 4)
-            throw new HostRequestException(HostErrorKind.Invalid, $"{request.Pixels} holds {rgba.Length} bytes, not {request.Width}x{request.Height} RGBA.");
-        var input = await Task.Run(() => SceneDepthHandover.Prepare(rgba, request.Width, request.Height), ct);
+        var input = await Task.Run(() => SceneDepthHandover.Prepare(request.Pixels.Span, request.Width, request.Height), ct);
 
         var lane = gpu.Open(request.Priority);
         using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
@@ -31,18 +28,17 @@ internal sealed class SceneDepthHandler(ModelRegistry models, GpuScheduler gpu) 
             ct.ThrowIfCancellationRequested();
             disparity = lease.As<SceneDepthNetwork>().Estimate(input);
         }
-        await File.WriteAllBytesAsync(request.Into, MemoryMarshal.AsBytes(disparity.AsSpan()).ToArray(), ct);
-        await reply(new SceneDepthEstimated(request.RequestId, input.Width, input.Height));
+        var bytes = RequestSections.Create(disparity.Length * sizeof(float));
+        MemoryMarshal.AsBytes(disparity.AsSpan()).CopyTo(bytes.Span);
+        await reply(new SceneDepthEstimated(request.RequestId, input.Width, input.Height, bytes));
     }
 
     private static void Validate(EstimateSceneDepth request)
     {
         if (request.Width <= 0 || request.Height <= 0)
             throw new HostRequestException(HostErrorKind.Invalid, "A picture to estimate the depth of has a size.");
-        if (string.IsNullOrWhiteSpace(request.Into))
-            throw new HostRequestException(HostErrorKind.Invalid, "A depth estimate needs a file to write the disparity to.");
-        if (!File.Exists(request.Pixels))
-            throw new HostRequestException(HostErrorKind.NotFound, $"The picture to estimate the depth of is not at {request.Pixels}.");
+        if (request.Pixels.Length != (long)request.Width * request.Height * 4)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not {request.Pixels.Length} bytes of RGBA.");
         foreach (var role in SceneDepthParts.All)
             if (!request.Parts.ContainsKey(role))
                 throw new HostRequestException(HostErrorKind.Invalid, $"Scene depth needs its {role}.");

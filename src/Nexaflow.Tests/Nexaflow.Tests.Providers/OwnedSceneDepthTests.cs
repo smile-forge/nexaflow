@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -29,7 +30,7 @@ public class OwnedSceneDepthTests
     [TestMethod]
     public void TheShippedTool_IsDepthAnythingV2Small_PinnedToItsPublishedGraph_Under3Gb()
     {
-        var tool = OwnedModels.Tools.Single(t => t.Kind == OwnedToolKind.SceneDepth);
+        var tool = OwnedModels.Tools.Single(t => t.Kind == HostedToolKind.SceneDepth);
         var estimator = tool.Part(SceneDepthParts.Estimator, OwnedModels.Cuda);
 
         Assert.AreEqual(("depth-anything-v2-small", "scene-depth-estimator"), (tool.Id, estimator.Runner));
@@ -45,19 +46,23 @@ public class OwnedSceneDepthTests
     }
 
     [TestMethod]
-    public async Task APicture_IsHandedOverByFile_AndItsWorkingSizeGivenBack()
+    public async Task APicture_IsHandedOver_AndItsDepthGivenBackAtItsWorkingSize()
     {
+        var disparity = SharedBytes.Of(new byte[784 * 518 * sizeof(float)]);
         var host = new FakeAiHost
         {
-            Reply = (r, _) => r is EstimateSceneDepth estimate ? [new SceneDepthEstimated(estimate.RequestId, 784, 518), new Completed(estimate.RequestId)] : [],
+            Reply = (r, _) => r is EstimateSceneDepth estimate ? [new SceneDepthEstimated(estimate.RequestId, 784, 518, disparity), new Completed(estimate.RequestId)] : [],
         };
+        byte[] picture = [1, 2, 3, 4, 5, 6, 7, 8];
 
-        var estimated = await Depth(Here(), host).EstimateAsync("photo.rgba", 2048, 1362, "depth.f32", CancellationToken.None);
+        using var estimated = await Depth(Here(), host).EstimateAsync(picture, 2, 1, CancellationToken.None);
 
         var request = (EstimateSceneDepth)host.Requests.Single();
-        Assert.AreEqual(("photo.rgba", 2048, 1362, "depth.f32"), (request.Pixels, request.Width, request.Height, request.Into));
+        Assert.AreEqual((2, 1), (request.Width, request.Height));
+        CollectionAssert.AreEqual(picture, request.Pixels.ToArray(), "the picture goes to the host as it was given");
         Assert.IsTrue(request.Parts.ContainsKey(SceneDepthParts.Estimator));
-        Assert.AreEqual(new EstimatedSceneDepth(784, 518), estimated);
+        Assert.AreEqual((784, 518), (estimated.Width, estimated.Height));
+        Assert.AreSame(disparity, estimated.Disparity, "the host's disparity, as it sent it");
     }
 
     [TestMethod]
@@ -65,7 +70,7 @@ public class OwnedSceneDepthTests
     {
         var store = new FakeModelStore();
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Depth(store, new FakeAiHost()).EstimateAsync("p", 1, 1, "d", CancellationToken.None));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Depth(store, new FakeAiHost()).EstimateAsync(new byte[4], 1, 1, CancellationToken.None));
         Assert.AreEqual(0, store.Fetched.Count);
     }
 }

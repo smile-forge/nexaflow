@@ -47,9 +47,9 @@ public sealed record SelectionBox(float Left, float Top, float Right, float Bott
 /// <summary>An example box for a phrase: something <see cref="Like"/> what is meant, or something it does not mean.</summary>
 public sealed record SelectionExample(SelectionBox Box, bool Like);
 
-/// <summary>Where and at what size masks are written: <see cref="Width"/> × <see cref="Height"/> bytes each, row by row,
-/// 255 over what is picked and 0 elsewhere, several one after another; the file is replaced if it is there.</summary>
-public sealed record MaskTarget(string Into, int Width, int Height);
+/// <summary>The size masks are made at: <see cref="Width"/> × <see cref="Height"/> bytes each, row by row, 255 over what is picked
+/// and 0 elsewhere, several one after another.</summary>
+public sealed record MaskTarget(int Width, int Height);
 
 /// <summary>Something a phrase found: how surely, from 0.5 to 1, and the box round it in the picture's pixels.</summary>
 public sealed record FoundInPicture(float Score, SelectionBox Box);
@@ -59,13 +59,13 @@ public sealed record FoundInPicture(float Score, SelectionBox Box);
 /// <see cref="PictureEncoded"/> says when — and each <see cref="SelectByPoints"/> and <see cref="SelectByPhrase"/>
 /// written to the request is then answered from what was read, in turn, so a click costs the decoder alone. The request
 /// lasts as long as its caller selects from that picture — a page holds one while it is open on the picture, and ends
-/// it when it closes or moves to another — and what was read goes with it. Each answer's masks are written to the file
-/// it names before its reply says so: masks of a large picture run to megabytes the pipe would carry as text.
+/// it when it closes or moves to another — and what was read goes with it. Each answer brings its masks back, in a shared
+/// section when they are large.
 /// </summary>
 /// <param name="Parts">The parts it may use, by role (<see cref="SelectingParts"/>); each loads when first asked of.</param>
-/// <param name="Pixels">The file holding the picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA,
-/// row by row, nothing else. Its alpha is not read.</param>
-public sealed record SelectInPicture(long RequestId, IReadOnlyDictionary<string, ModelSpec> Parts, string Pixels, int Width, int Height,
+/// <param name="Pixels">The picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA, row by row. Its alpha is
+/// not read.</param>
+public sealed record SelectInPicture(long RequestId, IReadOnlyDictionary<string, ModelSpec> Parts, SharedBytes Pixels, int Width, int Height,
                                      RequestPriority Priority) : HostRequest(RequestId)
 {
     /// <summary>The most pixels a picture may hold: 256 megapixels, a gigabyte of RGBA.</summary>
@@ -82,14 +82,14 @@ public sealed record PictureEncoded(long RequestId) : HostReply(RequestId);
 /// <param name="Turn">The caller's number for this ask, which its answer carries.</param>
 public sealed record SelectByPoints(long RequestId, int Turn, IReadOnlyList<SelectionPoint> Points, MaskTarget Mask) : RequestInput(RequestId);
 
-/// <summary>The points' mask is in the target's file. <see cref="Bounds"/> is the box round it in the picture's pixels;
-/// null where nothing is picked there, its mask all 0.</summary>
-public sealed record PointsSelected(long RequestId, int Turn, SelectionBox? Bounds) : HostReply(RequestId);
+/// <summary>The points' mask, at the asked size. <see cref="Bounds"/> is the box round it in the picture's pixels; null where
+/// nothing is picked there, its mask all 0.</summary>
+public sealed record PointsSelected(long RequestId, int Turn, SelectionBox? Bounds, SharedBytes Mask) : HostReply(RequestId);
 
 /// <summary>Finds everything a phrase names — "wheel", "child in a red vest" — helped by example boxes of what it does
 /// and does not mean; with no phrase, everything like the examples.</summary>
 public sealed record SelectByPhrase(long RequestId, int Turn, string Phrase, IReadOnlyList<SelectionExample> Examples, MaskTarget Masks)
     : RequestInput(RequestId);
 
-/// <summary>What the phrase found, surest first; their masks are in the target's file in the same order.</summary>
-public sealed record PhraseFound(long RequestId, int Turn, IReadOnlyList<FoundInPicture> Found) : HostReply(RequestId);
+/// <summary>What the phrase found, surest first, and their masks one after another in the same order.</summary>
+public sealed record PhraseFound(long RequestId, int Turn, IReadOnlyList<FoundInPicture> Found, SharedBytes Masks) : HostReply(RequestId);

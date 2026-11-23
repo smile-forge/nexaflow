@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -56,8 +57,8 @@ public class OwnedSpeechToTextProviderTests
         var listen = host.Requests.OfType<Listen>().Single();
         Assert.AreEqual(("de", UtteranceEnd.Turn, RequestPriority.Voice), (listen.Language, listen.End, listen.Priority));
         Assert.AreEqual(("silero-vad", "silero_vad.onnx"), (listen.Models.VoiceActivity.Runner, listen.Models.VoiceActivity.File));
-        Assert.AreEqual(@"C:\ai\models\nemotron-3.5-asr-streaming", listen.Models.Recognizer.Folder, "the folder is where the store keeps its files");
-        Assert.AreEqual(@"C:\ai\models\whisper-large-v3-turbo-cuda", listen.Models.Transcriber!.Folder, "the CUDA build, on a machine the pack suits");
+        Assert.AreEqual("models/nemotron-3.5-asr-streaming", listen.Models.Recognizer.Folder, "the folder is the store's name for it: where it lies is the host's to know");
+        Assert.AreEqual("models/whisper-large-v3-turbo-cuda", listen.Models.Transcriber!.Folder, "the CUDA build, on a machine the pack suits");
         Assert.AreEqual("1", listen.Models.Transcriber.CudaOptions!["sdpa_kernel"]);
         Assert.AreEqual((0, (int?)null), (listen.Models.Transcriber.Device, listen.Models.VoiceActivity.Device), "on the GPU, but for the parts that always run on the CPU");
         Assert.AreEqual("smart-turn", listen.Models.TurnDetector!.Runner);
@@ -73,7 +74,7 @@ public class OwnedSpeechToTextProviderTests
 
         var listen = host.Requests.OfType<Listen>().Single();
         Assert.AreEqual((null, UtteranceEnd.Pause, RequestPriority.Interactive), (listen.Language, listen.End, listen.Priority));
-        Assert.AreEqual(@"C:\ai\models\whisper-large-v3-turbo-cpu", listen.Models.Transcriber!.Folder);
+        Assert.AreEqual("models/whisper-large-v3-turbo-cpu", listen.Models.Transcriber!.Folder);
     }
 
     [TestMethod]

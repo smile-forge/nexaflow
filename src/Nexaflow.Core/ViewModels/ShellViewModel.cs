@@ -245,19 +245,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>True while the mic is actively capturing — disables the input box.</summary>
     [ObservableProperty] private bool    _isRecording;
 
-    /// <summary>Mic button enabled only when the workspace's Speech In chain has a model ready to listen.</summary>
+    /// <summary>Mic button enabled only when the workspace can hold a spoken conversation: its Speech In chain has a model ready to
+    /// listen, a voice speaks the language, and a model answers (<see cref="AIService.CanConverse"/>).</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ToggleVoiceCommand))]
     private bool _voiceAvailable;
-
-    /// <summary>This window's dictation — the microphone streamed into the Speech In model.</summary>
-    private readonly DictationService _dictation = new();
-
-    /// <summary>The mic holds a spoken conversation rather than dictating: the workspace's models can.</summary>
-    [ObservableProperty] private bool _voiceConverses;
-
-    /// <summary>Dictation owns the box: the user's words fill it, and typing would fight them.</summary>
-    [ObservableProperty] private bool _isDictating;
 
     /// <summary>This window's spoken conversation: the bar in voice mode, and what it shows over the page.</summary>
     public VoiceConversationViewModel Voice { get; }
@@ -723,14 +715,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away.
         workspace.ProvidersChanged += (_, _) => _ui.InvokeAsync(RecomputeVoiceAvailable);
 
-        _dictation.RecordingChanged += (_, rec) =>
-            _ui.Invoke(() => { IsDictating = rec; IsRecording = VoiceActive = rec || Voice.IsActive; });
-        // Voice owns the input display while listening — set, don't append; the text is everything heard so
-        // far, revised as the model hears more, and its last word lands when listening stops.
-        _dictation.TranscriptUpdated += (_, text) =>
-            _ui.Invoke(() => AiInputText = text);
-        _dictation.Failed += (_, msg) =>
-            _ui.Invoke(() => ShowError(Str.Get("Shell.Errors.Voice"), msg));
+
 
         // A spoken conversation owns the bar as dictation does: what is heard fills the box, and the mic stops it.
         Voice.Heard += text => AiInputText = text;
@@ -745,7 +730,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         {
             if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive))
             {
-                IsRecording = VoiceActive = Voice.IsActive || _dictation.IsRecording;
+                IsRecording = VoiceActive = Voice.IsActive;
                 ToggleVoiceCommand.NotifyCanExecuteChanged();
             }
             else if (e.PropertyName == nameof(VoiceConversationViewModel.State))
@@ -816,8 +801,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void RecomputeVoiceAvailable()
     {
         var ai = CurrentRuntime.AiService;
-        VoiceAvailable = ai?.StatusOf(AiAbility.SpeechIn).IsUsable == true;
-        VoiceConverses = ai?.CanConverse(SpokenLanguage()) == true;
+        VoiceAvailable = ai is not null && ai.StatusOf(AiAbility.SpeechIn).IsUsable && ai.CanConverse(SpokenLanguage());
     }
 
     /// <summary>The language a conversation is held in: the app's.</summary>
@@ -1669,25 +1653,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private async Task ToggleVoice()
     {
         if (Voice.IsActive) { await Voice.StopAsync(); return; }
-        if (_dictation.IsRecording) { await _dictation.StopAsync(); return; }   // manual early stop; it also stops by itself after a silence
+        
 
         var ai = CurrentRuntime.AiService;
         if (ai is null || !await ai.MakeReadyAsync(AiAbility.SpeechIn)) return;   // a model still to download offers it, and stops here
         string language = SpokenLanguage();
-        if (ai is not null && ai.CanConverse(language))
+        if (!ai.CanConverse(language)) return;   // the workspace's models changed since the mic was offered; it is offered again when they can
+        var pageVm = ActivePageViewModel;
+        try
         {
-            var pageVm = ActivePageViewModel;
-            try
-            {
-                await Voice.StartAsync(ai, () => ActivePageViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
-            }
-            catch (Exception ex)
-            {
-                ShowError(Str.Get("Shell.Errors.Voice"), ex.Message);
-            }
-            return;
+            await Voice.StartAsync(ai, () => ActivePageViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
         }
-        if (ai?.SpeechToText is { } model) await _dictation.StartAsync(model);
+        catch (Exception ex)
+        {
+            ShowError(Str.Get("Shell.Errors.Voice"), ex.Message);
+        }
     }
 
     /// <summary>Carries a voice conversation on in a conversation page: what was said becomes the conversation's first

@@ -11,9 +11,15 @@ public interface IAiHost
     /// <inheritdoc cref="AiHostClient.OpenStreamAsync"/>
     Task<IHostStream> OpenStreamAsync(Func<long, HostRequest> create, TimeSpan stallLimit, CancellationToken ct = default);
 
+    /// <inheritdoc cref="AiHostClient.AllocateAsync"/>
+    Task<SharedBytes> AllocateAsync(int length, CancellationToken ct = default);
+
     /// <inheritdoc cref="AiHostClient.Environment"/>
     AiHostEnvironment Environment { get; set; }
 
     /// <inheritdoc cref="AiHostClient.Memory"/>
     HostMemory Memory { get; }
+
+    /// <inheritdoc cref="AiHostClient.ModelFilesChanged"/>
+    event EventHandler<IReadOnlyList<string>>? ModelFilesChanged;
 }

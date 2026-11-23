@@ -29,7 +29,8 @@ internal sealed class KokoroSynthesizer(ModelSpec spec, InferenceSession session
     /// <exception cref="HostRequestException">The voice's file is not there.</exception>
     public float[] Voice(string file) => _voices.GetOrAdd(file, f =>
     {
-        string path = Path.Combine(Spec.Folder, f.Replace('/', Path.DirectorySeparatorChar));
+        if (!Provisioning.StorePath.IsPlain(f)) throw new HostRequestException(HostErrorKind.Invalid, $"The voice '{f}' is not a plain path inside its folder.");
+        string path = Provisioning.StorePath.Resolve(Spec.Folder, f);
         if (!File.Exists(path)) throw new HostRequestException(HostErrorKind.NotFound, $"The voice {f} is not there: {path}.");
         byte[] bytes = File.ReadAllBytes(path);
         var table = new float[bytes.Length / sizeof(float)];

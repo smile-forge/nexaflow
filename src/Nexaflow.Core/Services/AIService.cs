@@ -18,6 +18,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Local;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Core.Services;
 
@@ -302,12 +303,11 @@ public sealed class AIService : IAIService
     }
 
     /// <summary>
-    /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens that hears when a turn
-    /// is over — anything but <see cref="LocalColumns.Dictation"/>, which only dictates — a voice speaks the language, and a
-    /// model answers. Where it cannot, the mic dictates instead.
+    /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens, a voice speaks the language,
+    /// and a model answers. Where it cannot, the mic is not offered.
     /// </summary>
     public bool CanConverse(string language)
-        => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: { } listening } && !LocalColumns.Dictates(listening)
+        => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: not null }
            && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.GeneralIntelligence) is not null;
 
     /// <summary>Whether the model that holds the conversation has made way on its GPU for a picture being drawn: a reply

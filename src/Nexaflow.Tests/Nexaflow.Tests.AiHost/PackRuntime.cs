@@ -9,10 +9,11 @@ internal static class PackRuntime
     private static readonly object Gate = new();
     private static bool _bound;
 
-    /// <summary>The pack <c>NEXAFLOW_TEST_RUNTIME_PACK</c> names, bound; null where it names none.</summary>
+    /// <summary>The pack in the test store (<see cref="TestStore.RuntimePackFolder"/>), bound; null where the store holds none this
+    /// machine runs.</summary>
     public static string? Bind()
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return null;
+        if (TestStore.RuntimePackFolder is not { } pack) return null;
         lock (Gate)
             if (!_bound)
             {

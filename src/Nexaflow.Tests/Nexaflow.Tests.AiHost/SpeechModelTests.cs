@@ -10,8 +10,8 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// The host listening with the real speech models — Silero, Nemotron, Whisper large-v3-turbo and Smart Turn — to
-/// speech this machine's own voice says. <c>NEXAFLOW_TEST_SPEECH</c> names a folder holding them as their catalog lays
-/// them out; <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack, without which they run on the CPU. What is asserted is
+/// speech this machine's own voice says, and Kokoro speaking: <c>nemotron-whisper-turbo</c> and <c>kokoro-82m</c> from the test
+/// store (<see cref="TestStore"/>), on the CUDA pack where the store holds one this machine runs, on the CPU otherwise. What is asserted is
 /// where turns end and the words that decide it, not the transcripts' exact form.
 /// </summary>
 [TestClass]
@@ -24,46 +24,33 @@ public class SpeechModelTests
     private static ListenModels? _models;
     private static VoiceSpec? _voice;
 
+    /// <summary>Whether the models run on the first GPU, the host on the CUDA pack, rather than on the CPU.</summary>
+    private static bool _cuda;
+
+    /// <summary>The speech-to-text model of the catalog that hears the turns.</summary>
+    private const string Listener = "nemotron-whisper-turbo";
+
     /// <summary>Whether the Whisper hearing the turns is an English-only one: a vocabulary one token short of a multilingual model's.</summary>
     private static bool _englishOnly;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SPEECH") is not { Length: > 0 } root) return;
-
-        string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
+        _client = await TestStore.HostOnEitherAsync();
+        if (_client is null) return;
 
         // On the first GPU when the host runs from the pack; on the CPU without.
-        int? gpu = pack is null ? null : 0;
-        long Held(long bytes) => pack is null ? 0 : bytes;
-        string nemotron = Path.Combine(root, "nemotron-3.5-asr-streaming");
-        // Which Whisper hears the turns: large-v3-turbo unless NEXAFLOW_TEST_WHISPER names another's folders, as the catalog
-        // lays them out — whisper-small-en, say, for whisper-small-en-cpu and whisper-small-en-cuda.
-        string whisper = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_WHISPER") is { Length: > 0 } w ? w : "whisper-large-v3-turbo";
-        _models = new ListenModels(
-            new ModelSpec("speech/voice-activity", "silero-vad", nemotron, "silero_vad.onnx", null, 0, 0),
-            new ModelSpec("speech/recognizer", "nemotron-streaming-asr", nemotron, null, null, Held(2L << 30), 0, Device: gpu),
-            pack is null
-                ? new ModelSpec("speech/transcriber", "whisper", Path.Combine(root, $"{whisper}-cpu"), null, null, 0, 0)
-                : new ModelSpec("speech/transcriber", "whisper", Path.Combine(root, $"{whisper}-cuda"), null, null, 4L << 30, 0,
-                                new Dictionary<string, string> { ["sdpa_kernel"] = "1" }, Device: gpu),
-            new ModelSpec("speech/turn", "smart-turn", Path.Combine(root, "smart-turn-v3"), "smart-turn-v3.2-cpu.onnx", null, 0, 0));
-
-        _englishOnly = WhisperExport.Read(_models.Transcriber!.Folder).Vocabulary < WhisperTranscriber.MultilingualVocabulary;
-
-        _voice = new VoiceSpec("en", new ModelSpec("speech/kokoro", "kokoro", Path.Combine(root, "kokoro-82m"), "onnx/model.onnx", null, Held(1L << 30), 0,
-                                                   Device: gpu),
-                               "voices/af_heart.bin");
+        _cuda = _client.Environment.Cuda;
+        _models = TestStore.ListenModelsOf(Listener, _cuda);
+        _englishOnly = WhisperExport.Read(TestStore.PathOf(_models.Transcriber!.Folder)).Vocabulary < WhisperTranscriber.MultilingualVocabulary;
+        _voice = Kokoro("en");
 
         foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector!, _voice.Model })
             await foreach (var _ in _client.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
     }
+
+    /// <summary>Kokoro's voice for <paramref name="language"/>, where the models run.</summary>
+    private static VoiceSpec Kokoro(string language) => TestStore.Voice("kokoro-82m", language, _cuda ? 0 : null, _cuda ? null : 0);
 
     [ClassCleanup]
     public static async Task Stop()
@@ -134,7 +121,7 @@ public class SpeechModelTests
     [TestMethod]
     public async Task Segments_AreSpokenInOrder_AndWhatIsSaidIsWhatWasWritten()
     {
-        if (_client is null || _voice is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH names no speech model folder on this machine.");
+        if (_client is null || _voice is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
 
         await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, [_voice!], 1f, RequestPriority.Voice), TimeSpan.FromMinutes(1));
         await stream.WriteAsync(new TextToSpeak(stream.RequestId, 0, "Good morning, Sam.", "en"));
@@ -157,15 +144,13 @@ public class SpeechModelTests
     }
 
     [TestMethod]
-    [DataRow("fr", "kokoro-82m", "voices/ff_siwis.bin", "Il reste 3,5 Go sur le disque.", "disque")]
-    [DataRow("de", "kokoro-82m-german", "voices/df_kerstin.bin", "Die Datei liegt im Ordner Dokumente.", "ordner")]
-    public async Task FrenchAndGerman_AreSpokenFromTheirLexicons_AndHeardBack(string language, string folder, string voiceFile, string written, string heardWord)
+    [DataRow("fr", "Il reste 3,5 Go sur le disque.", "disque")]
+    [DataRow("de", "Die Datei liegt im Ordner Dokumente.", "ordner")]
+    public async Task FrenchAndGerman_AreSpokenFromTheirLexicons_AndHeardBack(string language, string written, string heardWord)
     {
-        if (_client is null || _voice is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH names no speech model folder on this machine.");
-        if (_englishOnly) Assert.Inconclusive("The Whisper NEXAFLOW_TEST_WHISPER names hears English only.");
-        string root = System.IO.Path.GetDirectoryName(_voice!.Model.Folder)!;
-        var voice = new VoiceSpec(language, _voice.Model with { Id = $"speech/kokoro-{language}", Folder = System.IO.Path.Combine(root, folder) },
-                                  voiceFile, System.IO.Path.Combine(root, folder, "lexicons", $"{language}.tsv.gz"));
+        if (_client is null || _voice is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        if (_englishOnly) Assert.Inconclusive($"The Whisper of {Listener} hears English only.");
+        var voice = Kokoro(language);
 
         await using var stream = await _client!.OpenStreamAsync(id => new Speak(id, [_voice!, voice], 1f, RequestPriority.Voice), TimeSpan.FromMinutes(3));
         await stream.WriteAsync(new TextToSpeak(stream.RequestId, 0, written, language));
@@ -193,7 +178,7 @@ public class SpeechModelTests
     /// <summary>Streams the audio in 100 ms pieces, then 2 s of quiet, and returns everything the host replied.</summary>
     private static async Task<List<HostReply>> ListenAsync(byte[] pcm, UtteranceEnd end)
     {
-        if (_client is null || _models is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH names no speech model folder on this machine.");
+        if (_client is null || _models is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
 
         await using var stream = await _client!.OpenStreamAsync(id => new Listen(id, _models!, "en", end, RequestPriority.Voice), TimeSpan.FromMinutes(1));
         var reading = Task.Run(async () =>

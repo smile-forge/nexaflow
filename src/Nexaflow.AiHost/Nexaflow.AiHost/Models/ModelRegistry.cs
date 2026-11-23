@@ -12,14 +12,20 @@ namespace Nexaflow.AiHost.Models;
 /// loaded again once the last picture is done, or as soon as a request needs one.
 /// </summary>
 /// <param name="memory">The share of this machine's memory models on the CPU may hold; none when unset.</param>
-internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, ModelRunners runners, HostLog log, HostMemory? memory = null) : IDisposable
+internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, ModelRunners runners, HostLog log, Store.IModelFiles files,
+                                    HostMemory? memory = null) : IDisposable
 {
+    /// <summary>Where the files a request names lie in the model store.</summary>
+    public Store.IModelFiles Files => files;
     /// <summary>How often a request waiting for room says so, so the app's watchdog keeps hearing from it.</summary>
     private static readonly TimeSpan WaitingReport = TimeSpan.FromSeconds(20);
 
-    internal sealed class Entry(IHostModel model)
+    /// <param name="requested">The spec as a request named it — its folder the store's name for it — which a later request is held
+    /// to, and which a model that made way is loaded again from; the model itself holds the spec it was loaded from.</param>
+    internal sealed class Entry(IHostModel model, ModelSpec requested)
     {
         public IHostModel Model { get; } = model;
+        public ModelSpec Requested { get; } = requested;
         public bool Resident { get; set; }
         /// <summary>The app let it go while a request was using it.</summary>
         public bool UnloadWhenIdle { get; set; }
@@ -81,7 +87,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         lock (_gate)
         {
             if (!_loaded.TryGetValue(spec.Id, out var entry)) return null;
-            if (!entry.Model.Spec.PlacedAs(spec))
+            if (!entry.Requested.PlacedAs(spec))
             {
                 resident |= entry.Resident;
                 _loaded.Remove(spec.Id);
@@ -104,10 +110,11 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         IHostModel model;
         try
         {
+            var placed = Placed(spec);
             model = await Task.Run(() =>
             {
-                if (spec.Adapter is { } adapter) adapters.EnsurePrepared(spec.Folder, adapter);
-                return runners.Load(spec);
+                if (placed.Adapter is { } adapter) adapters.EnsurePrepared(placed.Folder, adapter);
+                return runners.Load(placed);
             }, ct);
         }
         catch (Exception ex) when (ex is not HostRequestException and not OperationCanceledException)
@@ -120,10 +127,21 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         {
             // A resident that made way for a picture is resident again, whoever loads it.
             bool displaced = _displaced.Remove(spec.Id);
-            var entry = new Entry(model) { Resident = resident || displaced, Users = 1 };
+            var entry = new Entry(model, spec) { Resident = resident || displaced, Users = 1 };
             _loaded[spec.Id] = entry;
             return new Lease(this, entry);
         }
+    }
+
+    /// <summary><paramref name="spec"/> as it is loaded: its folder where it lies in the model store, and its files plain names in it —
+    /// a request names a model's files, never where they are.</summary>
+    /// <exception cref="HostRequestException">It names a folder or a file that is not a plain path inside the store.</exception>
+    private ModelSpec Placed(ModelSpec spec)
+    {
+        foreach (var name in new[] { spec.File, spec.Projector }.OfType<string>())
+            if (!Provisioning.StorePath.IsPlain(name))
+                throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id} names a file, '{name}', that is not a plain path inside its folder.");
+        return spec with { Folder = files.PathOf(spec.Folder) };
     }
 
     /// <summary>Unloads what must go for <paramref name="spec"/> to fit: on its GPU, and in this machine's memory for what it holds
@@ -179,7 +197,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
                 var entry = _loaded[id];
                 if (entry.Resident)
                 {
-                    _displaced[id] = entry.Model.Spec;
+                    _displaced[id] = entry.Requested;
                     residents.Add(id);
                 }
                 Unload(entry);

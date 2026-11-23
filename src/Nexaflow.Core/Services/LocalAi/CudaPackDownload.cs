@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 
 using Nexaflow.AiHost.Provisioning;
@@ -8,31 +9,29 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Core.Services.LocalAi;
 
 /// <summary>
-/// The CUDA pack's download, app-wide. Begun at launch where an earlier pack is here: the person had the pack, so a version
-/// that moves it on fetches it in place of theirs — the store taking across every file the two share, and downloading only
-/// what changed. Begun too from the Local page, where tools whose own files are here wait on it alone. Once the pack is
-/// whole the earlier packs are deleted, however it came; on a machine it does not suit, an earlier one is deleted at launch,
-/// since nothing will read it.
+/// The CUDA pack's download, app-wide. Begun at launch where the AI host's store holds an earlier pack: the person had the pack, so
+/// a version that moves it on fetches it in place of theirs — the host taking across every file the two share, and downloading only
+/// what changed. Begun too from the Local page, where tools whose own files are here wait on it alone. The host deletes the earlier
+/// packs itself, once the pack is whole or where the machine does not suit it.
 /// </summary>
 public sealed class CudaPackDownload
 {
-    private readonly ModelAssetStore _store;
-    private readonly string _storeRoot;
+    private readonly IModelAssetStore _store;
+    private readonly Func<bool> _hadEarlier;
     private readonly MachineCards _hardware;
     private readonly IBackgroundActivityManager? _activities;
     private readonly Lock _gate = new();
-    private readonly Lock _deleting = new();
     private bool _downloading;
     private int _percent;
     private string? _failure;
 
     private Task _fetching = Task.CompletedTask;
 
-    /// <param name="storeRoot">The folder <paramref name="store"/> keeps its files under, where earlier packs are found.</param>
-    public CudaPackDownload(ModelAssetStore store, string storeRoot, MachineCards hardware, IBackgroundActivityManager? activities)
+    /// <param name="hadEarlier">Whether the host's store holds an earlier pack — read once it has been read from the host.</param>
+    public CudaPackDownload(IModelAssetStore store, Func<bool> hadEarlier, MachineCards hardware, IBackgroundActivityManager? activities)
     {
         _store      = store;
-        _storeRoot  = storeRoot;
+        _hadEarlier = hadEarlier;
         _hardware   = hardware;
         _activities = activities;
         store.Changed += OnAssetChanged;
@@ -41,8 +40,8 @@ public sealed class CudaPackDownload
     /// <summary>Whether the pack runs here: an NVIDIA GPU of its own, and a driver new enough for CUDA 13.</summary>
     public bool Applies => CudaRuntimePack.Applies(_hardware);
 
-    /// <summary>Every file of the pack is here and verified.</summary>
-    public bool IsHere => CudaRuntimePack.Locate(_store) is not null;
+    /// <summary>Every file of the pack is in the host's store, verified.</summary>
+    public bool IsHere => CudaRuntimePack.IsIn(_store);
 
     public bool IsDownloading
     {
@@ -63,12 +62,11 @@ public sealed class CudaPackDownload
     /// <summary>The pack arrived, went, or its download moved on. Raised on whichever thread made the change.</summary>
     public event EventHandler? Changed;
 
-    /// <summary>At launch: an earlier pack here means the person had the pack, so this version's is fetched in its place —
-    /// or, on a machine the pack does not suit, the earlier one is only deleted. Ends when that has.</summary>
+    /// <summary>Once the host's store has been read: an earlier pack there means the person had the pack, so this version's is
+    /// fetched in its place, where it suits the machine. Ends when that has.</summary>
     public Task ReplaceEarlierAsync()
     {
-        if (CudaRuntimePack.EarlierIn(_storeRoot).Count == 0) return Task.CompletedTask;
-        if (!Applies) return Task.Run(DeleteEarlier);
+        if (!_hadEarlier() || !Applies || IsHere) return Task.CompletedTask;
         Download();
         lock (_gate) return _fetching;
     }
@@ -104,7 +102,6 @@ public sealed class CudaPackDownload
                 Changed?.Invoke(this, EventArgs.Empty);
             }));
             activity?.Complete();
-            DeleteEarlier();   // a pack already whole raises no change of its files, so its earlier ones go here
         }
         catch (Exception ex)
         {
@@ -123,27 +120,10 @@ public sealed class CudaPackDownload
         }
     }
 
-    /// <summary>A file of the pack arrived or went — fetched by this download, or with a model or a tool that needs it. The
-    /// pack whole, the earlier ones go, off the thread the store told it on.</summary>
+    /// <summary>A file of the pack arrived or went — fetched by this download, or with a model or a tool that needs it.</summary>
     private void OnAssetChanged(object? sender, ModelAsset asset)
     {
-        if (!CudaRuntimePack.Files.Contains(asset)) return;
-        if (IsHere) _ = Task.Run(DeleteEarlier);
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>Deletes the earlier packs. One still held open — by an earlier Nexaflow running from it — stays, and the next
-    /// launch tries again.</summary>
-    private void DeleteEarlier()
-    {
-        lock (_deleting)
-        {
-            foreach (var folder in CudaRuntimePack.EarlierIn(_storeRoot))
-            {
-                try { Directory.Delete(folder, recursive: true); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-            }
-        }
+        if (CudaRuntimePack.Files.Contains(asset)) Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Progress told where it is reported — the download's own figures, read by whoever shows them.</summary>

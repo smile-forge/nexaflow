@@ -6,7 +6,7 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// A prompt encoder's CPU build — its graph with its 8-bit products reading 8-bit inputs, <c>*.cpu.onnx</c> beside it — held to
-/// the graph as built, both run on the CPU, where a machine has the model (<c>NEXAFLOW_TEST_IMAGE</c>). A build is offered only
+/// the graph as built, both run on the CPU, where the test store (<see cref="TestStore"/>) holds the model. A build is offered only
 /// where every row it reads a prompt to points where the graph's does: Z-Image's does; Klein's (worst row 0.749) and
 /// Qwen-Image-Edit's (0.9975) do not, and run on the CPU as built.
 /// </summary>
@@ -22,14 +22,6 @@ public class CpuPromptEncoderTests
     /// <summary>The least cosine between a row the CPU build gives and the graph's: what still points the denoiser the same way.</summary>
     private const double LeastCosine = 0.999;
 
-    private static string Folder(string variable, string part)
-    {
-        string root = Environment.GetEnvironmentVariable(variable) ?? "";
-        string folder = Path.Combine(root, part);
-        if (root.Length == 0 || !Directory.EnumerateFiles(folder, "*.cpu.onnx").Any()) Assert.Inconclusive($"{variable} names no folder holding a CPU build of its {part}.");
-        return folder;
-    }
-
     private static double WorstCosine(float[] a, float[] b, int width)
     {
         double worst = 1;
@@ -42,19 +34,20 @@ public class CpuPromptEncoderTests
         return worst;
     }
 
-    private static ModelSpec OnCpu(string id, string runner, string folder, string file) => new(id, runner, folder, file, null, 0, 0);
-
     [TestMethod]
     public void ZImagesEncoder_OnTheCpu_ReadsAPromptAsItsGraphDoes()
     {
-        string folder = Folder("NEXAFLOW_TEST_IMAGE", "encoder");
-        (float[] Caption, int Rows, int Width) Encode(string file)
+        // Both run on the CPU: the CPU build the catalog has, and beside it the graph as built for the GPU.
+        var onCpu = TestStore.InProcessSpec("z-image-turbo", DrawingParts.PromptEncoder, null, 0);
+        if (!File.Exists(Path.Combine(onCpu.Folder, onCpu.File!))) Assert.Inconclusive("The test store holds no CPU build of Z-Image's prompt encoder.");
+        var asBuilt = onCpu with { File = TestStore.Spec("z-image-turbo", DrawingParts.PromptEncoder, 0).File };
+        (float[] Caption, int Rows, int Width) Encode(ModelSpec spec)
         {
-            using var encoder = (ZImagePromptEncoder)new ZImagePromptEncoderRunner().Load(OnCpu("z-image-turbo/promptEncoder", "z-image-prompt-encoder", folder, file));
+            using var encoder = (ZImagePromptEncoder)new ZImagePromptEncoderRunner().Load(spec);
             return encoder.Encode(encoder.Tokenize(Prompt));
         }
-        var graph = Encode("encoder.onnx");
-        var cpu = Encode("encoder.cpu.onnx");
+        var graph = Encode(asBuilt);
+        var cpu = Encode(onCpu);
         double cosine = WorstCosine(graph.Caption, cpu.Caption, graph.Width);
         Assert.IsTrue(cosine >= LeastCosine, $"its worst row's cosine is {cosine:0.000000}");
     }

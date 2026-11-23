@@ -34,7 +34,7 @@ public sealed class ProviderManager
     public static ProviderManager Instance { get; } = new();
 
     private IBackgroundActivityManager? _activityManager;
-    private ModelAssetStore?            _assets;
+    private IModelAssetStore?            _assets;
 
     private ModelResidency? _residency;
     private IReadOnlyList<object>       _services = [];
@@ -66,7 +66,7 @@ public sealed class ProviderManager
     /// <summary>Must be called once at startup before any Load method.</summary>
     /// <param name="services">App-wide services a provider may take in its constructor, matched by type — the AI host,
     /// the machine's compute hardware.</param>
-    public void Initialize(IBackgroundActivityManager activityManager, ModelAssetStore assets, ModelResidency residency, params object[] services)
+    public void Initialize(IBackgroundActivityManager activityManager, IModelAssetStore assets, ModelResidency residency, params object[] services)
     {
         _activityManager = activityManager;
         _assets          = assets;
@@ -78,7 +78,7 @@ public sealed class ProviderManager
     public ModelResidency? Residency => _residency;
 
     /// <summary>The files local models need, set by <see cref="Initialize"/>; null before startup.</summary>
-    public ModelAssetStore? Assets => _assets;
+    public IModelAssetStore? Assets => _assets;
 
     /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;

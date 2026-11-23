@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -22,7 +23,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     public const string ProviderName = "Nexaflow";
 
     private readonly OwnedModelRuntime _runtime;
-    private readonly OwnedModel?       _model;
+    private readonly HostedModel?       _model;
 
     public OwnedLlmProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
                             MachineCards hardware, ProviderModel model)
@@ -70,8 +71,8 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     /// <summary>The model, with the context its GPU gives it once it is placed.</summary>
     public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
-        => Task.FromResult(_model is null ? null : new ModelInfo(_runtime.ContextOf(_model, OwnedRoles.Chat), _model.Catalog.DisplayName, _runtime.RepliesOf(_model, OwnedRoles.Chat),
-                                                                _runtime.BackgroundOf(_model, OwnedRoles.Chat)));
+        => Task.FromResult(_model is null ? null : new ModelInfo(_runtime.ContextOf(_model, HostedRoles.Chat), _model.Catalog.DisplayName, _runtime.RepliesOf(_model, HostedRoles.Chat),
+                                                                _runtime.BackgroundOf(_model, HostedRoles.Chat)));
 
     /// <summary>Fetches what is missing, then has the host load the model and keep it. Never throws: a model that will
     /// not come is unavailable, and its chain moves on.</summary>
@@ -111,17 +112,18 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     /// <summary>The reply as the host writes it. A host lost before a word of it — it crashed, and the next request
     /// starts another — is asked once more; after a word, the reader has seen part of a reply and it is not.</summary>
-    private async IAsyncEnumerable<LlmStreamEvent> Events(OwnedModel model, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools,
+    private async IAsyncEnumerable<LlmStreamEvent> Events(HostedModel model, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools,
                                                           RequestPriority priority, bool thinks, [EnumeratorCancellation] CancellationToken ct)
     {
         using var use = await _runtime.ModelUse.BeginAsync(ct);
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;
-        var spec = await _runtime.PlacedAsync(model, OwnedRoles.Chat, ct);
+        var spec = await _runtime.PlacedAsync(model, HostedRoles.Chat, ct);
         for (int attempt = 0; ; attempt++)
         {
             bool written = false;
-            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxNewTokens: null, priority, tools, thinks, SamplingOf(model, thinks)), OwnedModelRuntime.StallLimit, ct)
+            using var shared = await host.ShareMediaAsync(turns, ct);   // made again for a host started afresh: a section is its connection's
+            await using var replies = host.SendAsync(id => new Generate(id, spec, shared.Turns, MaxNewTokens: null, priority, tools, thinks, SamplingOf(model, thinks)), OwnedModelRuntime.StallLimit, ct)
                                           .GetAsyncEnumerator(ct);
             while (true)
             {
@@ -163,7 +165,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     /// <summary>How the model chooses its tokens for a request that reasons first or not, as its makers recommend; null —
     /// the likeliest each time — for a model whose makers recommend nothing, or under <see cref="GreedyVariable"/>.</summary>
-    internal static TokenSampling? SamplingOf(OwnedModel model, bool thinks)
+    internal static TokenSampling? SamplingOf(HostedModel model, bool thinks)
     {
         if (Environment.GetEnvironmentVariable(GreedyVariable) is { Length: > 0 }) return null;
         if (model.TokenSampling?.For(thinks) is not { } sampling) return null;
@@ -177,7 +179,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     /// <summary>The conversation as the host takes it: images and recordings the model reads go as media, where it reads
     /// them; any other attachment is named in the text, as for any provider that cannot read it. A turn's tool calls, and
     /// what answers one, go with it.</summary>
-    internal static IReadOnlyList<ChatTurn> Turns(IReadOnlyList<LlmMessage> messages, OwnedModel model)
+    internal static IReadOnlyList<ChatTurn> Turns(IReadOnlyList<LlmMessage> messages, HostedModel model)
         => [.. messages.Select(m =>
         {
             var role = m.Role switch
@@ -203,11 +205,15 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     /// <exception cref="LlmProviderException">The recording is not one this app reads.</exception>
     private static ChatMedia Medium(LlmAttachment attachment)
     {
-        if (attachment.IsImage) return new ChatMedia(MediaKind.Image, attachment.Bytes is null ? attachment.FilePath : null, attachment.Bytes);
+        if (attachment.IsImage)
+        {
+            try { return new ChatMedia(MediaKind.Image, SharedBytes.Of(attachment.ReadBytes())); }
+            catch (IOException ex) { throw new LlmProviderException($"The picture {attachment.FilePath} cannot be read: {ex.Message}", ex); }
+        }
         try
         {
             var (pcm, rate) = WavAudio.ReadMono(attachment.ReadBytes());
-            return new ChatMedia(MediaKind.Audio, null, rate == WavAudio.SpeechRate ? pcm : new PcmResampler(rate, WavAudio.SpeechRate).Convert(pcm));
+            return new ChatMedia(MediaKind.Audio, SharedBytes.Of(rate == WavAudio.SpeechRate ? pcm : new PcmResampler(rate, WavAudio.SpeechRate).Convert(pcm)));
         }
         catch (InvalidDataException ex)
         {

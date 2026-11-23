@@ -275,7 +275,7 @@ public class AiHostClientTests
             Serve = async (r, c) => { await release.Task; await FakeHost.Describe(r, c); },
         };
         await using var client = new AiHostClient(host, Fast);
-        var pack = new AiHostEnvironment(@"C:\ai\runtime\cuda");
+        var pack = AiHostEnvironment.OnCuda;
 
         var running = Describe(client);                    // in flight on the CPU host
         while (!client.IsRunning) await Task.Delay(10);

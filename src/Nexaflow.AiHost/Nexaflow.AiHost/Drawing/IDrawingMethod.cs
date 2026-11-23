@@ -37,5 +37,5 @@ internal interface IDrawingMethod
     /// <summary>Draws <paramref name="request"/>'s picture, as interleaved 8-bit RGB rows.</summary>
     /// <param name="stage">Told of a part loading, by what it is doing.</param>
     /// <param name="stepped">Told of each denoising step as it finishes: how many are done, of how many.</param>
-    Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct);
+    Task<SharedBytes> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct);
 }

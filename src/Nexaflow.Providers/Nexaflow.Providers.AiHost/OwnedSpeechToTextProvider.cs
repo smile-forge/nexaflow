@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -16,7 +17,7 @@ namespace Nexaflow.Providers.AiHost;
 public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalModelCatalog, IHostModelCatalog, ITracksModelUse, IAsyncDisposable
 {
     private readonly OwnedModelRuntime _runtime;
-    private readonly OwnedModel?       _model;
+    private readonly HostedModel?       _model;
 
     public OwnedSpeechToTextProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
                                      MachineCards hardware, ProviderModel model)
@@ -68,10 +69,10 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
         try
         {
             var models = new ListenModels(
-                await _runtime.PlacedAsync(_model, OwnedRoles.VoiceActivity, ct),
-                await _runtime.PlacedAsync(_model, OwnedRoles.Recognizer, ct),
-                await _runtime.PlacedAsync(_model, OwnedRoles.Transcriber, ct),
-                await _runtime.PlacedAsync(_model, OwnedRoles.TurnDetector, ct));
+                await _runtime.PlacedAsync(_model, HostedRoles.VoiceActivity, ct),
+                await _runtime.PlacedAsync(_model, HostedRoles.Recognizer, ct),
+                await _runtime.PlacedAsync(_model, HostedRoles.Transcriber, ct),
+                await _runtime.PlacedAsync(_model, HostedRoles.TurnDetector, ct));
             var (end, priority) = options.Segmentation == SpeechSegmentation.Turns
                 ? (UtteranceEnd.Turn, RequestPriority.Voice)
                 : (UtteranceEnd.Pause, RequestPriority.Interactive);

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -40,7 +41,7 @@ internal sealed class FakeAiHost : IAiHost
         if (create(0) is DescribeHost)
         {
             await Task.Yield();
-            yield return new HostDescription(0, "1.30.0", ["CPUExecutionProvider"], Environment.RuntimePack, Environment.RuntimePack is null ? [] : Gpus);
+            yield return new HostDescription(0, "1.30.0", ["CPUExecutionProvider"], Environment.Cuda ? CudaRuntimePack.Id : null, Environment.Cuda ? Gpus : []);
             yield break;
         }
         var request = Record(create);
@@ -60,6 +61,8 @@ internal sealed class FakeAiHost : IAiHost
         foreach (var reply in Reply(request, Attempt(request))) stream.Push(reply);
         return Task.FromResult<IHostStream>(stream);
     }
+
+    public Task<SharedBytes> AllocateAsync(int length, CancellationToken ct = default) => Task.FromResult(SharedBytes.Of(new byte[length]));
 
     private HostRequest Record(Func<long, HostRequest> create)
     {
@@ -105,4 +108,6 @@ internal sealed class FakeAiHost : IAiHost
             return ValueTask.CompletedTask;
         }
     }
+
+    public event EventHandler<IReadOnlyList<string>>? ModelFilesChanged { add { } remove { } }
 }

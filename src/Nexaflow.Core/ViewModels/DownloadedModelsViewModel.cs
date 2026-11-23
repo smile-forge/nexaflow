@@ -58,7 +58,7 @@ public sealed partial class DownloadedModelsViewModel : ObservableObject
 
         Models.Clear();
         var counted = new HashSet<string>(StringComparer.Ordinal);   // a file two builds share takes its room once
-        var onDisk  = options.ToDictionary(o => o, o => o.Model.Files.Where(f => _shelf.Store.Locate(f) is not null)
+        var onDisk  = options.ToDictionary(o => o, o => o.Model.Files.Where(f => _shelf.Store.Has(f))
                                                                      .Select(f => f.RelativePath).ToHashSet(StringComparer.Ordinal));
         long total = 0;
         foreach (var option in options)
@@ -100,7 +100,7 @@ public sealed partial class DownloadedModelsViewModel : ObservableObject
     internal Task RemoveAsync(IReadOnlyList<ModelAsset> files) => _shelf.RemoveAsync(files);
 
     /// <summary>The bytes of <paramref name="files"/> on disk.</summary>
-    private long Here(IEnumerable<ModelAsset> files) => files.Where(f => _shelf.Store.Locate(f) is not null).Sum(f => f.Size);
+    private long Here(IEnumerable<ModelAsset> files) => files.Where(f => _shelf.Store.Has(f)).Sum(f => f.Size);
 
     /// <summary>Whether a grid has some ability use the model: a column holding it that a chain names.</summary>
     private static bool Uses(AiConfig config, LocalModelOption option)

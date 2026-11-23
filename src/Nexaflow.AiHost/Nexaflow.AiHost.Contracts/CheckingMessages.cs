@@ -14,7 +14,7 @@ public static class CheckingParts
 /// </summary>
 /// <param name="Classifier">The <see cref="CheckingParts.SafetyClassifier"/>.</param>
 /// <param name="Rgb">The picture, <paramref name="Width"/> × <paramref name="Height"/>, interleaved 8-bit RGB row by row.</param>
-public sealed record CheckPicture(long RequestId, ModelSpec Classifier, int Width, int Height, byte[] Rgb) : HostRequest(RequestId);
+public sealed record CheckPicture(long RequestId, ModelSpec Classifier, int Width, int Height, SharedBytes Rgb) : HostRequest(RequestId);
 
 /// <summary>The classifier's verdict as chances that sum to 1: that the picture shows gore, sexual content, or neither.</summary>
 public sealed record PictureChecked(long RequestId, float Gore, float Sexual, float Neither) : HostReply(RequestId);

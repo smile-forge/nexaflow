@@ -18,7 +18,7 @@ namespace Nexaflow.Tests.Features.UI;
 /// shows a pill counting the workspace's background tasks, which opens their list — what each is doing, for how long — and
 /// Stop there ends the drawing, and the pill goes.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding the workspace's models as the app keeps them — Gemma 4 E4B and
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding the workspace's models as the app keeps them — Gemma 4 E4B and
 /// Z-Image Turbo, each file verified — which the app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it the journey is
 /// inconclusive.
 /// </para>
@@ -30,7 +30,7 @@ namespace Nexaflow.Tests.Features.UI;
 [CoversNode("aibar-background-tasks")]
 public class BackgroundTasksJourneyTests : UiJourneyTestBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
     private string _folder = "";

@@ -1,4 +1,5 @@
 using System.Text;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.AiHost;
@@ -15,11 +16,11 @@ public class OwnedModelsTests
     public void TheShippedLanguageModel_SaysHowItIsRun_AndKeepsItsFilesInItsFolder()
     {
         var gemma = OwnedModels.All.Single(m => m.Id == "gemma-4-e4b-it");
-        var chat  = gemma.Part(OwnedRoles.Chat, OwnedModels.Cuda);
+        var chat  = gemma.Part(HostedRoles.Chat, OwnedModels.Cuda);
 
-        Assert.AreEqual((ModelKind.Language, "llama-chat", "models/gemma-4-e4b-it-qat"), (gemma.Kind, chat.Runner, chat.Folder));
+        Assert.AreEqual((ModelKind.Language, "llama-chat", "models/gemma-4-e4b-it-qat"), (gemma.ModelKind, chat.Runner, chat.Folder));
         Assert.IsTrue(chat is { MemoryBytes: > 0, ContextTokens: > 0, Adapter: null } && gemma is { Images: true, Audio: true, ToolCalls: true });
-        Assert.AreEqual(chat, gemma.Part(OwnedRoles.Chat, OwnedModels.Cpu), "one build runs on both");
+        Assert.AreEqual(chat, gemma.Part(HostedRoles.Chat, OwnedModels.Cpu), "one build runs on both");
         CollectionAssert.AreEquivalent(new[] { $"{chat.Folder}/{chat.File}", $"{chat.Folder}/{chat.Projector}" },
                                        gemma.Catalog.Files.Select(f => f.RelativePath).ToArray(), "the GGUF and the projector it sees and hears through");
     }
@@ -33,16 +34,16 @@ public class OwnedModelsTests
 
         foreach (var model in speech)
         {
-            var whisper = model.Part(OwnedRoles.Transcriber, OwnedModels.Cuda).Folder[..^"-cuda".Length];
+            var whisper = model.Part(HostedRoles.Transcriber, OwnedModels.Cuda).Folder[..^"-cuda".Length];
             foreach (var runtime in new[] { OwnedModels.Cuda, OwnedModels.Cpu })
-                CollectionAssert.AreEquivalent(OwnedRoles.Of(ModelKind.SpeechToText).ToArray(), model.PartsFor(runtime).Select(p => p.Role).ToArray(), model.Id);
+                CollectionAssert.AreEquivalent(HostedRoles.Of(HostedKind.SpeechToText).ToArray(), model.PartsFor(runtime).Select(p => p.Role).ToArray(), model.Id);
 
             var onCuda = model.CatalogFor(OwnedModels.Cuda).Files.Select(f => f.RelativePath).ToList();
             var onCpu  = model.CatalogFor(OwnedModels.Cpu).Files.Select(f => f.RelativePath).ToList();
             Assert.IsTrue(onCuda.Any(f => f.StartsWith(whisper + "-cuda/")) && !onCuda.Any(f => f.StartsWith(whisper + "-cpu/")), model.Id);
             Assert.IsTrue(onCpu.Any(f => f.StartsWith(whisper + "-cpu/")) && !onCpu.Any(f => f.StartsWith(whisper + "-cuda/")), model.Id);
             CollectionAssert.Contains(onCpu, "models/nemotron-3.5-asr-streaming/silero_vad.onnx", "a part for either runtime is fetched on both");
-            Assert.AreEqual("1", model.Part(OwnedRoles.Transcriber, OwnedModels.Cuda).CudaOptions!["sdpa_kernel"]);
+            Assert.AreEqual("1", model.Part(HostedRoles.Transcriber, OwnedModels.Cuda).CudaOptions!["sdpa_kernel"]);
             Assert.IsTrue(model.Catalog.Files.Where(f => f.RelativePath.StartsWith(whisper)).All(f => f.Source.AbsoluteUri.Contains("/resolve/") && f.Sha256.Length == 64),
                           "each Whisper build is pinned and hashed");
         }
@@ -72,17 +73,17 @@ public class OwnedModelsTests
         var image = OwnedModels.OfKind(ModelKind.ImageGeneration).Single(m => m.Id == "z-image-turbo");
 
         Assert.AreEqual((DrawingMethod.ZImage, 9, 3f, 0f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance));
-        Assert.AreEqual((1344, 768), image.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual((1344, 768), image.Sampler.Sizes[HostedShape.Landscape]);
         Assert.AreEqual(ModelTier.Standard, image.Catalog.Tier);
         Assert.IsTrue(image.RunsOn(OwnedModels.Cuda));
         Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its fp16 graphs are built for the GPU");
         CollectionAssert.AreEquivalent(new[] { "z-image-prompt-encoder", "z-image-denoiser", "z-image-decoder" },
                                        image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
         Assert.IsTrue(image.PartsFor(OwnedModels.Cuda).All(p => p.MemoryBytes > 0), "each GPU part's peak is what admission counts");
-        var denoiser = image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda);
+        var denoiser = image.Part(HostedRoles.Denoiser, OwnedModels.Cuda);
         Assert.IsTrue(denoiser.Streamed is { File: "denoiser.stream.json", MemoryBytes: < (15L << 29), HostBytes: > 0 },
                       "streamed, it fits a 10 GB card's 7.5 GiB budget, its weights pinned in this machine's memory");
-        Assert.AreEqual("encoder.cpu.onnx", image.Parts.Single(p => p.Role == OwnedRoles.PromptEncoder && p.ExecutionProvider == OwnedModels.Cpu).File,
+        Assert.AreEqual("encoder.cpu.onnx", image.Parts.Single(p => p.Role == HostedRoles.PromptEncoder && p.ExecutionProvider == OwnedModels.Cpu).File,
                         "its prompt encoder reads on the CPU, where a GPU cannot hold it, from the build that reads 8-bit inputs");
         var files = image.Catalog.Files.Select(f => f.RelativePath).ToArray();
         CollectionAssert.Contains(files, "models/z-image-turbo/encoder/tokenizer.json");
@@ -97,14 +98,14 @@ public class OwnedModelsTests
 
         Assert.AreEqual(ModelTier.HighQuality, image.Catalog.Tier);
         Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance));
-        Assert.AreEqual((2048, 2048), image.Sampler.Sizes[MediaShape.Square]);
-        Assert.AreEqual((2560, 1440), image.Sampler.Sizes[MediaShape.Landscape]);
-        Assert.AreEqual(new OwnedEditing(4, true), image.Sampler.Editing);
+        Assert.AreEqual((2048, 2048), image.Sampler.Sizes[HostedShape.Square]);
+        Assert.AreEqual((2560, 1440), image.Sampler.Sizes[HostedShape.Landscape]);
+        Assert.AreEqual(new HostedEditing(4, true), image.Sampler.Editing);
         Assert.IsTrue(image.RunsOn(OwnedModels.Cuda));
         Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
-        Assert.AreEqual("hidream-denoiser", image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).Runner);
+        Assert.AreEqual("hidream-denoiser", image.Part(HostedRoles.Denoiser, OwnedModels.Cuda).Runner);
         Assert.AreEqual("hidream-picture-reader", image.Part(DrawingParts.PictureReader, OwnedModels.Cuda).Runner);
-        Assert.IsTrue(image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes < 15L << 30, "editing with pictures it fits a 16 GB card");
+        Assert.IsTrue(image.Part(HostedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes < 15L << 30, "editing with pictures it fits a 16 GB card");
         var files = image.Catalog.Files.Select(f => f.RelativePath).ToArray();
         CollectionAssert.Contains(files, "models/hidream-o1-image/denoiser/tokenizer.json", "the host reads the prompt with it");
         CollectionAssert.Contains(files, "models/hidream-o1-image/picture-reader/picture-reader.onnx.data");
@@ -119,13 +120,13 @@ public class OwnedModelsTests
 
         Assert.AreEqual((DrawingMethod.Flux2Klein, 4, 0f, 0f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance),
                         "its shift follows the picture's size");
-        Assert.AreEqual(new OwnedEditing(2, true), image.Sampler.Editing);
-        Assert.AreEqual((1360, 768), image.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual(new HostedEditing(2, true), image.Sampler.Editing);
+        Assert.AreEqual((1360, 768), image.Sampler.Sizes[HostedShape.Landscape]);
         Assert.AreEqual(ModelTier.Standard, image.Catalog.Tier);
         Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
         CollectionAssert.AreEquivalent(new[] { "klein-prompt-encoder", "klein-denoiser", "klein-picture-encoder", "klein-decoder" },
                                        image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
-        Assert.IsTrue(image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes < 12L << 30, "with two pictures it fits a 16 GB card");
+        Assert.IsTrue(image.Part(HostedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes < 12L << 30, "with two pictures it fits a 16 GB card");
         CollectionAssert.Contains(image.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/flux2-klein-4b/encoder/tokenizer.json");
         Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/flux2-klein-4b-onnx/resolve/526df514")),
                       "every file pinned to the published revision");
@@ -139,11 +140,11 @@ public class OwnedModelsTests
         Assert.AreEqual((DrawingMethod.QwenImageEdit, 40, 0f, 4f), (image.Sampler!.Method, image.Sampler.Steps, image.Sampler.Shift, image.Sampler.Guidance),
                         "true guidance at 4, its shift following the picture's size");
         Assert.AreEqual(0, image.Sampler.Sizes.Count, "it draws nothing from a prompt alone");
-        Assert.AreEqual(new OwnedEditing(3, true), image.Sampler.Editing);
+        Assert.AreEqual(new HostedEditing(3, true), image.Sampler.Editing);
         Assert.IsFalse(image.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
         CollectionAssert.AreEquivalent(new[] { "qwen-edit-picture-reader", "qwen-edit-prompt-encoder", "qwen-edit-picture-encoder", "qwen-edit-denoiser", "qwen-edit-decoder" },
                                        image.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
-        long denoiser = image.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes;
+        long denoiser = image.Part(HostedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes;
         Assert.IsTrue(denoiser is > 24L << 30 and < 30L << 30, "with three pictures it needs a 32 GB card, and no smaller is offered it");
         CollectionAssert.Contains(image.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/qwen-image-edit-2511/prompt-encoder/tokenizer.json");
         Assert.IsTrue(image.Catalog.Files.All(f => f.Source.AbsoluteUri.Contains("/smile-forge/qwen-image-edit-2511-onnx/resolve/63849763")),
@@ -160,7 +161,7 @@ public class OwnedModelsTests
         Assert.IsTrue(images.IndexOf("hidream-o1-image") < images.IndexOf("hidream-o1-image-fp16"), "the 8-bit build is offered first, the default");
         Assert.AreEqual(ModelTier.HighQuality, full.Catalog.Tier);
         Assert.AreEqual((full.Sampler!.Method, full.Sampler.Steps, full.Sampler.Guidance), (eight.Sampler!.Method, eight.Sampler.Steps, eight.Sampler.Guidance));
-        Assert.IsTrue(full.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes > eight.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes,
+        Assert.IsTrue(full.Part(HostedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes > eight.Part(HostedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes,
                       "it needs more room, so it is offered only where a GPU has it");
         CollectionAssert.Contains(full.Catalog.Files.Select(f => f.RelativePath).ToArray(), "models/hidream-o1-image/denoiser-fp16/tokenizer.json");
     }
@@ -174,11 +175,11 @@ public class OwnedModelsTests
         Assert.AreEqual((DrawingMethod.MossImage, 50, 5f, 3f, true),
                         (moss.Sampler!.Method, moss.Sampler.Steps, moss.Sampler.Shift, moss.Sampler.Guidance, moss.Sampler.NegativePrompts),
                         "MossImagePipeline's own sampling, steering from a negative prompt");
-        Assert.AreEqual((1344, 768), moss.Sampler.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual((1344, 768), moss.Sampler.Sizes[HostedShape.Landscape]);
         Assert.IsFalse(moss.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
         CollectionAssert.AreEquivalent(new[] { "moss-image-prompt-encoder", "moss-image-denoiser", "moss-image-decoder" },
                                        moss.PartsFor(OwnedModels.Cuda).Select(p => p.Runner).ToArray());
-        Assert.IsTrue(moss.Part(OwnedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes <= 7L << 30,
+        Assert.IsTrue(moss.Part(HostedRoles.Denoiser, OwnedModels.Cuda).MemoryBytes <= 7L << 30,
                       "its denoiser with any LoRA runs in a 10 GB card's budget, its prompt read on the CPU there");
 
         var gguf = moss.Catalog.Files.Single(f => f.RelativePath.EndsWith(".gguf", StringComparison.Ordinal));
@@ -227,7 +228,7 @@ public class OwnedModelsTests
                     "adapter": "models/l/ink.onnx_adapter", "files": [ {{LoraFile("models/l/ink.onnx_adapter")}} ] } ] } ] }
             """;
 
-        var model = OwnedModels.Read(Encoding.UTF8.GetBytes(json)).Single();
+        var model = HostCatalog.Read(Encoding.UTF8.GetBytes(json)).Models.Single();
 
         var (fast, ink) = (model.Loras[0], model.Loras[1]);
         Assert.AreEqual(("fast", "Fast", "In eight steps.", false, false), (fast.Offer.Id, fast.Offer.Name, fast.Offer.Description, fast.Offer.Adult, fast.Offer.NegativePrompts));
@@ -251,7 +252,7 @@ public class OwnedModelsTests
                 "loras": [ {{loras.Replace("LORA_A", LoraFile("models/l/a.onnx_adapter")).Replace("LORA_B", LoraFile("models/l/b"))}} ] } ] }
             """;
 
-        Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
+        Assert.ThrowsExactly<InvalidDataException>(() => HostCatalog.Read(Encoding.UTF8.GetBytes(json)).Models);
     }
 
     [TestMethod]
@@ -268,8 +269,8 @@ public class OwnedModelsTests
                 "loras": [ {{style.Replace("LORA", LoraFile("models/l/a.onnx_adapter"))}} ] } ] }
             """;
 
-        StringAssert.Contains(Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(unsteered))).Message, "no negative prompt");
-        StringAssert.Contains(Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(talker))).Message, "only a model that draws");
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidDataException>(() => HostCatalog.Read(Encoding.UTF8.GetBytes(unsteered)).Models).Message, "no negative prompt");
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidDataException>(() => HostCatalog.Read(Encoding.UTF8.GetBytes(talker)).Models).Message, "only a model that draws");
     }
 
     [TestMethod]
@@ -293,8 +294,8 @@ public class OwnedModelsTests
         foreach (var model in new[] { fast, full })
         {
             Assert.AreEqual(121, model.Filming!.Frames(model.Filming.Seconds.Single()), "five seconds at 24 frames a second");
-            Assert.AreEqual((1280, 704), model.Filming.Sizes[MediaShape.Landscape]);
-            Assert.AreEqual((704, 1280), model.Filming.Sizes[MediaShape.Portrait]);
+            Assert.AreEqual((1280, 704), model.Filming.Sizes[HostedShape.Landscape]);
+            Assert.AreEqual((704, 1280), model.Filming.Sizes[HostedShape.Portrait]);
             Assert.IsFalse(model.RunsOn(OwnedModels.Cpu), "its graphs are built for the GPU");
             Assert.IsTrue(model.Parts.Max(p => p.MemoryBytes) < 24L << 30, "its largest part, the decoder, fits a 24 GB card");
             var decoder = model.Part(FilmingParts.Decoder, OwnedModels.Cuda);
@@ -356,7 +357,7 @@ public class OwnedModelsTests
         var json = $$"""{ "models": [ {{model.Replace("CHAT", Chat).Replace("IMAGE", Image).Replace("SAMPLER", Sampler).Replace("IN2", File("models/d/w.bin")).Replace("IN3", File("models/v/w.bin"))
                                            .Replace("IN", File("models/m/w.bin")).Replace("OUT", File("elsewhere/w.bin"))}} ] }""";
 
-        Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
+        Assert.ThrowsExactly<InvalidDataException>(() => HostCatalog.Read(Encoding.UTF8.GetBytes(json)).Models);
     }
 
     [TestMethod]
@@ -367,7 +368,7 @@ public class OwnedModelsTests
                 "files": [ {{File("models/m/e.onnx")}}, {{File("models/d/d.onnx")}}, {{File("models/v/v.onnx")}} ] } ] }
             """;
 
-        var model = OwnedModels.Read(Encoding.UTF8.GetBytes(json)).Single();
+        var model = HostCatalog.Read(Encoding.UTF8.GetBytes(json)).Models.Single();
 
         Assert.IsTrue(model.RunsOn(OwnedModels.Cuda));
         Assert.IsFalse(model.RunsOn(OwnedModels.Cpu));
@@ -388,12 +389,12 @@ public class OwnedModelsTests
                 "files": [ {{File("models/h/denoiser.onnx")}} ] } ] }
             """;
 
-        var model = OwnedModels.Read(Encoding.UTF8.GetBytes(json)).Single();
+        var model = HostCatalog.Read(Encoding.UTF8.GetBytes(json)).Models.Single();
 
         Assert.AreEqual(ModelTier.HighQuality, model.Catalog.Tier);
         Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (model.Sampler!.Method, model.Sampler.Steps, model.Sampler.Shift, model.Sampler.Guidance));
-        Assert.AreEqual((2560, 1440), model.Sampler.Sizes[MediaShape.Landscape]);
-        CollectionAssert.AreEqual(new[] { OwnedRoles.Denoiser, DrawingParts.PictureReader }, model.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
+        Assert.AreEqual((2560, 1440), model.Sampler.Sizes[HostedShape.Landscape]);
+        CollectionAssert.AreEqual(new[] { HostedRoles.Denoiser, DrawingParts.PictureReader }, model.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
     }
 
     private const string Clip = """
@@ -423,14 +424,14 @@ public class OwnedModelsTests
                 "parts": [ {{Clip}}, {{ClipFrame}} ], "files": [ {{ClipFiles(frame: true)}} ] } ] }
             """;
 
-        var models = OwnedModels.Read(Encoding.UTF8.GetBytes(json));
+        var models = HostCatalog.Read(Encoding.UTF8.GetBytes(json)).Models;
         var fast = models.Single(m => m.Id == "fast").Filming!;
         var full = models.Single(m => m.Id == "full");
 
         Assert.AreEqual((FilmingMethod.WanDistilled, 0f, false), (fast.Method, fast.Guidance, fast.StartsFromPictures), "distilled from text, it takes no picture");
         CollectionAssert.AreEqual(new[] { 1000, 757, 522 }, fast.Timesteps.ToArray());
         Assert.AreEqual(121, fast.Frames(5), "the first frame, then 24 a second");
-        Assert.AreEqual((1280, 704), fast.Sizes[MediaShape.Landscape]);
+        Assert.AreEqual((1280, 704), fast.Sizes[HostedShape.Landscape]);
         Assert.AreEqual((FilmingMethod.Wan, 50, 5f, "静态", true), (full.Filming!.Method, full.Filming.Steps, full.Filming.Guidance, full.Filming.NegativePrompt, full.Filming.StartsFromPictures));
         Assert.AreEqual(ModelTier.HighQuality, full.Catalog.Tier);
         CollectionAssert.AreEquivalent(FilmingParts.Of(FilmingMethod.Wan).ToArray(), full.PartsFor(OwnedModels.Cuda).Select(p => p.Role).ToArray());
@@ -452,7 +453,7 @@ public class OwnedModelsTests
         var json = $$"""{ "models": [ {{model.Replace("DISTILLED", distilled).Replace("SIZES", ClipSizes).Replace("CLIP", Clip).Replace("FRAMEFILE", File("models/w/f/g.onnx"))
                                            .Replace("FRAME", ClipFrame).Replace("FILES", ClipFiles(frame: false)).Replace("SAMPLER", Sampler)}} ] }""";
 
-        Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.Read(Encoding.UTF8.GetBytes(json)));
+        Assert.ThrowsExactly<InvalidDataException>(() => HostCatalog.Read(Encoding.UTF8.GetBytes(json)).Models);
     }
 
     [TestMethod]
@@ -468,7 +469,7 @@ public class OwnedModelsTests
                            {{File("models/de/voices/df.bin")}}, {{File("models/de/lexicons/de.tsv.gz")}} ] } ] }
             """;
 
-        var model = OwnedModels.Read(Encoding.UTF8.GetBytes(json)).Single();
+        var model = HostCatalog.Read(Encoding.UTF8.GetBytes(json)).Models.Single();
 
         var german = model.Voices.Single(v => v.Language == "de");
         Assert.AreEqual(("german", "lexicons/de.tsv.gz"), (german.Part, german.Lexicon));

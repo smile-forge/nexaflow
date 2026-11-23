@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Features.Markdown.UI;
 /// they were, and its link to a heading re-pointed at that heading translated.
 /// <para>
 /// What a model writes is never asserted, only its shape: the sections, the links, what is held back from the model.
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding Gemma 4 E4B as the app keeps it, each file verified, which the
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding Gemma 4 E4B as the app keeps it, each file verified, which the
 /// app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it the journey is inconclusive.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
@@ -32,7 +32,7 @@ namespace Nexaflow.Tests.Features.Markdown.UI;
 [CoversNode("markdown-place-links")]
 public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private const string FileName = "guide.md";
 

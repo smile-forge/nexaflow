@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
@@ -15,12 +16,15 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Core.AiPaths;
 
 /// <summary>
-/// The real agent loop on Nexaflow's own model, where a machine has it: <c>NEXAFLOW_TEST_GEMMA</c> names a folder
-/// holding Gemma 4 E4B as its catalog lays it out, and <c>NEXAFLOW_TEST_RUNTIME_PACK</c>, when set, the CUDA pack it
-/// runs on. One host and one loaded model serve every test of a run.
+/// The real agent loop on Nexaflow's own model, where a machine has it: <c>NEXAFLOW_TEST_STORE</c> names the test model store,
+/// laid out as the AI host keeps it, holding Gemma 4 E4B — and, for the GPU, the CUDA pack — which a host of the harness keeps,
+/// downloading nothing; the provider runs the model there as the app does. One host and one loaded model serve every test of a run.
 /// </summary>
 internal static class OwnedModelHarness
 {
+    /// <summary>The variable naming the test model store, which the AI host suites share.</summary>
+    private const string StoreVariable = "NEXAFLOW_TEST_STORE";
+
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static AiHostClient? _host;
     private static ILlmProvider? _model;
@@ -31,9 +35,9 @@ internal static class OwnedModelHarness
     /// <summary>The loaded model, or an inconclusive test on a machine without it.</summary>
     public static async Task<ILlmProvider> ModelAsync()
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_GEMMA") is not { Length: > 0 } folder)
+        if (Environment.GetEnvironmentVariable(StoreVariable) is not { Length: > 0 } root)
         {
-            Assert.Inconclusive("NEXAFLOW_TEST_GEMMA names no Gemma 4 E4B folder on this machine.");
+            Assert.Inconclusive($"{StoreVariable} names no model store.");
             throw new InvalidOperationException();   // Inconclusive throws; this is never reached
         }
 
@@ -45,12 +49,13 @@ internal static class OwnedModelHarness
             // These tests check the app's own paths through the model, not the model: it takes the likeliest token each
             // time, so a run gives the same replies as the last, whatever its sampling would draw.
             Environment.SetEnvironmentVariable("NEXAFLOW_AI_GREEDY", "1");
-            var aiDir = TestTemp.CreateSubdirectory("nexaflow-aipaths-").FullName;
-            _host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir));
-            var store = new FolderStore(folder, Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK"));
+            _host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
+                                                               store: root, downloads: false));
+            var store = new AiHostModelStore(_host);
+            await store.RefreshAsync();
             Setup = new HostModelSetup(_host);
             var provider = new OwnedLlmProvider(new Activities(), store, _host, Setup, MachineCards.Probe(), new ProviderModel("gemma-4-e4b-it"));
-            if (!provider.IsAvailable) Assert.Inconclusive($"{folder} does not hold Gemma 4 E4B's files.");
+            if (!provider.IsAvailable) Assert.Inconclusive($"{root} does not hold Gemma 4 E4B's files.");
             await provider.WarmupAsync();
             return _model = provider;
         }
@@ -87,35 +92,6 @@ internal static class OwnedModelHarness
 
         void Set(string property, object value) =>
             typeof(WorkspaceRuntime).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(ws, [value]);
-    }
-
-    /// <summary>The model's files where the test machine keeps them: <c>models/&lt;id&gt;/…</c> in its folder, and the
-    /// CUDA pack's files in the pack folder. Present is enough — the test machine's copies are trusted.</summary>
-    private sealed class FolderStore(string modelFolder, string? pack) : IModelAssetStore
-    {
-        public event EventHandler<ModelAsset>? Changed { add { } remove { } }
-
-        public string? Locate(ModelAsset asset)
-        {
-            var parts = asset.RelativePath.Split('/');
-            string? path = parts switch
-            {
-                ["models", _, .. var rest]       => Path.Combine([modelFolder, .. rest]),
-                ["runtime", _, var file] when pack is not null => Path.Combine(pack, file),
-                _ => null,
-            };
-            return path is not null && File.Exists(path) ? path : null;
-        }
-
-        public Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
-            => Task.FromResult(Locate(asset) ?? throw new FileNotFoundException("The test machine has no copy.", asset.RelativePath));
-
-        public async Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
-        {
-            var paths = new List<string>();
-            foreach (var asset in assets) paths.Add(await EnsureAsync(asset, progress, ct));
-            return paths;
-        }
     }
 
     private sealed class Activities : IBackgroundActivityManager

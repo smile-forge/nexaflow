@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.ML.OnnxRuntime;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
@@ -10,11 +11,11 @@ internal sealed class QwenEditPictureEncoder(ModelSpec spec, InferenceSession se
 {
     public ModelSpec Spec => spec;
 
-    public float[] Encode(byte[] rgb, int width, int height)
+    public float[] Encode(ReadOnlyMemory<byte> rgb, int width, int height)
     {
         if (rgb.Length != width * height * 3)
             throw new HostRequestException(HostErrorKind.Invalid, $"A {width}x{height} picture is {width * height * 3} bytes of RGB, not {rgb.Length}.");
-        using var input = OrtValue.CreateTensorValueFromMemory(rgb, [height, width, 3]);
+        using var input = OrtValue.CreateTensorValueFromMemory(OrtMemoryInfo.DefaultInstance, MemoryMarshal.AsMemory(rgb), [height, width, 3]);
         using var run = GraphSessions.Releasing(Spec);
         using var outputs = session.Run(run, ["rgb"], [input], session.OutputNames);
         return outputs[0].GetTensorDataAsSpan<float>().ToArray();

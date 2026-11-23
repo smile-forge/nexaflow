@@ -1,0 +1,285 @@
+{
+  "branch": "claude/aihost-broker",
+  "nodes": {
+    "voice-input": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "ToggleVoice"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiBar_Mic"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AIService.cs",
+          "class": "AIService",
+          "method": "CanConverse"
+        }
+      ]
+    },
+    "providers-speech-to-text": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/ISpeechToTextProvider.cs",
+          "class": "ISpeechToTextProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.OpenAI/OpenAISpeechToTextProvider.cs",
+          "class": "OpenAISpeechToTextProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OpenAISpeechToTextTests.cs",
+            "class": "OpenAISpeechToTextTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/ModelKindsTests.cs",
+            "class": "ModelKindsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Audio/PcmResamplerTests.cs",
+            "class": "PcmResamplerTests"
+          }
+        ]
+      }
+    },
+    "ai-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IToolModels"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/ILocalTool.cs",
+          "class": "ILocalTool"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/LocalModelsViewModel.cs",
+          "class": "LocalToolViewModel"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/ai-tools.md",
+          "title_path": [
+            "AI tools"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolRunException.cs",
+          "class": "ToolRunException"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/LocalToolModels.cs",
+          "class": "LocalToolModels",
+          "method": "AskedAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/HostedModels.cs",
+          "class": "HostedTool"
+        }
+      ]
+    },
+    "owned-images-moss-loras": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/DataSpaceSampler.cs",
+          "class": "DataSpaceSampler"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/convert_moss_loras.py"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/moss-image/check_moss_loras.py"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/HostedModels.cs",
+          "class": "HostedLora"
+        }
+      ]
+    },
+    "ai-model-assets": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/ModelAssetStore.cs",
+          "class": "ModelAssetStore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/VerifiedDownload.cs",
+          "class": "VerifiedDownload"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/ModelRoom.cs",
+          "class": "ModelRoom"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Local/LocalModels.cs",
+          "class": "ModelCatalog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/HostCatalog.cs",
+          "class": "HostCatalog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/StorePath.cs",
+          "class": "StorePath"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Store/HostModelStore.cs",
+          "class": "HostModelStore"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Store/StoreHandlers.cs"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/StoreMessages.cs"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/AiHostModelStore.cs",
+          "class": "AiHostModelStore"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/StoreClaims.cs"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/ModelDownloadsOffException.cs",
+          "class": "ModelDownloadsOffException"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/CudaRuntimePack.cs",
+          "class": "CudaRuntimePack"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Provisioning/ModelAssetStoreTests.cs",
+            "class": "ModelAssetStoreTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Provisioning/VerifiedDownloadTests.cs",
+            "class": "VerifiedDownloadTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/ModelCatalogTests.cs",
+            "class": "ModelCatalogTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Store/HostModelStoreTests.cs",
+            "class": "HostModelStoreTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RealHostTests.cs",
+            "class": "RealHostTests",
+            "method": "AnApp_LearnsWhatIsInTheHostsStore_AndIsRefusedWhatTheHostWillNotFetch"
+          }
+        ]
+      }
+    },
+    "ai-host": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/Nexaflow.AiHost.Contracts.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/Nexaflow.AiHost.Client.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Nexaflow.AiHost.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/CircleWatch.cs",
+          "class": "CircleWatch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaSampler.cs",
+          "class": "LlamaSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/TokenRounds.cs",
+          "class": "TokenRounds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaScores.cs",
+          "class": "LlamaScores"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Local/Nexaflow.Providers.Local.csproj"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 8,
+  "touched_nodes": [
+    "ai-host",
+    "ai-model-assets",
+    "ai-tools",
+    "owned-images-moss-loras",
+    "providers-speech-to-text",
+    "voice-input"
+  ]
+}

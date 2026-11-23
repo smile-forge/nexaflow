@@ -40,17 +40,15 @@ public static class RestoringStages
 /// <summary>
 /// Restores a picture: through an upscaler a tile at a time, at twice or four times its size or kept at its own and
 /// cleaned, and — where <see cref="Faces"/> — each face found remade and pasted back over it. Each call takes the GPU at
-/// the request's priority; each tile and face is reported as a <see cref="Progress"/>, and the picture is written to
-/// <see cref="Into"/> before one <see cref="PictureRestored"/> says so. The pixels go by file both ways: the app and
-/// the host share a machine, and a restored picture runs to hundreds of megabytes the pipe would carry as text.
+/// the request's priority; each tile and face is reported as a <see cref="Progress"/>, and one <see cref="PictureRestored"/>
+/// brings the picture back. A restored picture runs to hundreds of megabytes, so both go in shared sections
+/// (<see cref="SharedBytes"/>), never through the pipe.
 /// </summary>
 /// <param name="Parts">The parts it uses, by role (<see cref="RestoringParts.Of"/>).</param>
-/// <param name="Pixels">The file holding the picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA,
-/// row by row, straight alpha, nothing else.</param>
+/// <param name="Pixels">The picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA, row by row, straight alpha.</param>
 /// <param name="Scale">1, 2 or 4: how many times the size the picture comes back.</param>
-/// <param name="Into">The file the restored picture is written to, in the same form; replaced if it is there.</param>
-public sealed record RestorePicture(long RequestId, IReadOnlyDictionary<string, ModelSpec> Parts, string Pixels, int Width, int Height,
-                                    int Scale, bool Faces, string Into, RequestPriority Priority) : HostRequest(RequestId)
+public sealed record RestorePicture(long RequestId, IReadOnlyDictionary<string, ModelSpec> Parts, SharedBytes Pixels, int Width, int Height,
+                                    int Scale, bool Faces, RequestPriority Priority) : HostRequest(RequestId)
                                     {
                                         /// <summary>The most pixels the upscaler's result may hold — at its own factor, before a picture kept at its size is
                                         /// brought back: 128 megapixels, half a gigabyte of RGBA, so a 32-megapixel photo is cleaned or doubled, an 8-megapixel
@@ -66,6 +64,6 @@ public sealed record RestorePicture(long RequestId, IReadOnlyDictionary<string, 
                                         }
                                     }
 
-/// <summary>The restored picture is in the request's file: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit
-/// RGBA, with <see cref="FacesRestored"/> faces remade in it.</summary>
-public sealed record PictureRestored(long RequestId, int Width, int Height, int FacesRestored) : HostReply(RequestId);
+/// <summary>The restored picture: <see cref="Width"/> × <see cref="Height"/> interleaved 8-bit RGBA, with
+/// <see cref="FacesRestored"/> faces remade in it.</summary>
+public sealed record PictureRestored(long RequestId, int Width, int Height, int FacesRestored, SharedBytes Pixels) : HostReply(RequestId);

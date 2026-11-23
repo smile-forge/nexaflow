@@ -17,7 +17,7 @@
     and beside it the model card (README.md) and the recipe, so the published repository says how to rebuild itself.
     Upload with
       hf upload smile-forge/hidream-o1-image-onnx <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the published files are written.

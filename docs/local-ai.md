@@ -257,9 +257,8 @@ Nexaflow's and runs the sample against a real model. Every reason is something t
   behind.
 - **Native stacks cannot be mixed.** Two CUDA stacks in one process loaded clashing cuDNN; sherpa-onnx and Windows ML
   each ship their own `onnxruntime.dll`; the same class of problem the LlamaSharp provider
-  ([PR #74](https://github.com/smile-forge/nexaflow/pull/74)) fought with mirrored CUDA binaries. The Whisper
-  provider's `Whisper.net.Runtime.Cuda` (149 MB of ggml CUDA natives in every install) leaves the app for the same
-  reason once speech runs in the host.
+  ([PR #74](https://github.com/smile-forge/nexaflow/pull/74)) fought with mirrored CUDA binaries.
+
 - **One owner for the GPU.** Scheduling and the VRAM budget only work if one process decides.
 - **A watchdog.** Neither llama.cpp nor ONNX Runtime has a request timeout; a host that stops answering is
   killed and restarted.
@@ -742,11 +741,8 @@ at the same moment) puts a complete turn at about 0.9 s.
 
 **Speech to text on this machine is a conversation's ears.** The Local page offers Nexaflow's own speech models —
 the listening stack above with Whisper large-v3-turbo, small or small.en as its final pass — and every one of them hears
-when a turn is over, so choosing any of them gives the mic a conversation. Where a machine runs none of them, the job
-is **Dictation only**: whisper.cpp's base on the CPU (`LocalColumns.Dictation`), into which `DictationService` streams the
-microphone, re-transcribing the whole buffer every second. It hears words but not when a speaker has finished, so the
-mic dictates with it and never starts a conversation (`AIService.CanConverse`); the grid names the job "Dictation only".
-whisper.cpp's other sizes are not offered for the job, and a workspace on one moves to the job's first model as it loads.
+when a turn is over, so choosing any of them gives the mic a conversation. Where a machine runs none of them, a cloud
+service's speech models can listen and speak instead; with neither, the mic is not offered (`AIService.CanConverse`).
 The small builds are ours too (`tools/ai-models/whisper-onnx-genai`, huggingface.co/smile-forge/whisper-onnx-genai);
 an English-only Whisper has one token less in its vocabulary — Whisper's own test — and takes no language or task in its
 prompt.
@@ -1239,9 +1235,8 @@ per-machine choice users change later. At most, the bundle's Install page gains 
   models through the host fetches them the same way — under `%LOCALAPPDATA%\Smile\nexaflow\ai\` (`LocalAiFolder`), a
   short, real, non-roaming path. Each provider ships a catalog manifest naming its models' files with source, size and
   SHA-256 (`ModelCatalog`, `Providers.Local`; the CUDA pack a set of its own, `AssetSet`); a download
-  resumes from a `.partial` file and a file is handed out only once verified. A file an earlier version kept — Whisper
-  models in `%APPDATA%\…\voice\models`, an earlier CUDA pack's — is moved in when it is the same file, before anything
-  is weighed against the drive or downloaded.
+  resumes from a `.partial` file and a file is handed out only once verified. A file an earlier CUDA pack kept is moved in
+  when it is the same file, before anything is weighed against the drive or downloaded.
 - **Hardware probe**: what decides where local models run is the SDK's `MachineCards`, read through NVIDIA's management
   library (NVML, with the driver on Windows and Linux) before any host runs: each NVIDIA card with its memory, in PCI
   bus order — the order the host numbers them in, since it sets `CUDA_DEVICE_ORDER=PCI_BUS_ID` — and the CUDA version
@@ -1250,15 +1245,14 @@ per-machine choice users change later. At most, the bundle's Install page gains 
   source (`Nvml`) for its budgets. `ComputeHardware` (IO.Common) reads every ML-capable adapter through DXCore — GPUs of
   every vendor and NPUs — for System Info's Local AI card and for what the requirement rows say was found where no
   NVIDIA card will do.
-- **Whisper's CUDA natives** leave the base install once speech runs in the host, cutting the installer and every
-  update by about 60%.
+
 
 ## Build order
 
 | Phase | Delivers | Size |
 |---|---|---|
 | 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns; the language models on llama.cpp, against onnxruntime-genai | small, each |
-| 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
+| 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine); the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B on llama.cpp from Google's own 4-bit GGUF, with the append-only context, and chat templates rendered by the host's own Jinja engine (Gemma 4 and Qwen 3.5–3.8 held to Python's renders); the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. a setup per machine — each model on a card, its context sized to it, room made for a picture — with System Info's check of what a machine does; the larger Gemma 4, the Qwen models, MiMo and Phi-4 in the catalog, each offered where it fits. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
 | 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and at high quality with HiDream-O1, in a high-quality image row; clips on this machine with Wan2.2-TI2V-5B — FastWan for clips from a description, the full model, in a high-quality video row, for clips from a picture. To come: the audio generation contract with music (ACE-Step) | medium per tool |

@@ -87,25 +87,25 @@ public sealed record Draw(long RequestId, DrawingModel Model, string Prompt, int
     /// <summary>What is drawn again over the first source, at that source's size as sent: a byte a pixel, row by row — 255 where
     /// the picture is drawn again, 0 where the first source is kept, and between them a blend; null to draw the whole
     /// picture.</summary>
-    public byte[]? Mask { get; init; }
+    public SharedBytes? Mask { get; init; }
 }
 
 /// <summary>A picture to work from: interleaved 8-bit RGB, row by row.</summary>
-public sealed record DrawingSource(int Width, int Height, byte[] Rgb);
+public sealed record DrawingSource(int Width, int Height, SharedBytes Rgb);
 
 /// <summary>
 /// A LoRA a picture is drawn with: an ONNX Runtime adapter for its model's denoiser, applied unmerged at a strength, and
 /// — for a distillation — the sampler it brings in place of its model's own.
 /// </summary>
-/// <param name="Adapter">The adapter file, on this machine.</param>
+/// <param name="Adapter">The adapter file, by its path in the host's model store.</param>
 /// <param name="Strength">How much of it is added; 1 as its makers trained it.</param>
-/// <param name="Sampler">A distillation's own sampler, its file on this machine; null for a LoRA drawn with its model's
-/// sampler.</param>
+/// <param name="Sampler">A distillation's own sampler, by its path in the host's model store; null for a LoRA drawn with its
+/// model's sampler.</param>
 public sealed record DrawingLora(string Adapter, float Strength, string? Sampler = null);
 
 /// <summary>The picture, <paramref name="Width"/> × <paramref name="Height"/>, interleaved 8-bit RGB row by row: encoding it is
 /// whoever keeps it's.</summary>
-public sealed record Drawn(long RequestId, int Width, int Height, byte[] Rgb) : HostReply(RequestId);
+public sealed record Drawn(long RequestId, int Width, int Height, SharedBytes Rgb) : HostReply(RequestId);
 
 /// <summary>Resident models that made way on their GPU for this picture or clip — unloaded until the last one is done,
 /// when they load again. Until then a request for one waits.</summary>

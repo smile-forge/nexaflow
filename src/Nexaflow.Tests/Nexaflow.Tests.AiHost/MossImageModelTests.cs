@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Drawing;
@@ -6,10 +7,9 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The host drawing with MOSS-Image's real parts. <c>NEXAFLOW_TEST_MOSS</c> names a folder holding the built model as its
-/// catalog lays it out — <c>encoder/Qwen3.5-9B-Q8_0.gguf</c>, <c>denoiser/</c>, <c>decoder/</c>, and <c>loras/</c> as the
-/// build recipe writes them (tools/ai-models/moss-image); <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack, without which
-/// nothing is drawn. What is asserted is the shape of a drawing — its steps, its size, that it is a picture, that a LoRA
+/// The host drawing with MOSS-Image's real parts, <c>moss-image</c> and its LoRAs from the test store (<see cref="TestStore"/>),
+/// on the CUDA pack there, without which nothing is drawn. What is asserted is the shape of a drawing — its steps, its size,
+/// that it is a picture, that a LoRA
 /// changes it — not what it shows; each picture is saved with the run's results for a person to look at.
 /// </summary>
 [TestClass]
@@ -22,28 +22,19 @@ public class MossImageModelTests
 
     private static AiHostClient? _client;
     private static DrawingModel? _model;
-    private static string _loras = "";
 
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
-    public static void Start(TestContext context)
+    public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_MOSS") is not { Length: > 0 } root) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
+        _client = await TestStore.HostAsync();
         _model = new DrawingModel(DrawingMethod.MossImage, new Dictionary<string, ModelSpec>
         {
-            [DrawingParts.PromptEncoder] = new("moss-image/promptEncoder", "moss-image-prompt-encoder", Path.Combine(root, "encoder"), "Qwen3.5-9B-Q8_0.gguf", null, 9L << 30, 0, Device: 0),
-            [DrawingParts.Denoiser]      = new("moss-image/denoiser", "moss-image-denoiser", Path.Combine(root, "denoiser"), "denoiser.onnx", null, 9L << 30, 0, Device: 0),
-            [DrawingParts.Decoder]       = new("moss-image/decoder", "moss-image-decoder", Path.Combine(root, "decoder"), "decoder.onnx", null, 4L << 30, 0, Device: 0),
+            [DrawingParts.PromptEncoder] = TestStore.Spec("moss-image", DrawingParts.PromptEncoder, 0, 9L << 30),
+            [DrawingParts.Denoiser]      = TestStore.Spec("moss-image", DrawingParts.Denoiser, 0, 9L << 30),
+            [DrawingParts.Decoder]       = TestStore.Spec("moss-image", DrawingParts.Decoder, 0, 4L << 30),
         }, Steps: 50, Shift: 5f, Guidance: 3f);
-        _loras = Path.Combine(root, "loras");
     }
 
     [ClassCleanup]
@@ -54,12 +45,17 @@ public class MossImageModelTests
 
     private static (AiHostClient Client, DrawingModel Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_MOSS and NEXAFLOW_TEST_RUNTIME_PACK are not both set.");
+        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing());
         return (_client, _model);
     }
 
-    private static DrawingLora Lora(string id, float strength, bool distilled = false)
-        => new(Path.Combine(_loras, $"{id}.onnx_adapter"), strength, distilled ? Path.Combine(_loras, $"{id}.sampler.json") : null);
+    /// <summary>The catalog's LoRA <paramref name="id"/> of MOSS-Image, as a request names it: its adapter and — for a distillation
+    /// that draws in its own steps — its sampler, by their paths in the store.</summary>
+    private static DrawingLora Lora(string id, float strength)
+    {
+        var lora = ((HostedModel)HostCatalog.Find("moss-image")!).Loras.Single(l => l.Id == id);
+        return new(lora.Adapter.RelativePath, strength, lora.Sampler?.RelativePath);
+    }
 
     /// <summary>Draws <paramref name="draw"/>'s picture: its PNG and the denoising steps reported, in order.</summary>
     private async Task<(byte[] Png, long[] Steps)> DrawAsync(Func<long, Draw> draw, string? saveAs = null)
@@ -140,7 +136,7 @@ public class MossImageModelTests
     {
         var (_, model) = Host();
 
-        var (png, steps) = await DrawAsync(id => new Draw(id, model, Fox, 1024, 1024, 11, RequestPriority.Job, Lora: Lora("moss-fast-8step", 1f, distilled: true)),
+        var (png, steps) = await DrawAsync(id => new Draw(id, model, Fox, 1024, 1024, 11, RequestPriority.Job, Lora: Lora("moss-fast-8step", 1f)),
                                            "moss-fox-fast.png");
 
         CollectionAssert.AreEqual(Enumerable.Range(1, 8).Select(i => (long)i).ToArray(), steps, "its own sampler's steps, one pass each");
@@ -156,7 +152,7 @@ public class MossImageModelTests
         var ex = await Assert.ThrowsAsync<AiHostException>(async () =>
         {
             await foreach (var _ in client.SendAsync(id => new Draw(id, model, Fox, 1024, 1024, 1, RequestPriority.Job, NegativePrompt: "people",
-                                                                   Lora: Lora("moss-fast-8step", 1f, distilled: true)), TimeSpan.FromMinutes(1))) { }
+                                                                   Lora: Lora("moss-fast-8step", 1f)), TimeSpan.FromMinutes(1))) { }
         });
         StringAssert.Contains(ex.Message, "no negative prompt");
     }

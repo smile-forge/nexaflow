@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -79,7 +80,7 @@ public class OwnedVideoGenerationProviderTests
     {
         var rgb = new byte[width * height * 3 * count];
         Array.Fill(rgb, (byte)128);
-        return new FilmedFrames(0, rgb);
+        return new FilmedFrames(0, SharedBytes.Of(rgb));
     }
 
     [TestMethod]
@@ -95,7 +96,7 @@ public class OwnedVideoGenerationProviderTests
         Assert.AreEqual((FilmingMethod.WanDistilled, 8f, 0f), (film.Model.Method, film.Model.Shift, film.Model.Guidance));
         CollectionAssert.AreEqual(new[] { 1000, 757, 522 }, film.Model.Timesteps.ToArray());
         CollectionAssert.AreEquivalent(new[] { FilmingParts.PromptEncoder, FilmingParts.Denoiser, FilmingParts.Decoder }, film.Model.Parts.Keys.ToArray());
-        StringAssert.EndsWith(film.Model.Parts[FilmingParts.Denoiser].Folder, @"wan2.2-ti2v-5b\denoiser-fast");
+        Assert.AreEqual("models/wan2.2-ti2v-5b/denoiser-fast", film.Model.Parts[FilmingParts.Denoiser].Folder);
         Assert.AreEqual(0, film.Model.Parts[FilmingParts.Decoder].Device, "on the GPU the host found");
         Assert.AreEqual("video/mp4", made.Media.MimeType);
         CollectionAssert.AreEqual("ftyp"u8.ToArray(), made.Media.Bytes[4..8], "the host's frames, encoded as an MP4 as they came");

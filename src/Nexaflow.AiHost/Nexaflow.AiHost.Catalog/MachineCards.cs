@@ -1,4 +1,4 @@
-namespace Nexaflow.AiHost.Client;
+namespace Nexaflow.AiHost.Catalog;
 
 /// <summary>An NVIDIA card the AI host can run models on: its name, all its memory, and its PCI bus id.</summary>
 public sealed record MachineCard(string Name, long TotalBytes, string? BusId = null);

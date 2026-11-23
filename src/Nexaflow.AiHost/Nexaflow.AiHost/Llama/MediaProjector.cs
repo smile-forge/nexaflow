@@ -44,14 +44,14 @@ internal sealed unsafe class MediaProjector : IDisposable
     /// <summary>The prompt split at its markers, each read in turn: <paramref name="media"/> are the files — an image
     /// llama.cpp decodes, a WAV — in the order their markers come.</summary>
     /// <exception cref="HostRequestException">A medium cannot be read, or the markers and the media do not agree.</exception>
-    public PreparedPrompt Prepare(string text, IReadOnlyList<byte[]> media)
+    public PreparedPrompt Prepare(string text, IReadOnlyList<ReadOnlyMemory<byte>> media)
     {
         var bitmaps = new IntPtr[media.Count];
         IntPtr chunks = IntPtr.Zero;
         try
         {
             for (int i = 0; i < media.Count; i++)
-                fixed (byte* bytes = media[i])
+                fixed (byte* bytes = media[i].Span)
                 {
                     bitmaps[i] = MtmdNative.BitmapFromBuffer(Handle, bytes, (nuint)media[i].Length, placeholder: false, MtmdNative.HelperDefaults()).Bitmap;
                     if (bitmaps[i] == IntPtr.Zero)

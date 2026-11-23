@@ -40,6 +40,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
+    <!-- The models it runs, and the store it keeps them in: it alone fetches and reads them. -->
+    <ProjectReference Include="..\Nexaflow.AiHost.Catalog\Nexaflow.AiHost.Catalog.csproj" />
   </ItemGroup>
 
   <ItemGroup>

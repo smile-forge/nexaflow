@@ -1,12 +1,11 @@
-
 using Nexaflow.AiHost.Provisioning;
 
-namespace Nexaflow.AiHost.Client;
+namespace Nexaflow.AiHost.Catalog;
 
 /// <summary>
 /// What the host needs to run on an NVIDIA GPU, fetched from where NVIDIA, Microsoft and llama.cpp publish it: ONNX
 /// Runtime built with its CUDA layer (nuget.org), llama.cpp's CUDA backend (its GitHub release), and the CUDA runtime,
-/// cuBLAS and cuDNN (NVIDIA's wheels on PyPI) — about 1.3 GB, under <c>runtime\&lt;id&gt;</c> in the asset store.
+/// cuBLAS and cuDNN (NVIDIA's wheels on PyPI) — about 1.3 GB, under <c>runtime\&lt;id&gt;</c> in the model store.
 /// Pinned to the host's own runtime versions: the install's <c>onnxruntime.dll</c> is the same file as the pack's, and
 /// its llama.cpp is the build the backend is from. A version that moves the pack on gives it a new id, and so a new
 /// folder; the earlier pack's (<see cref="EarlierIn"/>) is where the files the two share are taken from.
@@ -42,8 +41,11 @@ public static class CudaRuntimePack
     public static bool Applies(MachineCards machine)
         => machine.Cards.Count > 0 && machine.CudaDriver is { } driver && driver >= MinimumDriver;
 
-    /// <summary>The pack's folder when every file of it is on disk and verified; null otherwise.</summary>
-    public static string? Locate(IModelAssetStore store)
+    /// <summary>Whether every file of the pack is in <paramref name="store"/>, verified.</summary>
+    public static bool IsIn(IModelAssetStore store) => Files.All(store.Has);
+
+    /// <summary>The pack's folder in <paramref name="store"/> when every file of it is there, verified; null otherwise.</summary>
+    public static string? FolderIn(ModelAssetStore store)
     {
         string? folder = null;
         foreach (var file in Files)

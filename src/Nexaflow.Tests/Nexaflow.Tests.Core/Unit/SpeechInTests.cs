@@ -94,9 +94,9 @@ public class SpeechInTests
     }
 
     [TestMethod]
-    public void TheMic_HoldsAConversation_OnNexaflowsSpeechModels_AndDictates_OnWhisperBase()
+    public void TheMic_HoldsAConversation_WhereSomethingListens_AVoiceSpeaksTheLanguage_AndAModelAnswers()
     {
-        AIService Service(ProviderModelPair listening)
+        AIService Service(bool listens, bool speaks, bool answers)
         {
             var service = new AIService(new WorkspaceRuntime(), TestTemp.Root);
             service.Register(Local, new Listener { Ready = true });
@@ -106,22 +106,23 @@ public class SpeechInTests
             {
                 Columns =
                 [
-                    listening,
+                    new ProviderModelPair { Id = Local, ProviderName = "Nexaflow", Model = "nemotron-whisper-small", Kind = ModelKind.SpeechToText },
                     new ProviderModelPair { Id = "voice", ProviderName = "Nexaflow", Model = "kokoro-82m", Kind = ModelKind.TextToSpeech },
                     new ProviderModelPair { Id = "chat", ProviderName = "Nexaflow", Model = "gemma-4-e4b-it", Kind = ModelKind.Language },
                 ],
-                Assignments = { ["SpeechIn"] = AbilityChain.Of(Local), ["SpeechOut"] = AbilityChain.Of("voice"), ["GeneralIntelligence"] = AbilityChain.Of("chat") },
+                Assignments =
+                {
+                    ["SpeechIn"] = listens ? AbilityChain.Of(Local) : new AbilityChain([]),
+                    ["SpeechOut"] = speaks ? AbilityChain.Of("voice") : new AbilityChain([]),
+                    ["GeneralIntelligence"] = answers ? AbilityChain.Of("chat") : new AbilityChain([]),
+                },
             });
             return service;
         }
 
-        var whisper = new ProviderModelPair { Id = Local, ProviderName = "Nexaflow", Model = "nemotron-whisper-small", Kind = ModelKind.SpeechToText };
-        Assert.IsTrue(Service(whisper).CanConverse("en"), "every size of Nexaflow's Whisper hears when a turn is over");
-
-        var dictation = new ProviderModelPair
-        {
-            Id = Local, ProviderName = LocalColumns.Dictation.ProviderName, Model = LocalColumns.Dictation.Model, Kind = ModelKind.SpeechToText,
-        };
-        Assert.IsFalse(Service(dictation).CanConverse("en"), "whisper.cpp hears words, not when a speaker has finished");
+        Assert.IsTrue(Service(listens: true, speaks: true, answers: true).CanConverse("en"));
+        Assert.IsFalse(Service(listens: false, speaks: true, answers: true).CanConverse("en"), "nothing listens: no voice, and no dictating instead");
+        Assert.IsFalse(Service(listens: true, speaks: false, answers: true).CanConverse("en"), "nothing speaks");
+        Assert.IsFalse(Service(listens: true, speaks: true, answers: false).CanConverse("en"), "nothing answers");
     }
 }

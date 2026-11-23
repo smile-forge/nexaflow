@@ -8,6 +8,7 @@ using Nexaflow.Tests.Providers.Support;
 using Nexaflow.IO.Common.Audio;
 using Nexaflow.Providers.Local;
 using Nexaflow.Media.Audio;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -65,7 +66,7 @@ public class OwnedLlmProviderTests
     {
         var host = new FakeAiHost();
         var provider = Provider(new FakeModelStore(Gemma.Files), host);
-        var image = new LlmAttachment(@"C:\shot.png", "image/png");
+        var image = new LlmAttachment(@"C:\shot.png", "image/png", [137, 80, 78, 71]);
         var notes = new LlmAttachment(@"C:\notes.txt", "text/plain");
 
         var reply = await ReadAsync(provider.StreamAsync(
@@ -77,11 +78,11 @@ public class OwnedLlmProviderTests
         Assert.AreEqual("Hello there.", reply);
         var generate = host.Requests.OfType<Generate>().Single();
         Assert.AreEqual(RequestPriority.Interactive, generate.Priority);
-        Assert.AreEqual(@"C:\ai\models\gemma-4-e4b-it-qat", generate.Model.Folder, "the folder is where the store keeps its files");
+        Assert.AreEqual("models/gemma-4-e4b-it-qat", generate.Model.Folder, "the folder is the store's name for it: where it lies is the host's to know");
         Assert.AreEqual(("gemma-4-E4B_q4_0-it.gguf", "gemma-4-E4B-it-mmproj.gguf"), (generate.Model.File, generate.Model.Projector),
                         "the GGUF, and the projector it sees and hears through");
         Assert.AreEqual(TurnRole.System, generate.Turns[0].Role);
-        Assert.AreEqual(@"C:\shot.png", generate.Turns[1].Media!.Single().Path, "an image the model reads goes as an image");
+        CollectionAssert.AreEqual(new byte[] { 137, 80, 78, 71 }, generate.Turns[1].Media!.Single().Bytes.ToArray(), "an image the model reads goes as an image");
         StringAssert.Contains(generate.Turns[1].Text, @"[attached: C:\notes.txt]", "anything else is named");
     }
 
@@ -145,7 +146,7 @@ public class OwnedLlmProviderTests
         await provider.WarmupAsync();
 
         Assert.AreEqual(0, store.Fetched.Count, "a download is the user's to start");
-        Assert.IsNotNull(host.Environment.RuntimePack, "the host runs from the pack");
+        Assert.IsTrue(host.Environment.Cuda, "the host runs from the pack");
         var load = (LoadModel)host.Requests.Single();
         Assert.AreEqual((0, 131072), (load.Model.Device, load.Model.ContextTokens), "on the GPU, with all the context it was trained for where there is room");
         Assert.AreEqual(5905580032L + ContextCache.Q8.BytesPerToken(17920L) * 131072, load.Model.MemoryBytes, "what it holds there, context and all");
@@ -238,7 +239,7 @@ public class OwnedLlmProviderTests
 
         var media = host.Requests.OfType<Generate>().Single().Turns[0].Media!.Single();
         Assert.AreEqual(MediaKind.Audio, media.Kind);
-        CollectionAssert.AreEqual(pcm, media.Bytes, "16 kHz mono PCM, the WAV read here");
+        CollectionAssert.AreEqual(pcm, media.Bytes.ToArray(), "16 kHz mono PCM, the WAV read here");
         Assert.IsTrue(provider.SupportsAudio);
     }
 

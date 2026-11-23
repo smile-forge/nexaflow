@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -30,7 +31,7 @@ public class OwnedPictureCheckingTests
     [TestMethod]
     public void TheShippedTool_IsTheMClassifier_OnTheCpu_PinnedToItsAuthorsGraph()
     {
-        var tool = OwnedModels.Tools.Single(t => t.Kind == OwnedToolKind.PictureChecking);
+        var tool = OwnedModels.Tools.Single(t => t.Kind == HostedToolKind.PictureChecking);
         var classifier = tool.Part(CheckingParts.SafetyClassifier, OwnedModels.Cuda);
 
         Assert.AreEqual(("image-safety-classifier-m", "picture-safety-classifier"), (tool.Id, classifier.Runner));
@@ -54,7 +55,7 @@ public class OwnedPictureCheckingTests
 
         var request = (CheckPicture)host.Requests.Single();
         Assert.AreEqual((2, 1), (request.Width, request.Height));
-        CollectionAssert.AreEqual(rgb, request.Rgb, "the picture goes as its pixels, decoded here");
+        CollectionAssert.AreEqual(rgb, request.Rgb.ToArray(), "the picture goes as its pixels, decoded here");
         Assert.IsNull(request.Classifier.Device, "the CPU, not the GPU");
         Assert.AreEqual(new PictureVerdict(0.05f, 0.6f, 0.35f), verdict);
     }

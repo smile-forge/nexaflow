@@ -68,10 +68,10 @@ public sealed record Film(long RequestId, FilmingModel Model, string Prompt, int
 {
     /// <summary>The picture the clip starts from, <see cref="Width"/> × <see cref="Height"/>, interleaved 8-bit RGB row by
     /// row; null for a clip from the prompt alone.</summary>
-    public byte[]? FirstFrame { get; init; }
+    public SharedBytes? FirstFrame { get; init; }
 }
 
 /// <summary>Frames of the clip as they are decoded, in order: interleaved 8-bit RGB, one frame after another, each the
 /// <see cref="Film"/>'s size. The request completes once the last is sent; encoding the clip is whoever keeps it's, frame by frame,
 /// so it is never held whole as pictures.</summary>
-public sealed record FilmedFrames(long RequestId, byte[] Rgb) : HostReply(RequestId);
+public sealed record FilmedFrames(long RequestId, SharedBytes Rgb) : HostReply(RequestId);

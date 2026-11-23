@@ -15,6 +15,11 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(Ping), "ping")]
 [JsonDerivedType(typeof(Pong), "pong")]
 [JsonDerivedType(typeof(CancelRequest), "cancel")]
+[JsonDerivedType(typeof(AllocateSection), "allocate-section")]
+[JsonDerivedType(typeof(SectionAllocated), "section-allocated")]
+[JsonDerivedType(typeof(SectionRefused), "section-refused")]
+[JsonDerivedType(typeof(ReleaseSection), "release-section")]
+[JsonDerivedType(typeof(SectionClosed), "section-closed")]
 [JsonDerivedType(typeof(AudioInput), "audio")]
 [JsonDerivedType(typeof(InputEnd), "input-end")]
 [JsonDerivedType(typeof(DescribeHost), "describe")]
@@ -59,6 +64,12 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(PictureChecked), "picture-checked")]
 [JsonDerivedType(typeof(EstimateSceneDepth), "estimate-scene-depth")]
 [JsonDerivedType(typeof(SceneDepthEstimated), "scene-depth-estimated")]
+[JsonDerivedType(typeof(DescribeModelStore), "describe-model-store")]
+[JsonDerivedType(typeof(ModelStoreDescribed), "model-store-described")]
+[JsonDerivedType(typeof(FetchModelFiles), "fetch-model-files")]
+[JsonDerivedType(typeof(NoRoomForModelFiles), "no-room-for-model-files")]
+[JsonDerivedType(typeof(RemoveModelFiles), "remove-model-files")]
+[JsonDerivedType(typeof(ModelFilesChanged), "model-files-changed")]
 public abstract record HostMessage;
 
 /// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>
@@ -76,6 +87,32 @@ public sealed record Pong(long Sequence) : HostMessage;
 /// <summary>Asks the host to stop the request with this id. The request still ends with its own
 /// <see cref="Failed"/> (<see cref="HostErrorKind.Cancelled"/>) or, if it finished first, <see cref="Completed"/>.</summary>
 public sealed record CancelRequest(long RequestId) : HostMessage;
+
+/// <summary>
+/// Asks the host for a shared section of at least <paramref name="Length"/> bytes to write a large block into before sending the request
+/// that carries it (<see cref="SharedBytes"/>). The host gives one it already holds for this app where one is free, else makes one —
+/// only the host does, open to this app's account alone — and answers <see cref="SectionAllocated"/> or <see cref="SectionRefused"/>;
+/// the section is the host's again when the request that names it ends, or when the app releases it unused.
+/// </summary>
+public sealed record AllocateSection(long Ticket, int Length) : HostMessage;
+
+/// <summary>The section asked for: the host's id for it, the name the app opens it by, and how many bytes it holds.</summary>
+public sealed record SectionAllocated(long Ticket, long Id, string Name, int Capacity) : HostMessage;
+
+/// <summary>No section could be made for the asking — the app's sections already hold all they may.</summary>
+public sealed record SectionRefused(long Ticket, string Message) : HostMessage;
+
+/// <summary>
+/// The app is done with section <paramref name="Id"/>: a reply's it has read, or one it asked for and will not send. The host takes
+/// it back to reuse; the app keeps its view of it mapped for when it is given the section again.
+/// </summary>
+public sealed record ReleaseSection(long Id) : HostMessage;
+
+/// <summary>
+/// The host has closed section <paramref name="Id"/> — idle a while, or in the way of a new one — and will never name it again: the
+/// app closes its view of it once nothing of its own still reads it.
+/// </summary>
+public sealed record SectionClosed(long Id) : HostMessage;
 
 /// <summary>What the app sends into a request while it runs. The host hands it to the request's handler in the order
 /// sent; input for a request that has ended, or that takes none, is dropped.</summary>

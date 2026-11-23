@@ -51,7 +51,7 @@ internal sealed class WanFilming(ModelRegistry models, GpuScheduler gpu) : IFilm
             using (await lane.NextAsync(frameSpec.Device, ct))
             {
                 ct.ThrowIfCancellationRequested();
-                firstFrame = lease.As<WanFrameEncoder>().Encode(picture, request.Width, request.Height);
+                firstFrame = lease.As<WanFrameEncoder>().Encode(picture.Memory, request.Width, request.Height);
             }
         }
 
@@ -110,7 +110,7 @@ internal sealed class WanFilming(ModelRegistry models, GpuScheduler gpu) : IFilm
         {
             for (int frame = 0; frame < shape.Frames; frame++)
             {
-                byte[] rgb;
+                SharedBytes rgb;
                 using (await lane.NextAsync(decoderSpec.Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();

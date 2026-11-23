@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -6,9 +7,12 @@ using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Providers.AiHost;
 
-/// <summary>A restored picture, in the file it was asked into.</summary>
-/// <param name="FacesRestored">How many faces were found and remade in it.</param>
-public sealed record RestoredPicture(int Width, int Height, int FacesRestored);
+/// <summary>A restored picture: its size, how many faces were found and remade in it, and its pixels, interleaved 8-bit RGBA.
+/// Dispose it once read: its pixels may be a section the AI host shares.</summary>
+public sealed record RestoredPicture(int Width, int Height, int FacesRestored, SharedBytes Pixels) : IDisposable
+{
+    public void Dispose() => Pixels.Dispose();
+}
 
 /// <summary>How far a restoration has got: tiles through the upscaler (<see cref="RestoringStages.Upscaling"/>), then
 /// faces remade (<see cref="RestoringStages.Faces"/>).</summary>
@@ -16,35 +20,36 @@ public sealed record RestoringStep(string Stage, int Done, int Total);
 
 /// <summary>
 /// The picture tools Nexaflow runs in its AI host: a picture restored — made twice or four times its size, or kept at its
-/// size and cleaned, its faces found and remade — with Real-ESRGAN and GFPGAN (<see cref="OwnedToolKind.PictureRestoration"/>).
+/// size and cleaned, its faces found and remade — with Real-ESRGAN and GFPGAN (<see cref="HostedToolKind.PictureRestoration"/>).
 /// </summary>
 public sealed class OwnedPictureTools : OwnedToolFront
 {
     public OwnedPictureTools(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == OwnedToolKind.PictureRestoration))
+        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureRestoration))
     {
     }
 
-    internal OwnedPictureTools(OwnedModelRuntime runtime, OwnedTool? tool) : base(runtime, tool)
+    internal OwnedPictureTools(OwnedModelRuntime runtime, HostedTool? tool) : base(runtime, tool)
     {
     }
 
     /// <summary>
-    /// Restores the picture in <paramref name="pixels"/> into <paramref name="into"/>, both interleaved 8-bit RGBA with
-    /// nothing else (<see cref="RestorePicture"/>), at <paramref name="scale"/> times its size, faces remade where
-    /// <paramref name="faces"/>. Never downloads: the tools are fetched when a person asks for them.
+    /// Restores the picture <paramref name="pixels"/> — interleaved 8-bit RGBA with nothing else (<see cref="RestorePicture"/>) — at
+    /// <paramref name="scale"/> times its size, faces remade where <paramref name="faces"/>. Never downloads: the tools are fetched
+    /// when a person asks for them.
     /// </summary>
     /// <exception cref="InvalidOperationException">The tools are not on this machine, there is no room to run them, or the
     /// host could not.</exception>
-    public async Task<RestoredPicture> RestoreAsync(string pixels, int width, int height, int scale, bool faces, string into,
+    public async Task<RestoredPicture> RestoreAsync(ReadOnlyMemory<byte> pixels, int width, int height, int scale, bool faces,
                                                     IProgress<RestoringStep>? progress, CancellationToken ct)
     {
         var madeWay = new List<IDisposable>();   // the models that make way for this picture, back once it is done
+        RestoredPicture? restored = null;
         try
         {
             var parts = await PlacedAsync(RestoringParts.Of(scale, faces), ct);
-            RestoredPicture? restored = null;
-            await foreach (var reply in Owned.Host.SendAsync(id => new RestorePicture(id, parts, pixels, width, height, scale, faces, into, RequestPriority.Job),
+            using var picture = await Owned.Host.ShareAsync(pixels, ct);
+            await foreach (var reply in Owned.Host.SendAsync(id => new RestorePicture(id, parts, picture, width, height, scale, faces, RequestPriority.Job),
                                                              OwnedModelRuntime.StallLimit, ct))
             {
                 switch (reply)
@@ -56,7 +61,7 @@ public sealed class OwnedPictureTools : OwnedToolFront
                         madeWay.Add(Owned.MakingWay(made.Models));
                         break;
                     case PictureRestored done:
-                        restored = new RestoredPicture(done.Width, done.Height, done.FacesRestored);
+                        restored = new RestoredPicture(done.Width, done.Height, done.FacesRestored, done.Pixels);
                         break;
                 }
             }
@@ -64,7 +69,13 @@ public sealed class OwnedPictureTools : OwnedToolFront
         }
         catch (Exception ex) when (ex is AiHostException or LlmProviderException)
         {
+            restored?.Dispose();
             throw new InvalidOperationException($"The picture could not be restored: {ex.Message}", ex);
+        }
+        catch
+        {
+            restored?.Dispose();
+            throw;
         }
         finally
         {

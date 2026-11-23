@@ -17,11 +17,11 @@ public sealed record LocalDownloadPlan(IReadOnlyList<LocalDownloadPlan.Row> Rows
     /// <param name="Bytes">What it adds to the plan — a file another row lists already counts there.</param>
     public sealed record Row(string Name, ModelKind? Kind, long Bytes, LocalModelOption? Option);
 
-    public static LocalDownloadPlan For(IReadOnlyList<LocalModelOption> options, ModelAssetStore store)
+    public static LocalDownloadPlan For(IReadOnlyList<LocalModelOption> options, IModelAssetStore store)
     {
         var counted = new HashSet<string>(StringComparer.Ordinal);
         long Missing(IEnumerable<ModelAsset> files)
-            => files.Where(f => counted.Add(f.RelativePath) && store.Locate(f) is null).Sum(f => f.Size);
+            => files.Where(f => counted.Add(f.RelativePath) && !store.Has(f)).Sum(f => f.Size);
 
         var rows = new List<Row>();
         foreach (var option in options)

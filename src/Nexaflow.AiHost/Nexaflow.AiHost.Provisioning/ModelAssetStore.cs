@@ -36,7 +36,8 @@ public sealed class ModelAssetStore : IModelAssetStore
     private readonly ConcurrentDictionary<string, (long Length, DateTime Written)> _verified = new(StringComparer.OrdinalIgnoreCase);
 
     /// <param name="root">The folder every file is kept under.</param>
-    /// <param name="adoptFrom">Folders where earlier versions kept model files under their bare file names.</param>
+    /// <param name="adoptFrom">Where earlier versions kept model files: folders holding them under their bare file names, or earlier
+    /// stores holding them as this one does.</param>
     /// <param name="downloadsAllowed">False keeps the store to what is already on disk or can be adopted.</param>
     /// <param name="freeOn">What the drive a path is on has left for this user, null when it will not say; the drive's own
     /// reading unless a test stands in for it.</param>
@@ -66,6 +67,8 @@ public sealed class ModelAssetStore : IModelAssetStore
         }
     }
 
+    /// <summary>The asset's path when it is in the store, complete and verified; null otherwise. The store's own: an app asks
+    /// <see cref="Has"/>, and never learns a path.</summary>
     public string? Locate(ModelAsset asset)
     {
         var path = PathOf(asset);
@@ -78,17 +81,18 @@ public sealed class ModelAssetStore : IModelAssetStore
         return path;
     }
 
-    public async Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
-        => (await EnsureAllAsync([asset], progress, ct))[0];
+    public bool Has(ModelAsset asset) => Locate(asset) is not null;
+
+    public Task EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
+        => EnsureAllAsync([asset], progress, ct);
 
     /// <summary>
-    /// Makes every one of <paramref name="assets"/> here — adopted, resumed or downloaded, then verified — and returns their
-    /// paths. It runs on the thread pool whoever asks: a download is minutes of reading, writing and hashing in small pieces,
-    /// and asked from the UI thread every piece would otherwise continue there. <paramref name="progress"/> is told on the
-    /// thread the work is on; whoever shows it moves it to the UI.
+    /// Makes every one of <paramref name="assets"/> here — adopted, resumed or downloaded, then verified. It runs on the thread
+    /// pool whoever asks: a download is minutes of reading, writing and hashing in small pieces, and asked from the UI thread every
+    /// piece would otherwise continue there. <paramref name="progress"/> is told on the thread the work is on; whoever shows it
+    /// moves it to the UI.
     /// </summary>
-    public Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null,
-                                                      CancellationToken ct = default)
+    public Task EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null, CancellationToken ct = default)
         => Task.Run(() => FetchMissingAsync(assets, progress, ct), ct);
 
     /// <summary>
@@ -112,28 +116,48 @@ public sealed class ModelAssetStore : IModelAssetStore
         => [.. assets.Where(a => Locate(a) is null && !EarlierCopies(a).Any(old => IsVerified(old, a)))
                      .DistinctBy(a => a.RelativePath, StringComparer.Ordinal)];
 
-    /// <summary>What fetching <paramref name="missing"/> claims of the drive: one claim for each file published on its own, and one
-    /// for each archive with the entries kept from it, each counting what an interrupted download of it already wrote.</summary>
+    /// <summary>What fetching <paramref name="missing"/> claims of the drive (<see cref="StoreClaims"/>), each claim counting what an
+    /// interrupted download of it already wrote.</summary>
     private List<(string Key, Claim Claim)> Claims(IReadOnlyList<ModelAsset> missing)
-    {
-        var claims = missing.Where(a => a.Archive is null)
-                            .Select(a => (LooseKey(a), new Claim(a.Size, PartialLength(PathOf(a)))))
-                            .ToList();
-        foreach (var entries in missing.Where(a => a.Archive is not null).GroupBy(a => a.Archive!.ArchiveSha256, StringComparer.OrdinalIgnoreCase))
-        {
-            var archive = entries.First().Archive!;
-            claims.Add((ArchiveKey(entries.Key), new Claim(archive.ArchiveSize + entries.Sum(e => e.Size), PartialLength(ArchivePath(archive)))));
-        }
-        return claims;
-    }
+        => [.. StoreClaims.Of(missing, a => PartialLength(PathOf(a)), a => PartialLength(ArchivePath(a)))
+                          .Select(c => (c.Key, new Claim(c.Bytes, c.Written)))];
 
     /// <summary>The room <paramref name="claims"/> take beside every fetch under way — a claim one of them holds already counted
     /// once. Called holding <see cref="_claims"/>.</summary>
     private ModelRoom Weigh(IReadOnlyList<(string Key, Claim Claim)> claims)
     {
-        long bytes = _claims.Values.Sum(c => c.Left) + claims.Where(c => !_claims.ContainsKey(c.Key)).Sum(c => c.Claim.Left);
+        long bytes = StoreClaims.Weigh([.. claims.Select(c => new StoreClaims.Claim(c.Key, c.Claim.Left, 0))], UnderWay());
+        var (free, drive) = Drive();
+        return new ModelRoom(bytes, free, drive);
+    }
+
+    /// <summary>What each fetch under way still needs, by claim. Called holding <see cref="_claims"/>.</summary>
+    private Dictionary<string, long> UnderWay() => _claims.ToDictionary(c => c.Key, c => c.Value.Left, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>What the store's drive has left, and the drive as it is named to a person.</summary>
+    private (long? Free, string Drive) Drive()
+    {
         var staging = Path.Combine(_root, ".downloads");
-        return new ModelRoom(bytes, _freeOn(staging), Path.GetPathRoot(Path.GetFullPath(staging)) ?? staging);
+        return (_freeOn(staging), Path.GetPathRoot(Path.GetFullPath(staging)) ?? staging);
+    }
+
+    /// <summary>
+    /// The store as it stands for <paramref name="assets"/>: for each, whether it is here verified, what an interrupted download of it
+    /// kept, and whether an earlier version's copy of it would be moved in rather than fetched; what each interrupted archive download
+    /// kept; what the fetches under way still need; and the drive's room. What an app weighs and shows the store by, without a path.
+    /// </summary>
+    public StoreReading Read(IEnumerable<ModelAsset> assets)
+    {
+        var files = assets.DistinctBy(a => a.RelativePath, StringComparer.Ordinal)
+                          .Select(a => new FileReading(a.RelativePath, Locate(a) is not null, a.Archive is null ? PartialLength(PathOf(a)) : 0,
+                                                       Locate(a) is null && EarlierCopies(a).Any(old => IsVerified(old, a))))
+                          .ToList();
+        var archives = assets.Where(a => a.Archive is not null).Select(a => a.Archive!).DistinctBy(a => a.ArchiveSha256, StringComparer.OrdinalIgnoreCase)
+                             .ToDictionary(a => a.ArchiveSha256, a => PartialLength(ArchivePath(a)), StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, long> underWay;
+        lock (_claims) underWay = UnderWay();
+        var (free, drive) = Drive();
+        return new StoreReading(files, archives, underWay, free, drive);
     }
 
     /// <summary>Holds <paramref name="claims"/> against the drive's room for a fetch — sharing any another fetch holds — or refuses
@@ -162,10 +186,6 @@ public sealed class ModelAssetStore : IModelAssetStore
             foreach (var (key, claim) in held)
                 if (--claim.Holders == 0) _claims.Remove(key);
     }
-
-    private static string LooseKey(ModelAsset asset) => "file:" + asset.RelativePath;
-
-    private static string ArchiveKey(string archiveSha256) => "zip:" + archiveSha256;
 
     private string ArchivePath(ArchiveEntry archive) => Path.Combine(_root, ".downloads", archive.ArchiveSha256 + ".zip");
 
@@ -209,7 +229,7 @@ public sealed class ModelAssetStore : IModelAssetStore
     /// <summary>Fetches what is missing of <paramref name="assets"/> once the drive is known to have room for it, holding that
     /// room against other fetches until it ends.</summary>
     /// <exception cref="ModelRoomException">The drive has too little room left; nothing was fetched.</exception>
-    private async Task<IReadOnlyList<string>> FetchMissingAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress, CancellationToken ct)
+    private async Task FetchMissingAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress, CancellationToken ct)
     {
         await AdoptEarlierAsync(assets, ct);
         var missing = Missing(assets);
@@ -221,13 +241,13 @@ public sealed class ModelAssetStore : IModelAssetStore
         {
             var tally = new ProgressTally(loose.Sum(a => a.Size) + packed.Sum(g => g.First().Archive!.ArchiveSize), progress);
             foreach (var asset in loose)
-                await EnsureLooseAsync(asset, tally.Next(asset.Size, held[LooseKey(asset)]), ct);
+                await EnsureLooseAsync(asset, tally.Next(asset.Size, held[StoreClaims.KeyOf(asset)]), ct);
             foreach (var archive in packed)
-                await EnsurePackedAsync([.. archive], tally.Next(archive.First().Archive!.ArchiveSize, held[ArchiveKey(archive.Key)]), ct);
+                await EnsurePackedAsync([.. archive], tally.Next(archive.First().Archive!.ArchiveSize, held[StoreClaims.KeyOf(archive.First().Archive!)]), ct);
         }
         finally { Release(held); }
 
-        return [.. assets.Select(a => Locate(a) ?? throw new InvalidDataException($"{a.RelativePath} did not arrive."))];
+        if (assets.FirstOrDefault(a => Locate(a) is null) is { } absent) throw new InvalidDataException($"{absent.RelativePath} did not arrive.");
     }
 
     /// <summary>A file published on its own: found, or downloaded — an earlier version's copy was moved in before.</summary>
@@ -296,7 +316,7 @@ public sealed class ModelAssetStore : IModelAssetStore
     private void RefuseWhenDownloadsAreOff(string path)
     {
         if (!_downloadsAllowed)
-            throw new InvalidOperationException($"{Path.GetFileName(path)} is not on this machine, and downloads are off in this run.");
+            throw new ModelDownloadsOffException(Path.GetFileName(path));
     }
 
     private async Task MarkVerifiedAsync(string path, ModelAsset asset, CancellationToken ct)
@@ -366,15 +386,14 @@ public sealed class ModelAssetStore : IModelAssetStore
         return false;
     }
 
-    /// <summary>The files of <paramref name="asset"/>'s name and size in the folders earlier versions kept files in.</summary>
+    /// <summary>The files of <paramref name="asset"/>'s size where earlier versions kept it: under its bare name in a folder of them,
+    /// or at its own path in an earlier store.</summary>
     private IEnumerable<string> EarlierCopies(ModelAsset asset)
     {
         var name = Path.GetFileName(asset.RelativePath);
         foreach (var dir in _adoptFrom)
-        {
-            var old = Path.Combine(dir, name);
-            if (File.Exists(old) && new FileInfo(old).Length == asset.Size) yield return old;
-        }
+            foreach (var old in new[] { Path.Combine(dir, name), StorePath.Resolve(dir, asset.RelativePath) }.Distinct(StringComparer.OrdinalIgnoreCase))
+                if (File.Exists(old) && new FileInfo(old).Length == asset.Size) yield return old;
     }
 
     private string PathOf(ModelAsset asset)

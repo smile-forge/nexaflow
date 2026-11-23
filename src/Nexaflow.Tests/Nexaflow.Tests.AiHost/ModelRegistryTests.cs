@@ -49,7 +49,7 @@ public class ModelRegistryTests
     {
         var runner = new Runner();
         var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-registry-").FullName);
-        return (new ModelRegistry(gpus ?? new TwoGpus(), new ModelAdapters([]), new ModelRunners([runner]), log, memory), runner);
+        return (new ModelRegistry(gpus ?? new TwoGpus(), new ModelAdapters([]), new ModelRunners([runner]), log, new StoreRoot(), memory), runner);
     }
 
     [TestMethod]
@@ -207,5 +207,11 @@ public class ModelRegistryTests
     {
         for (int i = 0; i < 200 && !condition(); i++) await Task.Delay(25);
         Assert.IsTrue(condition(), "it came about within five seconds");
+    }
+
+    /// <summary>A store whose files are wherever a test names them: the runner here opens nothing.</summary>
+    private sealed class StoreRoot : Nexaflow.AiHost.Store.IModelFiles
+    {
+        public string PathOf(string relative) => relative;
     }
 }

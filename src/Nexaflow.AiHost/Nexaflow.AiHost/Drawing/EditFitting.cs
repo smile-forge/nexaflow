@@ -31,7 +31,7 @@ internal static class EditFitting
                 throw new HostRequestException(HostErrorKind.Invalid, $"A {source.Width}x{source.Height} picture is too narrow for this model to read.");
             sources[i] = (width, height) == (source.Width, source.Height)
                 ? source
-                : new DrawingSource(width, height, ReferenceResampling.ResizeLanczos(source.Rgb, source.Width, source.Height, 3, width, height));
+                : new DrawingSource(width, height, SharedBytes.Of(ReferenceResampling.ResizeLanczos(source.Rgb.Span, source.Width, source.Height, 3, width, height)));
         }
 
         var (first, drawn) = (request.Sources[0], sources[0]);
@@ -41,7 +41,7 @@ internal static class EditFitting
             if (mask.Length != (long)first.Width * first.Height)
                 throw new HostRequestException(HostErrorKind.Invalid, $"A mask over a {first.Width}x{first.Height} picture is {(long)first.Width * first.Height} bytes, not {mask.Length}.");
             if ((drawn.Width, drawn.Height) != (first.Width, first.Height))
-                mask = ReferenceResampling.ResizeLanczos(mask, first.Width, first.Height, 1, drawn.Width, drawn.Height);
+                mask = SharedBytes.Of(ReferenceResampling.ResizeLanczos(mask.Span, first.Width, first.Height, 1, drawn.Width, drawn.Height));
         }
         return request with { Width = drawn.Width, Height = drawn.Height, Sources = sources, Mask = mask };
     }

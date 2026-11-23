@@ -21,20 +21,19 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
     protected override async Task HandleAsync(RestorePicture request, Func<HostReply, Task> reply, CancellationToken ct)
     {
         Validate(request);
-        var rgba = await File.ReadAllBytesAsync(request.Pixels, ct);
-        if (rgba.Length != request.Width * request.Height * 4)
-            throw new HostRequestException(HostErrorKind.Invalid, $"{request.Pixels} holds {rgba.Length} bytes, not {request.Width}x{request.Height} RGBA.");
+        var rgba = request.Pixels.Memory;
+        // Written straight into the bytes the reply carries back: a restored picture runs to hundreds of megabytes.
+        var restored = RequestSections.Create(request.Width * request.Scale * request.Height * request.Scale * 4);
 
         var lane = gpu.Open(request.Priority);
         using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
         Func<string, Task> stage = s => reply(new Progress(request.RequestId, s, 0, 0));
 
         var upscalerSpec = request.Parts[RestoringParts.UpscalerFor(request.Scale)];
-        byte[] restored;
         using (var lease = await models.AcquireAsync(upscalerSpec, resident: false, stage, ct, room))
         {
             var upscaler = lease.As<PictureUpscaler>();
-            restored = await PictureUpscaling.UpscaleAsync(rgba, request.Width, request.Height, upscaler.Factor, request.Scale,
+            await PictureUpscaling.UpscaleAsync(rgba, request.Width, request.Height, upscaler.Factor, request.Scale, restored.Memory,
                 async (tile, width, height, last) =>
                 {
                     using (await lane.NextAsync(upscalerSpec.Device, ct))
@@ -46,9 +45,8 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
                 (done, total) => reply(new Progress(request.RequestId, RestoringStages.Upscaling, done, total)));
         }
 
-        int faces = request.Faces ? await RepairFacesAsync(request, rgba, restored, lane, stage, room, reply, ct) : 0;
-        await File.WriteAllBytesAsync(request.Into, restored, ct);
-        await reply(new PictureRestored(request.RequestId, request.Width * request.Scale, request.Height * request.Scale, faces));
+        int faces = request.Faces ? await RepairFacesAsync(request, rgba, restored.Memory, lane, stage, room, reply, ct) : 0;
+        await reply(new PictureRestored(request.RequestId, request.Width * request.Scale, request.Height * request.Scale, faces, restored));
     }
 
     private static void Validate(RestorePicture request)
@@ -59,10 +57,8 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
             throw new HostRequestException(HostErrorKind.Invalid, "A picture to restore has a size.");
         if (!RestorePicture.Restores(request.Width, request.Height, request.Scale))
             throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is too large to restore at {request.Scale}x.");
-        if (string.IsNullOrWhiteSpace(request.Into))
-            throw new HostRequestException(HostErrorKind.Invalid, "A restoration needs a file to write the picture to.");
-        if (!File.Exists(request.Pixels))
-            throw new HostRequestException(HostErrorKind.NotFound, $"The picture to restore is not at {request.Pixels}.");
+        if (request.Pixels.Length != (long)request.Width * request.Height * 4)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not {request.Pixels.Length} bytes of RGBA.");
         foreach (var role in RestoringParts.Of(request.Scale, request.Faces))
             if (!request.Parts.ContainsKey(role))
                 throw new HostRequestException(HostErrorKind.Invalid, $"Restoring at {request.Scale}x{(request.Faces ? " with faces" : "")} needs its {role}.");
@@ -70,14 +66,14 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
 
     /// <summary>Finds the faces in <paramref name="rgba"/>, remakes each and pastes it over <paramref name="restored"/>;
     /// how many were remade.</summary>
-    private async Task<int> RepairFacesAsync(RestorePicture request, byte[] rgba, byte[] restored, GpuScheduler.Lane lane, Func<string, Task> stage,
+    private async Task<int> RepairFacesAsync(RestorePicture request, ReadOnlyMemory<byte> rgba, Memory<byte> restored, GpuScheduler.Lane lane, Func<string, Task> stage,
                                              ModelRegistry.Room room, Func<HostReply, Task> reply, CancellationToken ct)
     {
         int width = request.Width, height = request.Height, scale = request.Scale;
         var faces = await FindFacesAsync(request, rgba, lane, stage, room, ct);
         if (faces.Count == 0) return 0;
 
-        var rgb = Rgb(rgba);
+        var rgb = Rgb(rgba.Span);
         var alignments = faces.Select(FaceAlignment.Alignment).ToList();
         var remade = new List<byte[]>(faces.Count);
         var restorerSpec = request.Parts[RestoringParts.FaceRestorer];
@@ -120,13 +116,13 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
 
     /// <summary>The faces GFPGAN can remake: found by the detector — on the picture brought within
     /// <see cref="DetectionSide"/> if it is larger — their eyes far enough apart.</summary>
-    private async Task<IReadOnlyList<FoundFace>> FindFacesAsync(RestorePicture request, byte[] rgba, GpuScheduler.Lane lane, Func<string, Task> stage,
+    private async Task<IReadOnlyList<FoundFace>> FindFacesAsync(RestorePicture request, ReadOnlyMemory<byte> rgba, GpuScheduler.Lane lane, Func<string, Task> stage,
                                                                  ModelRegistry.Room room, CancellationToken ct)
     {
         int width = request.Width, height = request.Height;
         double shrink = Math.Max(1, (double)Math.Max(width, height) / DetectionSide);
         int dw = (int)(width / shrink), dh = (int)(height / shrink);
-        var searched = shrink > 1 ? ReferenceResampling.ResizeLanczos(rgba, width, height, 4, dw, dh) : rgba;
+        var searched = shrink > 1 ? ReferenceResampling.ResizeLanczos(rgba.Span, width, height, 4, dw, dh) : rgba;
 
         var spec = request.Parts[RestoringParts.FaceDetector];
         IReadOnlyList<FoundFace> found;
@@ -146,7 +142,7 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
             .Where(f => Math.Sqrt(Math.Pow(f.Points[0].X - f.Points[1].X, 2) + Math.Pow(f.Points[0].Y - f.Points[1].Y, 2)) >= FaceAlignment.MinimumEyeDistance)];
     }
 
-    private static byte[] Rgb(byte[] rgba)
+    private static byte[] Rgb(ReadOnlySpan<byte> rgba)
     {
         var rgb = new byte[rgba.Length / 4 * 3];
         for (int i = 0, j = 0; i < rgba.Length; i += 4, j += 3) (rgb[j], rgb[j + 1], rgb[j + 2]) = (rgba[i], rgba[i + 1], rgba[i + 2]);

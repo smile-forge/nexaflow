@@ -21,7 +21,7 @@ namespace Nexaflow.Tests.Features.UI;
 /// and told over the announcement to create another as well, it holds the delete — Abort alone — and does both once
 /// the user has been quiet a while. Opening the conversation as a conversation page ends voice mode.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding the workspace's models as the app keeps them — Gemma 4 E4B,
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding the workspace's models as the app keeps them — Gemma 4 E4B,
 /// Nemotron with Whisper turbo, Kokoro, each file verified — which the app is started on as its
 /// <c>NEXAFLOW_AI_DIR</c>; without it the journey is inconclusive. The app listens through the default microphone and
 /// speaks through the speakers, so it wants a quiet room: words heard over an announcement answer it.
@@ -34,7 +34,7 @@ namespace Nexaflow.Tests.Features.UI;
 [CoversNode("voice-session")]
 public class VoiceConversationJourneyTests : UiJourneyTestBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
     private const string FileName = "test.zip";
 
     private string _aiDir = "";
@@ -120,8 +120,7 @@ public class VoiceConversationJourneyTests : UiJourneyTestBase
         var file = Path.Combine(_folder, FileName);
     Check("the file to delete is selected", () => InFront() && SelectInFileList(FileName));
 
-        // The mic converses once the workspace's speech models are confirmed — until then it would dictate, and every turn
-        // below would go to the assistant as a typed request instead.
+        // The mic is offered once the workspace's speech models are confirmed; until then it is disabled.
         bool converses = WaitForFs(() => WaitForId("AiBar_Mic", 1)?.Properties.ItemStatus.ValueOrDefault == bool.TrueString, Affordable(120));
         Check("the mic offers a conversation once the speech models are confirmed", () => converses);
         bool started = false;

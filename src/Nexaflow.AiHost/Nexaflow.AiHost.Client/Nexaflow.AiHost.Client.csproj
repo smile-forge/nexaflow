@@ -10,8 +10,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>false</UseWPF>
-    <!-- Nvml: the driver's library is called through function pointers. -->
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
@@ -19,20 +18,15 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
 
-    <!-- The runtime pack is a set of model files, fetched through the same asset store as models. -->
+    <!-- The model files and the store the host keeps them in, as the app sees it. -->
     <ProjectReference Include="..\Nexaflow.AiHost.Provisioning\Nexaflow.AiHost.Provisioning.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Pinned to the host's own ONNX Runtime and onnxruntime-genai; Tests.AiHost holds them together. -->
-    <EmbeddedResource Include="RuntimePacks\cuda-pack.json" LogicalName="cuda-pack.json" />
+    <!-- What the host runs, and what this machine is: an app weighs a model before any host runs. -->
+    <ProjectReference Include="..\Nexaflow.AiHost.Catalog\Nexaflow.AiHost.Catalog.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The log file the host writes too: one source, compiled into each. -->
     <Compile Include="..\Shared\AiHostLogFile.cs" Link="AiHostLogFile.cs" />
-    <!-- The cards as their driver reads them: the machine read before any host runs (MachineCards). -->
-    <Compile Include="..\Shared\Nvml.cs" Link="Nvml.cs" />
   </ItemGroup>
 
   <ItemGroup>

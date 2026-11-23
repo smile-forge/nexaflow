@@ -46,19 +46,9 @@ public sealed partial class PageReading : LocalToolModels, IPageReading
     {
         if (width <= 0 || height <= 0 || rgba.Length != (long)width * height * 4)
             throw new InvalidOperationException($"A {width}x{height} picture of {rgba.Length} bytes is not one the text finder reads.");
-        string pixels = Path.Combine(Path.GetTempPath(), $"nexaflow-text-{Guid.NewGuid():N}.rgba");
-        try
-        {
-            await File.WriteAllBytesAsync(pixels, rgba, ct);
-            var regions = await AskedAsync(() => _reading.FindTextAsync(pixels, width, height, ct), ct);
-            return new TextOnPicture([.. regions.Select(r => new PictureBox(r.X * width, r.Y * height, (r.X + r.Width) * width, (r.Y + r.Height) * height))],
-                                     IsPage(regions));
-        }
-        finally
-        {
-            try { File.Delete(pixels); }
-            catch (IOException) { }
-        }
+        var regions = await AskedAsync(() => _reading.FindTextAsync(rgba, width, height, ct), ct);
+        return new TextOnPicture([.. regions.Select(r => new PictureBox(r.X * width, r.Y * height, (r.X + r.Width) * width, (r.Y + r.Height) * height))],
+                                 IsPage(regions));
     }
 
     public async Task<IReadOnlyList<PageBlock>> ReadPageAsync(string picture, IProgress<PageBlock>? read, CancellationToken ct)

@@ -7,8 +7,8 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// A conversation cut back to where a prompt parts from it, in the real host with a model whose layers hold recurrent state —
-/// where a machine has one. <c>NEXAFLOW_TEST_HYBRID</c> names the GGUF of a hybrid model (Qwen 3.5, its gated DeltaNet layers
-/// beside attention); it runs on the CPU. What is checked is what was read, never wording.
+/// where a machine has one: Qwen 3.5 9B, <c>qwen-3.5-9b</c> from the test store (<see cref="TestStore"/>), its gated DeltaNet
+/// layers beside attention; it runs on the CPU. What is checked is what was read, never wording.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -22,12 +22,10 @@ public class CutBackModelTests
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_HYBRID") is not { Length: > 0 } gguf || !File.Exists(gguf)) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir));
-        _model = new ModelSpec("hybrid", "llama-chat", Path.GetDirectoryName(gguf)!, Path.GetFileName(gguf), null, 0, 8192,
-                               ContextCache: ContextCache.Q8, Checkpoints: 8);
+        _client = await TestStore.HostAsync(gpu: false);
+        if (_client is null) return;
+        // Its language model alone, without the projector it sees through: what is read here is text.
+        _model = TestStore.Spec("qwen-3.5-9b", "chat", null, 0, 8192) with { Projector = null, ContextCache = ContextCache.Q8, Checkpoints = 8 };
         await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _model), TimeSpan.FromMinutes(3))) { }
     }
 
@@ -39,7 +37,7 @@ public class CutBackModelTests
 
     private static async Task<GenerationEnded> AskAsync(List<ChatTurn> turns)
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_HYBRID names no hybrid model's GGUF on this machine.");
+        if (_client is null || _model is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
         var text = new StringBuilder();
         GenerationEnded? ended = null;
         await foreach (var reply in _client!.SendAsync(id => new Generate(id, _model!, turns, 48, RequestPriority.Interactive, Thinks: false),

@@ -9,6 +9,7 @@ using Nexaflow.IO.Common.Imaging;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Media.Png;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.Providers;
 
@@ -87,7 +88,7 @@ public class OwnedImageGenerationProviderTests
     [TestMethod]
     public async Task APicture_IsDrawnInTheHost_AtTheJobPriority_WithItsThreePartsAndSampler()
     {
-        var host = Drawing(new Drawn(0, 2, 1, [10, 20, 30, 40, 50, 60]));
+        var host = Drawing(new Drawn(0, 2, 1, SharedBytes.Of([10, 20, 30, 40, 50, 60])));
 
         var made = await Provider(Here(), host).GenerateImageAsync(new ImageGenerationRequest("a fox", new MediaAspect(1344, 768)));
 
@@ -97,7 +98,7 @@ public class OwnedImageGenerationProviderTests
         Assert.AreEqual(("z-image-prompt-encoder", "z-image-denoiser", "z-image-decoder"),
                         (parts[DrawingParts.PromptEncoder].Runner, parts[DrawingParts.Denoiser].Runner, parts[DrawingParts.Decoder].Runner));
         Assert.AreEqual((DrawingMethod.ZImage, 9, 3f, 0f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
-        StringAssert.StartsWith(parts[DrawingParts.Denoiser].Folder, @"C:\ai\models\z-image-turbo", "the folder is where the store keeps its files");
+        StringAssert.StartsWith(parts[DrawingParts.Denoiser].Folder, "models/z-image-turbo/", "the folder is the store's name for it: where it lies is the host's to know");
         Assert.AreEqual(0, parts[DrawingParts.Denoiser].Device, "on the GPU the host found");
         CollectionAssert.AreEqual(new byte[] { 10, 20, 30, 40, 50, 60 }, PngReader.Read(made.Media.Bytes).Rgb, "the host's pixels, as a PNG");
         Assert.AreEqual("image/png", made.Media.MimeType);
@@ -108,7 +109,7 @@ public class OwnedImageGenerationProviderTests
     [DataRow(MediaShape.Portrait, 768, 1344)]
     public async Task EachShape_IsDrawnAtAboutAMegapixel(MediaShape shape, int width, int height)
     {
-        var host = Drawing(new Drawn(0, 1, 1, [1, 2, 3]));
+        var host = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
 
         await Provider(Here(), host).GenerateImageAsync(new ImageGenerationRequest("a fox", new MediaAspect(width, height)));
 
@@ -119,7 +120,7 @@ public class OwnedImageGenerationProviderTests
     [TestMethod]
     public async Task ItOffersTheShapesItWasTrainedOn_AndDrawsFromTheSeedItIsGiven()
     {
-        var host     = Drawing(new Drawn(0, 1, 1, [1, 2, 3]));
+        var host     = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
         var provider = Provider(Here(), host);
         CollectionAssert.AreEqual(new[] { "1:1", "7:4", "4:7" }, provider.Settings.Aspects.Select(a => a.ToString()).ToArray());
         Assert.IsTrue(provider.Settings.Seeds);
@@ -136,7 +137,7 @@ public class OwnedImageGenerationProviderTests
     public async Task EachStep_IsShownOnTheActivity()
     {
         var activities = new FakeActivityManager();
-        var host = Drawing(new Progress(0, "drawing", 1, 9), new Progress(0, "drawing", 2, 9), new Drawn(0, 1, 1, [1, 2, 3]));
+        var host = Drawing(new Progress(0, "drawing", 1, 9), new Progress(0, "drawing", 2, 9), new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
 
         await Provider(Here(), host, activities).GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1)));
 
@@ -210,7 +211,7 @@ public class OwnedImageGenerationProviderTests
     public async Task ALora_IsFetchedTheFirstTimeAPictureAsksForIt_AndDrawnWithItsTriggerLeadingThePrompt()
     {
         var store = MossHere();
-        var host = Drawing(new Drawn(0, 1, 1, [1, 2, 3]));
+        var host = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
         var provider = Moss(store, host);
         Assert.IsTrue(provider.IsAvailable, "the model is here with none of its LoRAs");
 
@@ -219,7 +220,7 @@ public class OwnedImageGenerationProviderTests
         var draw = (Draw)host.Requests.Single();
         Assert.AreEqual((DrawingMethod.MossImage, 50, 5f, 3f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
         Assert.AreEqual(("moss_seinen_style, a fox", "people"), (draw.Prompt, draw.NegativePrompt));
-        Assert.AreEqual((FakeModelStore.Root + @"models\moss-image\loras\moss-anime.onnx_adapter", 1f, (string?)null),
+        Assert.AreEqual(("models/moss-image/loras/moss-anime.onnx_adapter", 1f, (string?)null),
                         (draw.Lora!.Adapter, draw.Lora.Strength, draw.Lora.Sampler));
         CollectionAssert.AreEqual(new[] { "models/moss-image/loras/moss-anime.onnx_adapter" }, store.Fetched.Single().Select(f => f.RelativePath).ToArray(),
                                   "only the LoRA asked for is fetched");
@@ -228,14 +229,14 @@ public class OwnedImageGenerationProviderTests
     [TestMethod]
     public async Task TheDistillation_BringsItsOwnSampler_AndIsDrawnWithNoNegativePrompt()
     {
-        var host = Drawing(new Drawn(0, 1, 1, [1, 2, 3]));
+        var host = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
         var provider = Moss(MossHere(), host);
 
         await provider.GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1)) { Lora = "moss-fast-8step" });
 
         var draw = (Draw)host.Requests.Single();
         Assert.AreEqual(("a fox", (string?)null), (draw.Prompt, draw.NegativePrompt), "it has no trigger, and nothing was kept out");
-        StringAssert.EndsWith(draw.Lora!.Sampler, @"loras\moss-fast-8step.sampler.json");
+        Assert.AreEqual("models/moss-image/loras/moss-fast-8step.sampler.json", draw.Lora!.Sampler, "the LoRA's sampler, by its path in the store");
         await Assert.ThrowsExactlyAsync<ArgumentException>(() => provider.GenerateImageAsync(
             new ImageGenerationRequest("a fox", new(1, 1)) { Lora = "moss-fast-8step", NegativePrompt = "people" }), "it is told nothing to keep out");
         await Assert.ThrowsExactlyAsync<ArgumentException>(() => provider.GenerateImageAsync(
@@ -247,7 +248,7 @@ public class OwnedImageGenerationProviderTests
     public async Task APictureWithNoLora_FetchesNone_AndIsDrawnWithoutOne()
     {
         var store = MossHere();
-        var host = Drawing(new Drawn(0, 1, 1, [1, 2, 3]));
+        var host = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
 
         await Moss(store, host).GenerateImageAsync(new ImageGenerationRequest("a fox", new(1, 1)));
 
@@ -278,7 +279,7 @@ public class OwnedImageGenerationProviderTests
     [TestMethod]
     public async Task AnEdit_SendsItsPictureAsItIs_AndWhatTheMaskLeavesTransparentAsWhatIsDrawnAgain()
     {
-        var host = Drawing(new Drawn(0, 1, 1, [1, 2, 3]));
+        var host = Drawing(new Drawn(0, 1, 1, SharedBytes.Of([1, 2, 3])));
         var source = PngEncoder.EncodeRgb(new byte[2000 * 1000 * 3], 2000, 1000);
         var mask = RgbaPng(2000, 1000, (x, _) => x < 1000 ? (byte)0 : (byte)255);   // the left half drawn again
 
@@ -293,8 +294,8 @@ public class OwnedImageGenerationProviderTests
         Assert.AreEqual((2000, 1000, 2000 * 1000 * 3), (draw.Sources.Single().Width, draw.Sources.Single().Height, draw.Sources.Single().Rgb.Length));
         Assert.AreEqual((DrawingMethod.Flux2Klein, 4, 0f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift));
         Assert.AreEqual(2000 * 1000, draw.Mask!.Length);
-        Assert.AreEqual(255, draw.Mask[500 * 2000 + 100], "where the mask is transparent, drawn again");
-        Assert.AreEqual(0, draw.Mask[500 * 2000 + 1900], "where it is opaque, kept");
+        Assert.AreEqual(255, draw.Mask.Span[500 * 2000 + 100], "where the mask is transparent, drawn again");
+        Assert.AreEqual(0, draw.Mask.Span[500 * 2000 + 1900], "where it is opaque, kept");
         Assert.AreEqual("klein-picture-encoder", draw.Model.Parts[DrawingParts.PictureEncoder].Runner);
     }
 

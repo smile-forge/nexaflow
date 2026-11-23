@@ -17,7 +17,7 @@ internal sealed class CheckPictureHandler(ModelRegistry models) : HostRequestHan
 
         using var lease = await models.AcquireAsync(request.Classifier, resident: false, stage => reply(new Progress(request.RequestId, stage, 0, 0)), ct);
         ct.ThrowIfCancellationRequested();
-        var (gore, sexual, neither) = lease.As<PictureSafetyClassifier>().Check(request.Rgb, request.Width, request.Height);
+        var (gore, sexual, neither) = lease.As<PictureSafetyClassifier>().Check(request.Rgb.Span, request.Width, request.Height);
         await reply(new PictureChecked(request.RequestId, gore, sexual, neither));
     }
 }

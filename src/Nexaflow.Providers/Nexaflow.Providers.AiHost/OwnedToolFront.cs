@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Local;
@@ -5,7 +6,7 @@ using Nexaflow.Providers.Local;
 namespace Nexaflow.Providers.AiHost;
 
 /// <summary>
-/// A tool of the owned catalog as the app reaches it (<see cref="OwnedTool"/>): whether this machine runs it, the files it
+/// A tool of the owned catalog as the app reaches it (<see cref="HostedTool"/>): whether this machine runs it, the files it
 /// fetches, whether they are here. Not a provider: a person or an assistant, local or in the cloud, uses the tool, and
 /// nothing in the cloud stands in for it. Its parts are fetched and placed as an owned model's are, and load only while
 /// it is used; what it does is each tool's own.
@@ -13,9 +14,9 @@ namespace Nexaflow.Providers.AiHost;
 public abstract class OwnedToolFront
 {
     private protected readonly OwnedModelRuntime Owned;
-    private protected readonly OwnedTool? Tool;
+    private protected readonly HostedTool? Tool;
 
-    private protected OwnedToolFront(OwnedModelRuntime runtime, OwnedTool? tool)
+    private protected OwnedToolFront(OwnedModelRuntime runtime, HostedTool? tool)
     {
         Owned = runtime;
         Tool = tool;
@@ -43,7 +44,7 @@ public abstract class OwnedToolFront
 
     /// <summary>The tool, ready to use; never fetched here — a tool is fetched when a person asks for it.</summary>
     /// <exception cref="InvalidOperationException">It is not on this machine, or cannot run on it.</exception>
-    private protected OwnedTool Ready()
+    private protected HostedTool Ready()
         => Tool is not null && IsReady ? Tool : throw new InvalidOperationException($"{Tool?.Catalog.DisplayName ?? "The tool"} is not on this machine yet.");
 
     /// <summary>Each part in <paramref name="roles"/> placed where it runs: on the GPU with room for it, else the CPU.</summary>

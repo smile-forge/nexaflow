@@ -32,7 +32,7 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
 
     public bool Masks => true;
 
-    public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
+    public async Task<SharedBytes> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
         var model = request.Model;
         var lane  = gpu.Open(request.Priority);
@@ -48,7 +48,7 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
                 foreach (var (rgb, width, height) in references)
                 {
                     var (readWidth, readHeight) = HiDreamSampler.ConditionSize(width, height);
-                    var read = ReferenceResampling.ResizeAsPil(rgb, width, height, 3, readWidth, readHeight, PilFilter.Lanczos);
+                    var read = ReferenceResampling.ResizeAsPil(rgb.Span, width, height, 3, readWidth, readHeight, PilFilter.Lanczos);
                     using (await lane.NextAsync(model.Parts[DrawingParts.PictureReader].Device, ct))
                     {
                         ct.ThrowIfCancellationRequested();
@@ -72,13 +72,13 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
             int at = own;
             foreach (var (rgb, width, height) in references)
             {
-                var clean = HiDreamSampler.TokensOf(rgb, width, height);
+                var clean = HiDreamSampler.TokensOf(rgb.Span, width, height);
                 clean.CopyTo(input, at);
                 at += clean.Length;
             }
         }
-        var mask = request.Mask is { } covered ? HiDreamSampler.PixelMask(covered, request.Width, request.Height) : null;
-        var kept = mask is null ? null : HiDreamSampler.TokensOf(request.Sources[0].Rgb, request.Width, request.Height);
+        var mask = request.Mask is { } covered ? HiDreamSampler.PixelMask(covered.Span, request.Width, request.Height) : null;
+        var kept = mask is null ? null : HiDreamSampler.TokensOf(request.Sources[0].Rgb.Span, request.Width, request.Height);
 
         int? device = model.Parts[DrawingParts.Denoiser].Device;
         using var denoiserLease = await models.AcquireAsync(model.Parts[DrawingParts.Denoiser], resident: false, stage, ct, room);
@@ -117,13 +117,14 @@ internal sealed class HiDreamDrawing(ModelRegistry models, GpuScheduler gpu) : I
     /// is the size the edit is drawn at — HiDream drawing at a single picture's own proportions — and otherwise each fitted
     /// to whole patches within the square HiDream gives that many (<see cref="HiDreamSampler.ReferenceSide"/>).
     /// </summary>
-    private static List<(byte[] Rgb, int Width, int Height)> References(Draw request)
+    private static List<(ReadOnlyMemory<byte> Rgb, int Width, int Height)> References(Draw request)
     {
         var sources = request.Sources;
         if (sources.Count == 1 && (sources[0].Width, sources[0].Height) == (request.Width, request.Height))
-            return [(sources[0].Rgb, sources[0].Width, sources[0].Height)];
+            return [(sources[0].Rgb.Memory, sources[0].Width, sources[0].Height)];
         if (sources.Count == 0) return [];
         int side = HiDreamSampler.ReferenceSide(sources.Count, request.Width, request.Height);
-        return [.. sources.Select(s => PatchFitting.Fit(s.Rgb, s.Width, s.Height, side, HiDreamSampler.Patch))];
+        return [.. sources.Select(s => PatchFitting.Fit(s.Rgb.Span, s.Width, s.Height, side, HiDreamSampler.Patch))
+                          .Select(fit => ((ReadOnlyMemory<byte>)fit.Rgb, fit.Width, fit.Height))];
     }
 }

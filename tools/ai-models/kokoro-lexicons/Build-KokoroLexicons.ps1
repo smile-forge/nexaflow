@@ -15,7 +15,7 @@
     card (README.md), build_lexicon.py and this script, so the published repository says how to rebuild itself.
     Rerunning it with the same espeak-ng reproduces the files byte for byte. Upload with
       hf upload smile-forge/kokoro-lexicons-fr-de <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the lexicons are written.

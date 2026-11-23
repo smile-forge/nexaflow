@@ -34,7 +34,11 @@ public class HostModelSetupTests
         public Task<IHostStream> OpenStreamAsync(Func<long, HostRequest> create, TimeSpan stallLimit, CancellationToken ct = default)
             => throw new NotSupportedException();
 
+        public Task<SharedBytes> AllocateAsync(int length, CancellationToken ct = default) => Task.FromResult(SharedBytes.Of(new byte[length]));
+
         public HostMemory Memory => HostMemory.Unbounded;
+
+        public event EventHandler<IReadOnlyList<string>>? ModelFilesChanged { add { } remove { } }
     }
 
     /// <summary>A holder that keeps every placement it is told of.</summary>

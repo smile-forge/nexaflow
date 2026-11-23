@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -44,7 +45,7 @@ public class OwnedTextToSpeechProviderTests
         Assert.AreEqual((RequestPriority.Voice, 1.1f), (speak.Priority, speak.Speed));
         var voice = speak.Voices.Single(v => v.Language == "en");
         Assert.AreEqual(("kokoro", "onnx/model.onnx", "voices/af_heart.bin"), (voice.Model.Runner, voice.Model.File, voice.VoiceFile));
-        Assert.AreEqual(@"C:\ai\models\kokoro-82m", voice.Model.Folder, "the folder is where the store keeps its files");
+        Assert.AreEqual("models/kokoro-82m", voice.Model.Folder, "the folder is the store's name for it: where it lies is the host's to know");
     }
 
     [TestMethod]

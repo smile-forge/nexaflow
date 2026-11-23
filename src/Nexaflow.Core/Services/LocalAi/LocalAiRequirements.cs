@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Features.Common.Dependencies;
@@ -78,13 +79,13 @@ internal static class LocalAiRequirements
 
         var needed = CudaRuntimePack.MinimumDriver.ToString(2);
         bool applies = CudaRuntimePack.Applies(cards);
-        if (CudaRuntimePack.Locate(store) is { } folder)
+        if (CudaRuntimePack.IsIn(store))
             return new(ExternalDependencyState.Present, CudaRuntimePack.Id,
-                       applies ? folder : Str.Format("Shell.Components.CudaPack.UnusedFormat", folder, needed));
+                       applies ? CudaRuntimePack.Id : Str.Format("Shell.Components.CudaPack.UnusedFormat", CudaRuntimePack.Id, needed));
 
         if (!applies) return new(ExternalDependencyState.Missing, null, Str.Format("Shell.Components.CudaPack.NotNeededFormat", needed));
 
-        int here = CudaRuntimePack.Files.Count(f => store.Locate(f) is not null);
+        int here = CudaRuntimePack.Files.Count(store.Has);
         return new(ExternalDependencyState.Missing, null, Str.Format("Shell.Components.CudaPack.PartFormat", here, CudaRuntimePack.Files.Count));
     }
 

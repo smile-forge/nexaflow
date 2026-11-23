@@ -61,10 +61,10 @@ public class HostChannelTests
         Assert.AreEqual(@"C:\ai\h\denoiser", draw.Model.Parts[DrawingParts.Denoiser].Folder);
 
         byte[] rgb = [1, 2, 3, 4, 5, 6];
-        await host.SendAsync(new Drawn(5, 2, 1, rgb));
+        await host.SendAsync(new Drawn(5, 2, 1, SharedBytes.Of(rgb)));
         var drawn = (Drawn)(await app.ReceiveAsync())!;
         Assert.AreEqual((2, 1), (drawn.Width, drawn.Height));
-        CollectionAssert.AreEqual(rgb, drawn.Rgb);
+        CollectionAssert.AreEqual(rgb, drawn.Rgb.ToArray());
     }
 
     [TestMethod]
@@ -81,14 +81,14 @@ public class HostChannelTests
     var receiving = pair.Host.ReceiveAsync();   // a pipe holds a little: the other end reads as it is written, as a host's loop does
         await pair.App.SendAsync(new Draw(5, model, "a fox", 1024, 1024, 42, RequestPriority.Job)
         {
-            Sources = [new DrawingSource(3072, 1024, first), new DrawingSource(1, 1, second)],
-            Mask = mask,
+            Sources = [new DrawingSource(3072, 1024, SharedBytes.Of(first)), new DrawingSource(1, 1, SharedBytes.Of(second))],
+            Mask = SharedBytes.Of(mask),
         });
         var draw = (Draw)(await receiving)!;
 
-        CollectionAssert.AreEqual(first, draw.Sources[0].Rgb);
-        CollectionAssert.AreEqual(second, draw.Sources[1].Rgb);
-        CollectionAssert.AreEqual(mask, draw.Mask);
+        CollectionAssert.AreEqual(first, draw.Sources[0].Rgb.ToArray());
+        CollectionAssert.AreEqual(second, draw.Sources[1].Rgb.ToArray());
+        CollectionAssert.AreEqual(mask, draw.Mask!.ToArray());
     }
 
     [TestMethod]

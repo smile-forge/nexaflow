@@ -44,7 +44,7 @@ internal interface IClipDecoding : IDisposable
     /// four for each after.</summary>
     /// <param name="latentFrame">[48, 1, rows, cols].</param>
     /// <param name="lastCall">The clip's last: the decoder gives its scratch memory back after it.</param>
-    byte[] Next(float[] latentFrame, bool lastCall);
+    SharedBytes Next(float[] latentFrame, bool lastCall);
 }
 
 /// <summary>One clip's decoding: each call takes the clip's next latent frame and gives its frames, the cache carried
@@ -77,7 +77,7 @@ internal sealed class WanDecoding : IClipDecoding
     /// <param name="latentFrame">[48, 1, rows, cols].</param>
     /// <param name="lastCall">The clip's last: the session gives its scratch memory back after it, as the first graph's
     /// does after its one call.</param>
-    public byte[] Next(float[] latentFrame, bool lastCall)
+    public SharedBytes Next(float[] latentFrame, bool lastCall)
     {
         var session = _calls == 0 ? _first : _next;
         var written = _caches[_calls % 2];
@@ -99,7 +99,10 @@ internal sealed class WanDecoding : IClipDecoding
         session.RunWithBinding(run, binding);
         using var values = binding.GetOutputValues();
         _calls++;
-        return values[0].GetTensorDataAsSpan<byte>().ToArray();
+        var rgb = values[0].GetTensorDataAsSpan<byte>();
+        var frames = RequestSections.Create(rgb.Length);
+        rgb.CopyTo(frames.Span);
+        return frames;
     }
 
     public void Dispose()
@@ -181,7 +184,7 @@ internal sealed class WanTiledDecoding : IClipDecoding
         }
     }
 
-    public byte[] Next(float[] latentFrame, bool lastCall)
+    public SharedBytes Next(float[] latentFrame, bool lastCall)
     {
         var session = _calls == 0 ? _first : _next;
         bool reads = _calls > 0;
@@ -234,7 +237,15 @@ internal sealed class WanTiledDecoding : IClipDecoding
         }
         CudaRuntime.Wait(_device, _copies);
         _calls++;
-        return [.. blends.SelectMany(blend => LatentTiling.RgbOf(blend.Result()))];
+        var planes = blends.Select(blend => blend.Result()).ToList();
+        var clip = RequestSections.Create(planes.Sum(plane => plane.Length));
+        int at = 0;
+        foreach (var plane in planes)
+        {
+            LatentTiling.RgbOf(plane, clip.Span.Slice(at, plane.Length));
+            at += plane.Length;
+        }
+        return clip;
     }
 
     public void Dispose()

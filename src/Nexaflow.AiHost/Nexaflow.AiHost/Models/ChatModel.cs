@@ -130,7 +130,7 @@ internal sealed class ChatModel : IHostModel
     };
 
     /// <summary>A prompt ready to read: its text as tokens, split where its media are read.</summary>
-    public PreparedPrompt Prepare(string text, IReadOnlyList<byte[]> media)
+    public PreparedPrompt Prepare(string text, IReadOnlyList<ReadOnlyMemory<byte>> media)
         => media.Count == 0 ? PreparedPrompt.Text(Model.Tokenize(text)) : Projector!.Prepare(text, media);
 
     /// <exception cref="HostRequestException">A file would not load, or the GGUF carries no chat template the host reads.</exception>
