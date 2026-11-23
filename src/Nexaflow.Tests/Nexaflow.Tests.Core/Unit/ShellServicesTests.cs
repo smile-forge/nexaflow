@@ -323,7 +323,7 @@ public class ShellServicesTests
     public void RegisterMediatedTask_AddsToCollection_AndDisposeRemoves()
     {
         var svc = CreateSvc();
-        var reg = new MediatedTaskRegistration("Playing", static () => null!);
+        var reg = new MediatedTaskRegistration("Playing", new object());
 
         var handle = svc.RegisterMediatedTask(reg);
         CollectionAssert.Contains(svc.MediatedTasks, reg);
@@ -336,7 +336,7 @@ public class ShellServicesTests
     public void RegisterMediatedTask_DisposeIsIdempotent()
     {
         var svc = CreateSvc();
-        var reg = new MediatedTaskRegistration("Playing", static () => null!);
+        var reg = new MediatedTaskRegistration("Playing", new object());
         var handle = svc.RegisterMediatedTask(reg);
 
         handle.Dispose();

@@ -10,7 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Features.Audio.Controls;
+
 using Nexaflow.Features.Audio.Models;
 using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
@@ -294,7 +294,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         {
             _backgrounded = true;
             _mediatedHandle = _shell.RegisterMediatedTask(
-                new MediatedTaskRegistration(NowPlayingText, () => new AudioMiniTransport { DataContext = this }));
+                new MediatedTaskRegistration(NowPlayingText, new AudioRemote(this)));
             return;   // don't pause — the chrome remote drives play/pause/skip; the engine keeps its position
         }
 
