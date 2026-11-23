@@ -90,4 +90,50 @@ public class ViewRegistryTests
             Assert.ThrowsExactly<InvalidOperationException>(() => Naming((typeof(BaseModel), typeof(NotAView))).Create(new BaseModel())).Message,
             "not an element");
     });
+
+    [TestMethod]
+    public void AHost_DrawsItsModel_WithTheRegistryItsWindowHandsDown_OnceItJoinsIt() => UiThread.Run(() =>
+    {
+        var window = new StackPanel();
+        var host = new ModelHost { Model = new BaseModel() };
+        Assert.IsNull(host.Content, "outside a window that hands a registry down, nothing can draw it yet");
+
+        ViewRegistry.SetRegistry(window, Naming((typeof(BaseModel), typeof(BaseView))));
+        window.Children.Add(host);
+
+        Assert.IsInstanceOfType<BaseView>(host.Content);
+        var drawn = host.Content;
+        ViewRegistry.SetRegistry(window, Naming((typeof(BaseModel), typeof(BaseView))));
+        Assert.AreSame(drawn, host.Content, "a new registry for the same model keeps the view it has");
+
+        host.Model = null;
+        Assert.IsNull(host.Content);
+    });
+
+    [TestMethod]
+    public void AHost_WhoseModelNothingDraws_SaysSo() => UiThread.Run(() =>
+    {
+        var host = new ModelHost();
+        ViewRegistry.SetRegistry(host, Naming());
+
+        host.Model = new OtherModel();
+
+        StringAssert.Contains(((TextBlock)host.Content).Text, nameof(OtherModel));
+    });
+
+    [TestMethod]
+    public void AHost_TakenOutOfItsWindowForAMoment_KeepsTheViewItHas() => UiThread.Run(() =>
+    {
+        var window = new StackPanel();
+        ViewRegistry.SetRegistry(window, Naming((typeof(BaseModel), typeof(BaseView))));
+        var host = new ModelHost { Model = new BaseModel() };
+        window.Children.Add(host);
+        var drawn = host.Content;
+
+        window.Children.Remove(host);
+        Assert.AreSame(drawn, host.Content, "re-laid out or moved, the view keeps what it shows: a result already reported stays shown");
+
+        window.Children.Add(host);
+        Assert.AreSame(drawn, host.Content);
+    });
 }

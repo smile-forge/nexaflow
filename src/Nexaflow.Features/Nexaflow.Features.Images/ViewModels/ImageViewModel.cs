@@ -660,10 +660,10 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// have: only the grid views request thumbnails, and a single image never leaves the carousel. The request
     /// is the page's own (made once, shared with the album, cancelled with the page), not the preview's.
     /// </remarks>
-    public UserControl CreateContextPreview()
+    public object CreateContextPreview()
     {
         EnsureThumbnailsRequested();
-        return new ImageContextPreview { DataContext = this };
+        return new PagePreview<ImageViewModel>(this);
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────

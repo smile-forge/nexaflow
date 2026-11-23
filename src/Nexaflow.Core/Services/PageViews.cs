@@ -22,6 +22,9 @@ internal sealed class PageViews(ViewRegistry registry, Func<Page, Exception?, Fr
         new ViewRegistry(FeatureCatalog.Instance.ViewTypeFor),
         (page, error) => new PageLoadErrorView(page, error));
 
+    /// <summary>The app's views, which every window hands down so a feature's hosts draw with them too.</summary>
+    public ViewRegistry Registry => registry;
+
     private readonly Dictionary<Page, FrameworkElement> _views = [];
 
     /// <summary>The page's view if it has been shown, without making one.</summary>

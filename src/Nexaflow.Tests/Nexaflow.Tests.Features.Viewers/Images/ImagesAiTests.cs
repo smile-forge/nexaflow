@@ -12,6 +12,7 @@ using Nexaflow.Features.Images.Views;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Pages;
+using Nexaflow.Tests.Features.Infrastructure;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -120,8 +121,8 @@ public class ImagesAiTests
             {
                 shell.DidNotReceiveWithAnyArgs().QueueBackgroundTask(default!, ct: default);
 
-                var first  = vm.CreateContextPreview();
-                var second = vm.CreateContextPreview();
+                var first  = ContextPreviewProbe.Draw(vm.CreateContextPreview());
+                var second = ContextPreviewProbe.Draw(vm.CreateContextPreview());
 
                 Assert.IsInstanceOfType(first, typeof(ImageContextPreview));
                 Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own thumbnails");

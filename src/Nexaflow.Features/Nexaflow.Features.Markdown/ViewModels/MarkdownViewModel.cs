@@ -711,15 +711,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     // ── IContextPreview ───────────────────────────────────────────────────
 
     /// <summary>A rendered, read-only snapshot of the current document for the conversation context panel.</summary>
-    public UserControl CreateContextPreview()
-    {
-        return new MarkdownSurface
-        {
-            Document                    = new EditedDocument(Markdown),
-            BaseDirectory               = DocumentFolder,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-        };
-    }
+    public object CreateContextPreview() => new MarkdownContextPreview(Markdown, DocumentFolder);
 
     // ── Heading outline (ATX headings, code-fence aware) ──────────────────
 

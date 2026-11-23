@@ -1386,13 +1386,13 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     /// panel's header names the file. A fresh control each time the chip is selected, per the contract; it copies
     /// what it shows.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview()
+    public object CreateContextPreview()
     {
         var focus = SelectedNode ?? Root;
         var meta  = FileSizeText
                   + (focus is { Parent: not null } ? $" · {focus.GetJsonPath()}" : string.Empty)
                   + (IsModified ? $" · {Str.Get("Json.Preview.UnsavedEdits")}" : string.Empty);
-        return new ReadOnlyTextPreview(meta, JsonContextOutline.Of(focus));
+        return new TextContextPreview(meta, JsonContextOutline.Of(focus));
     }
 
     public string? GetSecurityContext() => FilePath;

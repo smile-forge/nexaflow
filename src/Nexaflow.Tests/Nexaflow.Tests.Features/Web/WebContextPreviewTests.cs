@@ -126,8 +126,8 @@ public class WebContextPreviewTests
         {
             vm.PageTitle = "Release notes";
 
-            var first  = vm.CreateContextPreview();
-            var second = vm.CreateContextPreview();
+            var first  = ContextPreviewProbe.Draw(vm.CreateContextPreview());
+            var second = ContextPreviewProbe.Draw(vm.CreateContextPreview());
 
             Assert.IsInstanceOfType(first, typeof(WebContextPreview));
             Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own snapshot");

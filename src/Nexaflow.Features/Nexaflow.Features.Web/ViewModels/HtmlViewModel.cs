@@ -244,7 +244,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
     /// title. A fresh control each time the chip is selected, per the contract; it binds to the snapshot but owns none
     /// of it.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview() => new WebContextPreview { DataContext = this };
+    public object CreateContextPreview() => new PagePreview<HtmlViewModel>(this);
 
     /// <summary>
     /// Takes <see cref="Snapshot"/> of the page as it now stands. Called by the view once a page has loaded; a

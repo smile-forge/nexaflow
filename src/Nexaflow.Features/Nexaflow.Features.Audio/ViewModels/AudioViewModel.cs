@@ -926,7 +926,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     /// player. The panel's header names the file. A fresh control each time the chip is selected, per the contract;
     /// it binds to the now-playing state and queue but owns none of it.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview() => new AudioContextPreview { DataContext = this };
+    public object CreateContextPreview() => new PagePreview<AudioViewModel>(this);
 
     public void Dispose()
     {

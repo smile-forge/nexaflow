@@ -91,8 +91,8 @@ public class VideoAiTests
             var vm = Make();
             try
             {
-                var first  = vm.CreateContextPreview();
-                var second = vm.CreateContextPreview();
+                var first  = ContextPreviewProbe.Draw(vm.CreateContextPreview());
+                var second = ContextPreviewProbe.Draw(vm.CreateContextPreview());
 
                 Assert.IsInstanceOfType(first, typeof(VideoContextPreview));
                 Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own poster and duration");

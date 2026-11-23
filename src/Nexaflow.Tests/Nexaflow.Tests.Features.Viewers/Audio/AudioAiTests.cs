@@ -159,8 +159,8 @@ public class AudioAiTests
                 vm.Title    = "Tone";
                 vm.Artist   = "Nexaflow";
 
-                var first  = vm.CreateContextPreview();
-                var second = vm.CreateContextPreview();
+                var first  = ContextPreviewProbe.Draw(vm.CreateContextPreview());
+                var second = ContextPreviewProbe.Draw(vm.CreateContextPreview());
 
                 Assert.IsInstanceOfType(first, typeof(AudioContextPreview));
                 Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own now-playing state");
@@ -174,7 +174,7 @@ public class AudioAiTests
 
                 vm.Title  = vm.FileName;   // what an untagged track's title falls back to
                 vm.Artist = string.Empty;
-                var untagged = vm.CreateContextPreview();
+                var untagged = ContextPreviewProbe.Draw(vm.CreateContextPreview());
                 ContextPreviewProbe.VisibleTexts(untagged);
                 Assert.AreEqual(string.Empty, vm.TagTitle);
                 Assert.IsTrue(untagged.DesiredSize.Height < tagged - 20, "lines with nothing to say take no room");

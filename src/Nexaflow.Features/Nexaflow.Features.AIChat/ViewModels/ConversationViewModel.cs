@@ -131,7 +131,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// offers none — in which case the panel falls back to an identity placeholder.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPreviewContent))]
-    private UserControl? _previewContent;
+    private object? _previewContent;
 
     public bool   IsPreviewOpen     => SelectedContextItem is not null;
     public bool   HasPreviewContent => PreviewContent is not null;
@@ -886,13 +886,13 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         if (oldValue is not null) oldValue.IsSelected = false;
         if (newValue is not null) newValue.IsSelected = true;
 
-        // Built fresh per selection and dropped on deselect — a page's live tab content is already parented
-        // in the tab host and cannot be re-hosted here, so IContextPreview hands back a separate element.
+        // Built fresh per selection and dropped on deselect — a page's live tab view is already parented
+        // in the tab host and cannot be re-hosted here, so IContextPreview hands back a preview of its own.
         PreviewContent = newValue is null ? null : BuildPreview(newValue.Page);
         OnPropertyChanged(nameof(PreviewFallbackText));
     }
 
-    private static UserControl? BuildPreview(Page page)
+    private static object? BuildPreview(Page page)
     {
         if (page.ViewModel is not IContextPreview previewable) return null;
         try   { return previewable.CreateContextPreview(); }

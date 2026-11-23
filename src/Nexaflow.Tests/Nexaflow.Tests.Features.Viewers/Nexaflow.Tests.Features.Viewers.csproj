@@ -54,6 +54,8 @@
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
 
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <!-- The conversation's context panel draws the text previews these pages hand it. -->
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Code\Nexaflow.Features.Code.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed\Nexaflow.Features.Compressed.csproj" />

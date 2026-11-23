@@ -1,10 +1,13 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Tests.Features.Infrastructure;
 
@@ -17,8 +20,32 @@ public static class ContextPreviewProbe
     /// <summary>About the width of the conversation's context panel.</summary>
     private const double PanelWidth = 360;
 
-    public static IReadOnlyList<string> VisibleTexts(UserControl preview)
+    /// <summary>
+    /// What a page's preview model is drawn as: the view marked <c>[ViewFor]</c> its type among this test's own assemblies,
+    /// as the app finds it among its own.
+    /// </summary>
+    public static FrameworkElement Draw(object model) => Views.Value.Create(model);
+
+    private static readonly Lazy<ViewRegistry> Views = new(() =>
     {
+        var drawnBy = new Dictionary<Type, Type>();
+        foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "Nexaflow.*.dll"))
+        {
+            Type[] types;
+            try { types = Assembly.Load(AssemblyName.GetAssemblyName(file)).GetTypes(); }
+            catch (ReflectionTypeLoadException partly) { types = [.. partly.Types.OfType<Type>()]; }
+            catch (Exception unreadable) when (unreadable is BadImageFormatException or FileLoadException or FileNotFoundException) { continue; }
+
+            foreach (var type in types)
+                foreach (var drawn in type.GetCustomAttributes<ViewForAttribute>(inherit: false))
+                    drawnBy[drawn.ModelType] = type;
+        }
+        return new ViewRegistry(model => drawnBy.GetValueOrDefault(model));
+    });
+
+    public static IReadOnlyList<string> VisibleTexts(object model)
+    {
+        var preview = model as FrameworkElement ?? Draw(model);
         preview.Measure(new Size(PanelWidth, double.PositiveInfinity));
         preview.Arrange(new Rect(preview.DesiredSize));
         // Bindings deferred until the dispatcher runs: let it reach everything above Background, as a shown panel would.

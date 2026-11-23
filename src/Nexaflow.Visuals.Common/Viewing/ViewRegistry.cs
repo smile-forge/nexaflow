@@ -17,6 +17,20 @@ public sealed class ViewRegistry(Func<Type, Type?> viewNaming)
 {
     private readonly ConcurrentDictionary<Type, Func<object, FrameworkElement>?> _makers = new();
 
+    /// <summary>
+    /// The registry a window hands down to everything in it, so a control deep inside a feature (a <see cref="ModelHost"/>)
+    /// draws models with the app's views without being given the registry, and without a static one.
+    /// </summary>
+    public static readonly DependencyProperty RegistryProperty = DependencyProperty.RegisterAttached(
+        "Registry", typeof(ViewRegistry), typeof(ViewRegistry),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits));
+
+    /// <summary>The registry handed down to <paramref name="element"/>; null outside a window that hands one down.</summary>
+    public static ViewRegistry? GetRegistry(DependencyObject element) => (ViewRegistry?)element.GetValue(RegistryProperty);
+
+    /// <summary>Hands <paramref name="registry"/> down to <paramref name="element"/> and everything in it.</summary>
+    public static void SetRegistry(DependencyObject element, ViewRegistry? registry) => element.SetValue(RegistryProperty, registry);
+
     /// <summary>The model a view made here draws, for whatever reaches the view and needs what it shows (a drop, a key).</summary>
     public static readonly DependencyProperty ModelProperty =
         DependencyProperty.RegisterAttached("Model", typeof(object), typeof(ViewRegistry), new PropertyMetadata(null));
