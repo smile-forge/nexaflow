@@ -20,6 +20,8 @@ public class DropJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "Scratchpad";
 
+    protected override string? MissingPrerequisite() => OutsideDrag.WhyUnavailable;
+
     [DllImport("user32.dll")]
     private static extern bool MoveWindow(IntPtr window, int x, int y, int width, int height, bool repaint);
 
@@ -33,9 +35,21 @@ public class DropJourneyTests : UiJourneyTestBase
         _folder = TestTemp.CreateSubdirectory("drops-").FullName;
     }
 
+    /// <summary>The four ways something arrives from another application, one scenario each. Explorer goes last: it rearranges the windows.</summary>
     [TestMethod]
     [CoversNode("universal-drop-target")]
-    public void WhatIsDraggedInFromAnotherApplication_LandsInOnePass()
+    [CoversNode("note-attachments")]
+    [CoversNode("chrome-tabs-drop-open")]
+    public void Drop_Journey()
+    {
+        RunStep("what is dragged in lands on the scratchpad, the ribbon and the tabs", WhatIsDraggedInFromAnotherApplicationLands);
+        RunStep("what is dropped on a note is attached to it", WhatIsDroppedOnANoteIsAttachedToIt);
+        RunStep("what is dropped on the shell opens and is never run", WhatIsDroppedOnTheShellOpensAndIsNeverRun);
+        RunStep("a file dragged from Explorer lands and stays where it was", AFileDraggedFromExplorerLandsAndStaysWhereItWas);
+        AssertJourney();
+    }
+
+    private void WhatIsDraggedInFromAnotherApplicationLands()
     {
         var canvas = WaitForId("Scratchpad_Canvas", 15);
         Assert.IsNotNull(canvas, "The scratchpad did not open.");
@@ -74,14 +88,10 @@ public class DropJourneyTests : UiJourneyTestBase
             Check("The tabs leave the file where it was", () => File.Exists(opened));
         }
         else Check("The tab strip is there", () => false);
-
-        AssertJourney();
     }
 
     /// <summary>A note takes what is dropped on it, and a file that is only its content is kept.</summary>
-    [TestMethod]
-    [CoversNode("note-attachments")]
-    public void WhatIsDroppedOnANote_IsAttachedToIt_InOnePass()
+    private void WhatIsDroppedOnANoteIsAttachedToIt()
     {
         var canvas = WaitForId("Scratchpad_Canvas", 15);
         Assert.IsNotNull(canvas, "The scratchpad did not open.");
@@ -105,14 +115,10 @@ public class DropJourneyTests : UiJourneyTestBase
         OutsideDrag.Words(from, at, "and more words");
         Check("Words dropped on the note are written in it", () => WaitForFs(() => BoardSays("and more words"), 8));
         Check("still with no other note made", () => Notes() == notes);
-
-        AssertJourney();
     }
 
     /// <summary>A shortcut opens what was dropped, and a script dropped on the tabs is read rather than run.</summary>
-    [TestMethod]
-    [CoversNode("chrome-tabs-drop-open")]
-    public void WhatIsDroppedOnTheShell_OpensAndIsNeverRun_InOnePass()
+    private void WhatIsDroppedOnTheShellOpensAndIsNeverRun()
     {
         var canvas = WaitForId("Scratchpad_Canvas", 15);
         Assert.IsNotNull(canvas, "The scratchpad did not open.");
@@ -148,8 +154,6 @@ public class DropJourneyTests : UiJourneyTestBase
                 return WaitForFs(() => Tabs() == count + 1, 8);
             });
         }
-
-        AssertJourney();
     }
 
     /// <summary>Whether the board's saved notes say <paramref name="words"/>.</summary>
@@ -164,9 +168,7 @@ public class DropJourneyTests : UiJourneyTestBase
     }
 
     /// <summary>The one source that matters most, itself: Explorer deletes what a target says it moved.</summary>
-    [TestMethod]
-    [CoversNode("universal-drop-target")]
-    public void AFileDraggedFromExplorer_LandsAndStaysWhereItWas()
+    private void AFileDraggedFromExplorerLandsAndStaysWhereItWas()
     {
         Assert.IsNotNull(WaitForId("Scratchpad_Canvas", 15), "The scratchpad did not open.");
         var file = Sample("from-explorer.txt");
@@ -204,8 +206,6 @@ public class DropJourneyTests : UiJourneyTestBase
         {
             try { explorer.AsWindow().Close(); } catch (COMException) { /* already closed */ }
         }
-
-        AssertJourney();
     }
 
     private string Sample(string name)

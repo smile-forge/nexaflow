@@ -13,10 +13,26 @@ Functionality / AI backbone, panels and state nodes, concerns by role, granulari
 Two tiers, matching the two node roles:
 
 1. **One UI journey per feature**, tagged `[CoversNode("<the feature's UI node>")]`. It launches the app once
-   (amortising the ~20 s start) and drives the interactive controls in a single pass — the *integration* test
-   at the UI level. See `TextJourneyTests` and `UiJourneyTestBase` (soft `CheckPresent`/`CheckInvoke`/`Check`
-   so one broken control doesn't hide the rest). Interactive-desktop only (`TestCategory=UI`), and it lives in
-   `Nexaflow.Tests.UIJourneys`.
+   (a launch and its teardown cost about 20 s, which is most of a small journey) and drives the interactive
+   controls in a single pass — the *integration* test at the UI level. Its job is to poke every control and show
+   that nothing crashes, so one `[TestMethod]` per feature is made of **steps**: `RunStep("<what it shows>", body)`
+   runs one scenario in the app that is already up, records a failed assertion, an exception or an
+   `Assert.Inconclusive` under the step's name and goes on to the next, gives each step its own `JourneyBudget`, and
+   brings the app back to where the journey began (`ReturnToBaseline`: the modal question answered, Options closed,
+   popups dismissed, the tabs the step opened closed). A feature's other pages open inside the same app
+   (`OpenPageViaSlash`) rather than in a journey of their own. See `TextJourneyTests`, `SystemInfoJourneyTests` and
+   `UiJourneyTestBase` (soft `CheckPresent`/`CheckInvoke`/`Check` so one broken control doesn't hide the rest).
+   Interactive-desktop only (`TestCategory=UI`), and it lives in `Nexaflow.Tests.UIJourneys`.
+
+   **A feature gets a second launch only when** (a) its steps together take longer than 120 s, or (b) there is a
+   genuinely second complete state to check — projects enabled and disabled, the models present and absent. Anything
+   else is a step of the feature's one journey. The second launch's test method carries
+   `[SecondLaunch(SecondLaunchReason.OverTwoMinutes | SecondLaunchReason.SecondState, "what makes it so")]`
+   (`Nexaflow.Tests.Fixtures`), and `JourneyLaunchRulesTests` (in `Tests.Features.Architecture`) enforces it: a
+   `[TestMethod]` is a launch, so is each `[DataRow]`, a feature is its folder under `Features\`, and a launch past the
+   first without the attribute fails. Features not yet folded are listed in `journey-launches-still-to-fold.txt` with
+   the launches they still owe — a ratchet, like the automation-id one, that can only shrink. The shell (`Core\`) is
+   not a feature: its handful of general journeys is held to `ShellJourneyLaunches`, changed on purpose.
 2. **One unit test per leaf control**, tagged `[CoversNode("<leaf-id>")]`, driving the **view-model** command
    or state behind the control (NOT a UI test). One method may cover several leaves — tag each. This is where
    the real per-control assertions live; the journey just proves the wiring holds end-to-end.
@@ -316,8 +332,10 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
   reading `start`'s output sees it end when it ends.
 - **Input waits for a run.** While a run drives the desktop, `run`, `launch`, `click`, `type` and `key` are refused;
   `shot`, `tree` and `status` still answer, so a running journey can be watched.
-- **What differs from your desktop**: no USB passthrough, so the USB journeys have nothing to drive; and the sandbox
-  user is an administrator with UAC off, so an elevation never prompts.
+- **What differs from your desktop**: no USB passthrough, so the USB journeys have nothing to drive; no drag from one
+  window to another — a drag begins but nothing it passes over accepts it, Explorer included — so the drop journeys
+  (`OutsideDrag.WhyUnavailable`) are inconclusive there and run on a desktop; and the sandbox user is an administrator
+  with UAC off, so an elevation never prompts.
 - It needs the Windows Sandbox feature and its app's `wsb` command.
 
 ### Flaky tests in CI
@@ -1022,11 +1040,11 @@ Every sample file is opened through the real shell and asserted to load in the e
 `SampleFileViewerTests` drives that off `ViewerMap.BySet`, so adding a fixture automatically adds its
 coverage — no per-file wiring.
 
-It runs as **three** tests, not one per file and not one for the lot: `MarkdownSamples_…`,
-`ImageSamples_…` and `OtherSamples_…`. One app launch per test amortises the whole corpus (a test per
-file would pay a launch per file), while the two heaviest families — markdown at a third
-of the corpus, images at a fifth — are pulled out so the suite has no single multi-minute block, a
-failure names which group broke, and a crash in one group leaves the others' results intact.
+It runs as **two** tests, not one per file and not one for the lot: `MarkdownSamples_…` and `OtherSamples_…`.
+One app launch per test amortises the whole corpus (a test per file would pay a launch per file). Together the
+families take about three and a half minutes, past the two a journey may take, so the heaviest — markdown, a third
+of the corpus — is pulled out: no test is a multi-minute block, a failure names which group broke, and a crash in
+one group leaves the other's results intact.
 
 A family with its own test must also be listed in `SampleFileViewerTests.OwnTest`, which is what
 excludes it from the tail; `Only(...)` refuses to sweep a family missing from that list, so the two
@@ -1070,7 +1088,7 @@ for that family. Writing the log is best-effort and can never fail a test.
 
 The dataset directory holds more folders than that table lists, on purpose. The `code`, `notebook` and
 `archive` sample sets exist for unit/feature tests but route through their feature's own UI tests
-(`CodeViewUiTests`, `NotebookViewUiTests`, `CompressedJourneyTests`), not the `SampleFileViewerTests` map
+(`CodeJourneyTests`, `NotebookViewUiTests`, `CompressedJourneyTests`), not the `SampleFileViewerTests` map
 above — so they have no `ViewerMap` row. And `ui/` is not a sample set at all: it is `UiFixtures.Root`,
 where the suite that owns each format leaves the material the journeys open. Counting up:
 `TestSampleData.Sets` has one entry per family, `ViewerMap.BySet` has a row only for the families whose

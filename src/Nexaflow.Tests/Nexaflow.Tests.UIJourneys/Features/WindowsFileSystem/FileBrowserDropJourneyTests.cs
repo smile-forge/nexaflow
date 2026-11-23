@@ -17,12 +17,15 @@ public class FileBrowserDropJourneyTests : UiJourneyTestBase
 
     protected override string? LaunchTabKind => "FileSystem";
 
+    protected override string? MissingPrerequisite() => OutsideDrag.WhyUnavailable;
+
     protected override IReadOnlyDictionary<string, string> LaunchTabParams
         => new Dictionary<string, string> { ["mode"] = "path", ["path"] = _into, ["label"] = "Drops" };
 
     protected override void SeedConfig(string configDir) => _into = TestTemp.CreateSubdirectory("drops-into-").FullName;
 
     [TestMethod]
+    [SecondLaunch(SecondLaunchReason.OverTwoMinutes, "The file-system journey takes about 110 s on its own, so the drops would carry it past two minutes; this one also starts in a folder of its own.")]
     [CoversNode("winfs-right-drag-menu")]
     public void FilesDraggedIntoTheBrowser_AreCopiedOrMoved_InOnePass()
     {

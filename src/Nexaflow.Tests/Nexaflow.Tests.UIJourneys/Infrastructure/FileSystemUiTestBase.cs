@@ -26,6 +26,7 @@ public abstract class FileSystemUiTestBase : UITestBase
     /// </summary>
     protected void NavigateFileBrowserTo(string path)
     {
+        BringFileBrowserForward();
         Assert.IsNotNull(WaitForId("DirectoryTree", 15), "File browser tab did not load.");
 
         var ai = WaitForId("AiInputBox", 10);
@@ -37,6 +38,20 @@ public abstract class FileSystemUiTestBase : UITestBase
 
         Assert.IsNotNull(WaitForId("NewMenuAction", 10),
             "File browser did not navigate to the target folder (the 'New' button never appeared).");
+    }
+
+    /// <summary>
+    /// Puts a file browser in front when another page is: its tab is selected where the app has one, and opened from the
+    /// ribbon's This PC where it has none — a journey launched into its own page (<c>--openTab</c>) starts with that page
+    /// alone, and its other scenarios open files from a browser.
+    /// </summary>
+    protected void BringFileBrowserForward()
+    {
+        if (MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("DirectoryTree")) is { IsOffscreen: false }) return;
+
+        if (MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("TabItem_FileSystem")) is { } tab) tab.Click();
+        else MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Ribbon_This PC"))?.Click();
+        Wait.UntilInputIsProcessed();
     }
 
     protected void SetText(string automationId, string value)

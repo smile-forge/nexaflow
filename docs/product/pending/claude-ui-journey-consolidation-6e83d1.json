@@ -1,0 +1,1196 @@
+{
+  "branch": "claude/ui-journey-consolidation-6e83d1",
+  "nodes": {
+    "processes": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Processes/ProcessesJourneyTests.cs",
+            "class": "ProcessesJourneyTests",
+            "method": "Processes_Journey"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Processes/ProcessesJourneyTests.cs",
+            "class": "ProcessesJourneyTests",
+            "method": "Processes_Journey"
+          }
+        ]
+      }
+    },
+    "processes-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Processes/ProcessesJourneyTests.cs",
+            "class": "ProcessesJourneyTests",
+            "method": "Processes_Journey"
+          }
+        ]
+      }
+    },
+    "sysinfo": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/SystemInfo/SystemInfoJourneyTests.cs",
+            "class": "SystemInfoJourneyTests",
+            "method": "SystemInfo_Journey"
+          }
+        ]
+      }
+    },
+    "sysinfo-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/SystemInfo/SystemInfoJourneyTests.cs",
+            "class": "SystemInfoJourneyTests",
+            "method": "SystemInfo_Journey"
+          }
+        ]
+      }
+    },
+    "font": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Fixtures/SampleFileViewerTests.cs",
+            "class": "SampleFileViewerTests",
+            "method": "OtherSamples_OpenInExpectedViewer_AndCloseWithoutCrashing"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Fixtures/FontSamplesTests.cs",
+            "class": "FontSamplesTests"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Font/WoffDecoderTests.cs",
+            "class": "WoffDecoderTests"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Font/FontViewerJourneyTests.cs",
+            "class": "FontViewerJourneyTests",
+            "method": "Font_Journey"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Font/FontClientToolsTests.cs",
+            "class": "FontClientToolsTests"
+          }
+        ]
+      }
+    },
+    "font-picker": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Font/FontViewerJourneyTests.cs",
+            "class": "FontViewerJourneyTests",
+            "method": "Font_Journey"
+          }
+        ]
+      }
+    },
+    "font-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Font/FontViewerJourneyTests.cs",
+            "class": "FontViewerJourneyTests",
+            "method": "Font_Journey"
+          }
+        ]
+      }
+    },
+    "email": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Email/EmailJourneyTests.cs",
+            "class": "EmailJourneyTests",
+            "method": "Email_Journey"
+          }
+        ]
+      }
+    },
+    "email-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Email/EmailJourneyTests.cs",
+            "class": "EmailJourneyTests",
+            "method": "Email_Journey"
+          }
+        ]
+      }
+    },
+    "virtual-disk-viewer": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/VirtualDisk/VirtualDiskJourneyTests.cs",
+            "class": "VirtualDiskJourneyTests",
+            "method": "VirtualDisk_Journey"
+          }
+        ]
+      }
+    },
+    "vdisk-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/VirtualDisk/VirtualDiskJourneyTests.cs",
+            "class": "VirtualDiskJourneyTests",
+            "method": "VirtualDisk_Journey"
+          }
+        ]
+      }
+    },
+    "audio": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Audio/AudioJourneyTests.cs",
+            "class": "AudioJourneyTests",
+            "method": "Audio_Journey"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Audio/AudioTabRegistrationTests.cs",
+            "class": "AudioTabRegistrationTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Audio/AudioJourneyTests.cs",
+            "class": "AudioJourneyTests",
+            "method": "Audio_Journey"
+          }
+        ]
+      }
+    },
+    "audio-stop": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/ViewModels/AudioViewModel.cs",
+          "class": "AudioViewModel",
+          "method": "Stop"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Audio/AudioJourneyTests.cs",
+          "class": "AudioJourneyTests",
+          "method": "Audio_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Audio/AudioViewModelTests.cs",
+          "class": "AudioViewModelTests"
+        }
+      ]
+    },
+    "audio-volume": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/ViewModels/AudioViewModel.cs",
+          "class": "AudioViewModel",
+          "method": "OnVolumeChanged"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Audio/AudioJourneyTests.cs",
+          "class": "AudioJourneyTests",
+          "method": "Audio_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Audio/AudioViewModelTests.cs",
+          "class": "AudioViewModelTests"
+        }
+      ]
+    },
+    "audio-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Audio/AudioJourneyTests.cs",
+            "class": "AudioJourneyTests",
+            "method": "Audio_Journey"
+          }
+        ]
+      }
+    },
+    "code": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/CodeIntel/CodeJourneyTests.cs",
+            "class": "CodeJourneyTests",
+            "method": "Code_Journey"
+          }
+        ]
+      }
+    },
+    "code-map-toggle": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Code/ViewModels/CodeViewModel.cs",
+          "class": "CodeViewModel",
+          "method": "TogglePanel"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/CodeIntel/CodeJourneyTests.cs",
+          "class": "CodeJourneyTests",
+          "method": "Code_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/CodeIntel/CodeViewModelTests.cs",
+          "class": "CodeViewModelTests"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/CodeIntel/CodeJourneyTests.cs",
+            "class": "CodeJourneyTests",
+            "method": "Code_Journey"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/CodeIntel/CodeViewModelTests.cs",
+            "class": "CodeViewModelTests",
+            "method": "TogglePanel_FlipsOpenState"
+          }
+        ]
+      }
+    },
+    "code-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/CodeIntel/CodeJourneyTests.cs",
+            "class": "CodeJourneyTests",
+            "method": "Code_Journey"
+          }
+        ]
+      }
+    },
+    "font-open": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Font/FontViewerJourneyTests.cs",
+            "class": "FontViewerJourneyTests",
+            "method": "Font_Journey"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Font/FontViewerJourneyTests.cs",
+            "class": "FontViewerJourneyTests",
+            "method": "Font_Journey"
+          }
+        ]
+      }
+    },
+    "email-open": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Email/EmailJourneyTests.cs",
+            "class": "EmailJourneyTests",
+            "method": "Email_Journey"
+          }
+        ]
+      }
+    },
+    "console": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Console/ConsoleJourneyTests.cs",
+            "class": "ConsoleJourneyTests",
+            "method": "Console_Journey"
+          }
+        ]
+      }
+    },
+    "console-env-panel": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "RefreshEnvVars"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Console/ConsoleJourneyTests.cs",
+          "class": "ConsoleJourneyTests",
+          "method": "Console_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+          "class": "ConsoleViewModelCommandTests"
+        }
+      ]
+    },
+    "console-configure-button": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "Configure"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Console/ConsoleJourneyTests.cs",
+          "class": "ConsoleJourneyTests",
+          "method": "Console_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+          "class": "ConsoleViewModelCommandTests"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Console/ConsoleJourneyTests.cs",
+            "class": "ConsoleJourneyTests",
+            "method": "Console_Journey"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+            "class": "ConsoleViewModelCommandTests",
+            "method": "ShowConfigureButton_False_WhenNoConfigSection"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+            "class": "ConsoleViewModelCommandTests",
+            "method": "ShowConfigureButton_True_WhenConfigSectionPresent"
+          }
+        ]
+      }
+    },
+    "console-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Console/ConsoleJourneyTests.cs",
+            "class": "ConsoleJourneyTests",
+            "method": "Console_Journey"
+          }
+        ]
+      }
+    },
+    "network-page-list": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Network/NetworkJourneyTests.cs",
+            "class": "NetworkJourneyTests",
+            "method": "Network_Journey"
+          }
+        ]
+      }
+    },
+    "network-page-panel": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Network/NetworkJourneyTests.cs",
+            "class": "NetworkJourneyTests",
+            "method": "Network_Journey"
+          }
+        ]
+      }
+    },
+    "network-guard-options": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Network/NetworkOptionsModelTests.cs",
+            "class": "NetworkOptionsModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Network/NetworkJourneyTests.cs",
+            "class": "NetworkJourneyTests",
+            "method": "Network_Journey"
+          }
+        ]
+      }
+    },
+    "windowsapps": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WindowsApps/WindowsAppsJourneyTests.cs",
+            "class": "WindowsAppsJourneyTests",
+            "method": "WindowsApps_Journey"
+          }
+        ]
+      }
+    },
+    "windowsapps-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WindowsApps/WindowsAppsJourneyTests.cs",
+            "class": "WindowsAppsJourneyTests",
+            "method": "WindowsApps_Journey"
+          }
+        ]
+      }
+    },
+    "chrome-tab-overflow": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "ribbon-overflow": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "chrome-frame": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml.cs",
+          "class": "MainWindow"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+          "class": "ShellChromeJourneyTests",
+          "method": "Shell_Journey"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "chrome-notifications-panel": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "chrome-show-notification": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/ShellServices.cs",
+          "class": "ShellServices",
+          "method": "ShowNotification"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+          "class": "ShellChromeJourneyTests",
+          "method": "Shell_Journey"
+        }
+      ]
+    },
+    "help-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "dual-pane": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "chrome-tabstrip": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/TabStrip.xaml.cs",
+          "class": "TabStrip",
+          "method": "BuildTabElement"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/TabStrip.xaml",
+          "class": "TabStrip"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+          "class": "ShellChromeJourneyTests",
+          "method": "Shell_Journey"
+        }
+      ]
+    },
+    "chrome-content-area": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/PaneTests.cs",
+            "class": "PaneTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "ribbon-button-full": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "win-cux-split-empty": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "win-cux-close-pane": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/ShellChromeJourneyTests.cs",
+            "class": "ShellChromeJourneyTests",
+            "method": "Shell_Journey"
+          }
+        ]
+      }
+    },
+    "chrome-drop-routing": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/DropJourneyTests.cs",
+            "class": "DropJourneyTests",
+            "method": "Drop_Journey"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ChatBarDropTargetTests.cs",
+            "class": "ChatBarDropTargetTests"
+          }
+        ]
+      }
+    },
+    "chrome-tabs-drop-open": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/DropJourneyTests.cs",
+            "class": "DropJourneyTests",
+            "method": "Drop_Journey"
+          }
+        ]
+      }
+    },
+    "images-ui": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+            "class": "ImagesEditJourneyTests",
+            "method": "Images_Journey"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+            "class": "ImagesEditJourneyTests",
+            "method": "Images_Journey"
+          }
+        ]
+      }
+    },
+    "images-layers-panel": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageLayeredDocumentTests.cs",
+            "class": "ImageLayeredDocumentTests",
+            "method": "FillClearAndTheCanvasSize_AreEachOneStep_UndoneInTurn"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ImagesLayers_Journey"
+          }
+        ]
+      }
+    },
+    "images-ora": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageOpenRasterTests.cs",
+            "class": "ImageOpenRasterTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageLayeredDocumentTests.cs",
+            "class": "ImageLayeredDocumentTests",
+            "method": "ACanvasFromTheNewPicker_IsWrittenAtItsSize_AndOpenedForEditing"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ImagesLayers_Journey"
+          }
+        ]
+      }
+    },
+    "images-paint": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "AStroke_BuildsToItsOpacity_AndNoFurther_OnlyInsideTheSelection"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "AStrokeInTheEditor_IsOneUndoStep_AndTheEyedropperPicksTheLayersColour"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ImagesLayers_Journey"
+          }
+        ]
+      }
+    },
+    "images-transform": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "ATransform_TurnsAndFlipsPixels_AsOneStep_AndCancelledLeavesThemAsTheyWere"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "AMarkupLayer_TakesNotesFromTheMarkupTool_AndATransformPlacesThemAfresh"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ImagesLayers_Journey"
+          }
+        ]
+      }
+    },
+    "images-print": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagePaintTests.cs",
+            "class": "ImagePaintTests",
+            "method": "APicture_IsLaidOnPaper_FittedFilledAtActualSizeOrAtAWidth"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesLayersJourneyTests.cs",
+            "class": "ImagesLayersJourneyTests",
+            "method": "ImagesLayers_Journey"
+          }
+        ]
+      }
+    },
+    "made-file-drafts": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/DraftSavingTests.cs",
+            "class": "DraftSavingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Drafts/DraftHandlerTests.cs",
+            "class": "DraftHandlerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+            "class": "ImagesEditJourneyTests",
+            "method": "Images_Journey"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/DraftLocationTests.cs",
+            "class": "DraftLocationTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/DraftSweepingTests.cs",
+            "class": "DraftSweepingTests"
+          }
+        ]
+      }
+    },
+    "images-edit-histogram": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ToneHistogramTests.cs",
+            "class": "ToneHistogramTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+            "class": "ImagesEditJourneyTests",
+            "method": "Images_Journey"
+          }
+        ]
+      }
+    },
+    "images-edit-panels": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ArtistPanelTests.cs",
+            "class": "ArtistPanelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+            "class": "ImagesEditJourneyTests",
+            "method": "Images_Journey"
+          }
+        ]
+      }
+    },
+    "images-start": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageStartTests.cs",
+            "class": "ImageStartTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+            "class": "ImagesEditJourneyTests",
+            "method": "Images_Journey"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesGenerateJourneyTests.cs",
+            "class": "ImagesGenerateJourneyTests",
+            "method": "ImagesGenerate_Journey"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BackgroundJobsTests.cs",
+            "class": "BackgroundJobsTests",
+            "method": "APictureWhoeverAskedTakesIn_IsHandedBackAsTheFileItWasSavedAs"
+          }
+        ]
+      }
+    },
+    "images": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+            "class": "ImagesEditJourneyTests",
+            "method": "Images_Journey"
+          }
+        ]
+      }
+    },
+    "images-tools": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml",
+          "class": "ImageView",
+          "ast": "K:ImageToolsTemplate"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+          "class": "ImagesEditJourneyTests",
+          "method": "Images_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesViewModelTests.cs",
+          "class": "ImagesViewModelTests"
+        }
+      ]
+    },
+    "images-rotate": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureStage.cs",
+          "class": "PictureStage",
+          "method": "RotateLeft"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/PictureStage.cs",
+          "class": "PictureStage",
+          "method": "RotateRight"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+          "class": "ImagesEditJourneyTests",
+          "method": "Images_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesViewModelTests.cs",
+          "class": "ImagesViewModelTests"
+        }
+      ]
+    },
+    "images-fit": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "ToggleFit"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+          "class": "ImagesEditJourneyTests",
+          "method": "Images_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesViewModelTests.cs",
+          "class": "ImagesViewModelTests"
+        }
+      ]
+    },
+    "images-fullscreen": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "EnterFullScreen"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/FullScreenImageWindow.xaml.cs",
+          "class": "FullScreenImageWindow"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+          "class": "ImagesEditJourneyTests",
+          "method": "Images_Journey"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesViewModelTests.cs",
+          "class": "ImagesViewModelTests"
+        }
+      ]
+    },
+    "images-read-page": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesEditJourneyTests.cs",
+            "class": "ImagesEditJourneyTests",
+            "method": "Images_Journey"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Pages/PageConversionTests.cs",
+            "class": "PageConversionTests",
+            "method": "AStop_AsksFirst_AndShowingWhatWasRead_OpensItAsADraft"
+          }
+        ]
+      }
+    },
+    "images-gen-image": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/GenerateImageOptionsTests.cs",
+            "class": "GenerateImageOptionsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesGenerateJourneyTests.cs",
+            "class": "ImagesGenerateJourneyTests",
+            "method": "ImagesGenerate_Journey"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 63,
+  "touched_nodes": [
+    "audio",
+    "audio-stop",
+    "audio-ui",
+    "audio-volume",
+    "chrome-content-area",
+    "chrome-drop-routing",
+    "chrome-frame",
+    "chrome-notifications-panel",
+    "chrome-show-notification",
+    "chrome-tab-overflow",
+    "chrome-tabs-drop-open",
+    "chrome-tabstrip",
+    "code",
+    "code-map-toggle",
+    "code-ui",
+    "console",
+    "console-configure-button",
+    "console-env-panel",
+    "console-ui",
+    "dual-pane",
+    "email",
+    "email-open",
+    "email-ui",
+    "font",
+    "font-open",
+    "font-picker",
+    "font-ui",
+    "help-ui",
+    "images",
+    "images-edit-histogram",
+    "images-edit-panels",
+    "images-fit",
+    "images-fullscreen",
+    "images-gen-image",
+    "images-layers-panel",
+    "images-ora",
+    "images-paint",
+    "images-print",
+    "images-read-page",
+    "images-rotate",
+    "images-start",
+    "images-tools",
+    "images-transform",
+    "images-ui",
+    "made-file-drafts",
+    "network-guard-options",
+    "network-page-list",
+    "network-page-panel",
+    "processes",
+    "processes-ui",
+    "ribbon-button-full",
+    "ribbon-overflow",
+    "sysinfo",
+    "sysinfo-ui",
+    "vdisk-ui",
+    "virtual-disk-viewer",
+    "win-cux-close-pane",
+    "win-cux-split-empty",
+    "windowsapps",
+    "windowsapps-ui"
+  ]
+}

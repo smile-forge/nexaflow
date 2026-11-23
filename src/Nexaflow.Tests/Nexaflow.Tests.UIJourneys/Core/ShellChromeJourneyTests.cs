@@ -1,4 +1,6 @@
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
+using FlaUI.Core.WindowsAPI;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
@@ -40,15 +42,39 @@ namespace Nexaflow.Tests.Features.UI;
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
-[NoCoverage("shell-chrome journey")]
+[CoversNode("chrome-frame")]
 public class ShellChromeJourneyTests : UiJourneyTestBase
 {
+    /// <summary>The window frame, then the help pane, the tab strip and the split panes — everything the shell does around a page, in one launch.</summary>
     [TestMethod]
-    public void ShellChrome_Controls_RespondInOnePass()
+    [CoversNode("chrome-notifications-panel")]
+    [CoversNode("chrome-ai-input")]
+    [CoversNode("help-ui")]
+    [CoversNode("ribbon-button-full")]
+    [CoversNode("aibar-slash-palette")]
+    [CoversNode("chrome-content-area")]
+    [CoversNode("dual-pane")]
+    [CoversNode("win-cux-split-empty")]
+    [CoversNode("win-cux-close-pane")]
+    public void Shell_Journey()
+    {
+        RunStep("the frame: ribbon, AI bar, caption buttons, overlays, overflow", ShellFrame);
+        RunStep("the help pane opens beside the page, searches and closes", HelpPane);
+        RunStep("a ribbon item opens a tab, and clicking a tab activates it", RibbonItemOpensATab);
+        RunStep("the slash palette opens the matched page, and focus returns to the AI input", SlashPaletteOpensAPage);
+        RunStep("Split from the empty strip area creates a second pane", SplitFromTheEmptyStripArea);
+        RunStep("Split, then Close pane, collapses back with its content", SplitThenClosePane);
+        RunStep("Split after closing the left pane keeps the survivor's tabs", SplitAfterClosingTheLeftPane);
+        AssertJourney();
+    }
+
+    private void ShellFrame()
     {
         // The shell always launches a default FileSystem tab; wait on its file browser so the frame
         // is fully realised before we probe the chrome around it.
         Assert.IsNotNull(WaitForId("DirectoryTree", 15), "Default FileSystem tab did not load.");
+
+        Check("The window has a title", () => !string.IsNullOrWhiteSpace(MainWindow.Title));
 
         // ── Always-present frame — present-only (these never open a modal) ──
         CheckPresent("Ribbon",          "RibbonControl");
@@ -195,8 +221,288 @@ public class ShellChromeJourneyTests : UiJourneyTestBase
                   () => WaitForFs(() => WithIdPrefix("TabOverflow_").Length > 0, 3));
         Check("picking a hidden tab closes the list", () => PressFirstAndWaitGone("TabOverflow_"));
         Check("the window goes back to its size", () => ResizeWindow(size.Width, size.Height));
+    }
 
-        AssertJourney();
+    // ── Help ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The Help pane — Core's own page, opened beside the page in use by the chrome's ? button and by F1. Walks it the way a
+    /// reader would: open the help for the default File System tab (the window splits, help on the right), search it for "pane" —
+    /// a word the File System and Help showcases both use — open the match from the other help page, list every help page, then F1
+    /// to point help back at the page in use and F1 again to close it. The showcases come out of the English language pack beside
+    /// the app, so this also proves the pack shipped with the build and that pages load from it.
+    /// </summary>
+    private void HelpPane()
+    {
+        Assert.IsNotNull(WaitForId("DirectoryTree", 15), "Default FileSystem tab did not load.");
+
+        CheckDoes("? opens help beside the page in use", "Chrome_HelpButton",
+                  () => WaitForId("Help_Document", Affordable(8)) is not null && TabStrips() == 2);
+        CheckPresent("the Help tab", "TabItem_Help");
+
+        Check("typing searches the page shown, then every other help page", () =>
+        {
+            var box = WaitForId("Help_SearchBox", Affordable(5));
+            if (box is null) return false;
+            box.Focus();
+            box.AsTextBox().Text = "pane";
+            Wait.UntilInputIsProcessed();
+            return WaitForId("Help_SearchStatus", Affordable(6)) is not null
+                && WaitForId("Help_OtherResults", Affordable(8)) is not null;
+        });
+        CheckPresent("the match count", "Help_SearchMatchCount");
+        CheckInvoke("next match",       "Help_SearchNext");
+        CheckInvoke("previous match",   "Help_SearchPrevious");
+
+        Check("a match on another help page opens it, with the search carried over", () =>
+        {
+            var first = WaitForId("Help_OtherResults", Affordable(5))
+                ?.FindFirstDescendant(cf => cf.ByControlType(ControlType.ListItem));
+            if (first is null) return false;
+            first.AsListBoxItem().Select();
+            Wait.UntilInputIsProcessed();
+            Thread.Sleep(500);
+            return WaitForId("Help_Document", Affordable(3)) is not null
+                && WaitForId("Help_SearchStatus", Affordable(3)) is not null;
+        });
+
+        CheckDoes("clearing ends the search", "Help_SearchClear",
+                  () => WaitForId("Help_SearchStatus", 1) is null);
+        CheckDoes("the index button lists every help page", "Help_IndexButton",
+                  () => WaitForId("Help_Document", Affordable(3)) is not null);
+
+        // Help's own page is where locate: links are shown off — the one kind of link that points at a control on screen
+        // instead of navigating. Reaching it from the index is the index doing its job.
+        Check("an index entry opens that help page", () => InvokeLink(link => Named(link, "Help")));
+        // Picked by where it points rather than by its words, which are the help page's to reword.
+        Check("a locate: link lassoes the control it names", () =>
+            InvokeLink(link => GoingTo(link, "locate:Chrome_HelpButton"))
+            && WaitForId("Locate_Lasso", Affordable(4)) is not null);
+        Check("and a click takes the lasso down", () =>
+        {
+            WaitForId("Help_SearchBox", Affordable(3))?.Click();
+            Wait.UntilInputIsProcessed();
+            Thread.Sleep(600);
+            return MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Locate_Lasso")) is null;
+        });
+
+        // The reader moved within help (a result, the index), so the pane stayed where they took it: F1 points it back
+        // at the page in use, and pressed again while it shows that page, closes it.
+        Check("F1 points help back at the page in use", () =>
+        {
+            Keyboard.Press(VirtualKeyShort.F1);
+            Wait.UntilInputIsProcessed();
+            Thread.Sleep(400);
+            return WaitForId("Help_Document", Affordable(3)) is not null;
+        });
+        Check("F1 again closes help, and the split with it", () =>
+        {
+            Keyboard.Press(VirtualKeyShort.F1);
+            Wait.UntilInputIsProcessed();
+            Thread.Sleep(500);
+            return WaitForId("Help_Document", 1) is null && TabStrips() == 1;
+        });
+    }
+
+    /// <summary>Follows a link in the help document. Each link is a Hyperlink in the document's automation tree, named by
+    /// its words and valued by where it goes; callers pick by whichever says what they mean.</summary>
+    private bool InvokeLink(Func<AutomationElement, bool> matches)
+    {
+        var link = WaitForId("Help_Document", Affordable(3))
+            ?.FindAllDescendants(cf => cf.ByControlType(ControlType.Hyperlink))
+            .FirstOrDefault(matches);
+        if (link?.Patterns.Invoke.PatternOrDefault is not { } invoke) return false;
+
+        invoke.Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(400);
+        return true;
+    }
+
+    private static bool Named(AutomationElement link, string name) => link.Name == name;
+
+    private static bool GoingTo(AutomationElement link, string target) =>
+        link.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault == target;
+
+    private int TabStrips() => MainWindow.FindAllDescendants(cf => cf.ByAutomationId("TabStrip")).Length;
+
+    // ── Tabs ──────────────────────────────────────────────────────────────────
+
+    /// <summary>The first ribbon button, which opens a page — null when the ribbon is empty in this build.</summary>
+    private AutomationElement? FirstRibbonButton() =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("RibbonControl"))
+                  ?.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button));
+
+    /// <summary>Opens the page the first ribbon button opens, so a pane holds realised page content.</summary>
+    private bool OpenAPageFromTheRibbon()
+    {
+        if (FirstRibbonButton() is not { } button) return false;
+        button.AsButton().Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(500);
+        return true;
+    }
+
+    private void RibbonItemOpensATab()
+    {
+        if (!OpenAPageFromTheRibbon()) { Assert.Inconclusive("No ribbon buttons found — ribbon may be empty in this build."); return; }
+
+        var tabs = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("TabStrip"))
+                             ?.FindAllDescendants()
+                             .Where(e => e.Properties.AutomationId.ValueOrDefault?.StartsWith("TabItem_") == true)
+                             .ToArray() ?? [];
+        Assert.IsTrue(tabs.Length >= 1, "Expected at least one tab in the strip after clicking a ribbon item.");
+
+        tabs[0].Click();
+        Wait.UntilInputIsProcessed();
+        Assert.IsFalse(App.HasExited, "App crashed after clicking a tab.");
+    }
+
+    /// <summary>
+    /// A "/" query opens a page deterministically through the palette (proven to open the Services page), and focus lands
+    /// back on the AI input once the tab is open — the Services view realizes and could take focus itself.
+    /// </summary>
+    private void SlashPaletteOpensAPage()
+    {
+        var ai = WaitForId("AiInputBox", 5);
+        Assert.IsNotNull(ai, "AI input box not found.");
+        ai!.Focus();
+        Thread.Sleep(2500);   // let the (Debug) feature catalog warm before it drives the palette candidates
+
+        // "Services" is a default-openable page — /serv should match it, auto-select it, and Enter opens it.
+        Keyboard.Type("/serv");
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(500);    // the palette rebuild is debounced off the keystroke
+        Keyboard.Press(VirtualKeyShort.RETURN);
+        Wait.UntilInputIsProcessed();
+
+        Assert.IsNotNull(WaitForId("TabItem_SystemServices", 8),
+            "Typing /serv and pressing Enter did not open the Services tab — the palette didn't match/route.");
+        Thread.Sleep(600);    // focus is handed to the AI bar at Background priority, after the view realizes
+        Assert.IsTrue(ai.Properties.HasKeyboardFocus.ValueOrDefault, "Opening a tab did not leave keyboard focus on the AI input.");
+        Assert.IsFalse(App.HasExited, "The app crashed while opening a tab from the palette.");
+    }
+
+    // ── Split panes — each step leaves the window as one pane ─────────────────
+
+    private void SplitFromTheEmptyStripArea()
+    {
+        Assert.AreEqual(1, CountTabStrips(), "Expected a single pane (one TabStrip) before the split.");
+        try
+        {
+            SplitFromTheStrip();
+            Assert.AreEqual(2, CountTabStrips(), "Expected two panes (two TabStrips) after Split.");
+            Assert.IsFalse(App.HasExited, "App crashed while splitting.");
+        }
+        finally { CollapseSplit(); }
+    }
+
+    private void SplitThenClosePane()
+    {
+        // Open a tab so a pane holds realised page content — this is what gets re-parented on collapse.
+        if (!OpenAPageFromTheRibbon()) { Assert.Inconclusive("No ribbon buttons available to open a tab."); return; }
+        try
+        {
+            SplitFromTheStrip();
+            Assert.AreEqual(2, CountTabStrips(), "Expected two panes after Split.");
+
+            // Collapse via the right (empty) pane's "Close pane" — the surviving pane's live content
+            // is re-hosted in a fresh PaneView, which must not throw the WPF "element already has a parent".
+            ClosePaneOf(rightMost: true);
+            Assert.AreEqual(1, CountTabStrips(), "Expected one pane after Close pane.");
+            Assert.IsFalse(App.HasExited, "App crashed while collapsing the split.");
+        }
+        finally { CollapseSplit(); }
+    }
+
+    private void SplitAfterClosingTheLeftPane()
+    {
+        // Closing the LEFT pane leaves the old right pane as the root. Splitting again used to build the new split
+        // from the first pane the window was created with — long since emptied and detached — so every open tab
+        // dropped out of the window. Help splits through the same path, so this is the case it would hit first.
+        if (!OpenAPageFromTheRibbon()) { Assert.Inconclusive("No ribbon buttons available to open a tab."); return; }
+        try
+        {
+            SplitFromTheStrip();
+            Assert.AreEqual(2, CountTabStrips(), "Expected two panes after Split.");
+            var tabsBefore = CountTabs();
+            Assert.IsTrue(tabsBefore >= 1, "Expected at least one open tab before collapsing.");
+
+            // Close the LEFT pane: its tabs move into the right one, which becomes the window's only pane.
+            ClosePaneOf(rightMost: false);
+            Assert.AreEqual(1, CountTabStrips(), "Expected one pane after closing the left pane.");
+
+            SplitFromTheStrip();
+            Assert.AreEqual(2, CountTabStrips(), "Expected two panes after splitting again.");
+            Assert.AreEqual(tabsBefore, CountTabs(), "Splitting after the left pane closed lost the open tabs.");
+            Assert.IsFalse(App.HasExited, "App crashed while re-splitting.");
+        }
+        finally { CollapseSplit(); }
+    }
+
+    private int CountTabStrips() => TabStrips();
+
+    /// <summary>Every tab in every pane — tab items are tagged TabItem_&lt;PageKind&gt;.</summary>
+    private int CountTabs()
+        => MainWindow.FindAllDescendants(cf => cf.ByAutomationId("TabStrip"))
+                     .Sum(s => s.FindAllDescendants()
+                                .Count(e => e.Properties.AutomationId.ValueOrDefault?.StartsWith("TabItem_") == true));
+
+    /// <summary>The strip's own context menu on its empty area, and its "Split".</summary>
+    private void SplitFromTheStrip()
+    {
+        RightClickStrip(rightMost: false);
+        var split = FindMenuItem("Split");
+        Assert.IsNotNull(split, "'Split' item not found on the empty tab-strip context menu.");
+        split!.AsMenuItem().Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(600);
+    }
+
+    private void ClosePaneOf(bool rightMost)
+    {
+        RightClickStrip(rightMost);
+        var closePane = FindMenuItem("Close pane");
+        Assert.IsNotNull(closePane, "'Close pane' was not offered while split.");
+        closePane!.AsMenuItem().Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(500);
+    }
+
+    /// <summary>Back to one pane, whatever a failed step left: the next step starts from a single pane.</summary>
+    private void CollapseSplit()
+    {
+        for (var attempts = 0; attempts < 3 && CountTabStrips() > 1; attempts++)
+        {
+            try { ClosePaneOf(rightMost: true); }
+            catch (AssertFailedException) { return; }
+        }
+    }
+
+    /// <summary>Right-click near the right edge of a strip, clear of any tabs (which pack from the left), so the strip's own context menu shows rather than a tab's.</summary>
+    private void RightClickStrip(bool rightMost)
+    {
+        var strips = MainWindow.FindAllDescendants(cf => cf.ByAutomationId("TabStrip"))
+                               .OrderBy(s => s.BoundingRectangle.X).ToArray();
+        var strip = rightMost ? strips[^1] : strips[0];
+        var r = strip.BoundingRectangle;
+        Mouse.MoveTo(new System.Drawing.Point(r.Right - 25, r.Y + r.Height / 2));
+        Mouse.Click(MouseButton.Right);
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(400);
+    }
+
+    private AutomationElement? FindMenuItem(string name)
+    {
+        for (int i = 0; i < 30; i++)
+        {
+            var hit = Automation.GetDesktop()
+                .FindAllDescendants(cf => cf.ByControlType(ControlType.MenuItem))
+                .FirstOrDefault(e => e.Name == name);
+            if (hit is not null) return hit;
+            Thread.Sleep(100);
+        }
+        return null;
     }
 
     private bool ResizeWindow(double width, double height)

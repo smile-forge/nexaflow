@@ -22,7 +22,7 @@ namespace Nexaflow.Tests.UIJourneys.Infrastructure;
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
 /// </summary>
-public abstract class UiJourneyTestBase : FileSystemUiTestBase
+public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
 {
     private readonly List<string> _failures = [];
     private int _checks;
@@ -202,6 +202,7 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     {
         ReportTimings(journey);
         Assert.IsFalse(App.HasExited, "App exited during the journey.");
+        ReportSkippedSteps();
         if (_failures.Count > 0)
             Assert.Fail($"{_failures.Count}/{_checks} control checks failed:\n  - " + string.Join("\n  - ", _failures));
     }

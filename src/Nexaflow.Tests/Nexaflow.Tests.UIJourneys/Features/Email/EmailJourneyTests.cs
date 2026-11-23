@@ -1,3 +1,4 @@
+using FlaUI.Core.Input;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
@@ -18,9 +19,36 @@ namespace Nexaflow.Tests.Features.Email.UI;
 [CoversNode("email")]
 public class EmailJourneyTests : UiJourneyTestBase
 {
+    /// <summary>A message opened by double-click, then the same message's controls through the explicit As Email action.</summary>
     [TestMethod]
     [CoversNode("email-ui")]
-    public void Email_Controls_RespondInOnePass()
+    [CoversNode("email-open")]
+    public void Email_Journey()
+    {
+        RunStep("a .eml opens by double-click with its envelope rendered", EmlOpensWithEnvelope);
+        RunStep("the viewer's body views and headers", ViewerControls);
+        AssertJourney();
+    }
+
+    /// <summary>
+    /// The default-open route: double-clicking a <c>.eml</c> opens it in <c>EmailView</c> (→ <c>/email</c> →
+    /// <c>OpenAsEmailAction</c>) with its envelope rendered.
+    /// </summary>
+    private void EmlOpensWithEnvelope()
+    {
+        NavigateFileBrowserTo(TestSampleData.Path("email"));
+
+        var row = WaitForName("simple.eml", 10);
+        Assert.IsNotNull(row, "simple.eml not found in the file list.");
+        row!.DoubleClick();
+        Wait.UntilInputIsProcessed();
+
+        Assert.IsNotNull(WaitForId("EmailView", 15), "Double-clicking the .eml did not open the Email viewer.");
+        Assert.IsNotNull(WaitForName("Quarterly report", 8), "The message subject was not rendered in the Email viewer.");
+        Assert.IsFalse(App.HasExited, "App crashed while opening the email.");
+    }
+
+    private void ViewerControls()
     {
         var view = OpenFileVia(TestSampleData.Path("email"), "simple.eml", "OpenAsEmailAction", "EmailView");
         Assert.IsNotNull(view, "EmailView did not open via the 'As Email' action.");
@@ -34,7 +62,5 @@ public class EmailJourneyTests : UiJourneyTestBase
         CheckInvoke("Rendered view", "Email_Rendered");
 
         CheckInvoke("Expand all headers", "Email_AllHeaders");
-
-        AssertJourney();
     }
 }

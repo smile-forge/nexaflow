@@ -30,9 +30,18 @@ public class WindowsAppsJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "WindowsApps";
 
+    /// <summary>The list and Refresh, then the Advanced options pane on a Store app.</summary>
     [TestMethod]
     [CoversNode("windowsapps-ui")]
-    public void WindowsApps_Controls_RespondInOnePass()
+    [CoversNode("windowsapps-advanced")]
+    public void WindowsApps_Journey()
+    {
+        RunStep("the app list and Refresh", ListAndRefresh);
+        RunStep("a Store app's Advanced options pane opens and closes", AdvancedOptionsPane);
+        AssertJourney();
+    }
+
+    private void ListAndRefresh()
     {
         var view = WaitForId("WindowsAppsView", 15);
         Assert.IsNotNull(view, "WindowsAppsView did not open via --openTab WindowsApps.");
@@ -42,8 +51,6 @@ public class WindowsAppsJourneyTests : UiJourneyTestBase
 
         // Refresh re-runs the scan — safe, read-only, and the list must survive it.
         CheckDoes("Refresh", "WindowsApps_Refresh", () => WaitForId("WindowsApps_List", 30) is not null);
-
-        AssertJourney();
     }
 
     /// <summary>
@@ -52,9 +59,7 @@ public class WindowsAppsJourneyTests : UiJourneyTestBase
     /// would change the machine (Terminate / Repair / Reset / Move) are asserted to be <i>present</i>,
     /// never invoked. Their behaviour is covered headlessly at their own leaf nodes.
     /// </summary>
-    [TestMethod]
-    [CoversNode("windowsapps-advanced")]
-    public void WindowsApps_AdvancedOptionsPane_OpensForAStoreAppAndClosesAgain()
+    private void AdvancedOptionsPane()
     {
         Assert.IsNotNull(WaitForId("WindowsAppsView", 15), "WindowsAppsView did not open.");
         var list = WaitForId("WindowsApps_List", 30);
@@ -73,8 +78,6 @@ public class WindowsAppsJourneyTests : UiJourneyTestBase
         // The pane hands the width back to the list when dismissed.
         CheckDoes("Close advanced options", "WindowsApps_AdvancedClose",
                   () => WaitFor(() => WaitForId("WindowsApps_AdvancedPane", 1), 3) is null);
-
-        AssertJourney();
     }
 
     /// <summary>

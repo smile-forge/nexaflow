@@ -16,9 +16,51 @@ namespace Nexaflow.Tests.Features.Audio.UI;
 [CoversNode("audio")]
 public class AudioJourneyTests : UiJourneyTestBase
 {
+    private static readonly string Sample = TestSampleData.Files("audio").First();
+
+    private readonly string _draft = Drafted(Sample);
+
+    // The app opens into a recording made for the user and not saved yet, so its draft strip is the first thing there is to
+    // check; the player's own controls follow, on a track opened from the file browser.
+    protected override string? LaunchTabKind => "Audio";
+
+    protected override IReadOnlyDictionary<string, string> LaunchTabParams => new Dictionary<string, string>
+    {
+        ["paths"] = _draft,
+        ["draft"] = Path.GetDirectoryName(Sample)!,
+    };
+
+    /// <summary>A recording not yet saved, then the player on a saved track.</summary>
     [TestMethod]
     [CoversNode("audio-ui")]
-    public void Audio_Controls_RespondInOnePass()
+    [CoversNode("made-file-drafts")]
+    public void Audio_Journey()
+    {
+        RunStep("a draft recording says it is not saved, and offers its Save as", DraftStrip);
+        RunStep("the player's drawers, tag editor and transport", PlayerControls);
+        AssertJourney();
+    }
+
+    /// <summary>The strip over a draft says so, and carries the Save as that keeps it — the player has no Save of its own.</summary>
+    private void DraftStrip()
+    {
+        CheckPresent("The draft says it is not saved", "Draft_Banner", 15);
+        CheckPresent("Its Save as", "Draft_SaveAs");
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="sample"/> in a temp folder of its own, as a draft is kept — under a name of its own, because the
+    /// draft's tab is titled with it and the journey finds the sample's row in the file browser by name.
+    /// </summary>
+    private static string Drafted(string sample)
+    {
+        var folder = TestTemp.CreateSubdirectory("nexaflow-audio-draft-journey-").FullName;
+        var draft = Path.Combine(folder, "unsaved-" + Path.GetFileName(sample));
+        File.Copy(sample, draft);
+        return draft;
+    }
+
+    private void PlayerControls()
     {
         var file = Path.GetFileName(TestSampleData.Files("audio").First());
         var view = OpenFileVia(TestSampleData.Path("audio"), file, "ShowAudioAction", "AudioView");
@@ -39,7 +81,5 @@ public class AudioJourneyTests : UiJourneyTestBase
         CheckPresent("Volume slider", "Audio_Volume");
         CheckInvoke("Play / Pause", "Audio_PlayPause");
         CheckInvoke("Stop", "Audio_Stop");
-
-        AssertJourney();
     }
 }
