@@ -22,7 +22,7 @@ Browses the drives and folders on this PC and acts on the files in them.
 - Saving a distro's file keeps its permissions, owner and group, and so does copying a file over one there. A file new to the distro takes its usual defaults, so a script copied in from Windows may need `chmod +x`. Windows keeps no Linux permissions, so a file copied out to Windows has none.
 - Archives work in a distro as anywhere: walk into one, Zip It and Unzip here, and names Windows cannot hold, such as `at 12:30.txt`, stay as Linux has them going in and coming out. An archive changed there keeps its permissions. [More on archives](help:Compressed)
 - What changes a folder with Windows' own tools is not offered in a distro: the Git and .NET panels, the AI summary, mounting a disk image and Revert edits on a picture. An audio track's tags are shown there to read.
-- Cmd Here opens the distro's own shell at the folder.
+- Shell Here opens the distro's own shell at the folder, in a [WSL shell](help:WslShell) tab. Cmd Here is not offered in a distro: the Windows command prompt runs on this computer's folders.
 - A folder that cannot be read — the distro was shut down, you may not read it — says why, with Try again. [Show me](locate:FileListRetryButton)
 
 ## Opening a file

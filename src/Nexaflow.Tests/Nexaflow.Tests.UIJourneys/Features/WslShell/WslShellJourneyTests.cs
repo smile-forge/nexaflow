@@ -7,10 +7,10 @@ using FlaUI.Core.AutomationElements;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Console.UI;
+namespace Nexaflow.Tests.Features.WslShell.UI;
 
 /// <summary>
-/// One-pass UI journey for the Console on a WSL distro: Cmd Here on the distro's <c>/tmp</c> opens the distro's own shell,
+/// One-pass UI journey for the WSL shell: Shell Here on the distro's <c>/tmp</c> opens the distro's own shell in its own tab,
 /// and the Environment panel switches between the variables that shell holds now and those a new shell starts with — the
 /// two views only a shell whose host knows its environment offers. Never types into the shell.
 /// <para>
@@ -21,20 +21,20 @@ namespace Nexaflow.Tests.Features.Console.UI;
 [TestClass]
 [TestCategory("UI")]
 [TestCategory("Wsl")]
-[CoversNode("console-location-shell")]
-public class DistroConsoleJourneyTests : UiJourneyTestBase
+[CoversNode("wslshell")]
+public class WslShellJourneyTests : UiJourneyTestBase
 {
     [TestMethod]
-    [CoversNode("console-env-panel")]
-    public void InADistrosConsole_TheEnvironmentSwitchesBetweenLiveAndStartup()
+    [CoversNode("wslshell-ui")]
+    public void ShellHere_OpensTheDistrosShell_WhoseEnvironmentSwitchesBetweenLiveAndStartup()
     {
         var distro = FirstDistro() ?? throw new AssertInconclusiveException("WSL has no distro installed on this machine.");
 
         NavigateFileBrowserTo($@"\\wsl.localhost\{distro}\tmp");
-        var action = WaitForId("CmdHereAction", 8);
-        Assert.IsNotNull(action, "The 'Cmd Here' folder action did not appear for the distro's folder.");
+        var action = WaitForId("ShellHereAction", 8);
+        Assert.IsNotNull(action, "The 'Shell Here' folder action did not appear for the distro's folder.");
         action!.AsButton().Invoke();
-        Assert.IsNotNull(WaitForId("ConsoleView", 20), "The distro's console did not open.");
+        Assert.IsNotNull(WaitForId("ConsoleView", 20), "The distro's shell did not open.");
 
         CheckInvoke("Environment sub-tab", "Console_EnvironmentTab");
         Assert.IsNotNull(WaitForId("Console_EnvLive", 20), "The Live / Startup switch did not appear for the distro's shell.");

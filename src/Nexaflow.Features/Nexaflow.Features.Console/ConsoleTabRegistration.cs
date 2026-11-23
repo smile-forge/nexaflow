@@ -10,9 +10,9 @@ using Nexaflow.Visuals.Terminal.Views;
 namespace Nexaflow.Features.Console;
 
 /// <summary>
-/// Registers the Console page with the feature manager. A console opened on a folder runs the shell that reaches it: the
-/// location's own on a location with a shell, cmd.exe on this computer anywhere else
-/// (<see cref="TerminalShellRoute.ForFolder"/>).
+/// Registers the Console page with the feature manager: the Windows command prompt, cmd.exe on this computer, started where
+/// this disk holds the folder it is opened on (<see cref="TerminalShellRoute.ForThisComputer"/>). A location's own shell is
+/// another feature's page.
 /// </summary>
 public sealed class ConsoleTabRegistration : IPageRegistration
 {
@@ -35,8 +35,7 @@ public sealed class ConsoleTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Full path of the folder to start the terminal in — on this computer, or on a location (a ::id\\… path), " +
-                    "where the location's own shell runs.", Required: false, OnDisk: true),
+        new("path", "Full path of the folder on this computer to start the command prompt in.", Required: false, OnDisk: true),
         new("env",  "Name of a configured console environment to use.", Required: false),
     ];
 
@@ -62,7 +61,7 @@ public sealed class ConsoleTabRegistration : IPageRegistration
         else
             env = _config.Environments.FirstOrDefault();
 
-        var route = TerminalShellRoute.ForFolder(_files, initialPath, new PseudoConsoleLauncher(), new CmdShellDialect(_files));
+        var route = TerminalShellRoute.ForThisComputer(_files, initialPath, new PseudoConsoleLauncher(), new CmdShellDialect(_files));
         var title = env?.TabTitle is { Length: > 0 } t ? t : Str.Get("Console.Page.Title");
         var vm    = new CmdTerminalViewModel(_config, route, _files, _shellServices, _aiService, env, pickerPending);
 

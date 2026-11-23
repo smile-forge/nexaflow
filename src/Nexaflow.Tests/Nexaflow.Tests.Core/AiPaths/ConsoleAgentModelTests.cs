@@ -105,7 +105,7 @@ public sealed class ConsoleAgentModelTests
         try
         {
             await files.WriteAllTextAsync($@"{folder}\facts.txt", Facts);
-            await AsksAsync(model, TerminalShellRoute.ForFolder(files, folder, new PseudoConsoleLauncher(), new CmdShellDialect(files)),
+            await AsksAsync(model, TerminalShellRoute.ForLocationShell(files, folder),
                             new() { ["HISTFILE"] = "/dev/null" });
         }
         finally

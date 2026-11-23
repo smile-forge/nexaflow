@@ -310,6 +310,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Executable | `path` (a Portable Executable — exe/dll/sys — opened via "Inspect") |
 | Hex | `path`, `offset` (optional, decimal or `0x` hex), `length` (optional — bytes to select) |
 | Pdf | `path`, `page` (optional, 1-based — opens at, or jumps to, that page) |
+| WslShell | `path` (required — a folder of a WSL distro as the file system names it, `::wsl-<distro>\…`; the distro's own shell starts there) |
 | Help (Core) | `topic` (optional — the page kind whose help to show; omit for the list of every help page), `query` (optional — searched as it opens). Both are location, not identity: a window keeps one Help tab and an open re-points it |
 
 ---

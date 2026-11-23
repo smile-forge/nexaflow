@@ -13,24 +13,23 @@ public sealed record TerminalShellRoute(ITerminalLauncher Launcher, TerminalShel
                                         IVirtualFileSystem Files)
 {
     /// <summary>
-    /// The shell for a terminal opened on <paramref name="folder"/>. On a location with a shell
-    /// (<see cref="LocationCapabilities.Shell"/>) it is the location's own, reached as the terminal launches, in the
-    /// <see cref="PosixShellDialect"/>; anywhere else it is <paramref name="localShell"/>, started where this disk holds the
-    /// folder, or in the user's profile when the disk holds it nowhere. Decided from what the file system knows without
-    /// the network: reaching the location — and failing to — is the launch's.
+    /// This computer's shell for a terminal opened on <paramref name="folder"/>: started where this disk holds the folder, or in
+    /// the user's profile when the disk holds it nowhere — a location's folder among them, which its own shell's terminal opens.
     /// </summary>
-    public static TerminalShellRoute ForFolder(IVirtualFileSystem files, string? folder,
-                                               ITerminalLauncher localShell, TerminalShellDialect localDialect)
+    public static TerminalShellRoute ForThisComputer(IVirtualFileSystem files, string? folder,
+                                                     ITerminalLauncher shell, TerminalShellDialect dialect)
     {
-        if (folder is null) return new TerminalShellRoute(localShell, localDialect, null, files);
-
-        if ((files.GetCapabilities(folder) & LocationCapabilities.Shell) != 0)
-            return new TerminalShellRoute(new LocationShellLauncher(files, folder),
-                                          PosixShellDialect.ForLocation(files, folder), folder, files);
-
-        return new TerminalShellRoute(localShell, localDialect,
-            files.ResolveOnDisk(folder) ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), files);
+        if (folder is null) return new TerminalShellRoute(shell, dialect, null, files);
+        var onDisk = files.IsOnLocation(folder) ? null : files.ResolveOnDisk(folder);
+        return new TerminalShellRoute(shell, dialect, onDisk ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), files);
     }
+
+    /// <summary>
+    /// The shell of the location <paramref name="folder"/> is on (<see cref="LocationCapabilities.Shell"/>), started in the
+    /// folder and spoken to in the <see cref="PosixShellDialect"/>. Reaching the location — and failing to — is the launch's.
+    /// </summary>
+    public static TerminalShellRoute ForLocationShell(IVirtualFileSystem files, string folder)
+        => new(new LocationShellLauncher(files, folder), PosixShellDialect.ForLocation(files, folder), folder, files);
 }
 
 /// <summary>Starts the shell of the location holding a folder, asked of the file system as the terminal launches — the

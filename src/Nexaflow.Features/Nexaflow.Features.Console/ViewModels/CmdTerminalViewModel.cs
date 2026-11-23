@@ -8,8 +8,8 @@ using Nexaflow.Visuals.Terminal.ViewModels;
 namespace Nexaflow.Features.Console.ViewModels;
 
 /// <summary>
-/// The Console's terminal: cmd.exe on this computer, or the shell of the location its folder is on — the
-/// <see cref="TerminalShellRoute"/> it is given. The reusable terminal mechanics live in <see cref="TerminalViewModel"/>;
+/// The Console's terminal: cmd.exe on this computer (<see cref="TerminalShellRoute.ForThisComputer"/>). The reusable
+/// terminal mechanics live in <see cref="TerminalViewModel"/>;
 /// this thin subclass sources its environments / per-folder bindings from <see cref="ConsoleConfig"/>, a folder compared
 /// as the file system holding it compares names. A future PowerShell feature is the same shape over its own shell +
 /// config, with no dependency on this assembly.

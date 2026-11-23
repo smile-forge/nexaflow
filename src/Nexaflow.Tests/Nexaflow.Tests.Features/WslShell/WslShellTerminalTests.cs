@@ -1,49 +1,35 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Console.ChatHandlers;
+using Nexaflow.Features.WslShell.ChatHandlers;
+using Nexaflow.Features.WslShell.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Common.Terminal;
+using Nexaflow.Tests.Features.Console;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.Shells;
-using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 
-namespace Nexaflow.Tests.Features.Console;
+namespace Nexaflow.Tests.Features.WslShell;
 
 /// <summary>
-/// A console on a WSL distro describes the distro, not this computer: its folder as Linux names it, the folder's files
-/// listed through the distro, its own variables — live at each prompt, or as a new shell starts — and a file dropped on it
-/// named as the distro names it. An edit goes into the shell, or into its startup file between Nexaflow's own marks.
+/// A WSL distro's shell describes the distro, not this computer: its folder as Linux names it, the folder's files listed
+/// through the distro, its own variables — live at each prompt, or as a new shell starts — and a file dropped on it named
+/// as the distro names it. An edit goes into the shell, or into its startup file between Nexaflow's own marks.
 /// </summary>
 [TestClass]
-public sealed class DistroConsoleTests
+public sealed class WslShellTerminalTests
 {
     private const string Esc = "\x1b";
     private const string St  = "\x1b\\";
     private const string Home = $@"{TerminalFiles.Distro}\home\adam";
-
-    private sealed class TestTerminal(TerminalShellRoute route, IShellServices shell)
-        : TerminalViewModel(route, shell, Substitute.For<IAIService>())
-    {
-        protected override IReadOnlyList<TerminalEnvironment> Environments => [];
-        protected override string? FindBoundEnvName(string folderPath) => null;
-        protected override void PersistFolderBinding(string folderPath, string envName) { }
-
-        public Task Start()
-        {
-            SetupInitialState(null);
-            return ShellStarted;
-        }
-    }
 
     /// <summary>A distro's shell's variables as its host would read them.</summary>
     private sealed class FakeEnvironment : IShellEnvironment
@@ -70,7 +56,7 @@ public sealed class DistroConsoleTests
     private readonly IShellServices _shell = Substitute.For<IShellServices>();
     private readonly IVirtualFileSystem _files;
 
-    public DistroConsoleTests()
+    public WslShellTerminalTests()
     {
         _distro = new FakeTerminal { ShellEnvironment = _environment };
         _files  = TerminalFiles.With(_distro);
@@ -79,10 +65,10 @@ public sealed class DistroConsoleTests
         _shell.RunOnUiAsync(Arg.Any<Action>()).Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
     }
 
-    private async Task<TestTerminal> StartedOn(string folder)
+    private async Task<WslShellViewModel> StartedOn(string folder)
     {
-        var terminal = new TestTerminal(TerminalShellRoute.ForFolder(_files, folder, new FakeTerminal(), new CmdShellDialect(_files)), _shell);
-        await terminal.Start();
+        var terminal = new WslShellViewModel(TerminalShellRoute.ForLocationShell(_files, folder), _shell, Substitute.For<IAIService>());
+        await terminal.ShellStarted;
         return terminal;
     }
 
@@ -95,7 +81,16 @@ public sealed class DistroConsoleTests
     }
 
     [TestMethod]
-    [CoversNode("console-path-bar")]
+    [CoversNode("wslshell-shell")]
+    public async Task ItRunsTheDistrosOwnShell_InTheFolder()
+    {
+        await StartedOn(Home);
+
+        Assert.AreEqual(Home, _distro.Launched!.WorkingDirectory, "the file system's path: the location names its own");
+    }
+
+    [TestMethod]
+    [CoversNode("wslshell-path-bar")]
     public async Task TheTopBar_ShowsTheDistrosFolderAsLinuxNamesIt()
     {
         var terminal = await StartedOn(Home);
@@ -108,7 +103,7 @@ public sealed class DistroConsoleTests
     }
 
     [TestMethod]
-    [CoversNode("console-files-panel")]
+    [CoversNode("wslshell-files-panel")]
     public async Task TheFilesPanel_ListsTheDistrosFolderThroughTheDistro_NamedAsLinuxNamesThem()
     {
         _files.EnumerateAsync(Home, Arg.Any<CancellationToken>())
@@ -122,7 +117,7 @@ public sealed class DistroConsoleTests
     }
 
     [TestMethod]
-    [CoversNode("console-env-panel")]
+    [CoversNode("wslshell-env-panel")]
     public async Task TheEnvironmentPanel_ListsTheDistrosVariables_NotThisComputers()
     {
         var terminal = await StartedOn(Home);
@@ -133,7 +128,7 @@ public sealed class DistroConsoleTests
     }
 
     [TestMethod]
-    [CoversNode("console-env-panel")]
+    [CoversNode("wslshell-env-panel")]
     public async Task TheLiveListIsReadAtEachPrompt_ANewShellsOnlyWhenShown()
     {
         var terminal = await StartedOn(Home);
@@ -152,7 +147,7 @@ public sealed class DistroConsoleTests
     }
 
     [TestMethod]
-    [CoversNode("console-env-edit-overlay")]
+    [CoversNode("wslshell-env-edit")]
     public async Task ALiveVariable_IsExportedInTheShell_AndANameItCannotTake_IsRefused()
     {
         var terminal = await StartedOn(Home);
@@ -166,7 +161,7 @@ public sealed class DistroConsoleTests
     }
 
     [TestMethod]
-    [CoversNode("console-env-edit-overlay")]
+    [CoversNode("wslshell-env-edit")]
     public async Task AVariableKeptForNewShells_GoesBetweenNexaflowsMarks_InTheDistrosStartupFile()
     {
         const string profile = $@"{TerminalFiles.Distro}\home\adam\.profile";
@@ -184,22 +179,8 @@ public sealed class DistroConsoleTests
     }
 
     [TestMethod]
-    [CoversNode("console-env-panel")]
-    public async Task ThisComputersShell_ListsThisComputersVariables_AndItsScopes()
-    {
-        var local    = new FakeTerminal();
-        var terminal = new TestTerminal(local.AsCmd(@"C:\work"), _shell);
-        await terminal.Start();
-
-        Assert.IsTrue(terminal.EnvVars.Any(v => string.Equals(v.Name, "PATH", StringComparison.OrdinalIgnoreCase)));
-        Assert.IsFalse(terminal.SwitchesEnvironment);
-        CollectionAssert.AreEqual(new[] { EnvScope.Session, EnvScope.User, EnvScope.Machine }, terminal.EnvScopes.ToArray());
-        Assert.AreEqual(@"C:\work", terminal.ShownPath);
-    }
-
-    [TestMethod]
-    [CoversNode("console-bar-drop")]
-    public async Task AFileDropped_IsGivenToADistrosShellByItsOwnPath_HoweverItWasNamed()
+    [CoversNode("wslshell-bar-drop")]
+    public async Task AFileDropped_IsGivenByItsOwnLinuxPath_HoweverItWasNamed()
     {
         _files.TryToVirtual(Arg.Any<string>()).Returns((string?)null);   // a path no location's folder holds
         _files.TryToVirtual(@"\\wsl.localhost\Probe\home\adam\a b.txt").Returns($@"{Home}\a b.txt");
@@ -208,14 +189,27 @@ public sealed class DistroConsoleTests
 
         const string words = @"'/home/adam/a b.txt' '/home/adam/it'\''s.txt'";
         Assert.AreEqual(words, terminal.FormatDroppedPaths(data), "on the console");
-        Assert.AreEqual(words, new ConsoleDropHandler().BuildInsertText(data, terminal), "on its AI bar");
+        Assert.AreEqual(words, new WslShellDropHandler().BuildInsertText(data, terminal), "on its AI bar");
+        Assert.IsTrue(new WslShellDropHandler().CanHandle(terminal));
+    }
+
+    [TestMethod]
+    [CoversNode("wslshell-bar-routing")]
+    public async Task TheAiBar_RunsACommandInTheDistrosShell_AndNoOtherTerminals()
+    {
+        var terminal = await StartedOn(Home);
+
+        Assert.IsTrue(new WslShellQueryHandler().CanProcess("ls -la", false, terminal) > 0.8f);
+        Assert.IsTrue(new WslShellKeyHandler().CanHandle(terminal));
+        Assert.AreEqual(0f, new WslShellQueryHandler().CanProcess("dir", true, Substitute.For<IPageViewModel>()));
+        Assert.IsFalse(new WslShellDropHandler().CanHandle(Substitute.For<IPageViewModel>()), "another page's drop is not this feature's");
     }
 }
 
 /// <summary>The startup file a POSIX shell reads, with a variable kept for new shells: the user's own lines stand, and
 /// Nexaflow's go between its own marks, changed in place rather than added twice.</summary>
 [TestClass]
-[CoversNode("console-env-edit-overlay")]
+[CoversNode("wslshell-env-edit")]
 public sealed class PosixStartupFileTests
 {
     private const string Start = "# >>> Nexaflow: variables set from its Environment panel >>>";

@@ -28,6 +28,7 @@ internal static class TerminalFiles
         files.GetNameComparison(Arg.Any<string>()).Returns(ci => LocationPath.Comparison(Capabilities(ci.Arg<string>())));
         files.GetBacking(Arg.Any<string>()).Returns(ci => Backing(ci.Arg<string>()));
         files.TryResolveReal(Arg.Any<string>()).Returns(ci => Real(ci.Arg<string>()));
+        files.IsOnLocation(Arg.Any<string>()).Returns(ci => On(ci.Arg<string>(), Distro) || On(ci.Arg<string>(), Nas));
         files.GetBreadcrumbs(Arg.Is<string>(p => On(p, Distro))).Returns([("Probe", Distro)]);
         files.GetDisplayName(Distro).Returns("Probe");
         files.GetDisplayPath(Distro).Returns("wsl://Probe/");

@@ -10,8 +10,8 @@ using System.Threading.Tasks;
 namespace Nexaflow.Features.Console.FileActions;
 
 /// <summary>
-/// Opens a Console tab rooted at the selected or current folder — in the location's own shell on a location that has one.
-/// Offered wherever a shell reaches the folder: on this disk, on a location with a shell, or on one this disk holds whole.
+/// Opens a Console tab — the Windows command prompt — rooted at the selected or current folder, wherever this disk holds it
+/// whole: a drive's folder, or a mounted one. Not offered on a location.
 /// </summary>
 public sealed class CmdHereAction : IFolderAction, ICacheable
 {
@@ -34,11 +34,10 @@ public sealed class CmdHereAction : IFolderAction, ICacheable
     public bool     AppliesToDrives       => true;
     public string?  Tooltip               => Str.Get("Console.Action.CmdHereTip");
 
-    /// <summary>A shell reaches the folder: the location's own (<see cref="LocationCapabilities.Shell"/>), or cmd where this
-    /// disk holds the folder whole. Read from what the file system knows, without the network.</summary>
+    /// <summary>cmd reaches the folder: this disk holds it whole. A location's folder is not cmd's — a WSL distro's, though
+    /// Windows shows it as a folder, has its own shell's action. Read from what the file system knows, without the network.</summary>
     public bool AppliesToFolder(string folderPath)
-        => (_files.GetCapabilities(folderPath) & LocationCapabilities.Shell) != 0
-           || _files.ResolveOnDisk(folderPath) is not null;
+        => !_files.IsOnLocation(folderPath) && _files.ResolveOnDisk(folderPath) is not null;
 
     public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {

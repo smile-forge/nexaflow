@@ -12,10 +12,9 @@ namespace Nexaflow.Tests.Features.Console;
 /// "Cmd Here" — the folder action that opens a console rooted at wherever you are.
 /// <para>
 /// It is offered on a drive root as well as a folder, because opening a shell at <c>D:\</c> is a perfectly
-/// ordinary thing to want and a folder action that refuses roots would be missing exactly there. It is offered wherever a
-/// shell reaches the folder — this disk, a mount it holds, a location with a shell of its own — and nowhere else. Which
-/// environment, and which shell, the new tab launches with is decided at open time; this action only has to route the
-/// path, as the file system names it.
+/// ordinary thing to want and a folder action that refuses roots would be missing exactly there. It is offered wherever
+/// this disk holds the folder — a drive's, a mount's — and on no location: a WSL distro's folder is its own shell's. Which
+/// environment the new tab launches with is decided at open time; this action only has to route the path.
 /// </para>
 /// </summary>
 [TestClass]
@@ -54,25 +53,14 @@ public class CmdHereActionTests
     }
 
     [TestMethod]
-    public void ItIsOfferedWhereAShellReachesTheFolder_AndNowhereElse()
+    public void ItIsOfferedWhereThisDiskHoldsTheFolder_AndOnNoLocation()
     {
         var action = new CmdHereAction(Substitute.For<IShellServices>(), _files);
 
         Assert.IsTrue(action.AppliesToFolder(@"C:\work"));
         Assert.IsTrue(action.AppliesToFolder($@"{TerminalFiles.Docs}\notes"), "a mount this disk holds whole");
-        Assert.IsTrue(action.AppliesToFolder($@"{TerminalFiles.Distro}\srv"), "a location with a shell of its own");
+        Assert.IsFalse(action.AppliesToFolder($@"{TerminalFiles.Distro}\srv"), "a WSL distro's folder is its own shell's, not cmd's");
         Assert.IsFalse(action.AppliesToFolder($@"{TerminalFiles.Nas}\srv"), "a location with no shell, held on no disk");
-    }
-
-    [TestMethod]
-    public async Task OnALocationWithAShell_ItOpensTheConsoleAtTheLocationsPath()
-    {
-        var (shell, opened) = Shell();
-        var folder = $@"{TerminalFiles.Distro}\home\adam";
-
-        Assert.IsTrue(await new CmdHereAction(shell, _files).PerformActionAsync(folder));
-
-        Assert.AreEqual(folder, opened.Single()["path"], "the console names the folder as the file system does");
     }
 
     [TestMethod]

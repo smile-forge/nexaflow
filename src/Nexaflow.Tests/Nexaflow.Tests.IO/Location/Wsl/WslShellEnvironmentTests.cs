@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.IO.Location.Wsl;
 /// one the user's login shell reads, found in their home.
 /// </summary>
 [TestClass]
-[CoversNode("console-env-panel")]
+[CoversNode("wslshell-env-panel")]
 public sealed class WslShellEnvironmentTests
 {
     [TestMethod]

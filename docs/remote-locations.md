@@ -245,17 +245,20 @@ full-screen programs, because over SSH that is half of what people run.
 - **Shell profiles are discovered, not configured.** cmd, Windows PowerShell, `pwsh` if installed, each WSL distro from
   `wsl.exe --list`, each saved SSH connection and each `Host` in `~/.ssh/config`. A profile can set its starting folder,
   environment and colours.
-- **"Open terminal here" follows the folder.** On `::{sftp-nas}\srv\app` it opens an SSH shell on `nas` at `/srv/app`; on
-  a WSL path, that distro at that path.
+- **Each host's shell is its own feature.** They share the terminal (`Visuals.Terminal`: `TerminalViewModel`, the view,
+  the dialects, `TerminalShellRoute`), never a page: the Console is cmd on this computer
+  (`TerminalShellRoute.ForThisComputer`, Cmd Here, offered on no location), the WSL shell (`Features.WslShell`) a distro's
+  own (`ForLocationShell`, Shell Here, offered on a mounted distro), and an SSH shell will be a feature of its own. Each
+  feature's AI-bar handlers serve only its own terminal (`TerminalQueryHandler`, `TerminalKeyHandler`).
 - **Shell integration keeps browser and terminal in step.** OSC 133 marks prompts and command output, so the assistant
   can be given one command's output rather than the scrollback. Where the shell is, is asked of its host
   (`ITerminalTransport.GetWorkingDirectoryAsync`): cmd's own current folder, read from its process, and a distro shell's
   `/proc/<pid>/cwd`, read by the helper. Output is only the cue to ask, with a heartbeat for output that swallows the
     prompt, so `cd` can move a linked browser and sets what the assistant may reach. OSC 7 and the folder in a prompt are
     never believed: any file printed can carry them.
-  - **A console describes the machine its shell runs on.** The path bar shows the folder as the shell names it
+  - **A shell's page describes the machine the shell runs on.** The path bar shows the folder as the shell names it
     (`TerminalShellDialect.ShowPath` — `/home/adam` in a distro), the Files tab lists it through the runtime's file system,
-    and a file dropped on the console or its AI bar is given as the shell's own path (`FormatPathWord`). Its variables are
+    and a file dropped on the terminal or its AI bar is given as the shell's own path (`FormatPathWord`). Its variables are
     its host's (`ITerminalTransport.ShellEnvironment`): in a distro the shim writes `env -0` to a file beside its folder link
     at each prompt (Live), and the user's login shell is started on its own to print a new shell's (Startup). An edit is an
     `export` in the running shell, or a line kept for new shells in the startup file that login shell reads, between

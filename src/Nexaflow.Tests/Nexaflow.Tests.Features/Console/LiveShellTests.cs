@@ -305,7 +305,7 @@ public sealed class LiveCmdShellTests : LiveShellTests
 [DoNotParallelize]
 [TestCategory("Interactive")]
 [TestCategory("Wsl")]
-[CoversNode("console-location-shell")]
+[CoversNode("wslshell-shell")]
 public sealed class LiveWslShellTests : LiveShellTests
 {
     private LocationSessionPool? _pool;
@@ -313,8 +313,8 @@ public sealed class LiveWslShellTests : LiveShellTests
     private LocationFileSystem? _files;
 
     [TestMethod]
-    [CoversNode("console-env-panel")]
-    public async Task InADistro_TheConsoleShowsItsFolder_ItsFiles_AndItsOwnVariables()
+    [CoversNode("wslshell-env-panel")]
+    public async Task InADistro_TheShellShowsItsFolder_ItsFiles_AndItsOwnVariables()
     {
         var name   = $"nexaflow-console-{Guid.NewGuid():N}";
         var folder = $@"{_set!.Mounts[0].Root}\tmp\{name}";
@@ -364,7 +364,7 @@ public sealed class LiveWslShellTests : LiveShellTests
         files.RegisterLocation(_set.Mounts[0]);
         _files = files;
 
-        return (TerminalShellRoute.ForFolder(files, $@"{_set.Mounts[0].Root}\tmp", new PseudoConsoleLauncher(), new CmdShellDialect(files)),
+        return (TerminalShellRoute.ForLocationShell(files, $@"{_set.Mounts[0].Root}\tmp"),
                 new Dictionary<string, string> { ["HISTFILE"] = "/dev/null" });
     }
 

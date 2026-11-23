@@ -22,7 +22,7 @@ namespace Nexaflow.Tests.Features.Console;
 /// disk holds the folder — or in the profile when no disk does. A location that cannot be reached says so in the terminal.
 /// </summary>
 [TestClass]
-[CoversNode("console-location-shell")]
+[CoversNode("wslshell-shell")]
 public sealed class TerminalShellRouteTests
 {
     private const string Esc = "\x1b";
@@ -52,7 +52,9 @@ public sealed class TerminalShellRouteTests
     private TerminalShellRoute RouteFor(string? folder)
     {
         var files = TerminalFiles.With(_distro);
-        return TerminalShellRoute.ForFolder(files, folder, _local, new CmdShellDialect(files));
+        return folder is not null && folder.StartsWith(TerminalFiles.Distro, StringComparison.OrdinalIgnoreCase)
+            ? TerminalShellRoute.ForLocationShell(files, folder)
+            : TerminalShellRoute.ForThisComputer(files, folder, _local, new CmdShellDialect(files));
     }
 
     private async Task<TestTerminal> StartedOn(string? folder)
@@ -105,13 +107,22 @@ public sealed class TerminalShellRouteTests
     }
 
     [TestMethod]
+    public void ThisComputersShell_NeverStartsInADistrosFolder()
+    {
+        var route = TerminalShellRoute.ForThisComputer(TerminalFiles.With(_distro), $@"{TerminalFiles.Distro}\home", _local, new CmdShellDialect());
+
+        Assert.AreEqual(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), route.StartFolder, "cmd cannot stand in a distro");
+        Assert.AreSame(_local, route.Launcher);
+    }
+
+    [TestMethod]
     public async Task ALocationThatCannotBeReached_SaysSoInTheTerminal()
     {
         var files = TerminalFiles.With(_distro);
         files.GetTerminalLauncherAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
              .Returns(ValueTask.FromException<ITerminalLauncher?>(
                  new LocationException(LocationError.Disconnected, TerminalFiles.Distro, "Probe is not running.")));
-        var route    = TerminalShellRoute.ForFolder(files, $@"{TerminalFiles.Distro}\home", _local, new CmdShellDialect(files));
+        var route    = TerminalShellRoute.ForLocationShell(files, $@"{TerminalFiles.Distro}\home");
         var terminal = new TestTerminal(route, _shell);
 
         await terminal.Start();
