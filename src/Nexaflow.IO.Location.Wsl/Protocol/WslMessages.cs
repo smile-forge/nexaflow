@@ -31,8 +31,9 @@ internal enum WslOp : byte
     /// file and renamed over it keeps a script runnable.</summary>
     Rename = 6,
 
-    /// <summary>String from, string to, bool replace → <see cref="WslReply.Done"/>: a file copied on the distro, its
-    /// permission bits kept. <see cref="WslFailure.Conflict"/> when <c>to</c> exists and replace is false.</summary>
+    /// <summary>String from, string to, bool replace → <see cref="WslReply.Done"/>: a file copied on the distro — a new copy
+    /// with the source's permission bits, one over a file with that file's, as a write over it keeps them.
+    /// <see cref="WslFailure.Conflict"/> when <c>to</c> exists and replace is false.</summary>
     Copy = 7,
 
     /// <summary>String path, bool recursive → <see cref="WslReply.Done"/>, then <see cref="WslReply.Changed"/> under this
@@ -52,6 +53,11 @@ internal enum WslOp : byte
     /// program runs in the environment a login <c>sh</c> sets, with nothing on its stdin; a <see cref="Cancel"/> ends it and
     /// every process it started.</summary>
     Run = 11,
+
+    /// <summary>String path, uint32 bits → <see cref="WslReply.Done"/>: the file given those permission bits, the twelve
+    /// chmod(2) takes. A write gives the file it makes the bits it was asked for this way, on its hidden temp before the
+    /// rename puts it in place.</summary>
+    ChangeMode = 12,
 }
 
 /// <summary>What the helper answers, with the payload each carries.</summary>

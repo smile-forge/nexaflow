@@ -157,11 +157,20 @@ internal sealed class FileRequests(EntryReader entries, ReplyChannel replies)
                 ? $"{from} is a folder; only files copy"
                 : $"{from} is not a regular file; only files copy");
         }
-        if (PosixFiles.Stat(to, followLink: true, out var target) == 0 && target.IsSameFile(source))
+        bool replacing = PosixFiles.Stat(to, followLink: true, out var target) == 0;
+        if (replacing && target.IsSameFile(source))
             throw new HelperFailure(WslFailure.Conflict, $"{to} is {from} itself");
 
         File.Copy(from, to, replace);
-        if ((uint)File.GetUnixFileMode(to) != source.Mode) File.SetUnixFileMode(to, (UnixFileMode)source.Mode);
+        // A new copy is the source's, bits and all; one over a file keeps that file's, as a write over it does.
+        uint bits = replacing && target.Kind == WireKind.File ? target.Mode : source.Mode;
+        if ((uint)File.GetUnixFileMode(to) != bits) File.SetUnixFileMode(to, (UnixFileMode)bits);
+    }
+
+    /// <summary>Gives the file the permission bits named — the twelve chmod(2) takes — following a link, as chmod does.</summary>
+    public static void ChangeMode(string path, uint bits)
+    {
+        if (Libc.ChangeMode(path, bits & 0xFFF) != 0) throw HelperFailure.FromErrno(Marshal.GetLastPInvokeError(), path);
     }
 
     // A file replacing a file first takes the replaced one's permission bits, and its owner and group where this user may

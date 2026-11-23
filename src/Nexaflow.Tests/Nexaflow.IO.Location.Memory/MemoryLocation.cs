@@ -54,6 +54,10 @@ public sealed class MemoryLocationHost
 
     public int ServerCopies;
 
+    /// <summary>Whether the host keeps POSIX permission bits (<see cref="LocationCapabilities.Permissions"/>): a file a write
+    /// makes is given the bits asked of it, one it replaces keeps its own.</summary>
+    public bool KeepsPermissions { get; init; }
+
     /// <summary>What answers a program run on this host, or null for a host with no shell. Set before the location is mounted,
     /// it gives the provider <see cref="LocationCapabilities.Shell"/>; it may throw as a host does — a
     /// <see cref="LocationException"/> for a program that is not there.</summary>
@@ -75,7 +79,7 @@ public sealed class MemoryLocationHost
     }
 
     /// <summary>One file or folder of the tree, by its path.</summary>
-    public sealed record Node(bool IsDirectory, byte[] Content, DateTime Modified);
+    public sealed record Node(bool IsDirectory, byte[] Content, DateTime Modified, UnixFileMode? Mode = null);
 
     /// <summary>Runs <paramref name="work"/> on the tree under the host's lock — what a test seeds or reads it with.</summary>
     public T With<T>(Func<Dictionary<string, Node>, T> work)
@@ -119,6 +123,7 @@ public sealed class MemoryLocationProvider : ILocationProvider
         => LocationCapabilities.RandomRead | LocationCapabilities.AtomicRename
            | (_host is not { CaseSensitive: false } ? LocationCapabilities.CaseSensitive : LocationCapabilities.None)
            | (_host is { CopiesOnServer: true } ? LocationCapabilities.ServerSideCopy : LocationCapabilities.None)
+           | (_host is { KeepsPermissions: true } ? LocationCapabilities.Permissions : LocationCapabilities.None)
            | (_host is { Programs: not null } ? LocationCapabilities.Shell : LocationCapabilities.None);
 
     public async ValueTask<ILocationSession> ConnectAsync(ConnectionProfile profile, ICredentialSource credentials, CancellationToken ct)
@@ -156,7 +161,7 @@ public sealed class MemoryLocationSession : ILocationSession
     }
 
     private static LocationEntry EntryOf(string path, MemoryLocationHost.Node node)
-        => new(MemoryLocationHost.NameOf(path), node.IsDirectory, node.Content.Length, node.Modified);
+        => new(MemoryLocationHost.NameOf(path), node.IsDirectory, node.Content.Length, node.Modified) { Mode = node.Mode };
 
     public async IAsyncEnumerable<LocationEntry> EnumerateAsync(string path, [EnumeratorCancellation] CancellationToken ct)
     {
@@ -191,7 +196,7 @@ public sealed class MemoryLocationSession : ILocationSession
         return new MemoryStream(content, writable: false);
     }
 
-    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, CancellationToken ct)
+    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, UnixFileMode? permissions, CancellationToken ct)
     {
         await HopAsync(ct);
         host.With(nodes =>
@@ -202,11 +207,11 @@ public sealed class MemoryLocationSession : ILocationSession
                 throw new LocationException(LocationError.Conflict, path, $"'{path}' already exists.");
             return 0;
         });
-        return new MemoryLocationWrite(this, host, path, mode, expected);
+        return new MemoryLocationWrite(this, host, path, mode, expected, host.KeepsPermissions ? permissions : null);
     }
 
     private sealed class MemoryLocationWrite(MemoryLocationSession session, MemoryLocationHost host, string path,
-                                             WriteMode mode, LocationEntry? expected) : ILocationWrite
+                                             WriteMode mode, LocationEntry? expected, UnixFileMode? bits) : ILocationWrite
     {
         private readonly MemoryStream _content = new();
 
@@ -226,7 +231,8 @@ public sealed class MemoryLocationSession : ILocationSession
                 byte[] bytes = mode == WriteMode.Append && current is not null
                     ? [.. current.Content, .. _content.ToArray()]
                     : _content.ToArray();
-                nodes[path] = new MemoryLocationHost.Node(IsDirectory: false, bytes, stamp);
+                // A file it makes is given the bits asked of it; one it replaces or adds to keeps its own.
+                nodes[path] = new MemoryLocationHost.Node(IsDirectory: false, bytes, stamp, current is null ? bits : current.Mode);
                 return 0;
             });
         }
@@ -267,9 +273,10 @@ public sealed class MemoryLocationSession : ILocationSession
         {
             if (!nodes.TryGetValue(from, out var source) || source.IsDirectory)
                 throw new LocationException(LocationError.NotFound, from, $"No file is at '{from}'.");
-            if (nodes.ContainsKey(to) && !replace)
+            if (nodes.TryGetValue(to, out var replaced) && !replace)
                 throw new LocationException(LocationError.Conflict, to, $"'{to}' already exists.");
-            nodes[to] = source with { Modified = host.NextStamp() };
+            // A new copy has the source's bits; one over a file keeps that file's.
+            nodes[to] = source with { Modified = host.NextStamp(), Mode = replaced is { IsDirectory: false } ? replaced.Mode : source.Mode };
             Interlocked.Increment(ref host.ServerCopies);
             return 0;
         });

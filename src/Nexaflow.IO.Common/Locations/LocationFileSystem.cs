@@ -421,14 +421,15 @@ public sealed partial class LocationFileSystem : IVirtualFileSystem, ILocationPu
         return await session.OpenReadAsync(LocationPath.ToProviderPath(remainder), intent, ct).ConfigureAwait(false);
     }
 
-    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default)
+    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null,
+                                                           UnixFileMode? permissions = null, CancellationToken ct = default)
     {
         if (ArchiveOf(path) is { IsEntry: true } archive)
             return await BeginArchiveEntryWriteAsync(archive, mode, expected, ct).ConfigureAwait(false);
         if (!TryRouteChange(path, out var location, out var remainder))
-            return await _shared.BeginWriteAsync(path, mode, expected, ct).ConfigureAwait(false);
+            return await _shared.BeginWriteAsync(path, mode, expected, permissions, ct).ConfigureAwait(false);
         var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
-        return await session.BeginWriteAsync(LocationPath.ToProviderPath(remainder), mode, expected, ct).ConfigureAwait(false);
+        return await session.BeginWriteAsync(LocationPath.ToProviderPath(remainder), mode, expected, permissions, ct).ConfigureAwait(false);
     }
 
     public async ValueTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct = default)
@@ -463,7 +464,7 @@ public sealed partial class LocationFileSystem : IVirtualFileSystem, ILocationPu
     /// <summary>A whole-content write to a remote file: atomic where the location renames, one upload where not.</summary>
     private async ValueTask WriteWholeAsync(string path, byte[] bytes, CancellationToken ct)
     {
-        await using var write = await BeginWriteAsync(path, WriteMode.Replace, null, ct).ConfigureAwait(false);
+        await using var write = await BeginWriteAsync(path, WriteMode.Replace, null, ct: ct).ConfigureAwait(false);
         await write.Content.WriteAsync(bytes, ct).ConfigureAwait(false);
         await write.CommitAsync(ct).ConfigureAwait(false);
     }

@@ -153,8 +153,15 @@ public interface ILocationSessionSource                          // the pool, pe
 - **Writes are atomic where the protocol allows.** `BeginWriteAsync` writes to a sibling temp name and renames on
   commit, so a dropped connection never leaves half a file; without a rename it commits as one whole upload. `WriteMode`
   distinguishes create, replace and append. A write given the entry it read refuses to commit with `Conflict` when the
-  target is no longer that version — the check behind conflict-checked saves. Inside an archive the bytes are gathered
-  and the archive rewritten in one piece at commit.
+    target is no longer that version — the check behind conflict-checked saves. Inside an archive the bytes are gathered
+    and the archive rewritten in one piece at commit.
+  - **A write carries permission bits to a file it makes.** `BeginWriteAsync` takes the bits a new file is given, and a
+    transfer fills them from the source's `LocationEntry.Mode`, so a file copied between locations keeps its own — a
+    private key stays private, a script runnable. They are on the hidden temp before its first byte, with only the
+    owner's write added while it is written, and exact before the rename, so the file is never readable wider than asked.
+    A file the write replaces keeps its own bits, as a save over it does, and so does a server-side copy over one. Only
+    the bits travel: owner and group are the copier's, since users differ from one machine to the next. This disk and an
+    archive keep none, so a file from them takes the location's defaults.
 - **`LocationEntry` carries more than `VirtualEntry`:** POSIX mode, owner and group, symlink target, hidden and read-only
   flags, and an optional content hash when the server offers one. `VirtualEntry` stays the archive model; an archive
   entry listed through the async VFS carries its archive facts in `LocationEntry.Archive`.
@@ -376,8 +383,6 @@ permissions. The Recycle Bin is never offered for one, and a name Windows would 
 
 | Gap | Effect |
 | --- | --- |
-| A file copied from one location to another is written there new | It takes the destination's default permissions, not its own |
-
 | Names that are not UTF-8 cross the helper's wire as text | Those files cannot be opened, renamed or deleted |
 
 ## Decisions

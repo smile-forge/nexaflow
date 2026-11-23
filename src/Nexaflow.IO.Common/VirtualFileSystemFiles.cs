@@ -14,7 +14,7 @@ public static class VirtualFileSystemFiles
     public static async ValueTask CreateFileAsync(this IVirtualFileSystem vfs, string path, ReadOnlyMemory<byte> content,
                                                   CancellationToken ct = default)
     {
-        await using var write = await vfs.BeginWriteAsync(path, WriteMode.CreateNew, expected: null, ct).ConfigureAwait(false);
+        await using var write = await vfs.BeginWriteAsync(path, WriteMode.CreateNew, expected: null, ct: ct).ConfigureAwait(false);
         await write.Content.WriteAsync(content, ct).ConfigureAwait(false);
         await write.CommitAsync(ct).ConfigureAwait(false);
     }
@@ -25,7 +25,7 @@ public static class VirtualFileSystemFiles
                                                 CancellationToken ct = default)
     {
         await using var source = await vfs.OpenReadAsync(from, ReadIntent.Sequential, ct).ConfigureAwait(false);
-        await using var write  = await vfs.BeginWriteAsync(to, replace ? WriteMode.Replace : WriteMode.CreateNew, expected: null, ct)
+        await using var write  = await vfs.BeginWriteAsync(to, replace ? WriteMode.Replace : WriteMode.CreateNew, expected: null, ct: ct)
                                           .ConfigureAwait(false);
         await source.CopyToAsync(write.Content, ct).ConfigureAwait(false);
         await write.CommitAsync(ct).ConfigureAwait(false);

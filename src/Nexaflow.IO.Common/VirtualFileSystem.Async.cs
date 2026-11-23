@@ -108,7 +108,9 @@ public sealed partial class VirtualFileSystem
         return File.Exists(real) ? real : MaterializeFile(real);
     }
 
-    public ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default)
+    /// <remarks>This disk keeps no POSIX bits, so <paramref name="permissions"/> asks nothing of it.</remarks>
+    public ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null,
+                                                     UnixFileMode? permissions = null, CancellationToken ct = default)
         => OffThread<ILocationWrite>(() =>
         {
             var real = ToReal(path);
@@ -165,7 +167,7 @@ public sealed partial class VirtualFileSystem
 
     public async ValueTask ReplaceAsync(string path, byte[] newContent, CancellationToken ct = default)
     {
-        await using var write = await BeginWriteAsync(path, WriteMode.Replace, null, ct).ConfigureAwait(false);
+        await using var write = await BeginWriteAsync(path, WriteMode.Replace, null, ct: ct).ConfigureAwait(false);
         await write.Content.WriteAsync(newContent, ct).ConfigureAwait(false);
         await write.CommitAsync(ct).ConfigureAwait(false);
     }

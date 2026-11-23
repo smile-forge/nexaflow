@@ -338,9 +338,10 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
         return new HeldStream(stream, owner);
     }
 
-    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, CancellationToken ct)
+    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, UnixFileMode? permissions,
+                                                           CancellationToken ct)
     {
-        var write = await Run(() => inner.BeginWriteAsync(path, mode, expected, ct)).ConfigureAwait(false);
+        var write = await Run(() => inner.BeginWriteAsync(path, mode, expected, permissions, ct)).ConfigureAwait(false);
         owner.Enter();
         return new HeldWrite(write, this, owner);
     }

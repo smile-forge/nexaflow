@@ -93,7 +93,7 @@ public sealed partial class LocationFileSystem
     /// keeps its permissions, and one changed since <paramref name="expected"/> was read is not overwritten.</summary>
     private async ValueTask PutInPlaceAsync(string local, string target, LocationEntry? expected, CancellationToken ct)
     {
-        await using var write = await BeginWriteAsync(target, WriteMode.Replace, expected, ct).ConfigureAwait(false);
+        await using var write = await BeginWriteAsync(target, WriteMode.Replace, expected, ct: ct).ConfigureAwait(false);
         await using (var source = new FileStream(local, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous))
             await source.CopyToAsync(write.Content, ct).ConfigureAwait(false);
         await write.CommitAsync(ct).ConfigureAwait(false);
@@ -119,7 +119,7 @@ public sealed partial class LocationFileSystem
         try
         {
             var copy  = await CopyOutAsync(archive, staging, ct).ConfigureAwait(false);
-            var inner = await _shared.BeginWriteAsync(archive.Within(copy), mode, expected, ct).ConfigureAwait(false);
+            var inner = await _shared.BeginWriteAsync(archive.Within(copy), mode, expected, ct: ct).ConfigureAwait(false);
             return new ArchiveEntryWrite(inner, token => PutInPlaceAsync(copy, archive.Container, container, token), staging);
         }
         catch
@@ -162,7 +162,7 @@ public sealed partial class LocationFileSystem
             folder = ChildPath(folder, name);
             if (made.Add(folder)) await CreateDirectoryAsync(folder, ct).ConfigureAwait(false);
         }
-        return await BeginWriteAsync(ChildPath(folder, names[^1]), WriteMode.Replace, null, ct).ConfigureAwait(false);
+        return await BeginWriteAsync(ChildPath(folder, names[^1]), WriteMode.Replace, null, ct: ct).ConfigureAwait(false);
     }
 
     /// <summary>

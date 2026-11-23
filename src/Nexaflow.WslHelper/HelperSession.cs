@@ -149,6 +149,14 @@ internal sealed class HelperSession(ReplyChannel replies, FileRequests files, In
                 break;
             }
 
+            case WslOp.ChangeMode:
+            {
+                string path = DistroPath.Checked(request.Text());
+                uint bits = request.UInt32();
+                FileRequests.ChangeMode(path, bits);
+                break;
+            }
+
             case WslOp.Watch:
             {
                 string path = DistroPath.Checked(request.Text());

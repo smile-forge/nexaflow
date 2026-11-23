@@ -15,7 +15,7 @@ namespace Nexaflow.IO.Location.Wsl.Protocol;
 internal static class WslWire
 {
     /// <summary>Raised whenever what a frame means changes; the backend refuses a helper that says another.</summary>
-    public const int ProtocolVersion = 2;
+    public const int ProtocolVersion = 3;
 
     /// <summary>The largest frame either side sends or accepts.</summary>
     public const int MaxFrame = 4 * 1024 * 1024;

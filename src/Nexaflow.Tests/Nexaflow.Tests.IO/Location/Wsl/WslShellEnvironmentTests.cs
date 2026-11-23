@@ -52,7 +52,7 @@ public sealed class WslShellEnvironmentTests
         await files.CreateDirectoryAsync("/home/adam", CancellationToken.None);
         foreach (var path in present)
         {
-            await using var write = await files.BeginWriteAsync(path, WriteMode.Replace, null, CancellationToken.None);
+            await using var write = await files.BeginWriteAsync(path, WriteMode.Replace, null, null, CancellationToken.None);
             await write.CommitAsync(CancellationToken.None);
         }
         return files;

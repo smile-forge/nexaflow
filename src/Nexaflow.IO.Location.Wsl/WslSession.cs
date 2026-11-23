@@ -131,14 +131,19 @@ internal sealed class WslSession : ILocationSession
         }
     }
 
-    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, CancellationToken ct)
-        => await WslWrite.OpenAsync(this, path, mode, expected, ct).ConfigureAwait(false);
+    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, UnixFileMode? permissions,
+                                                           CancellationToken ct)
+        => await WslWrite.OpenAsync(this, path, mode, expected, permissions, ct).ConfigureAwait(false);
 
     public async ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct)
         => await RenameAsync(from, to, replace, ct).ConfigureAwait(false);
 
     internal async ValueTask RenameAsync(string from, string to, bool replace, CancellationToken ct)
         => await _link.CallAsync(WslOp.Rename, w => w.String(from).String(to).Bool(replace), from, ct).ConfigureAwait(false);
+
+    /// <summary>Gives a file the permission bits named (<see cref="WslOp.ChangeMode"/>).</summary>
+    internal async ValueTask ChangeModeAsync(string path, UnixFileMode bits, CancellationToken ct)
+        => await _link.CallAsync(WslOp.ChangeMode, w => w.String(path).UInt32((uint)bits), path, ct).ConfigureAwait(false);
 
     public async ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct)
         => await _link.CallAsync(WslOp.Copy, w => w.String(from).String(to).Bool(replace), from, ct).ConfigureAwait(false);

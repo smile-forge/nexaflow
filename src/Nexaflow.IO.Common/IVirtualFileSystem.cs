@@ -233,7 +233,11 @@ public interface IVirtualFileSystem
 
     /// <summary>Starts a write that is invisible at the path until it commits (<see cref="ILocationSession.BeginWriteAsync"/>).
     /// Inside an archive the bytes are gathered and the archive rewritten in one piece at commit.</summary>
-    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default);
+    /// <param name="permissions">The permission bits a file this write makes is given, on it before it appears; a file it
+    /// replaces keeps its own (<see cref="ILocationSession.BeginWriteAsync"/>). Null for the defaults. This disk and an
+    /// archive keep no POSIX bits, so only a location that does (<see cref="LocationCapabilities.Permissions"/>) heeds it.</param>
+    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, UnixFileMode? permissions = null,
+                                              CancellationToken ct = default);
 
     ValueTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct = default);
 

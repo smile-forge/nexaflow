@@ -33,7 +33,12 @@ public interface ILocationSession : IAsyncDisposable
     /// <param name="expected">The entry as the writer last read it, or null. When given, the commit re-reads the
     /// target and fails with <see cref="LocationError.Conflict"/> if it is no longer that version
     /// (<see cref="LocationEntry.IsSameVersion"/>).</param>
-    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, CancellationToken ct);
+    /// <param name="permissions">The permission bits a file this write makes is given — as a copy carries its source's — on
+    /// it before it appears, and never wider while it is written. A file the write replaces keeps its own, as a save over
+    /// it does. Null for the location's defaults; a location that keeps no POSIX bits
+    /// (<see cref="LocationCapabilities.Permissions"/>) ignores it.</param>
+    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, UnixFileMode? permissions,
+                                              CancellationToken ct);
 
     /// <summary>Renames or moves within this session. <see cref="LocationError.Conflict"/> when the target exists and
     /// <paramref name="replace"/> is false — and always for a folder, which never replaces anything.
@@ -44,6 +49,7 @@ public interface ILocationSession : IAsyncDisposable
     /// Copies a file on the server, without its bytes crossing the connection. Asked only of a session whose provider
     /// declares <see cref="LocationCapabilities.ServerSideCopy"/>; one that does not keeps this default, which says it
     /// cannot. <see cref="LocationError.Conflict"/> when <paramref name="to"/> exists and <paramref name="replace"/> is false.
+    /// A new copy has its source's permission bits; one over a file keeps that file's, as a write does.
     /// </summary>
     ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct)
         => ValueTask.FromException(new NotSupportedException("This location cannot copy on its server."));

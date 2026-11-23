@@ -840,7 +840,7 @@ public static class FileTransferEngine
             }
 
             if (source.IsDirectory) await CopyDirectoryThroughAsync(item.Source, destination, forMove);
-            else if (await CopyFileThroughAsync(item.Source, source.Size, destination, forMove, resolved: true))
+            else if (await CopyFileThroughAsync(item.Source, source.Size, source.Mode, destination, forMove, resolved: true))
                 await CarryThroughAsync(item, destination, move: forMove);
         }
 
@@ -867,7 +867,7 @@ public static class FileTransferEngine
             foreach (var file in children.Where(c => !c.IsDirectory))
             {
                 if (Stopping) return false;
-                complete &= await CopyFileThroughAsync(Path.Combine(source, file.Name), file.Size,
+                complete &= await CopyFileThroughAsync(Path.Combine(source, file.Name), file.Size, file.Mode,
                                                        Path.Combine(destination, file.Name), forMove, resolved: false);
             }
 
@@ -897,7 +897,10 @@ public static class FileTransferEngine
             return complete;
         }
 
-        private async Task<bool> CopyFileThroughAsync(string source, long length, string destination, bool forMove, bool resolved)
+        /// <param name="permissions">The source's permission bits, which a new copy is made with; a file it replaces keeps
+        /// its own (<see cref="IVirtualFileSystem.BeginWriteAsync"/>). Null where the source keeps none.</param>
+        private async Task<bool> CopyFileThroughAsync(string source, long length, UnixFileMode? permissions, string destination,
+                                                      bool forMove, bool resolved)
         {
             if (Stopping) return false;
 
@@ -943,7 +946,7 @@ public static class FileTransferEngine
                 string? sourceHash;
                 try
                 {
-                    sourceHash = await StreamThroughAsync(source, destination, mode);
+                    sourceHash = await StreamThroughAsync(source, destination, mode, permissions);
                 }
                 catch (Exception ex) when (IsDiskFull(ex))
                 {
@@ -1012,14 +1015,14 @@ public static class FileTransferEngine
 
         /// <summary>Streams one file through the file system, returning the source's SHA-256 when the run verifies. The write
         /// is invisible at <paramref name="destination"/> until it commits, so a failure or a stop leaves nothing there.</summary>
-        private async Task<string?> StreamThroughAsync(string source, string destination, WriteMode mode)
+        private async Task<string?> StreamThroughAsync(string source, string destination, WriteMode mode, UnixFileMode? permissions)
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             using var hash = request.Verify ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
             try
             {
                 await using var from  = await FileSystem.OpenReadAsync(source, ReadIntent.Sequential, ct);
-                await using var write = await FileSystem.BeginWriteAsync(destination, mode, expected: null, ct);
+                await using var write = await FileSystem.BeginWriteAsync(destination, mode, expected: null, permissions, ct);
                 while (true)
                 {
                     ct.ThrowIfCancellationRequested();
