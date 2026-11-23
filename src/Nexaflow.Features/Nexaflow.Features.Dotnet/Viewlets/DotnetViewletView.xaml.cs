@@ -12,6 +12,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.Features.Dotnet.ViewModels;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Dotnet.Viewlets;
 
@@ -21,10 +22,10 @@ public partial class DotnetViewletView : UserControl, IViewletAiSurface, IViewle
     private readonly DispatcherTimer _ellipsisTimer;
     private int _phase;
 
-    public DotnetViewletView(IShellServices shell, string folderPath)
+    public DotnetViewletView(IShellServices shell, IVirtualFileSystem files, string folderPath)
     {
         InitializeComponent();
-        _vm = new DotnetViewletViewModel(shell, folderPath);
+        _vm = new DotnetViewletViewModel(shell, files, folderPath);
         DataContext = _vm;
 
         _ellipsisTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };

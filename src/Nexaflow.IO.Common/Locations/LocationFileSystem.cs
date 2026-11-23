@@ -593,6 +593,34 @@ public sealed partial class LocationFileSystem : IVirtualFileSystem, ILocationPu
         public ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct) => shell.ListCommandsAsync(ct);
     }
 
+    public IProgramHost? GetProgramHost(string folderPath)
+        => TryRouteChange(folderPath, out var location, out _)
+            ? (location.Capabilities & LocationCapabilities.Shell) != 0 ? new LocationProgramHost(this, location) : null
+            : _shared.GetProgramHost(folderPath);
+
+    /// <summary>A location's host running programs on this file system's paths: each run asks the pool for the session, so a
+    /// host kept while the link drops and comes back runs on the session that replaced it.</summary>
+    private sealed class LocationProgramHost(LocationFileSystem files, LocationMount location) : IProgramHost
+    {
+        public string Label => location.Label;
+
+        public string? HostPathOf(string path)
+            => files.TryRouteChange(path, out var on, out var remainder) && IdEquals(on.Id, location.Id)
+                ? LocationPath.ToProviderPath(remainder)
+            : null;
+
+                public string PathOnLocation(string hostPath) => VirtualPathOf(location, hostPath);
+
+        public async ValueTask<ProgramExit> RunProgramAsync(ProgramRun run, IProgress<string>? lines, CancellationToken ct)
+        {
+            var folder  = HostPathOf(run.WorkingDirectory)
+                          ?? throw new ArgumentException($"'{run.WorkingDirectory}' is not on '{location.Label}'.", nameof(run));
+            var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
+            var shell   = session.Shell ?? throw new NotSupportedException($"'{location.Label}' offers no shell now.");
+            return await shell.RunProgramAsync(run with { WorkingDirectory = folder }, lines, ct).ConfigureAwait(false);
+        }
+    }
+
     public ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default)
         => ArchiveOf(path) is { IsEntry: true } archive ? _shared.MaterializeFileAsync(archive.ReadPath, ct)
          : !TryRoute(path, out var location, out var remainder)

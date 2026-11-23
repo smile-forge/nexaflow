@@ -44,6 +44,14 @@ internal enum WslOp : byte
 
     /// <summary>Int32 id of a request still answering → no reply: it stops, and sends nothing more.</summary>
     Cancel = 10,
+
+    /// <summary>String program, string folder, int32 count and that many string arguments, int32 count and that many string
+    /// name and value pairs laid over the environment → <see cref="WslReply.Output"/> as the program writes, then
+    /// <see cref="WslReply.Exited"/> and <see cref="WslReply.Done"/>; or <see cref="WslReply.Failed"/> with
+    /// <see cref="WslFailure.NotFound"/> when the folder is not there or the program is not on a login shell's PATH. The
+    /// program runs in the environment a login <c>sh</c> sets, with nothing on its stdin; a <see cref="Cancel"/> ends it and
+    /// every process it started.</summary>
+    Run = 11,
 }
 
 /// <summary>What the helper answers, with the payload each carries.</summary>
@@ -66,6 +74,12 @@ internal enum WslReply : byte
 
     /// <summary>String path that changed — the watched one when the helper cannot say which — under a watch's id.</summary>
     Changed = 6,
+
+    /// <summary>Bool from stderr (false for stdout), bytes: what a <see cref="WslOp.Run"/>'s program wrote next.</summary>
+    Output = 7,
+
+    /// <summary>Int32 exit code: how a <see cref="WslOp.Run"/>'s program ended, after all it wrote.</summary>
+    Exited = 8,
 }
 
 /// <summary>Why a request failed, as the backend reports it.</summary>

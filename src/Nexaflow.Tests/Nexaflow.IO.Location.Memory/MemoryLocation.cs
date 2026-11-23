@@ -54,6 +54,14 @@ public sealed class MemoryLocationHost
 
     public int ServerCopies;
 
+    /// <summary>What answers a program run on this host, or null for a host with no shell. Set before the location is mounted,
+    /// it gives the provider <see cref="LocationCapabilities.Shell"/>; it may throw as a host does — a
+    /// <see cref="LocationException"/> for a program that is not there.</summary>
+    public Func<ProgramRun, ProgramExit>? Programs { get; set; }
+
+    /// <summary>Every program run on this host, in the order asked, with the provider's own paths.</summary>
+    public ConcurrentQueue<ProgramRun> Runs { get; } = new();
+
     /// <summary>How many sessions have connected to the host, and how many of them have been closed.</summary>
     public int Connects, Disconnects;
 
@@ -110,7 +118,8 @@ public sealed class MemoryLocationProvider : ILocationProvider
     public LocationCapabilities Capabilities
         => LocationCapabilities.RandomRead | LocationCapabilities.AtomicRename
            | (_host is not { CaseSensitive: false } ? LocationCapabilities.CaseSensitive : LocationCapabilities.None)
-           | (_host is { CopiesOnServer: true } ? LocationCapabilities.ServerSideCopy : LocationCapabilities.None);
+           | (_host is { CopiesOnServer: true } ? LocationCapabilities.ServerSideCopy : LocationCapabilities.None)
+           | (_host is { Programs: not null } ? LocationCapabilities.Shell : LocationCapabilities.None);
 
     public async ValueTask<ILocationSession> ConnectAsync(ConnectionProfile profile, ICredentialSource credentials, CancellationToken ct)
     {
@@ -299,11 +308,33 @@ public sealed class MemoryLocationSession : ILocationSession
 
     public ILocationWatch? Watch(string path, bool recursive) => null;
 
-    public ILocationShell? Shell => null;
+    public ILocationShell? Shell => host.Programs is null ? null : new MemoryLocationShell(host);
 
     public ValueTask DisposeAsync()
     {
         Interlocked.Increment(ref host.Disconnects);
         return ValueTask.CompletedTask;
+    }
+}
+
+/// <summary>A memory host's programs: each run is recorded and answered by <see cref="MemoryLocationHost.Programs"/>, its
+/// output reported line by line as a real backend reports it. It opens no terminal.</summary>
+public sealed class MemoryLocationShell(MemoryLocationHost host) : ILocationShell
+{
+    public ValueTask<Nexaflow.IO.Common.Terminal.ITerminalTransport> LaunchAsync(Nexaflow.IO.Common.Terminal.TerminalLaunch launch, CancellationToken ct)
+        => ValueTask.FromException<Nexaflow.IO.Common.Terminal.ITerminalTransport>(new NotSupportedException("A memory host opens no terminal."));
+
+    public async ValueTask<ProgramExit> RunProgramAsync(ProgramRun run, IProgress<string>? lines, CancellationToken ct)
+    {
+        await Task.Delay(host.Latency, ct);
+        host.Runs.Enqueue(run);
+        bool folder = host.With(nodes => nodes.TryGetValue(run.WorkingDirectory, out var node) && node.IsDirectory);
+        if (!folder) throw new LocationException(LocationError.NotFound, run.WorkingDirectory, $"{run.WorkingDirectory}: no such folder");
+
+        var exit   = (host.Programs ?? throw new NotSupportedException("This memory host runs no programs."))(run);
+        var output = new ProgramOutput(lines);
+        output.Add(isError: false, System.Text.Encoding.UTF8.GetBytes(exit.Output));
+        output.Add(isError: true, System.Text.Encoding.UTF8.GetBytes(exit.Errors));
+        return output.Finish(exit.ExitCode);
     }
 }

@@ -10,7 +10,7 @@ namespace Nexaflow.Features.Dotnet.Services;
 /// Enumerates the buildable .NET targets directly inside a folder. Solutions are listed
 /// first so callers can default to "solution preferred".
 /// </summary>
-[LocalDiskOnly("a folder the .NET viewlet is shown in, which a viewlet is only offered for on this disk, where the dotnet CLI builds")]
+[LocalDiskOnly("a folder the .NET viewlet is shown in, as the file system resolved it to this disk — a location's by the Windows folder showing it, read and never changed")]
 public static class DotnetTargetScanner
 {
     private static readonly string[] SolutionGlobs = ["*.slnx", "*.sln"];

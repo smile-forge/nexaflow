@@ -308,6 +308,12 @@ public interface IVirtualFileSystem
     /// (<see cref="LocationCapabilities.Shell"/>).</summary>
     ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default);
 
+    /// <summary>The host that runs programs on the folder's files, for a folder on a location with a shell
+    /// (<see cref="LocationCapabilities.Shell"/>) — named by the location's path or by a Windows folder showing it, since a
+    /// program run on a folder changes it, and a change goes through the location — or null for a folder anywhere else, whose
+    /// programs the caller runs on this computer. Read without touching the network: the host connects when it runs one.</summary>
+    IProgramHost? GetProgramHost(string folderPath);
+
     /// <summary>As <see cref="DescribeArchive"/>.</summary>
     ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default);
 

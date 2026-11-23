@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Git.ViewModels;
+using Nexaflow.IO.Common;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,10 +20,10 @@ public partial class GitViewletView : UserControl, IViewletAiSurface
 {
     private readonly GitViewletViewModel _vm;
 
-    public GitViewletView(GitOptions options, IShellServices shell, string folderPath, IViewletController controller)
+    public GitViewletView(GitOptions options, IShellServices shell, IVirtualFileSystem files, string folderPath, IViewletController controller)
     {
         InitializeComponent();
-        _vm = new GitViewletViewModel(options, shell, folderPath, controller);
+        _vm = new GitViewletViewModel(options, shell, files, folderPath, controller);
         DataContext = _vm;
 
         _vm.PropertyChanged += OnVmPropertyChanged;

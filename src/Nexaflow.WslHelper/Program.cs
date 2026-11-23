@@ -1,4 +1,5 @@
 using Nexaflow.WslHelper.Files;
+using Nexaflow.WslHelper.Programs;
 using Nexaflow.WslHelper.Watching;
 
 namespace Nexaflow.WslHelper;
@@ -12,7 +13,7 @@ internal static class Program
         var accounts = new AccountNames();
         var replies = new ReplyChannel(Console.OpenStandardOutput());
         var session = new HelperSession(replies, new FileRequests(new EntryReader(accounts), replies), new InotifyWatcher(replies),
-                                        accounts);
+                                        accounts, new ProgramRequests(replies));
         return session.RunAsync(Console.OpenStandardInput());
     }
 }

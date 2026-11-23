@@ -7,6 +7,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Git.ClientTools;
 using Nexaflow.Features.Git.Services;
 using Nexaflow.Features.Git.Services.Forge;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -32,13 +33,15 @@ public sealed partial class GitViewletViewModel : ObservableObject
     private readonly string              _folderPath;
     private readonly IViewletController? _controller;
     private readonly GitService          _git;
-    private readonly GitWorktreeService  _worktreeService;
+    private readonly IGitWorkingCopy     _workingCopy;
+
+    /// <summary>True when the repository is opened in process, as a folder of this PC is — what the history tools read
+    /// it with. A location's folder is not: LibGit2Sharp refuses a repository another account owns, as a distro's is to
+    /// Windows, so there the assistant gets what the host's git answers.</summary>
+    private readonly bool                _readsInProcess;
     private readonly GitCredentialHelper _credHelper;
     private readonly GitInsightService _insights;
     private readonly GitForgeClient _forge;
-
-    /// <summary>How a pull ended — <see cref="PullOutcome.AuthFailed"/> is the one the token fallback retries.</summary>
-    public enum PullOutcome { Ok, UpToDate, Failed, AuthFailed }
 
     /// <summary>Local branches offered by the branch picker; empty until the first refresh completes.</summary>
     public ObservableCollection<string> LocalBranches { get; } = [];
@@ -94,17 +97,25 @@ public sealed partial class GitViewletViewModel : ObservableObject
     /// <summary>Only shown when the user has configured an external git GUI in options.</summary>
     public bool ShowGitManager => !string.IsNullOrWhiteSpace(_options.GitManagerPath);
 
+    /// <param name="files">The file system the folder is named in. A folder on a location has its working tree read and
+    /// changed by the location host's own git; its history is read through the Windows folder showing it.</param>
     public GitViewletViewModel(
-        GitOptions options, IShellServices shell, string folderPath, IViewletController? controller = null)
+        GitOptions options, IShellServices shell, IVirtualFileSystem files, string folderPath, IViewletController? controller = null)
     {
-        _options         = options;
-        _shell           = shell;
-        _folderPath      = folderPath;
-        _controller      = controller;
-        _git             = new GitService(folderPath);
-        _worktreeService = new GitWorktreeService(folderPath);
-        _credHelper      = new GitCredentialHelper(folderPath);
-        _insights        = new GitInsightService(folderPath);
+        _options    = options;
+        _shell      = shell;
+        _folderPath = folderPath;
+        _controller = controller;
+
+        var onDisk  = files.ResolveOnDisk(folderPath) ?? folderPath;
+        _git        = new GitService(onDisk);
+        _credHelper = new GitCredentialHelper(onDisk);
+        _insights   = new GitInsightService(onDisk);
+        var host        = files.GetProgramHost(folderPath);
+        _readsInProcess = host is null;
+        _workingCopy    = host is null
+            ? new LocalGitWorkingCopy(onDisk, _credHelper)
+            : new HostGitWorkingCopy(host, files, folderPath);
 
         // The forge reuses the same stored credential as push/fetch — nothing extra for the user to configure.
         _forge = new GitForgeClient(url => _credHelper.Fill(url));
@@ -121,11 +132,11 @@ public sealed partial class GitViewletViewModel : ObservableObject
         IsBusy = true;
 
         GitWorktreeInfo? worktree = null;
-        try { worktree = await Task.Run(_worktreeService.GetInfo); } catch { }
+        try { worktree = await _workingCopy.GetWorktreeAsync(CancellationToken.None); } catch { }
 
         try
         {
-            ApplyStatus(await Task.Run(_git.GetStatus));
+            ApplyStatus(await _workingCopy.GetStatusAsync(CancellationToken.None));
         }
         catch (RepositoryNotFoundException)
         {
@@ -267,7 +278,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
             if (_controller is not null)
                 try { await _controller.QuiesceFolderAsync(); } catch { /* best-effort; removal is fail-safe */ }
 
-            var result = await Task.Run(_worktreeService.Remove);
+            var result = await _workingCopy.RemoveWorktreeAsync(CancellationToken.None);
             if (result.Success) _shell.ShowNotification(result.Message);
             else                _shell.ShowError(result.Message);
         }
@@ -328,11 +339,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
 
         try
         {
-            await Task.Run(() =>
-            {
-                using var repo = new Repository(_folderPath);
-                if (repo.Branches[targetBranch] is { } branch) Commands.Checkout(repo, branch);
-            });
+            await _workingCopy.SwitchBranchAsync(targetBranch, CancellationToken.None);
         }
         catch { /* the refresh below reverts the display on failure */ }
         finally { IsBusy = false; }
@@ -353,52 +360,22 @@ public sealed partial class GitViewletViewModel : ObservableObject
         IsBusy      = true;
         PullCaption = "···";
 
-        // Fetch + merge run off the UI thread: LibGit2Sharp invokes the credentials provider synchronously on
-        // the fetching thread and that spawns `git credential fill`, which would freeze the window.
-        var (outcome, message) = await Task.Run(RunPull);
+        var result = await _workingCopy.PullAsync(CancellationToken.None);
 
-        if (outcome == PullOutcome.AuthFailed && await TryCredentialFallbackAsync() is { } retried)
-            (outcome, message) = retried;
+        if (result.Outcome == GitPullOutcome.AuthFailed && await TryCredentialFallbackAsync() is { } retried)
+            result = retried;
 
         PullCaption = Str.Get("Git.Viewlet.Pull");
         IsBusy      = false;
-        SetActionResult(message, outcome is PullOutcome.Ok or PullOutcome.UpToDate);
+        SetActionResult(result.Message, result.Outcome is GitPullOutcome.Ok or GitPullOutcome.UpToDate);
 
         await RefreshAsync();
     }
 
-    /// <summary>Opens the repo and pulls with the credential-manager-backed provider. Pure background work —
-    /// no UI access — so it is safe inside <see cref="Task.Run(Action)"/>.</summary>
-    private (PullOutcome Outcome, string Message) RunPull()
-    {
-        try
-        {
-            using var repo = new Repository(_folderPath);
-            var signature = repo.Config.BuildSignature(DateTimeOffset.Now)
-                ?? new Signature(Environment.UserName, $"{Environment.UserName}@local", DateTimeOffset.Now);
-
-            var options = new PullOptions
-            {
-                FetchOptions = new FetchOptions { CredentialsProvider = _credHelper.Provider },
-                MergeOptions = new MergeOptions { FastForwardStrategy = FastForwardStrategy.FastForwardOnly }
-            };
-
-            return Commands.Pull(repo, signature, options).Status switch
-            {
-                MergeStatus.UpToDate                                  => (PullOutcome.UpToDate, Str.Get("Git.Pull.UpToDate")),
-                MergeStatus.FastForward or MergeStatus.NonFastForward => (PullOutcome.Ok, Str.Get("Git.Pull.Complete")),
-                MergeStatus.Conflicts                                 => (PullOutcome.Failed, Str.Get("Git.Pull.FailedConflicts")),
-                var status                                            => (PullOutcome.Failed, Str.Format("Git.Pull.FailedFormat", status))
-            };
-        }
-        catch (Exception ex) when (IsAuthFailure(ex)) { return (PullOutcome.AuthFailed, Str.Format("Git.Pull.FailedFormat", ex.Message)); }
-        catch (Exception ex)                          { return (PullOutcome.Failed,     Str.Format("Git.Pull.FailedFormat", ex.Message)); }
-    }
-
     /// <summary>Fallback when no credential is stored: prompt for a token, write it into the system store
     /// keyed by the remote URL, then retry the pull once. Null when there's nothing to retry (no remote, or
-    /// the user cancelled).</summary>
-    private async Task<(PullOutcome, string)?> TryCredentialFallbackAsync()
+    /// the user cancelled). Only a pull on this PC asks for it: a location's git keeps its own credentials.</summary>
+    private async Task<GitPullResult?> TryCredentialFallbackAsync()
     {
         var remotes   = _git.GetRemotes();
         var remoteUrl = (remotes.FirstOrDefault(r => r.Name == "origin") ?? remotes.FirstOrDefault())?.Url;
@@ -412,7 +389,7 @@ public sealed partial class GitViewletViewModel : ObservableObject
         // "x-token-auth"; the token is the password. Store it so later pulls resolve natively.
         await Task.Run(() => _credHelper.Approve(remoteUrl, new GitCredential("x-token-auth", token.Trim())));
 
-        return await Task.Run(RunPull);
+        return await _workingCopy.PullAsync(CancellationToken.None);
     }
 
     private Task<string?> PromptAsync(string title, string label)
@@ -423,14 +400,6 @@ public sealed partial class GitViewletViewModel : ObservableObject
             onCancel:  ()    => tcs.TrySetResult(null));
         return tcs.Task;
     }
-
-    /// <summary>True for a fetch/pull failure caused by authentication (missing/invalid credentials), so the
-    /// caller can offer the token-capture fallback rather than treating it as a hard error.</summary>
-    internal static bool IsAuthFailure(Exception ex)
-        => ex.Message.Contains("authentication", StringComparison.OrdinalIgnoreCase)
-        || ex.Message.Contains("credential",     StringComparison.OrdinalIgnoreCase)
-        || ex.Message.Contains("401")
-        || ex.Message.Contains("403");
 
     /// <summary>Publishes the transient outcome line. The view owns its fade-out (an animation, not state).</summary>
     internal void SetActionResult(string message, bool success)
@@ -471,35 +440,39 @@ public sealed partial class GitViewletViewModel : ObservableObject
 
     /// <summary>The live repo line shown in the AI's context. Null (rather than a throw) for a broken or
     /// mid-operation repo, so one bad folder can't break the whole context.</summary>
-    public string? GetContext()
-    {
-        // Wording lives in GitContextFormatter so it's unit-testable without a repo or this view-model.
-        try { return GitContextFormatter.Describe(_git.GetStatus(), _worktreeService.GetInfo()); }
-        catch { return null; }
-    }
+    public string? GetContext() => _workingCopy.DescribeForAssistant();
 
-    public IReadOnlyList<IClientTool> GetClientTools() =>
-    [
-        new GitStatusTool(_git),
-        new GitLogTool(_git),
-        new GitDiffTool(_git),
-        new GitBranchesTool(_git),
-        new GitShowTool(_git),
-        new GitRemotesTool(_git),
-        new GitTagsTool(_git),
-        new GitFileAtTool(_git),
-        new GitMergeBaseTool(_git),
-        new GitContainsTool(_git),
-        new GitBlameTool(_git),
-        new GitSearchHistoryTool(_git),
-        new GitRecoveryTool(_git),
-        new GitWorktreesTool(_git),
-        new GitCompareTool(_insights),
-        new GitChangelogTool(_insights),
-        new GitBranchAuditTool(_insights),
-        new GitFindWorkTool(_insights),
-        new GitFileHistoryTool(_insights),
-        new GitPullRequestsTool(_git, _forge),
-        new GitIssuesTool(_git, _forge),
-    ];
+    /// <summary>The read-only git tools: on a folder of this PC every one; on a location's folder those its host's git
+    /// answers — status, diffs and worktrees — since the rest read the repository in process.</summary>
+    public IReadOnlyList<IClientTool> GetClientTools() => _readsInProcess
+        ?
+        [
+            new GitStatusTool(_workingCopy),
+            new GitLogTool(_git),
+            new GitDiffTool(_workingCopy),
+            new GitBranchesTool(_git),
+            new GitShowTool(_git),
+            new GitRemotesTool(_git),
+            new GitTagsTool(_git),
+            new GitFileAtTool(_git),
+            new GitMergeBaseTool(_git),
+            new GitContainsTool(_git),
+            new GitBlameTool(_git),
+            new GitSearchHistoryTool(_git),
+            new GitRecoveryTool(_git),
+            new GitWorktreesTool(_workingCopy),
+            new GitCompareTool(_insights),
+            new GitChangelogTool(_insights),
+            new GitBranchAuditTool(_insights),
+            new GitFindWorkTool(_insights),
+            new GitFileHistoryTool(_insights),
+            new GitPullRequestsTool(_git, _forge),
+            new GitIssuesTool(_git, _forge),
+        ]
+        :
+        [
+            new GitStatusTool(_workingCopy),
+            new GitDiffTool(_workingCopy),
+            new GitWorktreesTool(_workingCopy),
+        ];
 }

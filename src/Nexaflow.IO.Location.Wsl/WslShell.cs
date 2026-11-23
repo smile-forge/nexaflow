@@ -1,6 +1,7 @@
 using System.Text;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Common.Terminal;
+using Nexaflow.IO.Location.Wsl.Protocol;
 using Nexaflow.IO.Terminal;
 
 namespace Nexaflow.IO.Location.Wsl;
@@ -53,6 +54,34 @@ internal sealed class WslShell(string distro, string shims, string loginShell, s
                  .SkipWhile(line => line != ListMark).Skip(1)
                  .Where(line => line.Length > 0)
                  .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>A program the helper runs, beside every terminal rather than in one, so nothing is typed and no prompt is
+    /// read: its output streams back over the helper's link as it is written.</summary>
+    public async ValueTask<ProgramExit> RunProgramAsync(ProgramRun run, IProgress<string>? lines, CancellationToken ct)
+    {
+        var output = new ProgramOutput(lines);
+        int? exitCode = null;
+        await foreach (var frame in link.StreamAsync(WslOp.Run, w => Describe(w, run), run.WorkingDirectory, ct).ConfigureAwait(false))
+        {
+            var reply = frame.Read();
+            switch ((WslReply)frame.Code)
+            {
+                case WslReply.Output: output.Add(reply.Bool(), reply.Bytes()); break;
+                case WslReply.Exited: exitCode = reply.Int32(); break;
+            }
+        }
+        return output.Finish(exitCode ?? throw new InvalidDataException($"The WSL helper in '{distro}' did not say how '{run.Program}' ended."));
+    }
+
+    /// <summary>A run as <see cref="WslOp.Run"/> carries it.</summary>
+    private static void Describe(WslWriter request, ProgramRun run)
+    {
+        request.String(run.Program).String(run.WorkingDirectory).Int32(run.Arguments.Count);
+        foreach (var argument in run.Arguments) request.String(argument);
+        var environment = run.Environment ?? new Dictionary<string, string>();
+        request.Int32(environment.Count);
+        foreach (var (name, value) in environment) request.String(name).String(value);
+    }
 
     public async ValueTask<ITerminalTransport> LaunchAsync(TerminalLaunch launch, CancellationToken ct)
     {

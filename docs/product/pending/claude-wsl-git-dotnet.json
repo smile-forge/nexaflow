@@ -1,0 +1,314 @@
+{
+  "branch": "claude/wsl-git-dotnet",
+  "nodes": {
+    "git-viewlet-match": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Git/Viewlets/GitWorktreeViewlet.cs",
+          "class": "GitWorktreeViewlet"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Git/Viewlets/GitViewlet.cs",
+          "class": "GitViewlet",
+          "method": "RunsOnLocationHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Git/Services/HostGitWorkingCopy.cs",
+          "class": "HostGitWorkingCopy"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Git/Services/GitWorkingCopy.cs",
+          "class": "IGitWorkingCopy"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Git/GitViewletRegistrationTests.cs",
+            "class": "GitViewletRegistrationTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Git/HostGitWorkingCopyTests.cs",
+            "class": "HostGitWorkingCopyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Git/GitPorcelainTests.cs",
+            "class": "GitPorcelainTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Git/GitAndDotnetOnADistroTests.cs",
+            "class": "GitAndDotnetOnADistroTests"
+          }
+        ]
+      }
+    },
+    "dotnet-viewlet-match": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dotnet/Viewlets/DotnetViewlet.cs",
+          "class": "DotnetViewlet"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dotnet/ViewModels/DotnetViewletViewModel.cs",
+          "class": "DotnetViewletViewModel",
+          "method": "QuiesceAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dotnet/Viewlets/DotnetViewlet.cs",
+          "class": "DotnetViewlet",
+          "method": "RunsOnLocationHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dotnet/Services/DotnetCli.cs",
+          "class": "DotnetCli",
+          "method": "RunOnHostAsync"
+        }
+      ]
+    },
+    "winfs-viewlet-host": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Controls/ViewletHost.xaml.cs",
+          "class": "ViewletHost"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FolderViewletRegistry.cs",
+          "class": "FolderViewletRegistry"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "ApplyViewletLayout"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/features.md",
+          "title_path": [
+            "Building a Feature",
+            "Interface reference — `Features.Common`",
+            "Folder viewlets (`Viewlets/`)"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FolderViewletRegistry.cs",
+          "class": "FolderViewletRegistry",
+          "method": "GetMatchingViewlets"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Viewlets/IFolderViewlet.cs",
+          "class": "IFolderViewlet",
+          "method": "RunsOnLocationHost"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FolderActionMatchingTests.cs",
+            "class": "FolderActionMatchingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/ViewletBackingTests.cs",
+            "class": "ViewletBackingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/ViewletBackingTests.cs",
+            "class": "ViewletBackingTests",
+            "method": "OnALocation_AViewletThatChangesFilesWithWindowsToolsIsNotOffered_OneThatReadsIs"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/ViewletsOnADistroTests.cs",
+            "class": "ViewletsOnADistroTests"
+          }
+        ]
+      }
+    },
+    "io-locations-routing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/WorkspaceRuntime.cs",
+          "class": "WorkspaceRuntime"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem",
+          "method": "ChildPath"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem",
+          "method": "TryRouteChange"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.Archives.cs",
+          "class": "LocationFileSystem",
+          "method": "ExtractAllAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/ArchiveEntryPlacement.cs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ProgramRun.cs",
+          "class": "IProgramHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem",
+          "method": "GetProgramHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ProgramOutput.cs",
+          "class": "ProgramOutput"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationFileSystemTests.cs",
+            "class": "LocationFileSystemTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationArchiveTests.cs",
+            "class": "LocationArchiveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationProgramHostTests.cs",
+            "class": "LocationProgramHostTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/ProgramOutputTests.cs",
+            "class": "ProgramOutputTests"
+          }
+        ]
+      }
+    },
+    "io-locations-wsl": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslLocationProvider.cs",
+          "class": "WslLocationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslSession.cs",
+          "class": "WslSession"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslHelperLink.cs",
+          "class": "WslHelperLink"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslHelperDeployment.cs",
+          "class": "WslHelperDeployment"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslShell.cs",
+          "class": "WslShell"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslRegistry.cs",
+          "class": "WslRegistry"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslTerminal.cs",
+          "class": "WslTerminal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslShell.cs",
+          "class": "WslShell",
+          "method": "RunProgramAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.WslHelper/Programs/ProgramRequests.cs",
+          "class": "ProgramRequests"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/Wsl/WslProgramTests.cs",
+            "class": "WslProgramTests"
+          }
+        ]
+      }
+    },
+    "dotnet-cancel": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dotnet/ViewModels/DotnetViewletViewModel.cs",
+          "class": "DotnetViewletViewModel",
+          "method": "CancelVerb"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Dotnet/Services/DotnetCli.cs",
+          "class": "DotnetCli",
+          "method": "RunHereAsync"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 10,
+  "touched_nodes": [
+    "dotnet-cancel",
+    "dotnet-viewlet-match",
+    "git-viewlet-match",
+    "io-locations-routing",
+    "io-locations-wsl",
+    "winfs-viewlet-host"
+  ]
+}

@@ -2,6 +2,7 @@ using System.IO;
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Dotnet.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Dotnet;
@@ -43,7 +44,7 @@ public class DotnetViewletViewModelTests
     // Constructs the VM and immediately cancels the debounced NuGet check it kicks off on target select.
     private static DotnetViewletViewModel Vm(string dir)
     {
-        var vm = new DotnetViewletViewModel(Substitute.For<IShellServices>(), dir);
+        var vm = new DotnetViewletViewModel(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, dir);
         vm.CancelPending();
         return vm;
     }

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.IO.Common;
 using System.Windows;
 
 namespace Nexaflow.Features.Git.Viewlets;
@@ -14,13 +15,15 @@ namespace Nexaflow.Features.Git.Viewlets;
 /// </summary>
 public sealed class GitWorktreeViewlet : IFolderViewlet
 {
-    private readonly GitOptions     _options;
-    private readonly IShellServices _shell;
+    private readonly GitOptions         _options;
+    private readonly IShellServices     _shell;
+    private readonly IVirtualFileSystem _files;
 
-    public GitWorktreeViewlet(GitOptions options, IShellServices shell)
+    public GitWorktreeViewlet(GitOptions options, IShellServices shell, IVirtualFileSystem files)
     {
         _options = options;
         _shell   = shell;
+        _files   = files;
     }
 
     public string DisplayName    => "Git";
@@ -34,8 +37,8 @@ public sealed class GitWorktreeViewlet : IFolderViewlet
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar];
 
     public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new GitViewletView(_options, _shell, folderPath, controller);
+        => new GitViewletView(_options, _shell, _files, folderPath, controller);
 
-    /// <summary>Removing a worktree changes the folder with Windows' own git, which a location's folder may not be changed by.</summary>
-    public bool RequiresLocalFolder => true;
+    /// <summary>Removing a worktree changes the folder, so on a location it runs on its host's git and through the location.</summary>
+    public bool RunsOnLocationHost => true;
 }

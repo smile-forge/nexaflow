@@ -1,18 +1,21 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.IO.Common;
 using System.Windows;
 
 namespace Nexaflow.Features.Git.Viewlets;
 
 public sealed class GitViewlet : IFolderViewlet
 {
-    private readonly GitOptions     _options;
-    private readonly IShellServices _shell;
+    private readonly GitOptions         _options;
+    private readonly IShellServices     _shell;
+    private readonly IVirtualFileSystem _files;
 
-    public GitViewlet(GitOptions options, IShellServices shell)
+    public GitViewlet(GitOptions options, IShellServices shell, IVirtualFileSystem files)
     {
         _options = options;
         _shell   = shell;
+        _files   = files;
     }
 
     public string DisplayName    => "Git";
@@ -26,8 +29,8 @@ public sealed class GitViewlet : IFolderViewlet
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar];
 
     public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new GitViewletView(_options, _shell, folderPath, controller);
+        => new GitViewletView(_options, _shell, _files, folderPath, controller);
 
-    /// <summary>Pulling and switching branch rewrite the working tree with Windows' own git, which a location's folder may not be changed by.</summary>
-    public bool RequiresLocalFolder => true;
+    /// <summary>Pulling and switching branch rewrite the working tree, so on a location they run on its host's git.</summary>
+    public bool RunsOnLocationHost => true;
 }
