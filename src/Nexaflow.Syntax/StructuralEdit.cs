@@ -104,10 +104,12 @@ public static partial class StructuralEdit
     public static IReadOnlyList<Declaration> Declarations(string grammarId, string source)
     {
         if (string.IsNullOrEmpty(grammarId) || string.IsNullOrEmpty(source)) return [];
+        return DeclarationsIn(new CodeStructureExtractor().Extract(grammarId, source));
+    }
 
-        var outline = new CodeStructureExtractor().Extract(grammarId, source);
-        var found   = new List<Declaration>();
-
+    private static IReadOnlyList<Declaration> DeclarationsIn(CodeOutline outline)
+    {
+        var found = new List<Declaration>();
         foreach (var type in outline.Types)
         {
             found.Add(new Declaration(type.Name, type.Kind.ToString(), type.AstPath, type.Line, type.EndLine));

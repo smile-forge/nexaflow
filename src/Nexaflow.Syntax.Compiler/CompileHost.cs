@@ -58,6 +58,10 @@ public sealed record SymbolLocation(string FullPath, int Start, int Length);
 public sealed record ReferenceReport(string? Symbol, IReadOnlyList<SymbolLocation> Locations, IReadOnlyList<string> NotChecked,
                                      string? Error, IReadOnlyList<string>? Unsearched = null);
 
+/// <summary>One declaration to find the uses of: the file it is in, the position of its name, and the files outside its
+/// own project that could use it — those that spell its name.</summary>
+public sealed record ReferenceQuery(string DeclarationFile, int Position, IReadOnlyCollection<string> CandidateFiles);
+
 /// <summary>
 /// Asks the compiler what an edit did. Projects are loaded on first use and kept, so the host is meant to live as
 /// long as the process that owns it — the resident <c>nfi</c> process, where a warm check costs a fraction of a second.
@@ -75,14 +79,20 @@ public sealed class CompileHost
     private readonly AnalyzerLoader _loader = new();
     private readonly object _gate = new();
     private readonly string? _boundary;
+    private readonly IDesignTimeBuilder _designTime;
 
     /// <summary>The projects the check in progress had to load rather than found warm.</summary>
     private readonly List<string> _loadedNow = [];
 
     /// <param name="boundary">The directory a search for a file's project stops at — the repository, so a temp file is
     /// never claimed by a project somewhere above it.</param>
-    public CompileHost(string? boundary = null) =>
-        _boundary = boundary is { Length: > 0 } ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(boundary)) : null;
+    /// <param name="designTime">Who runs the design-time build that tells a project's compiler arguments: a host keeping
+    /// MSBuild workers passes its own, and without one each runs in an MSBuild of its own.</param>
+    public CompileHost(string? boundary = null, IDesignTimeBuilder? designTime = null)
+    {
+        _boundary   = boundary is { Length: > 0 } ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(boundary)) : null;
+        _designTime = designTime ?? ProcessDesignTimeBuilder.Instance;
+    }
 
     /// <summary>
     /// The errors <paramref name="changes"/> introduced and fixed: in the projects the changed files belong to, and in
@@ -198,48 +208,102 @@ public sealed class CompileHost
     /// happens to share the name is left alone — and overrides and interface implementations of it are included.
     /// </summary>
     public ReferenceReport FindReferences(string declarationFile, int position, IReadOnlyCollection<string> candidateFiles,
-                                          TimeSpan budget, CancellationToken cancellation = default)
+                                          TimeSpan budget, CancellationToken cancellation = default) =>
+        FindReferences([new ReferenceQuery(declarationFile, position, candidateFiles)], budget, cancellation)[0];
+
+    /// <summary>
+    /// The uses of several declarations at once, one report for each query in order. One pass however many there are: each
+    /// consuming project is compiled once with every declaring project it references swapped in, and each candidate file is
+    /// bound once against every name it could hold — where a query at a time compiled each consumer afresh for every one,
+    /// throwing away all it had bound, and read the same files again.
+    /// </summary>
+    public IReadOnlyList<ReferenceReport> FindReferences(IReadOnlyList<ReferenceQuery> queries, TimeSpan budget,
+                                                         CancellationToken cancellation = default)
     {
         lock (_gate)
         {
             var clock      = Stopwatch.StartNew();
             var notChecked = new List<string>();
+            var none       = new Dictionary<string, string?>();
+            var errors     = new string?[queries.Count];
+            var symbols    = new ISymbol?[queries.Count];
+            var found      = queries.Select(_ => new List<SymbolLocation>()).ToArray();
+            var unsearched = queries.Select(_ => new List<string>()).ToArray();
+            var declaring  = new Dictionary<string, (CompiledProject Project, CSharpCompilation Compilation, List<int> Queries)>(
+                                 StringComparer.OrdinalIgnoreCase);
 
-            if (ProjectOf(declarationFile) is not { } csproj)
-                return new ReferenceReport(null, [], notChecked, $"no project compiles {Path.GetFileName(declarationFile)}");
-            if (Get(csproj, clock, budget, notChecked, cancellation) is not { } project)
-                return new ReferenceReport(null, [], notChecked, string.Join("; ", notChecked));
-
-            var none        = new Dictionary<string, string?>();
-            var compilation = project.With(none, cancellation);
-            var tree        = compilation.SyntaxTrees.FirstOrDefault(t => string.Equals(t.FilePath, declarationFile, StringComparison.OrdinalIgnoreCase));
-            if (tree is null) return new ReferenceReport(null, [], notChecked, $"{project.Name} does not compile {Path.GetFileName(declarationFile)}");
-
-            if (DeclaredAt(compilation.GetSemanticModel(tree), tree, position, cancellation) is not { } symbol)
-                return new ReferenceReport(null, [], notChecked, "nothing is declared at that position");
-
-            var locations = new List<SymbolLocation>();
-            Scan(compilation, project.SourcePaths, symbol, locations, cancellation);
-
-            var unsearched = new List<string>();
-            foreach (var group in candidateFiles.GroupBy(f => ProjectOf(f) ?? "", StringComparer.OrdinalIgnoreCase))
+            for (var i = 0; i < queries.Count; i++)
             {
-                if (group.Key.Length == 0 || string.Equals(group.Key, csproj, StringComparison.OrdinalIgnoreCase)) continue;
+                var query = queries[i];
+                if (ProjectOf(query.DeclarationFile) is not { } csproj)
+                {
+                    errors[i] = $"no project compiles {Path.GetFileName(query.DeclarationFile)}";
+                    continue;
+                }
+                if (!declaring.TryGetValue(csproj, out var held))
+                {
+                    if (Get(csproj, clock, budget, notChecked, cancellation) is not { } project)
+                    {
+                        errors[i] = string.Join("; ", notChecked);
+                        continue;
+                    }
+                    declaring[csproj] = held = (project, project.With(none, cancellation), []);
+                }
+
+                var tree = held.Compilation.SyntaxTrees.FirstOrDefault(t => string.Equals(t.FilePath, query.DeclarationFile, StringComparison.OrdinalIgnoreCase));
+                if (tree is null)
+                    errors[i] = $"{held.Project.Name} does not compile {Path.GetFileName(query.DeclarationFile)}";
+                else if (DeclaredAt(held.Compilation.GetSemanticModel(tree), tree, query.Position, cancellation) is not { } symbol)
+                    errors[i] = "nothing is declared at that position";
+                else
+                {
+                    symbols[i] = symbol;
+                    held.Queries.Add(i);
+                }
+            }
+
+            // Within its own project a declaration is looked for everywhere, as the compiler sees it.
+            foreach (var (_, (project, compilation, asked)) in declaring)
+                Scan(compilation, project.SourcePaths, [.. asked.Select(i => (symbols[i]!, i))], (_, _) => true, found, cancellation);
+
+            // Elsewhere only in the files that could name it: each consumer once, with every declaring project it references
+            // swapped in for its built output, so a use binds to the declaration as it stands in the tree.
+            var candidates = queries.Select(q => q.CandidateFiles.ToHashSet(StringComparer.OrdinalIgnoreCase)).ToArray();
+            foreach (var group in queries.SelectMany(q => q.CandidateFiles).Distinct(StringComparer.OrdinalIgnoreCase)
+                                         .GroupBy(f => ProjectOf(f) ?? "", StringComparer.OrdinalIgnoreCase))
+            {
+                if (group.Key.Length == 0) continue;
+                var interested = Enumerable.Range(0, queries.Count)
+                                           .Where(i => symbols[i] is not null
+                                                    && !string.Equals(ProjectOf(queries[i].DeclarationFile), group.Key, StringComparison.OrdinalIgnoreCase)
+                                                    && group.Any(candidates[i].Contains))
+                                           .ToList();
+                if (interested.Count == 0) continue;
+
                 if (Get(group.Key, clock, budget, notChecked, cancellation) is not { } consumer)
                 {
-                    unsearched.AddRange(group);
+                    foreach (var i in interested) unsearched[i].AddRange(group.Where(candidates[i].Contains));
                     continue;
                 }
 
-                var swaps = consumer.ReferencesTo(project)
-                                    .ToDictionary(o => o, _ => (MetadataReference)compilation.ToMetadataReference(),
-                                                  StringComparer.OrdinalIgnoreCase);
-                if (swaps.Count == 0) continue;
+                var swaps     = new Dictionary<string, MetadataReference>(StringComparer.OrdinalIgnoreCase);
+                var reachable = new List<(ISymbol, int)>();
+                foreach (var (_, (project, compilation, asked)) in declaring)
+                {
+                    var outputs = consumer.ReferencesTo(project);
+                    if (outputs.Count == 0) continue;
+                    foreach (var output in outputs) swaps[output] = compilation.ToMetadataReference();
+                    reachable.AddRange(asked.Where(interested.Contains).Select(i => (symbols[i]!, i)));
+                }
+                if (reachable.Count == 0) continue;
 
-                Scan(consumer.With(none, cancellation, swaps), group, symbol, locations, cancellation);
+                Scan(consumer.With(none, cancellation, swaps), group, reachable, (i, file) => candidates[i].Contains(file), found, cancellation);
             }
 
-            return new ReferenceReport(symbol.ToDisplayString(), [.. locations.Distinct()], Summarised(notChecked), null, unsearched);
+            var summary = Summarised(notChecked);
+            return [.. Enumerable.Range(0, queries.Count).Select(i => errors[i] is { } error
+                ? new ReferenceReport(null, [], summary, error, unsearched[i])
+                : new ReferenceReport(symbols[i]!.ToDisplayString(), [.. found[i].Distinct()], summary, null, unsearched[i]))];
         }
     }
 
@@ -355,7 +419,7 @@ public sealed class CompileHost
             return null;
         }
 
-        var (project, error) = CompiledProject.Load(csproj, _loader, cancellation);
+        var (project, error) = CompiledProject.Load(csproj, _loader, _designTime, cancellation);
         if (project is null)
         {
             notChecked.Add($"{name}: {error}");
@@ -390,7 +454,7 @@ public sealed class CompileHost
         lock (_gate)
         {
             if (_projects.ContainsKey(csproj)) return;
-            if (CompiledProject.Load(csproj, _loader, CancellationToken.None).Project is { } project) _projects[csproj] = project;
+            if (CompiledProject.Load(csproj, _loader, _designTime, CancellationToken.None).Project is { } project) _projects[csproj] = project;
         }
     });
 
@@ -590,32 +654,41 @@ public sealed class CompileHost
         return null;
     }
 
-    private static void Scan(CSharpCompilation compilation, IEnumerable<string> paths, ISymbol target,
-                             List<SymbolLocation> found, CancellationToken cancellation)
+    /// <summary>
+    /// Every use of the <paramref name="targets"/> in <paramref name="paths"/>, each file read and bound once for all of them:
+    /// only identifiers spelled like one are bound, and each is compared with the targets of that name. A use is recorded for
+    /// a target only where <paramref name="wanted"/> says that file was asked about for it.
+    /// </summary>
+    private static void Scan(CSharpCompilation compilation, IEnumerable<string> paths, IReadOnlyList<(ISymbol Symbol, int Query)> targets,
+                             Func<int, string, bool> wanted, List<SymbolLocation>[] found, CancellationToken cancellation)
     {
-        var wanted = paths.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var name   = target.Name;
+        var files  = paths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var byName = targets.GroupBy(t => t.Symbol.Name, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
 
-        foreach (var tree in compilation.SyntaxTrees.Where(t => wanted.Contains(t.FilePath)))
+        foreach (var tree in compilation.SyntaxTrees.Where(t => files.Contains(t.FilePath)))
         {
-            if (!tree.GetText(cancellation).ToString().Contains(name, StringComparison.Ordinal)) continue;
+            var text = tree.GetText(cancellation).ToString();
+            if (!byName.Keys.Any(name => text.Contains(name, StringComparison.Ordinal))) continue;
 
-            var model = compilation.GetSemanticModel(tree);
+            SemanticModel? model = null;
             foreach (var token in tree.GetRoot(cancellation).DescendantTokens(descendIntoTrivia: true))
             {
-                if (!token.IsKind(SyntaxKind.IdentifierToken) || token.ValueText != name || token.Parent is not { } node)
+                if (!token.IsKind(SyntaxKind.IdentifierToken) || !byName.TryGetValue(token.ValueText, out var named) || token.Parent is not { } node)
                     continue;
 
+                model ??= compilation.GetSemanticModel(tree);
                 var declared = model.GetDeclaredSymbol(node, cancellation);
                 var info     = declared is null ? model.GetSymbolInfo(node, cancellation) : default;
                 var symbols  = declared is not null ? ImmutableArray.Create(declared)
                              : info.Symbol is { } bound ? ImmutableArray.Create(bound)
                              : info.CandidateSymbols;
 
-                if (!symbols.Any(s => Same(s, target) || Implements(s, target))) continue;
-
-                var verbatim = token.Text.StartsWith('@') ? 1 : 0;
-                found.Add(new SymbolLocation(tree.FilePath, token.Span.Start + verbatim, name.Length));
+                foreach (var (target, query) in named)
+                {
+                    if (!wanted(query, tree.FilePath) || !symbols.Any(s => Same(s, target) || Implements(s, target))) continue;
+                    var verbatim = token.Text.StartsWith('@') ? 1 : 0;
+                    found[query].Add(new SymbolLocation(tree.FilePath, token.Span.Start + verbatim, target.Name.Length));
+                }
             }
         }
     }

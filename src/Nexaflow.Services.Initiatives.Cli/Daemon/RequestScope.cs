@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Collections.Generic;
 using Nexaflow.Services.Initiatives.Hosting;
+using Nexaflow.Services.Initiatives.Cli.Building;
 
 namespace Nexaflow.Services.Initiatives.Cli.Daemon;
 
@@ -29,6 +30,9 @@ internal sealed record RequestContext(string Directory)
 
     /// <summary>The request's ticket, so what it causes deeper down can be logged beside it.</summary>
     public string? Ticket { get; init; }
+
+    /// <summary>The resident process's build pools, when this is being served by it.</summary>
+    public BuildPools? Builds { get; init; }
 }
 
 /// <summary>
@@ -79,6 +83,12 @@ internal static class RequestScope
 
     /// <summary>The ticket of the request being served, or null outside one.</summary>
     internal static string? Ticket => Active.Value?.Context.Ticket;
+
+    /// <summary>The build pool every caller of the resident process shares, or null outside it.</summary>
+    internal static BuildPool? Builds => Active.Value?.Context.Builds?.Builds;
+
+    /// <summary>The pool the resident process runs design-time builds on, or null outside it.</summary>
+    internal static BuildPool? DesignTimeBuilds => Active.Value?.Context.Builds?.DesignTime;
 
     /// <summary>
     /// An environment variable as the <b>caller</b> has it. The daemon inherits whichever shell started it, so

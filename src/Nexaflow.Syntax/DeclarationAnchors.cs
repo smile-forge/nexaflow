@@ -60,34 +60,50 @@ public sealed class DeclarationAnchors
     /// </summary>
     /// <param name="line1">1-based line the declaration was recorded as starting on — used to break ties
     /// between same-named declarations, and as the fallback when the end line no longer agrees.</param>
-    public DeclarationAnchor? Find(string grammarId, string text, string expectedName, int line1, int endLine1)
+    public DeclarationAnchor? Find(string grammarId, string text, string expectedName, int line1, int endLine1) =>
+        FindAll(grammarId, text, [(expectedName, line1, endLine1)])[0];
+
+    /// <summary>
+    /// <see cref="Find"/> for several declarations of one file, parsed once: each by itself parses the file again, which for
+    /// a large file asked about many times is most of the cost.
+    /// </summary>
+    public IReadOnlyList<DeclarationAnchor?> FindAll(string grammarId, string text, IReadOnlyList<(string Name, int Line, int EndLine)> wanted)
     {
-        if (string.IsNullOrEmpty(grammarId) || string.IsNullOrEmpty(text)) return null;
+        var none = new DeclarationAnchor?[wanted.Count];
+        if (string.IsNullOrEmpty(grammarId) || string.IsNullOrEmpty(text) || wanted.Count == 0) return none;
 
         using var highlighter = CodeHighlighter.TryCreate(grammarId);
-        if (highlighter is null) return null;
+        if (highlighter is null) return none;
 
         try
         {
             return highlighter.WithParseTree(text, root =>
             {
-                if (root.Type == "ERROR") return null;   // a file we cannot parse is a file we must not edit
+                if (root.Type == "ERROR") return none;   // a file we cannot parse is a file we must not edit
 
-                var candidates = new List<Node>();
-                Collect(root, expectedName, candidates);
-                if (candidates.Count == 0) return null;
+                var named = wanted.Select(w => w.Name).Distinct(StringComparer.Ordinal).ToDictionary(n => n, _ => new List<Node>(), StringComparer.Ordinal);
+                Collect(root, named);
 
-                // End line first, then start line: the end is what bounds a replacement, so a candidate that
-                // still ends where the record says is the one to trust.
-                var chosen =
-                    Pick(candidates, n => n.EndPosition.Row == endLine1 - 1 && n.StartPosition.Row == line1 - 1)
-                 ?? Pick(candidates, n => n.EndPosition.Row == endLine1 - 1)
-                 ?? Pick(candidates, n => n.StartPosition.Row == line1 - 1);
+                var found = new DeclarationAnchor?[wanted.Count];
+                for (var i = 0; i < wanted.Count; i++)
+                {
+                    var (name, line1, endLine1) = wanted[i];
+                    var candidates = named[name];
+                    if (candidates.Count == 0) continue;
 
-                return chosen is null ? null : Anchor(chosen, SpanOf(chosen), text);
-            });
+                    // End line first, then start line: the end is what bounds a replacement, so a candidate that
+                    // still ends where the record says is the one to trust.
+                    var chosen =
+                        Pick(candidates, n => n.EndPosition.Row == endLine1 - 1 && n.StartPosition.Row == line1 - 1)
+                     ?? Pick(candidates, n => n.EndPosition.Row == endLine1 - 1)
+                     ?? Pick(candidates, n => n.StartPosition.Row == line1 - 1);
+
+                    found[i] = chosen is null ? null : Anchor(chosen, SpanOf(chosen), text);
+                }
+                return found;
+            }) ?? none;
         }
-        catch { return null; }   // a malformed parse yields no anchor, never an exception mid-edit
+        catch { return none; }   // a malformed parse yields no anchor, never an exception mid-edit
     }
 
     /// <summary>
@@ -215,13 +231,13 @@ public sealed class DeclarationAnchors
      || nodeType.Contains("include", StringComparison.Ordinal)
      || nodeType.Contains("use_declaration", StringComparison.Ordinal);
 
-    /// <summary>Every named node whose <c>name</c> field is exactly <paramref name="expectedName"/>.</summary>
-    private static void Collect(Node node, string expectedName, List<Node> into)
+    // Every declaration whose name is one of the keys, under it, in one walk of the tree.
+    private static void Collect(Node node, Dictionary<string, List<Node>> named)
     {
         foreach (var child in node.NamedChildren)
         {
-            if (NameOf(child)?.Text == expectedName) into.Add(child);
-            Collect(child, expectedName, into);
+            if (NameOf(child)?.Text is { } name && named.TryGetValue(name, out var into)) into.Add(child);
+            Collect(child, named);
         }
     }
 

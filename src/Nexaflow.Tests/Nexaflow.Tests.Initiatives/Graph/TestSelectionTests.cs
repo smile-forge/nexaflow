@@ -51,7 +51,7 @@ public class TestSelectionTests
              : rel.StartsWith("tests/J/", StringComparison.Ordinal) ? "tests/J/J.csproj" : null,
         project => project.StartsWith("tests/", StringComparison.Ordinal),
         (project, _) => project == "tests/J/J.csproj",
-        (_, _) => null,
+        asked => [.. asked.Select(_ => (IReadOnlyList<TestSelection.Use>?)null)],
         coverage);
 
     [TestMethod]
@@ -148,7 +148,7 @@ public class TestSelectionTests
             rel => rel[..rel.LastIndexOf('/')] + "/P.csproj",
             project => project.StartsWith("tests/", StringComparison.Ordinal),
             (project, _) => project == "tests/J/P.csproj",
-            (_, _) => null,
+            asked => [.. asked.Select(_ => (IReadOnlyList<TestSelection.Use>?)null)],
             null);
 
         var selection = TestSelection.For(graph, "code:src/App/View.xaml.cs#T:View", sources);

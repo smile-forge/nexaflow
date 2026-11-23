@@ -49,15 +49,38 @@ public static partial class StructuralEdit
     /// Where the name of the declaration <paramref name="astPath"/> names begins — the position a compiler is asked
     /// about to find the symbol declared there. Null when it cannot be resolved.
     /// </summary>
-    public static int? NameStartOf(string grammarId, string source, string astPath, string expectedName)
+    public static int? NameStartOf(string grammarId, string source, string astPath, string expectedName) =>
+        NameStartsOf(grammarId, source, [(astPath, expectedName)])[0];
+
+    /// <summary>
+    /// <see cref="NameStartOf"/> for several declarations of one file, which is parsed once for all of them rather than
+    /// twice for each. A path that no longer resolves is found again by name when exactly one declaration has it, as an
+    /// edit finds it; otherwise its start is null.
+    /// </summary>
+    public static IReadOnlyList<int?> NameStartsOf(string grammarId, string source, IReadOnlyList<(string AstPath, string Name)> declarations)
     {
-        if (string.IsNullOrEmpty(grammarId) || TreeSitterLanguages.IsXml(grammarId)) return null;
+        var starts = new int?[declarations.Count];
+        if (string.IsNullOrEmpty(grammarId) || TreeSitterLanguages.IsXml(grammarId) || declarations.Count == 0) return starts;
 
-        var notes = new List<string>();
-        if (Resolve(grammarId, source, ref astPath, expectedName, new CodeStructureExtractor(), notes, out var span) is not null)
-            return null;
+        var outline = new CodeStructureExtractor().Extract(grammarId, source);
+        IReadOnlyList<Declaration>? declared = null;
+        var spans = new List<(int Index, string Name, int Line, int EndLine)>();
+        for (var i = 0; i < declarations.Count; i++)
+        {
+            var (astPath, name) = declarations[i];
+            if (CodeStructureExtractor.ResolveSpan(outline, astPath) is { } span)
+            {
+                spans.Add((i, name, span.Line, span.EndLine));
+                continue;
+            }
 
-        return new DeclarationAnchors().Find(grammarId, source, expectedName, span.Line, span.EndLine)?.NameStart;
+            declared ??= DeclarationsIn(outline);
+            if (declared.Where(d => d.Name == name).ToList() is [var only]) spans.Add((i, name, only.Line, only.EndLine));
+        }
+
+        var anchors = new DeclarationAnchors().FindAll(grammarId, source, [.. spans.Select(s => (s.Name, s.Line, s.EndLine))]);
+        for (var s = 0; s < spans.Count; s++) starts[spans[s].Index] = anchors[s]?.NameStart;
+        return starts;
     }
 
     /// <summary>A declaration as seen from outside it — everything before its body, whitespace folded — or the whole

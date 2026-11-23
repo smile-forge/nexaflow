@@ -29,6 +29,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- `nfi build` drives the installed SDK's own MSBuild from the resident process (Building/). Compiled against,
+         never shipped: the Locator loads the SDK's copy at run time, which is the one its worker processes speak to,
+         and refuses to if one sits beside nfi. 18.0 is what the oldest .NET 10 SDK carries; nothing newer is used.
+         PrivateAssets keeps the engine out of the suites that reference this project, where a copy would be loaded
+         ahead of the SDK's. -->
+    <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" />
+    <PackageReference Include="Microsoft.Build" Version="18.0.2" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="18.0.2" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
     <!-- The compiler an edit is checked against. CLI-only: the app's editor surfaces keep to the parse. -->
     <ProjectReference Include="..\Nexaflow.Syntax.Compiler\Nexaflow.Syntax.Compiler.csproj" />

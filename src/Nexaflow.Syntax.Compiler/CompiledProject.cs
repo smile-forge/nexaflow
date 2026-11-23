@@ -45,10 +45,13 @@ internal sealed class CompiledProject
     private readonly List<string> _analyzerFailures = [];
     private string _stamp = "";
 
-    private CompiledProject(string projectPath)
+    private readonly IDesignTimeBuilder _designTime;
+
+    private CompiledProject(string projectPath, IDesignTimeBuilder designTime)
     {
         ProjectPath = projectPath;
         Directory   = Path.GetDirectoryName(projectPath)!;
+        _designTime = designTime;
     }
 
     public string ProjectPath { get; }
@@ -67,10 +70,10 @@ internal sealed class CompiledProject
     /// same answer as rules that found nothing.</summary>
     public IEnumerable<string> LoadFailures => _generatorFailures.Concat(_analyzerFailures).Distinct();
 
-    public static (CompiledProject? Project, string? Error) Load(string csproj, AnalyzerLoader loader,
+    public static (CompiledProject? Project, string? Error) Load(string csproj, AnalyzerLoader loader, IDesignTimeBuilder designTime,
                                                                  CancellationToken cancellation)
     {
-        var project = new CompiledProject(csproj);
+        var project = new CompiledProject(csproj, designTime);
         return project.Refresh(loader, cancellation) is { } error ? (null, error) : (project, null);
     }
 
@@ -89,7 +92,7 @@ internal sealed class CompiledProject
     /// </summary>
     public string? Refresh(AnalyzerLoader loader, CancellationToken cancellation)
     {
-        var (arguments, error) = DesignTimeBuild.For(ProjectPath, cancellation);
+        var (arguments, error) = DesignTimeBuild.For(ProjectPath, _designTime, cancellation);
         if (arguments is null) return error;
 
         if (arguments.Stamp != _stamp || _args is null)
