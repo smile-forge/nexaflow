@@ -317,6 +317,47 @@ public class ShellServicesTests
         Assert.AreEqual(0, vm.DisposeCount);
     }
 
+    // ── Work the assistant set going, ended: picked up only where the user still is ──
+
+    [TestMethod]
+    [CoversNode("aibar-background-tasks")]
+    public void EndedWork_IsPickedUp_WhereTheUserStillIs()
+    {
+        var svc  = CreateSvc();
+        var host = new FakeWindowHost();
+        svc.RegisterWindow(host);
+        svc.SetFocused(host);
+        var console = new RecordingVm();
+        host.ActiveTab = new Page { ViewModelFactory = () => console };
+        host.ActiveTab.GetOrCreateViewModel();
+
+        var picked = svc.ContinueWhereTheUserIsAsync(console, "npm install finished", "its output").GetAwaiter().GetResult();
+
+        Assert.IsTrue(picked);
+        Assert.AreEqual(1, host.PickedUp.Count);
+        Assert.AreSame(console, host.PickedUp[0].Context);
+        Assert.AreEqual("npm install finished", host.PickedUp[0].About);
+    }
+
+    [TestMethod]
+    [CoversNode("aibar-background-tasks")]
+    public void EndedWork_IsNotPickedUp_OnceTheUserIsElsewhere()
+    {
+        var svc  = CreateSvc();
+        var host = new FakeWindowHost();
+        svc.RegisterWindow(host);
+        svc.SetFocused(host);
+        var console = new RecordingVm();
+        var opened  = new RecordingVm();
+        host.ActiveTab = new Page { ViewModelFactory = () => opened };   // e.g. a tab the work itself opened
+        host.ActiveTab.GetOrCreateViewModel();
+
+        var picked = svc.ContinueWhereTheUserIsAsync(console, "picture made", "saved").GetAwaiter().GetResult();
+
+        Assert.IsFalse(picked, "the user moved on: told by a notification instead");
+        Assert.AreEqual(0, host.PickedUp.Count);
+    }
+
     // ── User-mediated background-task registry (chrome controls beside the activity ticker) ──
 
     [TestMethod]

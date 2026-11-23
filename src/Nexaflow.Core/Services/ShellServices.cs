@@ -703,6 +703,20 @@ public sealed class ShellServices : IShellServices
     public void SubmitAiQuery(string query)
         => (_focused ?? _windows.FirstOrDefault())?.SubmitAiQuery(query);
 
+    /// <summary>
+    /// Picks up work the assistant set going in the background that has ended, where it was asked for: when
+    /// <paramref name="context"/> is the active page of the window the user last used, that window runs a turn on it and this
+    /// returns true. The user anywhere else — on another tab, or one the work itself opened — returns false, and nothing runs.
+    /// </summary>
+    internal Task<bool> ContinueWhereTheUserIsAsync(IPageViewModel context, string about, string outcome) => RunOnUiAsync(() =>
+    {
+        if ((_focused ?? _windows.FirstOrDefault()) is not { } window || !ReferenceEquals(window.ActiveTab?.ViewModel, context))
+            return Task.FromResult(false);
+
+        _ = window.ContinueAfterBackgroundJobAsync(context, about, outcome);
+        return Task.FromResult(true);
+    });
+
     // ── Cross-window tab operations ───────────────────────────────────────
 
     public void TearOffTab(Page tab)

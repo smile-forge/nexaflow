@@ -366,6 +366,27 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         AddTurnItem(_activity);
     });
 
+    /// <summary>
+    /// A turn the user did not ask for: work this conversation set going has ended while the user was here. What came of it is kept
+    /// as any ended work is — the assistant's, not the user's words — and the assistant's reply follows it.
+    /// </summary>
+    public void BeginFollowUp(string about, string outcome) => OnUi(() =>
+    {
+        _turnItems.Clear();
+        _pendingUserMessages.Clear();
+        _currentToolBatch = null;
+        _draft            = null;
+
+        var said = new ConversationMessage { Text = outcome, IsUser = false, Timestamp = DateTime.Now };
+        Timeline.Add(new TimelineAssistantMessage(outcome));
+        Messages.Add(said);
+        Conversation?.Messages.Add(said);
+
+        IsAgentRunning = true;
+        _activity = new TimelineActivity { Text = Str.Get("AIChat.Conversation.Activity.Considering") };
+        AddTurnItem(_activity);
+    });
+
     /// <summary>Queue a message submitted mid-response; delivered to the model at the next turn boundary.</summary>
     public void Enqueue(string text) => OnUi(() =>
     {

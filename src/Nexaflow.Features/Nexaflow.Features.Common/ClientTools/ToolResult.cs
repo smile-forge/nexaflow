@@ -31,11 +31,10 @@ public sealed record ToolResult(bool Success, string Summary, string ModelText, 
     public IReadOnlyList<ContextAudio>? Audio { get; init; }
 
     /// <summary>
-    /// When true the agent run ends immediately and silently after this result: the harness feeds NO
-    /// tool-results text back to the model and shows no final message — it just dismisses the response
-    /// UI. Used when a tool has handed work off to a background process and there is nothing to report yet.
+    /// The work this call set going that it could not wait out, handed to the assistant's background tasks (<see cref="HandOff"/>);
+    /// null for a call that finished.
     /// </summary>
-    public bool EndsRun { get; init; }
+    public HandedOffWork? HandedOff { get; init; }
 
     /// <summary>A successful result. <paramref name="modelText"/> defaults to the summary.</summary>
     public static ToolResult Ok(string summary, string? modelText = null) =>
@@ -46,10 +45,16 @@ public sealed record ToolResult(bool Success, string Summary, string ModelText, 
         new(false, summary, modelText ?? summary, IsError: true);
 
     /// <summary>
-    /// Ends the run immediately with nothing said to the user or the model (see <see cref="EndsRun"/>).
+    /// The call set work going it cannot wait out, and hands the rest to the assistant: the work becomes one of the assistant's
+    /// background tasks, which the user sees and can stop, and the model is told at once that it carries on in the background.
+    /// When it ends, the user is told — or, while the user is still where the work was asked for, the assistant picks it up
+    /// there. Work a tool knows from the start to be slow says so instead (<see cref="IClientTool.RunsInBackground"/>).
     /// </summary>
-    public static ToolResult EndSilently(string summary) =>
-        new(true, summary, summary) { EndsRun = true };
+    /// <param name="summary">What the call has done so far, for the run's progress.</param>
+    /// <param name="doing">What the work is, as the background tasks list it.</param>
+    /// <param name="finish">Carries the work to its end (see <see cref="HandedOffWork.Finish"/>).</param>
+    public static ToolResult HandOff(string summary, string doing, Func<CancellationToken, Task<ToolResult>> finish) =>
+        new(true, summary, summary) { HandedOff = new HandedOffWork(doing, finish) };
 
     /// <summary>
     /// The call set work going that carries on in the background (<see cref="IClientTool.RunsInBackground"/>): it has

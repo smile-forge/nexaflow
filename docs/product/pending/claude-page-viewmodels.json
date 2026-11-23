@@ -285,11 +285,77 @@
           "class": "ModelHost"
         }
       ]
+    },
+    "aibar-background-tasks": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Agent/BackgroundJobs.cs",
+          "class": "BackgroundJobs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/WorkspaceBackgroundTasks.cs",
+          "class": "WorkspaceBackgroundTasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/BackgroundActivityManager.cs",
+          "class": "BackgroundActivityManager",
+          "method": "StartJob"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ClientTools/HandedOffWork.cs",
+          "class": "HandedOffWork"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "ContinueAfterBackgroundJobAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BackgroundJobsTests.cs",
+            "class": "BackgroundJobsTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationBackgroundJobTests.cs",
+            "class": "ConversationBackgroundJobTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/BackgroundTasksJourneyTests.cs",
+            "class": "BackgroundTasksJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BackgroundJobsTests.cs",
+            "class": "BackgroundJobsTests",
+            "method": "WorkACallHandsOff_CarriesOnAsAJob_AndItsEndReachesTheUserAndTheRun"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ShellServicesTests.cs",
+            "class": "ShellServicesTests",
+            "method": "EndedWork_IsPickedUp_WhereTheUserStillIs"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 17,
+  "changed_sets": 19,
   "touched_nodes": [
+    "aibar-background-tasks",
     "aichat-context-preview",
     "chrome-page-views",
     "network-ai",

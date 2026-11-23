@@ -170,6 +170,50 @@ public class BackgroundJobsTests
         StringAssert.StartsWith(user.Ended.Single(), "No picture was made.");
     });
 
+    /// <summary>A command that does not finish within its call, as the console's run_command meets one: it hands the rest off.</summary>
+    private sealed class Command : IClientTool
+    {
+        public readonly TaskCompletionSource Finish = new();
+        public string Name => "run_command";
+        public string Description => "Runs a command.";
+        public IReadOnlyList<ClientToolParameter> Parameters => [];
+        public ToolSafety Safety => ToolSafety.SafeOperation;
+        public bool Parallelizable => false;
+
+        public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) =>
+            Task.FromResult(ToolResult.HandOff("npm install: still running", "Running npm install in the console", async stopped =>
+            {
+                await Finish.Task.WaitAsync(stopped);
+                return ToolResult.Ok("npm install finished", "Its output: added 12 packages.");
+            }));
+    }
+
+    [TestMethod]
+    public void WorkACallHandsOff_CarriesOnAsAJob_AndItsEndReachesTheUserAndTheRun() => OnUi(async () =>
+    {
+        var tasks   = new BackgroundActivityManager();
+        var told    = new List<NotificationItem>();
+        var model   = new Model("```client_tool\n{\"tool\":\"run_command\",\"arguments\":{}}\n```", "It is installing.");
+        var (svc, _) = Assistant(tasks, told, model);
+        var command = new Command();
+        var user    = new User();
+
+        await svc.RunAgentAsync(new Page(command), "Install the packages.", true, user);
+        var job = tasks.Tasks.Single(t => t.Workspace is not null);
+
+        Assert.AreEqual("Running npm install in the console", job.Description, "listed as what it is doing");
+        Assert.AreEqual(TaskStatus.Running, job.Status);
+        StringAssert.Contains(Answered(model), BackgroundJobs.CarriesOn(1),
+                              "the model hears the rest goes on without it");
+
+        command.Finish.SetResult();
+        await Until(() => job.Status != TaskStatus.Running);
+
+        Assert.AreEqual(TaskStatus.Completed, job.Status);
+        Assert.AreEqual("npm install finished", told.Single().Title, "no one is on the page it was asked from, so the user is told");
+        StringAssert.StartsWith(user.Ended.Single(), "npm install finished Its output");
+    });
+
     /// <summary>A video model that makes clips from a picture, holding each until it is stopped.</summary>
     private sealed class Filming : IVideoGenerationProvider
     {
