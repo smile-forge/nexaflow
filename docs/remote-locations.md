@@ -322,13 +322,14 @@ and committed in the branch's pending file.
 
 ## What WSL needs before it ships
 
-A native path is for readers: a copy, move or delete of a location's file goes through the location, whether it is named
-by the location's path or by the Windows folder showing it (a paste from Explorer, a cut from here), the Recycle Bin is
-never offered for one, and a name Windows would trim has no native path. These are open.
+A native path is for readers: a save, copy, move or delete of a location's file goes through the location, whether it is
+named by the location's path or by the Windows folder showing it (a paste from Explorer, a cut from here, an editor that
+opened it by that folder) — Windows replaces no file there, and a file it moves over another takes none of its
+permissions. The Recycle Bin is never offered for one, and a name Windows would trim has no native path. These are open.
 
 | Gap | Effect |
 | --- | --- |
-| Editors that save by native path, and copies between a distro and Windows | Linux permissions are lost |
+| A file copied from one location to another is written there new | It takes the destination's default permissions, not its own |
 | Image viewer delete calls the shell's Recycle Bin itself | Given a `\\wsl.localhost` path it deletes for good and reports recycling |
 | Actions offered by `PassThrough` are not each proven on a location | An action such as Zip It may be offered and fail |
 | The console shows `::wsl-ubuntu\usr`, an empty Files tab and Windows' variables | The page describes the wrong machine |

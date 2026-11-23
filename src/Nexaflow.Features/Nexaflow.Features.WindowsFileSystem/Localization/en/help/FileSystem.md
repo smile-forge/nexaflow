@@ -19,7 +19,7 @@ Browses the drives and folders on this PC and acts on the files in them.
 - Names in a distro are Linux's: Rename and New take any name Linux does — `notes:v2`, `draft.`, `50%` — show it as it is, and give the file exactly that name.
 - A distro has no Recycle Bin: Delete there is for good, and asks first saying so. Shift+Delete does not ask. The assistant can delete there too, and asks you first in words that say it is for good.
 - A distro's file goes to other programs by its `\\wsl.localhost` path — Open With, Copy and Cut to the Windows clipboard, dragging out, Windows' own actions for the file type and your external programs — so they open it as they would any file. Renames, moves and deletes in Nexaflow still happen inside the distro.
-- A file copied between a distro and Windows does not keep its Linux permissions, so a script may need `chmod +x` afterwards.
+- Saving a distro's file keeps its permissions, owner and group, and so does copying a file over one there. A file new to the distro takes its usual defaults, so a script copied in from Windows may need `chmod +x`. Windows keeps no Linux permissions, so a file copied out to Windows has none.
 - Cmd Here opens the distro's own shell at the folder.
 - A folder that cannot be read — the distro was shut down, you may not read it — says why, with Try again. [Show me](locate:FileListRetryButton)
 

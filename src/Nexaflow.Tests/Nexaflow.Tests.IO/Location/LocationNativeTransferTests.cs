@@ -74,4 +74,54 @@ public sealed class LocationNativeTransferTests
         Assert.IsTrue(File.Exists(Path.Combine(_decoy, "file.txt")), "nothing is moved through the Windows folder");
         Assert.AreEqual("real", await _vfs.ReadAllTextAsync($@"{Root}\moved.txt"));
     }
+
+    // ── Changes named by the Windows folder ─────────────────────────────────
+
+    private string Decoy(string name) => Path.Combine(_decoy, name);
+
+    [TestMethod]
+    public async Task AWriteNamedByTheWindowsFolder_GoesThroughTheLocation()
+    {
+        await _vfs.WriteAllTextAsync(Decoy("file.txt"), "saved");
+
+        Assert.AreEqual("saved", await _vfs.ReadAllTextAsync($@"{Root}\file.txt"));
+        Assert.AreEqual("decoy", File.ReadAllText(Decoy("file.txt")), "nothing is written through the Windows folder");
+    }
+
+    [TestMethod]
+    public async Task AStreamedSaveNamedByTheWindowsFolder_GoesThroughTheLocation()
+    {
+        await using (var write = await _vfs.BeginWriteAsync(Decoy("file.txt"), WriteMode.Replace))
+        {
+            await write.Content.WriteAsync("streamed"u8.ToArray());
+            await write.CommitAsync(CancellationToken.None);
+        }
+
+        Assert.AreEqual("streamed", await _vfs.ReadAllTextAsync($@"{Root}\file.txt"));
+        Assert.AreEqual("decoy", File.ReadAllText(Decoy("file.txt")));
+    }
+
+    [TestMethod]
+    public async Task AMoveADeleteAndANewFolderNamedByTheWindowsFolder_GoThroughTheLocation()
+    {
+        await _vfs.MoveAsync(Decoy("file.txt"), Decoy("moved.txt"), replace: false);
+        await _vfs.CreateDirectoryAsync(Decoy("made"));
+
+        Assert.AreEqual("real", await _vfs.ReadAllTextAsync($@"{Root}\moved.txt"));
+        Assert.IsTrue(await _vfs.IsDirectoryAsync($@"{Root}\made"));
+        Assert.IsTrue(File.Exists(Decoy("file.txt")) && !File.Exists(Decoy("moved.txt")) && !Directory.Exists(Decoy("made")));
+
+        await _vfs.DeleteAsync(Decoy("moved.txt"), recursive: false);
+        Assert.IsFalse(await _vfs.ExistsAsync($@"{Root}\moved.txt"));
+    }
+
+    [TestMethod]
+    public async Task ATransferNamedByTheWindowsFolder_GoesThroughTheLocation()
+    {
+        await FileTransferEngine.RunAsync(new FileTransferRequest(TransferKind.Copy, [new TransferItem(Decoy("file.txt"), Decoy("copy.txt"))],
+                                                                  ConflictPolicy.Fail, false) { FileSystem = _vfs });
+
+        Assert.AreEqual("real", await _vfs.ReadAllTextAsync($@"{Root}\copy.txt"), "the location's own bytes, copied there");
+        Assert.IsFalse(File.Exists(Decoy("copy.txt")), "nothing is copied through the Windows folder");
+    }
 }

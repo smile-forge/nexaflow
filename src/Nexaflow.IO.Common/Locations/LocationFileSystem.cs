@@ -159,6 +159,15 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
         return false;
     }
 
+    /// <summary>
+    /// <see cref="TryRoute"/> for a change — a write, a move, a copy on the server, a delete, a new folder — which goes through
+    /// the location however the path names it: by the location's own path, or by a Windows folder showing the location. That
+    /// folder cannot keep what the location keeps: Windows replaces no file there, and a file moved over another takes none of
+    /// its permissions.
+    /// </summary>
+    private bool TryRouteChange(string path, [NotNullWhen(true)] out LocationMount? location, out string remainder)
+        => TryRoute(path, out location, out remainder) || (FromNative(path) is { } named && TryRoute(named, out location, out remainder));
+
     /// <summary>The path, for a sync member — which may not wait on the network, so a remote path is refused.</summary>
     private string Local(string path, [CallerMemberName] string member = "")
         => TryRoute(path, out _, out _) ? throw new LocationRequiresAsyncException(path, member) : path;
@@ -407,7 +416,7 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default)
     {
-        if (!TryRoute(path, out var location, out var remainder))
+        if (!TryRouteChange(path, out var location, out var remainder))
             return await _shared.BeginWriteAsync(path, mode, expected, ct).ConfigureAwait(false);
         var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
         return await session.BeginWriteAsync(LocationPath.ToProviderPath(remainder), mode, expected, ct).ConfigureAwait(false);
@@ -432,15 +441,15 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
     }
 
     public ValueTask WriteAllBytesAsync(string path, byte[] bytes, CancellationToken ct = default)
-        => TryRoute(path, out _, out _) ? WriteWholeAsync(path, bytes, ct) : _shared.WriteAllBytesAsync(path, bytes, ct);
+        => TryRouteChange(path, out _, out _) ? WriteWholeAsync(path, bytes, ct) : _shared.WriteAllBytesAsync(path, bytes, ct);
 
     public ValueTask WriteAllTextAsync(string path, string contents, Encoding? encoding = null, CancellationToken ct = default)
-        => TryRoute(path, out _, out _)
+        => TryRouteChange(path, out _, out _)
             ? WriteWholeAsync(path, VirtualFileSystem.EncodeText(contents, encoding), ct)
             : _shared.WriteAllTextAsync(path, contents, encoding, ct);
 
     public ValueTask ReplaceAsync(string path, byte[] newContent, CancellationToken ct = default)
-        => TryRoute(path, out _, out _) ? WriteWholeAsync(path, newContent, ct) : _shared.ReplaceAsync(path, newContent, ct);
+        => TryRouteChange(path, out _, out _) ? WriteWholeAsync(path, newContent, ct) : _shared.ReplaceAsync(path, newContent, ct);
 
     /// <summary>A whole-content write to a remote file: atomic where the location renames, one upload where not.</summary>
     private async ValueTask WriteWholeAsync(string path, byte[] bytes, CancellationToken ct)
@@ -452,8 +461,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct = default)
     {
-        bool fromRemote = TryRoute(from, out var source, out var sourceRest);
-        bool toRemote   = TryRoute(to, out var target, out var targetRest);
+        bool fromRemote = TryRouteChange(from, out var source, out var sourceRest);
+        bool toRemote   = TryRouteChange(to, out var target, out var targetRest);
         if (!fromRemote && !toRemote)
         {
             await _shared.MoveAsync(from, to, replace, ct).ConfigureAwait(false);
@@ -470,8 +479,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct = default)
     {
-        bool fromRemote = TryRoute(from, out var source, out var sourceRest);
-        bool toRemote   = TryRoute(to, out var target, out var targetRest);
+        bool fromRemote = TryRouteChange(from, out var source, out var sourceRest);
+        bool toRemote   = TryRouteChange(to, out var target, out var targetRest);
         if (!fromRemote || !toRemote || !IdEquals(source!.Id, target!.Id)
             || !source.Capabilities.HasFlag(LocationCapabilities.ServerSideCopy))
             throw new NotSupportedException($"'{from}' and '{to}' are not on one location that copies on its server.");
@@ -483,7 +492,7 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
-        if (!TryRoute(path, out var location, out var remainder))
+        if (!TryRouteChange(path, out var location, out var remainder))
         {
             await _shared.DeleteAsync(path, recursive, ct).ConfigureAwait(false);
             return;
@@ -494,7 +503,7 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher,
 
     public async ValueTask CreateDirectoryAsync(string path, CancellationToken ct = default)
     {
-        if (!TryRoute(path, out var location, out var remainder))
+        if (!TryRouteChange(path, out var location, out var remainder))
         {
             await _shared.CreateDirectoryAsync(path, ct).ConfigureAwait(false);
             return;

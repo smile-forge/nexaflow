@@ -83,12 +83,10 @@ public static class FileTransferEngine
     }
 
     /// <summary>The path the disk's route may work on for one end of an item, or null where only the file system may. A
-    /// location's path never takes the disk's route, though Windows can show it as a folder: that folder's rules for names,
-    /// links and permissions are not the location's.</summary>
+    /// location's file never takes the disk's route, whether named by the location's path or by the Windows folder showing
+    /// it: that folder's rules for names, links and permissions are not the location's.</summary>
     private static string? DiskEndOf(IVirtualFileSystem fileSystem, string path)
-        => path.StartsWith(VirtualMount.Prefix, StringComparison.Ordinal) && fileSystem.IsOnLocation(path)
-            ? null
-            : fileSystem.ResolveOnDisk(path);
+        => fileSystem.IsOnLocation(path) ? null : fileSystem.ResolveOnDisk(path);
 
     /// <summary><see cref="Measure"/> through the file system: a link is counted as nothing and not followed, and a
     /// folder that cannot be listed makes the totals a floor.</summary>
@@ -179,7 +177,17 @@ public static class FileTransferEngine
         IProgress<TransferProgress>? progress = null,
         IFileTransferPrompt? prompt = null,
         CancellationToken ct = default)
-        => Task.Run(() => new Run(request, scan, progress, prompt, ct).ExecuteAsync(), CancellationToken.None);
+            => Task.Run(() => new Run(ByLocation(request), scan, progress, prompt, ct).ExecuteAsync(), CancellationToken.None);
+
+        /// <summary>The request with each end on a location named by the location's path, though it came by the Windows folder
+        /// showing it — a paste from Explorer, a drop — so it is read, written and copied as the location keeps it: within one
+        /// location the server copies, and a file replaced there keeps its permissions.</summary>
+        private static FileTransferRequest ByLocation(FileTransferRequest request)
+        {
+            if (request.FileSystem is not { } files) return request;
+            string Named(string path) => files.IsOnLocation(path) ? files.TryToVirtual(path) ?? path : path;
+            return request with { Items = [.. request.Items.Select(item => item with { Source = Named(item.Source), Destination = Named(item.Destination) })] };
+        }
 
     private static bool IsReparsePoint(string path)
     {

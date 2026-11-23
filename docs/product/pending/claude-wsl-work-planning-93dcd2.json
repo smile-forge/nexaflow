@@ -610,6 +610,12 @@
           "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
           "class": "LocationFileSystem",
           "method": "ChildPath"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem",
+          "method": "TryRouteChange"
         }
       ]
     },
@@ -654,10 +660,62 @@
           }
         ]
       }
+    },
+    "io-locations-transfer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/FileTransferEngine.cs",
+          "class": "FileTransferEngine"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/FileTransferEngine.cs",
+          "class": "FileTransferEngine",
+          "method": "ByLocation"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationTransferTests.cs",
+            "class": "LocationTransferTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/Wsl/WslNativeSaveTests.cs",
+            "class": "WslNativeSaveTests"
+          }
+        ]
+      }
+    },
+    "pdf-save": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfDocumentSessionTests.cs",
+            "class": "PdfDocumentSessionTests",
+            "method": "Saving_WritesTheEdits_AndTheDocumentIsThatFileFromThen"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfDocumentSessionTests.cs",
+            "class": "PdfDocumentSessionTests",
+            "method": "SavingAs_LeavesTheFileAsItWas_AndMovesTheDocumentToTheNewOne"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Pdf/PdfOnADistroTests.cs",
+            "class": "PdfOnADistroTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 34,
+  "changed_sets": 37,
   "touched_nodes": [
     "ai-context-paths",
     "console-enter-classify",
@@ -669,6 +727,7 @@
     "io-locations-discovery",
     "io-locations-native",
     "io-locations-routing",
+    "io-locations-transfer",
     "io-locations-wsl",
     "io-locations-wsl-helper",
     "ioterm-screen",
@@ -676,6 +735,7 @@
     "locations-browse",
     "locations-terminal",
     "locations-this-pc",
+    "pdf-save",
     "vterm-shell-dialects",
     "win-file-system-ai-act-delete-file",
     "win-file-system-ai-act-rename-file",
