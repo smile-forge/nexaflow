@@ -180,11 +180,10 @@
                                    Height="{Binding ActualHeight, ElementName=PART_Rail}">
                                 <Thumb.Template>
                                     <ControlTemplate TargetType="Thumb">
-                                        <Border CornerRadius="3" BorderThickness="1" BorderBrush="{TemplateBinding Foreground}">
-                                            <Border.Background>
-                                                <SolidColorBrush Color="{Binding Foreground.Color, RelativeSource={RelativeSource TemplatedParent}}" Opacity="0.28"/>
-                                            </Border.Background>
-                                        </Border>
+                                        <Grid>
+                                            <Border CornerRadius="3" Background="{TemplateBinding Foreground}" Opacity="0.28"/>
+                                            <Border CornerRadius="3" BorderThickness="1" BorderBrush="{TemplateBinding Foreground}"/>
+                                        </Grid>
                                     </ControlTemplate>
                                 </Thumb.Template>
                             </Thumb>

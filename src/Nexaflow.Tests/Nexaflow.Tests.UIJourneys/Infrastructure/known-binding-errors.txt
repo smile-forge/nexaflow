@@ -1,0 +1,18 @@
+# Binding errors the app is known to report, which a journey lets pass.
+#
+# The app, under --uiTest, writes each binding error WPF reports to binding-errors.log in its config root, one
+# signature per line (Nexaflow.Core.Services.BindingErrorLog). UITestBase fails a journey on any signature not
+# listed here, so a binding that names a member its object no longer has is caught where it is shown.
+#
+# Copy a signature exactly as the failure prints it, with a comment above it saying why it cannot be fixed yet.
+# Fixing one means deleting its line: this list only shrinks.
+
+# WPF's own TreeViewItem theme style binds its content alignment to the nearest ItemsControl, and a tree item made
+# before it is placed in its tree has none yet; it finds the tree once placed. Gone when every TreeViewItem style
+# sets both alignments itself.
+4: Cannot find source for binding with reference 'RelativeSource FindAncestor, AncestorType='System.Windows.Controls.ItemsControl', AncestorLevel='1''. BindingExpression:Path=HorizontalContentAlignment; DataItem=null; target element is 'TreeViewItem' (Name=''); target property is 'HorizontalContentAlignment' (type 'HorizontalAlignment')
+4: Cannot find source for binding with reference 'RelativeSource FindAncestor, AncestorType='System.Windows.Controls.ItemsControl', AncestorLevel='1''. BindingExpression:Path=VerticalContentAlignment; DataItem=null; target element is 'TreeViewItem' (Name=''); target property is 'VerticalContentAlignment' (type 'VerticalAlignment')
+
+# FileListRowStyle's double-click binds the list's OpenEntryCommand through the ListView above the row, which a row
+# being recycled is briefly without; it finds the list once the row is placed again.
+4: Cannot find source for binding with reference 'RelativeSource FindAncestor, AncestorType='System.Windows.Controls.ListView', AncestorLevel='1''. BindingExpression:Path=DataContext.OpenEntryCommand; DataItem=null; target element is 'MouseBinding'; target property is 'Command' (type 'ICommand')

@@ -110,12 +110,10 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                     <!-- connector glyph at the centroid -->
-                                    <Path Fill="{Binding GlyphBrush}" Stroke="{StaticResource BgBrush}" StrokeThickness="1"
-                                          Opacity="{Binding StrokeOpacity}" ToolTip="{Binding Tooltip}">
-                                        <Path.Data>
-                                            <EllipseGeometry Center="{Binding Center}" RadiusX="5" RadiusY="5"/>
-                                        </Path.Data>
-                                    </Path>
+                                    <Ellipse Width="11" Height="11" Margin="-5.5,-5.5,0,0"
+                                             Canvas.Left="{Binding CenterX}" Canvas.Top="{Binding CenterY}"
+                                             Fill="{Binding GlyphBrush}" Stroke="{StaticResource BgBrush}" StrokeThickness="1"
+                                             Opacity="{Binding StrokeOpacity}" ToolTip="{Binding Tooltip}"/>
                                 </Canvas>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

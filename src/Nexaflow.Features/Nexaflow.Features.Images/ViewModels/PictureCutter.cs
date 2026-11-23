@@ -114,8 +114,8 @@ public sealed partial class PictureCutter : ObservableObject
     /// with the editor's other models.</summary>
     public bool HasAction => Failed;
 
-    /// <summary>What the tool's action button says.</summary>
-    public string? ActionLabel => Failed ? Str.Get("Images.CutOut.Retry") : null;
+    /// <summary>What the action button says; empty while there is nothing to do, when the button is hidden — and still names it to UI automation.</summary>
+    public string ActionLabel => Failed ? Str.Get("Images.CutOut.Retry") : string.Empty;
 
     /// <summary>The photo the editor is on; another one lets the last go, with everything picked from it.</summary>
     public void Follow(string? photo)

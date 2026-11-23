@@ -125,8 +125,8 @@ public abstract partial class ToolEdit<TAsk> : ObservableObject, IDownloadOffer,
     /// <summary>The banner has something to offer: the tool to fetch, or the result to try again.</summary>
     public bool HasAction => CanDownload || CanRetry;
 
-    /// <summary>What the banner's button says.</summary>
-    public string? ActionLabel => CanDownload ? Str.Get("Images.Models.Download") : CanRetry ? Str.Get(_texts + "Retry") : null;
+    /// <summary>What the action button says; empty while there is nothing to do, when the button is hidden — and still names it to UI automation.</summary>
+    public string ActionLabel => CanDownload ? Str.Get("Images.Models.Download") : CanRetry ? Str.Get(_texts + "Retry") : string.Empty;
 
     // ── What the edit is ────────────────────────────────────────────────────
 

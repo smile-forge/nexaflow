@@ -19,7 +19,7 @@ public sealed class ComponentRow
     {
         DisplayName = report.DisplayName;
         Description = report.Description;
-        InstallUri  = report.InstallUrl;
+        InstallUri  = Uri.TryCreate(report.InstallUrl, UriKind.Absolute, out var install) ? install : null;
 
         // A component something is broken without is a fault; one it merely does better with is a warning.
         var trouble = report.Kind == ExternalDependencyKind.Required ? "DangerBrush" : "WarningBrush";
@@ -44,9 +44,10 @@ public sealed class ComponentRow
     public string  StatusLabel { get; }
     public Brush   Brush       { get; }
     public string  Provenance  { get; }
-    public string? InstallUri  { get; }
+    /// <summary>Where the component is got from: an absolute address, or null where its report names none that is.</summary>
+    public Uri? InstallUri  { get; }
 
-    public bool   HasInstallLink  => !string.IsNullOrWhiteSpace(InstallUri);
+    public bool   HasInstallLink  => InstallUri is not null;
     public string InstallLinkText => Str.Format("Shell.Components.GetFormat", DisplayName);
 
     private static string Installed(string? version)

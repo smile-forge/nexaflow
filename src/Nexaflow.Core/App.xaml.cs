@@ -122,6 +122,9 @@ public partial class App : Application
         UiTest = e.Args.Any(a => string.Equals(a, "--uiTest", StringComparison.OrdinalIgnoreCase));
         _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
 
+        // A journey fails on a binding WPF could not resolve, which it otherwise tells only a debugger.
+        if (UiTest) BindingErrorLog.Attach(() => ConfigManager.Instance.BaseDir);
+
         var openTabIdx = Array.FindIndex(e.Args, a => string.Equals(a, "--openTab", StringComparison.OrdinalIgnoreCase));
         OpenTabKind = openTabIdx >= 0 && openTabIdx + 1 < e.Args.Length ? e.Args[openTabIdx + 1] : null;
         OpenTabParams = TabParams(e.Args);

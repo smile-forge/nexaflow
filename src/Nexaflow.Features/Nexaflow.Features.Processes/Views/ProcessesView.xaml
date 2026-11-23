@@ -121,7 +121,7 @@
                         <Border x:Name="RowBg" Background="Transparent" BorderBrush="Transparent"
                                 BorderThickness="3,0,0,0">
                             <GridViewRowPresenter VerticalAlignment="Center"
-                                Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                Columns="{TemplateBinding GridView.ColumnCollection}"
                                 Content="{TemplateBinding Content}"/>
                         </Border>
                         <ControlTemplate.Triggers>
