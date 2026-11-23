@@ -89,7 +89,7 @@ public class ConsoleQueryHandlerTests
     {
         var distro = new FakeTerminal();
         var files  = TerminalFiles.With(distro);
-        var other  = new Nexaflow.Features.WslShell.ViewModels.WslShellViewModel(
+        var other  = new Nexaflow.Features.Wsl.ViewModels.WslShellViewModel(
             TerminalShellRoute.ForLocationShell(files, $@"{TerminalFiles.Distro}\home"), Substitute.For<IShellServices>(), Substitute.For<IAIService>());
 
         Assert.AreEqual(0f, new ConsoleQueryHandler().CanProcess("ls", true, other), "a WSL shell's line is its own feature's");

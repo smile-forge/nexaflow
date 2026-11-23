@@ -4,7 +4,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Localization;
 
-namespace Nexaflow.Features.WslShell.FileActions;
+namespace Nexaflow.Features.Wsl.FileActions;
 
 /// <summary>
 /// Opens the WSL shell page at the selected or current folder of a WSL distro, in the distro's own shell. Offered only on a
@@ -19,12 +19,12 @@ public sealed class ShellHereAction(IShellServices shell, ILocationDirectory loc
     public bool     IsDestructive         => false;
     public bool     SupportsMultipleFiles => false;
     public IconRef  Icon                  => IconRef.Emoji("🐧");
-    public string   DisplayName           => Str.Get("WslShell.Action.ShellHere");
+    public string   DisplayName           => Str.Get("Wsl.Action.ShellHere");
     public bool     RequiresRefresh       => false;
     public bool     CanPerformAction      => true;
     public bool     AppliesToRoot         => true;
     public bool     AppliesToDrives       => true;
-    public string?  Tooltip               => Str.Get("WslShell.Action.ShellHereTip");
+    public string?  Tooltip               => Str.Get("Wsl.Action.ShellHereTip");
 
     /// <summary>The folder is on a mounted WSL distro with a shell. Read from what the runtime knows, without the network.</summary>
     public bool AppliesToFolder(string folderPath)

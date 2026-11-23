@@ -1,0 +1,5 @@
+{
+  "Wsl.Page.Title": "WSL shell",
+  "Wsl.Action.ShellHere": "Shell Here",
+  "Wsl.Action.ShellHereTip": "Open this distro's own shell in this folder"
+}

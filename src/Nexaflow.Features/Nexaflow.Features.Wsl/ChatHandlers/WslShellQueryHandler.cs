@@ -1,8 +1,8 @@
-using Nexaflow.Features.WslShell.ViewModels;
+using Nexaflow.Features.Wsl.ViewModels;
 using Nexaflow.Visuals.Terminal.ChatHandlers;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
-namespace Nexaflow.Features.WslShell.ChatHandlers;
+namespace Nexaflow.Features.Wsl.ChatHandlers;
 
 /// <summary>The AI bar's way into a WSL distro's shell (<see cref="TerminalQueryHandler"/>).</summary>
 public sealed class WslShellQueryHandler : TerminalQueryHandler

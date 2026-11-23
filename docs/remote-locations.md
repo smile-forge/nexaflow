@@ -249,7 +249,7 @@ full-screen programs, because over SSH that is half of what people run.
   environment and colours.
 - **Each host's shell is its own feature.** They share the terminal (`Visuals.Terminal`: `TerminalViewModel`, the view,
   the dialects, `TerminalShellRoute`), never a page: the Console is cmd on this computer
-  (`TerminalShellRoute.ForThisComputer`, Cmd Here, offered on no location), the WSL shell (`Features.WslShell`) a distro's
+  (`TerminalShellRoute.ForThisComputer`, Cmd Here, offered on no location), the WSL shell (`Features.Wsl`) a distro's
   own (`ForLocationShell`, Shell Here, offered on a mounted distro), and an SSH shell will be a feature of its own. Each
   feature's AI-bar handlers serve only its own terminal (`TerminalQueryHandler`, `TerminalKeyHandler`).
 - **Shell integration keeps browser and terminal in step.** OSC 133 marks prompts and command output, so the assistant

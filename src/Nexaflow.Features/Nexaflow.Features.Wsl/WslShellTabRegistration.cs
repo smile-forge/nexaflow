@@ -1,11 +1,11 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Features.WslShell.ViewModels;
+using Nexaflow.Features.Wsl.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Shells;
 
 
-namespace Nexaflow.Features.WslShell;
+namespace Nexaflow.Features.Wsl;
 
 /// <summary>
 /// Registers the WSL shell page: a WSL distro's own shell — bash, zsh or whatever its user logs in with — started in a
@@ -25,7 +25,7 @@ public sealed class WslShellTabRegistration(IShellServices shell, IAIService ai,
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var folder = pageParams?.GetValueOrDefault("path") is { Length: > 0 } given ? given : string.Empty;
-        var title  = folder.Length > 0 ? files.GetDisplayName(files.GetBreadcrumbs(folder)[0].Path) : Str.Get("WslShell.Page.Title");
+        var title  = folder.Length > 0 ? files.GetDisplayName(files.GetBreadcrumbs(folder)[0].Path) : Str.Get("Wsl.Page.Title");
 
         var tab = new Page
         {

@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.WslShell;
-using Nexaflow.Features.WslShell.FileActions;
+using Nexaflow.Features.Wsl;
+using Nexaflow.Features.Wsl.FileActions;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Tests.Features.Console;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
-namespace Nexaflow.Tests.Features.WslShell;
+namespace Nexaflow.Tests.Features.Wsl;
 
 /// <summary>
 /// "Shell Here" opens a WSL distro's own shell at the folder — offered on a distro the runtime has mounted with a shell, its

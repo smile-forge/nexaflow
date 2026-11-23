@@ -7,7 +7,7 @@ using FlaUI.Core.AutomationElements;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.WslShell.UI;
+namespace Nexaflow.Tests.Features.Wsl.UI;
 
 /// <summary>
 /// One-pass UI journey for the WSL shell: Shell Here on the distro's <c>/tmp</c> opens the distro's own shell in its own tab,

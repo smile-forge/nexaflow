@@ -127,11 +127,11 @@
         },
         {
           "type": "code",
-  "doc": "src/Nexaflow.IO.Location.Wsl/WslShellEnvironment.cs",
-  "class": "WslShellEnvironment"
-},
-{
-  "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslShellEnvironment.cs",
+          "class": "WslShellEnvironment"
+        },
+        {
+          "type": "code",
           "doc": "src/Nexaflow.IO.Location.Wsl/WslShell.cs",
           "class": "WslShell",
           "method": "RunProgramAsync"
@@ -320,7 +320,7 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.WslShell/FileActions/ShellHereAction.cs",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Wsl/FileActions/ShellHereAction.cs",
           "class": "ShellHereAction"
         }
       ],
@@ -956,8 +956,8 @@
           "doc": "docs/features.md",
           "title_path": [
             "Building a Feature",
-            "Interface reference — `Features.Common`",
-            "Folder viewlets (`Viewlets/`)"
+            "Interface reference \u2014 \u0060Features.Common\u0060",
+            "Folder viewlets (\u0060Viewlets/\u0060)"
           ]
         },
         {
@@ -1140,30 +1140,30 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.WslShell/Nexaflow.Features.WslShell.csproj"
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Wsl/Nexaflow.Features.Wsl.csproj"
         }
       ],
       "concerns": {
         "i18n": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Features/Nexaflow.Features.WslShell/Localization/en/strings.json"
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Wsl/Localization/en/strings.json"
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Features/Nexaflow.Features.WslShell/Localization/fr/strings.json"
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Wsl/Localization/fr/strings.json"
           }
         ],
         "docs": [
           {
             "type": "markdown",
-            "doc": "src/Nexaflow.Features/Nexaflow.Features.WslShell/Localization/en/help/WslShell.md"
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Wsl/Localization/en/help/WslShell.md"
           }
         ],
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WslShell/WslShellJourneyTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Wsl/WslShellJourneyTests.cs",
             "class": "WslShellJourneyTests"
           }
         ]
@@ -1174,7 +1174,7 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WslShell/WslShellJourneyTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Wsl/WslShellJourneyTests.cs",
             "class": "WslShellJourneyTests"
           }
         ]
@@ -1185,7 +1185,7 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "WslShellTerminalTests",
             "method": "TheTopBar_ShowsTheDistrosFolderAsLinuxNamesIt"
           }
@@ -1205,7 +1205,7 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "WslShellTerminalTests",
             "method": "TheFilesPanel_ListsTheDistrosFolderThroughTheDistro_NamedAsLinuxNamesThem"
           }
@@ -1223,13 +1223,13 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "WslShellTerminalTests",
             "method": "TheLiveListIsReadAtEachPrompt_ANewShellsOnlyWhenShown"
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "WslShellTerminalTests",
             "method": "TheEnvironmentPanel_ListsTheDistrosVariables_NotThisComputers"
           }
@@ -1241,13 +1241,13 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "WslShellTerminalTests",
             "method": "AVariableKeptForNewShells_GoesBetweenNexaflowsMarks_InTheDistrosStartupFile"
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "PosixStartupFileTests"
           }
         ]
@@ -1257,7 +1257,7 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.WslShell/FileActions/ShellHereAction.cs",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Wsl/FileActions/ShellHereAction.cs",
           "class": "ShellHereAction"
         }
       ],
@@ -1265,7 +1265,7 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/ShellHereActionTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/ShellHereActionTests.cs",
             "class": "ShellHereActionTests"
           }
         ]
@@ -1275,7 +1275,7 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.WslShell/WslShellTabRegistration.cs",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Wsl/WslShellTabRegistration.cs",
           "class": "WslShellTabRegistration"
         },
         {
@@ -1289,7 +1289,7 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "WslShellTerminalTests",
             "method": "ItRunsTheDistrosOwnShell_InTheFolder"
           },
@@ -1318,7 +1318,7 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "WslShellTerminalTests",
             "method": "TheAiBar_RunsACommandInTheDistrosShell_AndNoOtherTerminals"
           }
@@ -1330,7 +1330,7 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/WslShell/WslShellTerminalTests.cs",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Wsl/WslShellTerminalTests.cs",
             "class": "WslShellTerminalTests",
             "method": "AFileDropped_IsGivenByItsOwnLinuxPath_HoweverItWasNamed"
           }

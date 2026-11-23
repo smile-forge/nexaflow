@@ -6,8 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Interaction;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.WslShell.ChatHandlers;
-using Nexaflow.Features.WslShell.ViewModels;
+using Nexaflow.Features.Wsl.ChatHandlers;
+using Nexaflow.Features.Wsl.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Common.Terminal;
@@ -17,7 +17,7 @@ using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.Shells;
 using NSubstitute;
 
-namespace Nexaflow.Tests.Features.WslShell;
+namespace Nexaflow.Tests.Features.Wsl;
 
 /// <summary>
 /// A WSL distro's shell describes the distro, not this computer: its folder as Linux names it, the folder's files listed

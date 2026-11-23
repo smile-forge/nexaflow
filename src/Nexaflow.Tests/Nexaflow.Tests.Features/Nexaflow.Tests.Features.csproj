@@ -68,7 +68,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Solver\Nexaflow.Features.Solver.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
-        <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WslShell\Nexaflow.Features.WslShell.csproj" />
+        <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Wsl\Nexaflow.Features.Wsl.csproj" />
   </ItemGroup>
 
   <ItemGroup>

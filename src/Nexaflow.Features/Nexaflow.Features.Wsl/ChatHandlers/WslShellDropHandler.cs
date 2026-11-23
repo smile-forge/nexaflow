@@ -1,8 +1,8 @@
 using Nexaflow.Interaction;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.WslShell.ViewModels;
+using Nexaflow.Features.Wsl.ViewModels;
 
-namespace Nexaflow.Features.WslShell.ChatHandlers;
+namespace Nexaflow.Features.Wsl.ChatHandlers;
 
 /// <summary>Turns a file dropped onto the AI bar over a WSL shell into the path the distro names it by — its Linux path,
 /// single-quoted — however it was named.</summary>

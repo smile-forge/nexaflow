@@ -168,7 +168,7 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Nexaflow.Features.WindowsSearch.csproj">
       <Platform Project="x64" />
     </Project>
-    <Project Path="src/Nexaflow.Features/Nexaflow.Features.WslShell/Nexaflow.Features.WslShell.csproj">
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Wsl/Nexaflow.Features.Wsl.csproj">
       <Platform Project="x64" />
     </Project>
   </Folder>
