@@ -712,10 +712,39 @@
           }
         ]
       }
+    },
+    "images-delete": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesSurfaceTests.cs",
+            "class": "ImagesSurfaceTests",
+            "method": "DecliningTheConfirmation_LeavesTheFileAndTheSetAlone"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesSurfaceTests.cs",
+            "class": "ImagesSurfaceTests",
+            "method": "ConfirmingRecyclesTheFile_AndRePointsEveryView"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesSurfaceTests.cs",
+            "class": "ImagesSurfaceTests",
+            "method": "AFileThatCannotBeRecycled_IsReportedAndKept"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImageDeleteOnADistroTests.cs",
+            "class": "ImageDeleteOnADistroTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 37,
+  "changed_sets": 38,
   "touched_nodes": [
     "ai-context-paths",
     "console-enter-classify",
@@ -723,6 +752,7 @@
     "console-location-shell",
     "console-path-bar",
     "console-routing-group",
+    "images-delete",
     "io-locations-directory",
     "io-locations-discovery",
     "io-locations-native",

@@ -330,7 +330,6 @@ permissions. The Recycle Bin is never offered for one, and a name Windows would 
 | Gap | Effect |
 | --- | --- |
 | A file copied from one location to another is written there new | It takes the destination's default permissions, not its own |
-| Image viewer delete calls the shell's Recycle Bin itself | Given a `\\wsl.localhost` path it deletes for good and reports recycling |
 | Actions offered by `PassThrough` are not each proven on a location | An action such as Zip It may be offered and fail |
 | The console shows `::wsl-ubuntu\usr`, an empty Files tab and Windows' variables | The page describes the wrong machine |
 | The browser shows no address, no link target and a disk icon for a distro; the action reads Cmd Here | Linux folders do not read as Linux |

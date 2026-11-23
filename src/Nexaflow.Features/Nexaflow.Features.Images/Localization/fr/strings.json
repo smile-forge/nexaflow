@@ -44,6 +44,7 @@
   "Images.Copy.FailedFormat": "Impossible de copier « {0} ».",
   "Images.Delete.ConfirmTitle": "Supprimer l'image",
   "Images.Delete.ConfirmMessageFormat": "Envoyer « {0} » dans la Corbeille ?",
+  "Images.Delete.ConfirmForGoodFormat": "Supprimer définitivement « {0} » ? Il n'y a pas de Corbeille à cet endroit.",
   "Images.Delete.FailedFormat": "Impossible de supprimer « {0} ».",
 
   "Images.FullScreen.Hint": "Échap quitter · Espace / → suivante · ← précédente · clic pour naviguer",

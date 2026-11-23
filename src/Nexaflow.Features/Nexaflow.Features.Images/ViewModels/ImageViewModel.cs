@@ -315,29 +315,57 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         ViewMode     = ImageViewMode.Carousel;
     }
 
-    /// <summary>Right-click → Delete: confirms, sends the image (and its edits) to the Recycle Bin, drops it from the view.</summary>
+    /// <summary>Deletes a picture, its edits with it, once asked. On this disk it goes to the Recycle Bin; on a location — a WSL
+    /// distro, though Windows shows it as a folder — there is none, so the question says it is for good and the file system
+    /// deletes it there.</summary>
     [RelayCommand]
-    [LocalDiskOnly("the Recycle Bin takes only a file on this disk, with the recipe sidecar beside it")]
     private async Task Delete(int index)
     {
         if (_shell is null || index < 0 || index >= _paths.Count) return;
 
-        var path = _paths[index];
-        var name = Path.GetFileName(path);
-        if (!await _shell.ConfirmAsync(Str.Get("Images.Delete.ConfirmTitle"), Str.Format("Images.Delete.ConfirmMessageFormat", name)))
+        var path     = _paths[index];
+        var files    = _editing.FileSystem;
+        bool forGood = files.IsOnLocation(path);
+        var name     = forGood ? files.GetDisplayName(path) : Path.GetFileName(path);
+        var asked    = forGood ? "Images.Delete.ConfirmForGoodFormat" : "Images.Delete.ConfirmMessageFormat";
+        if (!await _shell.ConfirmAsync(Str.Get("Images.Delete.ConfirmTitle"), Str.Format(asked, name)))
             return;
 
         // Closed first: closing writes any pending edit, which must land before the sidecar goes with the photo.
         CloseSession(path);
-        if (!RecycleBin.TryRecycle(path))
+        if (!(forGood ? await DeleteForGoodAsync(files, path) : Recycle(path)))
         {
             _shell.ShowError(Str.Format("Images.Delete.FailedFormat", name));
             if (index == CurrentIndex) LoadImage(index);
             return;
         }
+        RemoveAt(index);
+    }
+
+    /// <summary>The picture and its edits to the Recycle Bin, which only a file on this disk goes to.</summary>
+    [LocalDiskOnly("the Recycle Bin takes only a file on this disk, with the recipe sidecar beside it")]
+    private static bool Recycle(string path)
+    {
+        if (!RecycleBin.TryRecycle(path)) return false;
         var sidecar = ImageRecipeStore.SidecarPath(path);
         if (File.Exists(sidecar)) RecycleBin.TryRecycle(sidecar);
-        RemoveAt(index);
+        return true;
+    }
+
+    /// <summary>The picture and its edits deleted where they are, through the file system.</summary>
+    private static async Task<bool> DeleteForGoodAsync(IVirtualFileSystem files, string path)
+    {
+        try
+        {
+            await files.DeleteAsync(path, recursive: false);
+            var sidecar = ImageRecipeStore.SidecarPath(path);
+            if (await files.ExistsAsync(sidecar)) await files.DeleteAsync(sidecar, recursive: false);
+            return true;
+        }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException or Nexaflow.IO.Common.Locations.LocationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
