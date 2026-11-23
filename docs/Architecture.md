@@ -26,7 +26,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Tier | Projects | Role |
 |------|----------|------|
 | Shell | `Nexaflow.Core` | WinExe entry point; window chrome, tab strip, ribbon, breadcrumbs, AI input bar; `FeatureManager`/`FeatureCatalog`, `WorkspaceManager`, `ProviderManager`, `ConfigManager` |
-| Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here |
+| Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here. Names no UI toolkit (no WPF): what a contract hands out to be shown is a model, drawn by a `[ViewFor]` view; `ArchitectureRulesTests` keeps it so |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
 | Input vocabulary | `Nexaflow.Interaction` | WPF-free `net10.0` leaf the contracts speak: `KeyModifiers`, `IDragPayload` + `DragKinds`, `IDropTarget`. Beneath `Features.Common` rather than in it, so a shared control can take a drop without seeing `IShellServices` |
 | Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the `VirtualFileSystem` over archives and mounts, the remote-location contracts and each runtime's `LocationFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
