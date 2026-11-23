@@ -90,7 +90,7 @@ internal sealed class HelpPaneController(IHelpPaneHost host, Func<Page, bool>? i
 
     private bool IsPinned(Page help) => (isPinned ?? PinnedByReader)(help);
 
-    private static bool PinnedByReader(Page help) => (help.Content as HelpView)?.ViewModel is HelpViewModel { IsPinned: true };
+    private static bool PinnedByReader(Page help) => help.ViewModel is HelpViewModel { IsPinned: true };
 
     private static Dictionary<string, string> ParamsFor(Page? subject)
         => subject?.PageKind is { Length: > 0 } kind ? new() { ["topic"] = kind } : [];
@@ -100,6 +100,6 @@ internal sealed class HelpPaneController(IHelpPaneHost host, Func<Page, bool>? i
     {
         var pageParams = ParamsFor(subject);
         help.PageParams = pageParams;
-        (help.Content as HelpView)?.Reinitialize(pageParams);
+        help.Reinitialize(pageParams);
     }
 }

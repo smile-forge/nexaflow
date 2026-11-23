@@ -10,11 +10,12 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Nexaflow.Features.Audio.ViewModels;
-using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Audio.Views;
 
-public partial class AudioView : UserControl, IPageView
+[ViewFor(typeof(AudioViewModel))]
+public partial class AudioView : UserControl
 {
     private const double DrawerWidth = 340;
     private const double PlaylistWidth = 300;
@@ -60,22 +61,6 @@ public partial class AudioView : UserControl, IPageView
     }
 
     private WindowMinimizeWatcher? _minimizeWatcher;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        var paths = pageParams.GetValueOrDefault("paths")?
-            .Split('|', StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
-        if (paths is not { Count: > 0 }) return;
-
-        int index = 0;
-        if (pageParams.GetValueOrDefault("index") is { } raw && int.TryParse(raw, out var i))
-            index = i;
-
-        _ = _vm.ReinitializeAsync(paths, index);
-    }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {

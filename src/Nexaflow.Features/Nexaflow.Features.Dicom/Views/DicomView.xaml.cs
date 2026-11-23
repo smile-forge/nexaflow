@@ -13,6 +13,7 @@ using Nexaflow.Features.Dicom.Models;
 using Nexaflow.Features.Dicom.ViewModels;
 using Nexaflow.Visuals.Common;
 using Nexaflow.Visuals.Common.Layout;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Dicom.Views;
 
@@ -21,7 +22,8 @@ namespace Nexaflow.Features.Dicom.Views;
 /// pan/zoom stage, a window/level right-drag, a measurement overlay and a pixel probe. All colours resolve
 /// from theme tokens; the overlay is redrawn (not transformed) so strokes stay crisp at any zoom.
 /// </summary>
-public partial class DicomView : UserControl, IPageView
+[ViewFor(typeof(DicomViewModel))]
+public partial class DicomView : UserControl
 {
     private DicomViewModel ViewModel { get; }
 
@@ -64,8 +66,6 @@ public partial class DicomView : UserControl, IPageView
             _minimizeWatcher = null;
         };
     }
-
-    IPageViewModel IPageView.ViewModel => ViewModel;
 
     private void OnTreeSelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
@@ -374,10 +374,6 @@ public partial class DicomView : UserControl, IPageView
     }
 
     private static Point Mid(Point a, Point b) => new((a.X + b.X) / 2, (a.Y + b.Y) / 2);
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams) { }
 
     // Fit a freshly-loaded image once the stage is actually measured, then re-project the overlay on resize.
     protected override void OnRenderSizeChanged(SizeChangedInfo info)

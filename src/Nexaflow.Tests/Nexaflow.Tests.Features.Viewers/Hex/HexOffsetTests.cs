@@ -61,7 +61,7 @@ public sealed class HexOffsetTests
             HexTabRegistration.StaticPageKind,
             Arg.Is<Dictionary<string, string>>(p =>
                 p["path"] == PeFixturePath && p["offset"] == "10752" && p["length"] == "256"),
-            Arg.Any<IPageView>(), Arg.Any<bool>());
+            Arg.Any<Page?>(), Arg.Any<bool>());
     }
 
     [TestMethod, TestCategory("Unit")]

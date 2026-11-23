@@ -176,6 +176,12 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
         if (_started) Show(_inventory.Snapshot);
     }
 
+    /// <summary>The shell re-pointing this tab: a new <c>device</c> moves the page to it; none leaves it where it is.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue(UsbDevicePageRegistration.DeviceParam, out var device)) Retarget(device);
+    }
+
     partial void OnSelectedTabChanged(int value) => SyncInView();
 
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(IsContextReady));

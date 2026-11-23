@@ -1,5 +1,5 @@
 using System;
-using System.Windows;
+
 
 namespace Nexaflow.Features.Common;
 
@@ -10,14 +10,16 @@ namespace Nexaflow.Features.Common;
 /// is disposed to remove it (typically when the page reactivates or closes). Reference identity is the
 /// registration token — the shell removes the exact instance it was handed.
 /// </summary>
-public sealed class MediatedTaskRegistration(string description, Func<FrameworkElement> createControl)
+/// <param name="description">Short text describing the task, surfaced as the control's tooltip / accessibility label.</param>
+/// <param name="model">What the shell shows for the task, drawn by the view marked as drawing its type.</param>
+public sealed class MediatedTaskRegistration(string description, object model)
 {
     /// <summary>Short text describing the task, surfaced as the control's tooltip / accessibility label.</summary>
     public string Description { get; } = description;
 
     /// <summary>
-    /// Builds the chrome control. Invoked once per hosting window (a <see cref="FrameworkElement"/> has a single
-    /// visual parent), so it must return a fresh element each call — bind it to the page's view-model for live state.
+    /// What the shell shows for the task: drawn once per window that shows it, by the view marked as drawing its type, so
+    /// it holds the live state and each view binds to it.
     /// </summary>
-    public Func<FrameworkElement> CreateControl { get; } = createControl;
+    public object Model { get; } = model;
 }

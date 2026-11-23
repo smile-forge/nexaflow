@@ -314,7 +314,7 @@
                         </Border>
 
                         <!-- Inline AI banner host: the shell injects its dissolvable response banner here. -->
-                        <ContentControl x:Name="EngagementHost" DockPanel.Dock="Bottom"/>
+                        
 
                         <!-- Focusable terminal surface: clicking it focuses; keystrokes go to the shell. -->
                         <Border x:Name="TerminalSurface" Background="Transparent"

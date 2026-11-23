@@ -1,6 +1,5 @@
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.ViewModels;
-using System.Collections.Generic;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -8,7 +7,8 @@ using System.Windows.Input;
 namespace Nexaflow.Features.Images.Views;
 
 /// <summary>Artist's page: the picture on the editing canvas with the tools beside it, or the start screen while it holds none.</summary>
-public partial class ArtistView : UserControl, IPageView
+[ViewFor(typeof(ArtistViewModel))]
+public partial class ArtistView : UserControl
 {
     public ArtistViewModel ViewModel { get; }
 
@@ -17,22 +17,11 @@ public partial class ArtistView : UserControl, IPageView
         InitializeComponent();
         ViewModel   = viewModel;
         DataContext = viewModel;
-        viewModel.Host = this;
 
         // The view's Loaded/Unloaded is the active-tab signal (the shell hosts the active page in one ContentPresenter, so an
         // inactive tab's content leaves the visual tree).
         Loaded   += (_, _) => { ViewModel.OnActivated(); Focus(); };
         Unloaded += (_, _) => ViewModel.OnDeactivated();
-    }
-
-    // ── IPageView ─────────────────────────────────────────────────────────
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (ArtistTabRegistration.ParseTool(pageParams.GetValueOrDefault("tool")) is { } tool && ViewModel.IsEditing)
-            ViewModel.Editor.Tool = tool;
     }
 
     // ── Keyboard: history and saving, painting and arranging, what a selection does to a layer ──

@@ -28,7 +28,7 @@ public sealed class HelpPageRegistration(IShellServices shell) : IPageRegistrati
         var page = new Page { Title = Str.Get("Help.Tab.Title"), Icon = "❓" };
         // Closes over the page rather than the params: the shell stamps PageParams after this returns, and a re-point
         // that lands before the tab is first shown has to be what the view model reads when it is.
-        page.ContentFactory = () => new HelpView(new HelpViewModel(HelpLibrary.Shared, shell, page));
+        page.ViewModelFactory = () => new HelpViewModel(HelpLibrary.Shared, shell, page);
         return page;
     }
 }

@@ -7,13 +7,14 @@ using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Page = Nexaflow.Features.Common.Page;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.AIChat.Views;
 
-public partial class ConversationView : UserControl, IPageView
+[ViewFor(typeof(ConversationViewModel))]
+public partial class ConversationView : UserControl
 {
     public ConversationViewModel ViewModel { get; }
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     public ConversationView(ConversationViewModel viewModel)
     {
@@ -87,12 +88,6 @@ public partial class ConversationView : UserControl, IPageView
 
     private static string Label(Page page)
         => string.IsNullOrEmpty(page.Icon) ? page.Title : $"{page.Icon}  {page.Title}";
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("conversationId", out var id))
-            _ = ViewModel.LoadAsync(id);
-    }
 
     // ── Message rendering ─────────────────────────────────────────────────
 

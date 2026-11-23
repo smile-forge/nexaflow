@@ -98,6 +98,9 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
 
     // ── Navigation ────────────────────────────────────────────────────────
 
+    public void Reinitialize(Dictionary<string, string> pageParams)
+        => Navigate(pageParams.GetValueOrDefault("topic"), pageParams.GetValueOrDefault("query"), fromUser: false);
+
     /// <summary>Shows the help for <paramref name="topic"/> (a page kind; null for the index), then searches it for
     /// <paramref name="query"/> if one is given. <paramref name="fromUser"/> marks a move the reader made inside help,
     /// which pins the pane; a re-point from the shell unpins it.</summary>

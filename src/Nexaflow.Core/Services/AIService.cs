@@ -1202,17 +1202,7 @@ public sealed class AIService : IAIService
                 }
 
                 approval.OnToolBatchStarting(batch);
-                var results = await ExecuteBatchAsync(calls, approval, ct);
-
-                // A tool asked to end the run silently (e.g. a command handed off to a background
-                // watcher): feed the model nothing and show no final answer — just dismiss the UI.
-                if (results.Any(x => x.Result.EndsRun))
-                {
-                    messages.AddRange(protocol.Answer(taken, [.. results.Select(r => new ToolOutcome(r.Result.ModelText, r.Result.IsError))], null, null));
-                    awaiting = null;
-                    approval.Abort();
-                    return new(null, artifacts);
-                }
+                var results = await ExecuteBatchAsync(calls, approval, page, ct);
 
                 approval.OnToolBatchFinished([.. results.Select(r => new ToolRunResult(r.Tool, r.Result))]);
                 foreach (var (_, r) in results)
@@ -1292,7 +1282,7 @@ public sealed class AIService : IAIService
 
     private async Task<IReadOnlyList<(string Tool, ToolResult Result)>> ExecuteBatchAsync(
         IReadOnlyList<(ToolCall Call, IClientTool? Tool)> calls,
-        IAIResponseHandler approval, CancellationToken ct)
+        IAIResponseHandler approval, IPageViewModel? page, CancellationToken ct)
     {
         var results     = new (string Tool, ToolResult Result)[calls.Count];
         var parallelIdx = new List<int>();
@@ -1311,7 +1301,7 @@ public sealed class AIService : IAIService
             // Slow work runs on in the background, where it is listed for the user; the model hears that it has started.
             if (_jobs is { } jobs && tool.RunsInBackground(call.Arguments))
             {
-                results[i] = (call.Tool, jobs.Start(tool, call.Arguments, approval).Result);
+                results[i] = (call.Tool, jobs.Start(tool, call.Arguments, approval, page).Result);
                 continue;
             }
             if (tool.Parallelizable) { parallelIdx.Add(i); continue; }
@@ -1331,6 +1321,14 @@ public sealed class AIService : IAIService
             for (var p = 0; p < parallelIdx.Count; p++)
                 results[parallelIdx[p]] = (calls[parallelIdx[p]].Call.Tool, done[p]);
         }
+
+        // Work a call could not wait out and handed off carries on as one of the assistant's background tasks; the model hears
+        // that it does. With nowhere to carry it on, the call waits it out after all.
+        for (var i = 0; i < results.Length; i++)
+            if (results[i].Result.HandedOff is { } work)
+                results[i] = (results[i].Tool, _jobs is { } jobs
+                    ? jobs.TakeOver(results[i].Result, approval, page).Result
+                    : await work.Finish(ct));
 
         return results;
     }
@@ -1491,10 +1489,7 @@ public sealed class AIService : IAIService
 
         // How to reply here — spoken, or written in a small panel — comes straight after who it is.
         if (replyStyle is { Length: > 0 }) sb.Append(replyStyle.Trim()).Append("\n\n");
-        if (page is IChatEngagement eng)
-            sb.Append("Your reply is shown in a compact panel beneath this page, about ").Append(eng.MaxResponseRows ?? 8)
-              .Append(" lines tall: keep it short and to the point. Anything longer opens in a larger overlay, and anything ")
-              .Append("involved can be carried on as a full conversation.\n\n");
+
 
         sb.Append("# What the user is looking at\n").Append(context.Trim()).Append("\n\n");
 

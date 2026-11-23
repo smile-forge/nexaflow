@@ -22,6 +22,6 @@ public sealed class DotnetViewlet : IFolderViewlet
     public ViewletDisplayMode   DefaultDisplayMode => ViewletDisplayMode.SingleBar;
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar];
 
-    public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new DotnetViewletView(_shell, folderPath);
+    public object CreateViewModel(string folderPath, IViewletController controller)
+        => new ViewModels.DotnetViewletViewModel(_shell, folderPath);
 }

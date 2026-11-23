@@ -24,6 +24,6 @@ public sealed class ProductViewlet : IFolderViewlet
     public ViewletDisplayMode   DefaultDisplayMode => ViewletDisplayMode.SingleBar;
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar, ViewletDisplayMode.DoubleBar];
 
-    public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new Views.ProductViewletView(_shell, folderPath);
+    public object CreateViewModel(string folderPath, IViewletController controller)
+        => new ViewModels.ProductViewletViewModel(_shell, folderPath);
 }

@@ -189,7 +189,7 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel,
     /// the file. A fresh control each time the chip is selected, per the contract; it binds to the snapshot but owns
     /// none of it.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview() => new Model3DContextPreview { DataContext = this };
+    public object CreateContextPreview() => new PagePreview<Model3DViewModel>(this);
 
     /// <summary>
     /// Takes <see cref="Snapshot"/> of the viewport as it now stands. Called by the view once the model is first

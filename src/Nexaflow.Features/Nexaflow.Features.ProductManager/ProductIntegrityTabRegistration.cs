@@ -1,11 +1,7 @@
 using System.IO;
-using System.Windows;
-using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.ViewModels;
-using Nexaflow.Features.ProductManager.Views;
 using Nexaflow.Services.Initiatives.Product.Services;
-using Page = Nexaflow.Features.Common.Page;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.ProductManager;
@@ -43,23 +39,13 @@ public sealed class ProductIntegrityTabRegistration : IPageRegistration
             Breadcrumbs = { new BreadcrumbSegment { Label = title } }
         };
 
-        tab.ContentFactory = () =>
+        tab.ViewModelFactory = () =>
         {
-            if (string.IsNullOrWhiteSpace(root) || !ProductStore.Exists(root)) return Placeholder();
-            return new ProductIntegrityView(new ProductIntegrityViewModel(new ProductStore(root), root, _shell));
+            if (string.IsNullOrWhiteSpace(root) || !ProductStore.Exists(root))
+                return new PlaceholderViewModel(Str.Get("ProductManager.Integrity.Page.NoProduct"));
+            return new ProductIntegrityViewModel(new ProductStore(root), root, _shell, tab);
         };
 
         return tab;
     }
-
-    private static UserControl Placeholder() => new()
-    {
-        Content = new TextBlock
-        {
-            Text = Str.Get("ProductManager.Integrity.Page.NoProduct"),
-            Margin = new Thickness(24),
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = Application.Current?.Resources["TextMutedBrush"] as System.Windows.Media.Brush
-        }
-    };
 }

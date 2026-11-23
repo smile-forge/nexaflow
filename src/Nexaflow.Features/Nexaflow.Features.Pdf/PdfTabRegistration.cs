@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.ViewModels;
-using Nexaflow.Features.Pdf.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using System.Collections.Generic;
@@ -37,22 +36,18 @@ public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, I
             Title = string.IsNullOrEmpty(title) ? "PDF" : title,
         };
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
-            var vm   = new PdfViewModel(path, shell, vfs, config, reading, ai, publisher);
-            var view = new PdfView(vm, shell);
+            var vm = new PdfViewModel(path, shell, vfs, config, reading, ai, publisher, page);
 
             // Unsaved page edits ride on the tab's title; a Save As makes the tab that file.
             vm.DirtyChanged += dirty => page.Title = (dirty ? "*" : string.Empty) + vm.FileName;
             vm.Moved        += moved => Follow(page, moved);
 
             if (pageParams?.GetValueOrDefault("page") is { } raw && int.TryParse(raw, out var at))
-                view.OpenAtPage(at);
+                vm.OpenAtPage(at);
 
-            // Closes the document, ends the browser process, and deletes any temp copy we materialised.
-            // Closed fires only on a genuine close — a tear-off re-keys the registry and never reaches it.
-            page.Closed += (_, _) => view.Dispose();
-            return view;
+            return vm;
         };
 
         if (!string.IsNullOrEmpty(path)) page.SetFileBreadcrumbs(path, title);

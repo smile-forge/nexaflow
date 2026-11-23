@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.ViewModels;
-using Nexaflow.Features.Web.Views;
 using Nexaflow.IO.Common;
 using System.Collections.Generic;
 
@@ -29,33 +28,30 @@ public sealed class HtmlTabRegistration(IShellServices shell, IVirtualFileSystem
             Icon  = "🌐",
             Title = WebPageChrome.Title(url, null),
         };
-        // Initial crumbs are static (no view yet); they're rebuilt with live navigation once the
-        // view exists and the first navigation fires.
+        // Initial crumbs are static (nothing navigated yet); they're rebuilt with live navigation once the
+        // first navigation fires.
         foreach (var crumb in WebPageChrome.Crumbs(url, _ => { }))
             page.Breadcrumbs.Add(crumb);
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
-            var view = new HtmlView(new HtmlViewModel(url, vfs), shell);
-            view.PageChanged += () => UpdateChrome(page, view);
-            // Ends the embedded browser process with the tab. Closed fires only on a genuine close —
-            // a tear-off or move to another window re-keys the registry and never reaches it.
-            page.Closed += (_, _) => view.Dispose();
-            return view;
+            var vm = new HtmlViewModel(url, vfs, shell);
+            vm.PageChanged += () => UpdateChrome(page, vm);
+            return vm;
         };
         return page;
     }
 
-    /// <summary>Refreshes the tab title and breadcrumb from the view's current URL + page title.</summary>
-    private static void UpdateChrome(Page page, HtmlView view)
+    /// <summary>Refreshes the tab title and breadcrumb from the page's current URL + page title.</summary>
+    private static void UpdateChrome(Page page, HtmlViewModel vm)
     {
-        var url = view.ViewModel.CurrentUrl;
+        var url = vm.CurrentUrl;
         if (string.IsNullOrEmpty(url)) return;
 
-        page.Title = WebPageChrome.Title(url, view.ViewModel.PageTitle);
+        page.Title = WebPageChrome.Title(url, vm.PageTitle);
 
         page.Breadcrumbs.Clear();
-        foreach (var crumb in WebPageChrome.Crumbs(url, view.NavigateTo))
+        foreach (var crumb in WebPageChrome.Crumbs(url, vm.NavigateTo))
             page.Breadcrumbs.Add(crumb);
     }
 }

@@ -45,7 +45,7 @@ internal sealed class IntegrityShellStub : IShellServices
     public void ShowNotification(string message, Page tab) => Notifications.Add(message);
     public void ShowError(string message) => LastError = message;
 
-    public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null, IPageView? caller = null, bool inRightPane = false)
+    public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null, Page? caller = null, bool inRightPane = false)
         => Opened.Add((pageKind, pageParams, inRightPane));
 
     private sealed class NoopWatch : IFileWatch

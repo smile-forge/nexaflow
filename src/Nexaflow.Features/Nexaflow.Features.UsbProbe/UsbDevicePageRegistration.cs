@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
-using Nexaflow.Features.UsbProbe.Views;
 using Nexaflow.IO.Usb.Binding;
 using Nexaflow.IO.Usb.Browsing;
 using Nexaflow.IO.Usb.Inventory;
@@ -45,21 +44,19 @@ public sealed class UsbDevicePageRegistration(IReadOnlyList<ISubfeatureHandle<IU
         };
         Crumbs(page, page.Title, target);
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             // Built here so defining the tab stays cheap: the inventory is shared with any USB page already open.
             var names = UsbIdsStore.ForUser;
             var inventory = UsbInventoryShare.Machine.Acquire(() => new WindowsUsbInventory(names.Current));
             var vm = new UsbDeviceViewModel(inventory, names, tools, shell, BridgeUsbDeviceBroker.ForMachine(shell.RunElevatedAsync), target);
-            var view = new UsbDeviceView(vm);
             vm.Moved += () =>
             {
                 page.Title = vm.Title;
                 page.PageParams = Params(vm.Path);
                 Crumbs(page, vm.Title, vm.Path);
             };
-            page.Closed += (_, _) => vm.Dispose();
-            return view;
+            return vm;
         };
         return page;
     }

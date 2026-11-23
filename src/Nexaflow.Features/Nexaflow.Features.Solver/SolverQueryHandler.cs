@@ -55,7 +55,7 @@ public sealed class SolverQueryHandler(IShellServices shell) : IQueryHandler
                 shell.OpenTab(SolverTabRegistration.StaticPageKind);
 
             if (shell.FindTab(SolverTabRegistration.StaticPageKind) is not { } page) return;
-            if (page.GetOrCreateContent() is not Views.SolverView { ViewModel: SolverViewModel vm }) return;
+            if (page.GetOrCreateViewModel() is not SolverViewModel vm) return;
 
             vm.Mode = DefinitionMode.Text;
             vm.DefinitionText = problem;

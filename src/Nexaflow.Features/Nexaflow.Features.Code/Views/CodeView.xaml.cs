@@ -5,7 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Nexaflow.Features.Code.ViewModels;
-using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Editor;
 
 namespace Nexaflow.Features.Code.Views;
@@ -15,13 +15,12 @@ namespace Nexaflow.Features.Code.Views;
 /// between, and a collapse/reopen toggle. The panel regenerates (debounced) as the buffer changes, and its links
 /// drive navigation — same-file member links scroll the editor; other-file links open that file As Code.
 /// </summary>
-public partial class CodeView : UserControl, IPageView
+[ViewFor(typeof(CodeViewModel))]
+public partial class CodeView : UserControl
 {
     private readonly CodeViewModel _vm;
     private readonly DispatcherTimer _genTimer;
     private double _lastPanelWidth = 380;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     public CodeView(CodeViewModel vm)
     {

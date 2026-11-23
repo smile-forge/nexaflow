@@ -3,21 +3,18 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsApps.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.WindowsApps.Views;
 
-public partial class WindowsAppsView : UserControl, IPageView
+[ViewFor(typeof(WindowsAppsViewModel))]
+public partial class WindowsAppsView : UserControl
 {
     /// <summary>The pane's width, remembered across close/reopen (and after the user drags the splitter).</summary>
     private double _lastPaneWidth = 400;
 
     public WindowsAppsViewModel ViewModel { get; }
-
-    // ── IPageView ─────────────────────────────────────────────────────────────
-    // Exposes the ViewModel to the AI pipeline so GetContext()/GetClientTools() are reachable.
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     public WindowsAppsView(WindowsAppsViewModel viewModel)
     {

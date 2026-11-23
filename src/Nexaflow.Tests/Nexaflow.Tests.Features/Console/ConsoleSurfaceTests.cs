@@ -168,43 +168,12 @@ public class ConsoleSurfaceTests
         var vm = Terminal(out _);
         vm.SendCommand("ping localhost -n 30");
 
-        var invalidated = 0;
-        vm.EngagementInvalidated += () => invalidated++;
-
         vm.SendCtrlC();
 
         Assert.IsFalse(vm.IsBusy);
-        Assert.AreEqual(1, invalidated, "and it counts as user activity, so any AI banner goes with it");
     }
 
     // ── Inline AI banner ──────────────────────────────────────────────────────
-
-    [TestMethod]
-    [CoversNode("console-ai-banner")]
-    public void TypingIntoTheTerminalDissolvesTheBanner()
-    {
-        var vm = Terminal(out _);
-        var invalidated = 0;
-        vm.EngagementInvalidated += () => invalidated++;
-
-        vm.SendText("d");
-
-        Assert.AreEqual(1, invalidated,
-                        "the banner sits over the console — carrying on typing has to take it down");
-    }
-
-    [TestMethod]
-    [CoversNode("console-ai-banner")]
-    public void PressingEnterDissolvesTheBannerToo()
-    {
-        var vm = Terminal(out _);
-        var invalidated = 0;
-        vm.EngagementInvalidated += () => invalidated++;
-
-        vm.HandleEnter();
-
-        Assert.AreEqual(1, invalidated);
-    }
 
     // ── Drop onto the AI bar ──────────────────────────────────────────────────
 

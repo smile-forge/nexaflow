@@ -12,19 +12,21 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.Features.Dotnet.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Dotnet.Viewlets;
 
-public partial class DotnetViewletView : UserControl, IViewletAiSurface, IViewletQuiescible
+[ViewFor(typeof(DotnetViewletViewModel))]
+public partial class DotnetViewletView : UserControl
 {
     private readonly DotnetViewletViewModel _vm;
     private readonly DispatcherTimer _ellipsisTimer;
     private int _phase;
 
-    public DotnetViewletView(IShellServices shell, string folderPath)
+    public DotnetViewletView(DotnetViewletViewModel vm)
     {
         InitializeComponent();
-        _vm = new DotnetViewletViewModel(shell, folderPath);
+        _vm = vm;
         DataContext = _vm;
 
         _ellipsisTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
@@ -91,11 +93,4 @@ public partial class DotnetViewletView : UserControl, IViewletAiSurface, IViewle
         if (menu.Items.Count > 0)
             menu.IsOpen = true;
     }
-
-    // ── IViewletAiSurface — delegate to the VM, which owns the target + verb runner ──────────────
-    string? IViewletAiSurface.GetContext() => _vm.GetContext();
-    IReadOnlyList<IClientTool> IViewletAiSurface.GetClientTools() => _vm.GetClientTools();
-
-    // ── IViewletQuiescible — kill the NuGet-scan process (it locks the folder) before it's mutated ──
-    Task IViewletQuiescible.QuiesceAsync(CancellationToken ct) => _vm.QuiesceAsync(ct);
 }

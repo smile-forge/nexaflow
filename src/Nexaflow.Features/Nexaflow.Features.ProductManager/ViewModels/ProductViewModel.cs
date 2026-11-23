@@ -413,6 +413,14 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     /// <summary>The current breadcrumb path (root → focused), for the registration's initial apply.</summary>
     public IReadOnlyList<(string Label, string? NodeId)> CurrentPath { get; private set; } = [];
 
+    /// <summary>Deep-link: the Integrity page asks this tab to focus the node owning a broken snaplink.
+    /// (An existing Product tab, whose params are just <c>path</c>, is adopted and re-initialised.)</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue("node", out var nodeId) && !string.IsNullOrWhiteSpace(nodeId))
+            NavigateTo(nodeId);
+    }
+
     /// <summary>Focus a node (null = product root) — the breadcrumb bar's navigation target.</summary>
     public void NavigateTo(string? nodeId) => SetFocus(nodeId);
 

@@ -2,10 +2,12 @@ using System.Collections.Specialized;
 using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Serial.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Serial.Views;
 
-public partial class SerialView : UserControl, IPageView
+[ViewFor(typeof(SerialViewModel))]
+public partial class SerialView : UserControl
 {
     readonly SerialViewModel _vm;
 
@@ -15,13 +17,6 @@ public partial class SerialView : UserControl, IPageView
         DataContext = _vm = viewModel;
         // The transcript follows what arrives, as a terminal does, unless the reader has scrolled up to look back.
         _vm.Transcript.CollectionChanged += OnTranscriptChanged;
-    }
-
-    public IPageViewModel? ViewModel => _vm;
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue(SerialPageRegistration.PortParam, out var port)) _vm.Retarget(port);
     }
 
     void OnTranscriptChanged(object? sender, NotifyCollectionChangedEventArgs e)

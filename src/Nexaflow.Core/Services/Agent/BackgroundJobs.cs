@@ -4,14 +4,18 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Localization;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 using System.Text;
+using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core.Services.Agent;
 
 /// <summary>
 /// The work a run sets going and moves on from. A call of a tool that <see cref="IClientTool.RunsInBackground"/> runs as a job
 /// among the app's background tasks, named with the workspace whose assistant started it, where the user sees what it is
-/// doing and for how long, and can stop it; the model is told at once that it has started, and under which id. When it ends
-/// the user is told, and what came of it goes to the handler of the run that started it, for a conversation to keep. While
+/// doing and for how long, and can stop it; the model is told at once that it has started, and under which id. Work a call
+/// could not wait out and handed off (<see cref="ToolResult.HandOff"/>) is taken on the same way. When it ends, and the user is
+/// still where the run that started it was — its page the active one of the window last used — the assistant picks it up
+/// there, in a turn of its own; anywhere else the user is told, and what came of it goes to the handler of the run that
+/// started it, for a conversation to keep. While
 /// any is running or lately ended, the model has tools to ask how they stand and to stop one (<see cref="Tools"/>).
 /// </summary>
 /// <param name="tasks">The app's background tasks, where the jobs are listed.</param>
@@ -36,6 +40,9 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
         /// <summary>What came of it; null while it runs, and for a job stopped before it finished.</summary>
         public ToolResult? Result { get; set; }
 
+        /// <summary>The page the run that set it going was about; null for a job the user set going themselves.</summary>
+        public IPageViewModel? Context { get; init; }
+
         /// <summary>Whether the model has been shown what it made.</summary>
         public bool Shown { get; set; }
 
@@ -53,34 +60,66 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
 
     /// <summary>Sets the call going as a job, and says so: the result the run hands the model, and the job's end.</summary>
     /// <param name="origin">The run that set it going, told when it ends; null for a job the user set going themselves.</param>
-    internal (ToolResult Result, Job Job, Task Ended) Start(IClientTool tool, JsonObject arguments, IAIResponseHandler? origin)
+    /// <param name="context">The page the run was about, where the assistant picks the job up if the user is still there.</param>
+    internal (ToolResult Result, Job Job, Task Ended) Start(IClientTool tool, JsonObject arguments, IAIResponseHandler? origin,
+                                                           IPageViewModel? context = null)
     {
-        var told = tool.Announce(arguments);
-        Job job;
+        var told   = tool.Announce(arguments);
+        var job    = Enlist(told?.Doing ?? tool.Name, context);
+        var done   = told?.Done ?? Str.Format("Shell.BackgroundTasks.DoneFormat", job.Task.Description);
+        var unmade = told?.Unchanged ?? Str.Format("Shell.BackgroundTasks.FailedFormat", job.Task.Description);
+        var ended  = RunAsync(job, tool.Name, ct => tool.InvokeAsync(arguments, ct), result => result.IsError ? unmade : done, unmade, origin);
+        return (ToolResult.Ok("started in the background", Started(job.Id)) with { InBackground = true }, job, ended);
+    }
+
+    /// <summary>
+    /// Takes on the work a call handed off (<see cref="ToolResult.HandOff"/>) as a job, and says so: the result the run hands the
+    /// model — what the call did, and that the rest carries on — and the job's end. How it ended is told in the words the work
+    /// itself ends with.
+    /// </summary>
+    internal (ToolResult Result, Job Job, Task Ended) TakeOver(ToolResult handedOff, IAIResponseHandler? origin, IPageViewModel? context)
+    {
+        var work   = handedOff.HandedOff ?? throw new ArgumentException("The call handed nothing off.", nameof(handedOff));
+        var job    = Enlist(work.Doing, context);
+        var unmade = Str.Format("Shell.BackgroundTasks.FailedFormat", work.Doing);
+        var ended  = RunAsync(job, work.Doing, work.Finish, result => result.Summary, unmade, origin);
+        var told   = handedOff with { ModelText = $"{handedOff.ModelText}\n\n{CarriesOn(job.Id)}", HandedOff = null, InBackground = true };
+        return (told, job, ended);
+    }
+
+    private Job Enlist(string doing, IPageViewModel? context)
+    {
         lock (_gate)
         {
-            job = new Job(++_lastId, tasks.StartJob(told?.Doing ?? tool.Name, workspace, new CancellationTokenSource()));
+            var job = new Job(++_lastId, tasks.StartJob(doing, workspace, new CancellationTokenSource())) { Context = context };
             _jobs.Insert(0, job);
+            return job;
         }
-        return (ToolResult.Ok("started in the background", Started(job.Id)) with { InBackground = true }, job, RunAsync(job, tool, arguments, told, origin));
     }
 
     /// <summary>What the model is told of a call that runs on in the background.</summary>
-    internal static string Started(int id) =>
-        $"Started in the background as task {id}. The user sees it among the background tasks, can stop it, and is told when " +
-        "it ends; what it makes opens by itself. Do not wait for it, and do not say it is done: when asked how it is going, " +
-        "get_background_tasks says.";
+    internal static string Started(int id) => $"Started in the background as task {id}. {Listed} What it makes opens by itself. {Waits}";
+
+    /// <summary>What the model is told of work a call handed off, which carries on in the background.</summary>
+    internal static string CarriesOn(int id) => $"It carries on in the background as task {id}. {Listed} {Waits}";
+
+    private const string Listed = "The user sees it among the background tasks, can stop it, and is told when it ends.";
+    private const string Waits  = "Do not wait for it, and do not say it is done: when asked how it is going, get_background_tasks says.";
 
     /// <summary>The job to its end, and the telling of how it ended. Never throws.</summary>
-    private async Task RunAsync(Job job, IClientTool tool, JsonObject arguments, ToolCallAnnouncement? told, IAIResponseHandler? origin)
+    /// <param name="name">What failed, should the work throw.</param>
+    /// <param name="titleOf">What the user is told the work came to.</param>
+    /// <param name="unmade">What the user is told when the work is stopped before it ends.</param>
+    private async Task RunAsync(Job job, string name, Func<CancellationToken, Task<ToolResult>> work, Func<ToolResult, string> titleOf,
+                                string unmade, IAIResponseHandler? origin)
     {
         var task = job.Task;
         BackgroundActivityManager.Within(task);
 
         ToolResult? result;
-        try { result = await tool.InvokeAsync(arguments, task.Stopping!.Token); }
+        try { result = await work(task.Stopping!.Token); }
         catch (OperationCanceledException) { result = null; }
-        catch (Exception ex) { result = ToolResult.Error($"{tool.Name} failed: {ex.Message}"); }
+        catch (Exception ex) { result = ToolResult.Error($"{name} failed: {ex.Message}"); }
 
         lock (_gate)
         {
@@ -90,8 +129,6 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
             foreach (var old in ended.Skip(EndedKept)) _jobs.Remove(old);
         }
 
-        var done   = told?.Done ?? Str.Format("Shell.BackgroundTasks.DoneFormat", task.Description);
-        var unmade = told?.Unchanged ?? Str.Format("Shell.BackgroundTasks.FailedFormat", task.Description);
         if (result is null)
         {
             var stopped = Str.Get("Shell.BackgroundTasks.Stopped");
@@ -101,14 +138,30 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
         }
 
         tasks.EndJob(task, result.IsError ? TaskStatus.Failed : TaskStatus.Completed, result.Summary);
-        var title = result.IsError ? unmade : done;
+        var title   = titleOf(result);
+        var outcome = $"{title} {result.ModelText}";
+
+        // The user still where the work was asked for: the assistant picks it up there. Anywhere else, the user is told.
+        if (origin is not null && await PickedUpWhereTheUserIsAsync(job.Context, title, outcome)) return;
+
         notify(new NotificationItem
         {
             Title    = title,
             Body     = result.ModelText,
             Severity = result.IsError ? MessageSeverity.Error : MessageSeverity.Info,
         });
-        origin?.BackgroundJobEnded($"{title} {result.ModelText}");
+        origin?.BackgroundJobEnded(outcome);
+    }
+
+    /// <summary>Whether the assistant picks up the ended work where it was asked for: only while the user is still there.</summary>
+    private async Task<bool> PickedUpWhereTheUserIsAsync(IPageViewModel? context, string about, string outcome)
+    {
+        if (context is null || workspace.ShellServices is not { } shell) return false;
+        try { return await shell.ContinueWhereTheUserIsAsync(context, about, outcome); }
+        catch (Exception closing) when (closing is OperationCanceledException or InvalidOperationException)
+        {
+            return false;   // the window is closing as the work ends: the user is told instead
+        }
     }
 
     /// <summary>

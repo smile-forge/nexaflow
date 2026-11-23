@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.ViewModels;
-using Nexaflow.Features.Images.Views;
 using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
@@ -80,8 +79,9 @@ public sealed class ImageTabRegistration : IPageRegistration
         {
             Title = paths.Count == 1 ? Path.GetFileName(paths[0]) : Str.Format("Images.Page.TitleFormat", paths.Count),
             Icon  = "🖼",
-            ContentFactory = () => new ImageView(new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection, _reading, _erasing)),
         };
+        page.ViewModelFactory = () =>
+            new ImageViewModel(paths, _shell, mode, _editing, _ai, _pictures, _selection, _reading, _erasing) { Host = page };
 
         // Single image → "folder › name"; a folder view → "folder › all image files"; a selection → "folder › N images".
         if (paths.Count > 1)

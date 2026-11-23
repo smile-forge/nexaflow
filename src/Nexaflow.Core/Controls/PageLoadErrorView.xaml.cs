@@ -18,7 +18,7 @@ namespace Nexaflow.Core.Controls;
 /// missing third-party component is named as the likely reason.
 /// </para>
 /// </summary>
-public partial class PageLoadErrorView : UserControl, IPageView
+public partial class PageLoadErrorView : UserControl
 {
     private readonly string _details;
 
@@ -47,9 +47,6 @@ public partial class PageLoadErrorView : UserControl, IPageView
 
         LogPathText.Text = Str.Format("Shell.PageError.LogPathFormat", CrashLog.Instance.CurrentPath);
     }
-
-    /// <summary>This page has no feature view-model — it exists because building one failed.</summary>
-    public IPageViewModel? ViewModel => null;
 
     private static string? Describe(Page? page)
     {

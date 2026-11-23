@@ -1,7 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Notebook.ViewModels;
-using Nexaflow.Features.Notebook.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -28,7 +27,7 @@ public sealed class NotebookTabRegistration(IShellServices shell, IVirtualFileSy
         {
             Title       = title,
             Icon        = "📓",
-            ContentFactory = () => new NotebookView(new NotebookViewModel(path, shell, vfs)),
+            ViewModelFactory = () => new NotebookViewModel(path, shell, vfs),
         };
         page.SetFileBreadcrumbs(path, title);
         return page;

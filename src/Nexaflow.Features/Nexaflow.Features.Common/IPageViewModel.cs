@@ -73,4 +73,11 @@ public interface IPageViewModel
     /// it should tell the model what it can usefully do here, not restate the obvious.
     /// </summary>
     string? GetAiSystemPromptGuidance() => null;
+
+    /// <summary>
+    /// Called by the shell when this page is shown again with a parameter set: when routing finds this page already open,
+    /// or when the user re-clicks its tab (the page's current parameters). The page decides what to do: navigate, reload,
+    /// or nothing. Never called with null; an empty dictionary means "no parameters, just shown".
+    /// </summary>
+    void Reinitialize(Dictionary<string, string> pageParams) { }
 }

@@ -1,7 +1,6 @@
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Rtf.ViewModels;
-using Nexaflow.Features.Rtf.Views;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Rtf;
@@ -32,14 +31,7 @@ public sealed class RtfTabRegistration(IShellServices shell, IVirtualFileSystem 
             Title = string.IsNullOrEmpty(title) ? "RTF" : title,
         };
 
-        page.ContentFactory = () =>
-        {
-            var vm = new RtfViewModel(path, shell, vfs);
-
-            // Stops watching the file. Closed fires only on a genuine close — a tear-off re-keys the registry and never reaches it.
-            page.Closed += (_, _) => vm.Dispose();
-            return new RtfView(vm);
-        };
+        page.ViewModelFactory = () => new RtfViewModel(path, shell, vfs);
 
         if (!string.IsNullOrEmpty(path)) page.SetFileBreadcrumbs(path, title);
         return page;

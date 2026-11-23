@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
-using System.Windows;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Video.Views;
+
 using Nexaflow.Visuals.Common.Generation;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -34,7 +34,7 @@ public sealed partial class GenerateVideoOptions : ObservableObject, IFileCreate
     {
         _ai     = ai;
         _folder = folder;
-        Refresh();
+        Follow();
     }
 
     /// <summary>Whether the New picker offers a clip: a model makes one now, or will once a model of Nexaflow's own downloads.</summary>
@@ -43,18 +43,6 @@ public sealed partial class GenerateVideoOptions : ObservableObject, IFileCreate
     /// <summary>The video rows whose model of Nexaflow's own waits on its download.</summary>
     private static IEnumerable<AiAbility> Waiting(IAIService ai) =>
         VideoRows.Where(r => ai.StatusOf(r).State is AiAbilityState.NeedsDownload or AiAbilityState.Downloading);
-
-    /// <summary>Made when the picker first shows it, and following the workspace's models while it is shown.</summary>
-    public FrameworkElement View => _view ??= Shown(new GenerateVideoOptionsView { DataContext = this });
-
-    private FrameworkElement? _view;
-
-    private FrameworkElement Shown(FrameworkElement view)
-    {
-        view.Loaded   += (_, _) => Follow();
-        view.Unloaded += (_, _) => Unfollow();
-        return view;
-    }
 
     /// <summary>Whether a model makes a clip now; until one does, the options say why and offer its download.</summary>
     [ObservableProperty]

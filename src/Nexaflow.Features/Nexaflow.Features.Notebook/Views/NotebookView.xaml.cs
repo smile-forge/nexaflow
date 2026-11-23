@@ -2,16 +2,16 @@ using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Notebook.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Notebook.Views;
 
 /// <summary>The Notebook page: a vertical list of cells (markdown rendered, code syntax-highlighted) with a
 /// code-structure outline on the right. Loads the notebook when shown.</summary>
-public partial class NotebookView : UserControl, IPageView
+[ViewFor(typeof(NotebookViewModel))]
+public partial class NotebookView : UserControl
 {
     private readonly NotebookViewModel _vm;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     public NotebookView(NotebookViewModel vm)
     {

@@ -2,10 +2,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Solver.Palette;
 using Nexaflow.Features.Solver.ViewModels;
 using Nexaflow.Visuals.Common.Controls;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -15,7 +15,8 @@ namespace Nexaflow.Features.Solver.Views;
 /// The Solver tab. Owns the two things a ViewModel cannot: where the caret is when a palette key is
 /// pressed, and the navigator's tiles.
 /// </summary>
-public partial class SolverView : UserControl, IPageView
+[ViewFor(typeof(SolverViewModel))]
+public partial class SolverView : UserControl
 {
     private readonly SolverViewModel _vm;
 
@@ -63,19 +64,9 @@ public partial class SolverView : UserControl, IPageView
         // what actually ends this view.
     }
 
-    /// <inheritdoc/>
-    public IPageViewModel ViewModel => _vm;
-
     /// <summary>The editor the current tab shows, or null on Calc - which has a plain field instead.</summary>
     private MarkdownSurface? Editor =>
         _vm.IsLatexMode ? LatexInput : _vm.IsTextMode ? ProseInput : null;
-
-    /// <inheritdoc/>
-    public void Reinitialize(Dictionary<string, string>? pageParams)
-    {
-        // The Solver carries no parameters: a re-open is a fresh surface, which is also what makes
-        // pinning the tab pin the tab and not the working.
-    }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {

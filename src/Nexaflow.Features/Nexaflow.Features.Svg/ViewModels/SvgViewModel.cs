@@ -138,7 +138,7 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, ICo
     /// conversation is about, not the viewer. The panel's header names the file. A fresh control each time the chip
     /// is selected, per the contract; it binds to the frozen <see cref="Artifact"/> and owns none of it.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview() => new SvgContextPreview { DataContext = this };
+    public object CreateContextPreview() => new PagePreview<SvgViewModel>(this);
 
     // ── IPageViewModel ──────────────────────────────────────────────────────────────────────────
     public bool IsContextReady => IsLoaded;

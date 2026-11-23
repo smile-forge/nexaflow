@@ -3,8 +3,8 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Video.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Video.Views;
 
@@ -15,7 +15,8 @@ namespace Nexaflow.Features.Video.Views;
 /// <see cref="VideoViewModel.VideoFrame"/> — no surface swapping, no reparenting. Tab-switch pauses
 /// playback (Loaded/Unloaded → VM OnActivated/OnDeactivated).
 /// </summary>
-public partial class VideoView : UserControl, IPageView
+[ViewFor(typeof(VideoViewModel))]
+public partial class VideoView : UserControl
 {
     public VideoViewModel ViewModel { get; }
 
@@ -33,8 +34,6 @@ public partial class VideoView : UserControl, IPageView
         Loaded   += OnLoaded;
         Unloaded += OnUnloaded;
     }
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {

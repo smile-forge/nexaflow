@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
-using Nexaflow.Features.UsbProbe.Views;
 using Nexaflow.IO.Usb.Browsing;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
@@ -42,16 +41,14 @@ public sealed class UsbProbePageRegistration(UsbProbeConfig config, IReadOnlyLis
             Breadcrumbs = { new BreadcrumbSegment { Label = title } },
         };
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             // Built here so defining the tab stays cheap: the inventory reads the machine once the view loads.
             var names = UsbIdsStore.ForUser;
             var inventory = UsbInventoryShare.Machine.Acquire(() => new WindowsUsbInventory(names.Current));
             var vm = new UsbProbeViewModel(inventory, names, config, tools, shell, location);
-            var view = new UsbProbeView(vm);
             vm.NavigationChanged += crumbs => ApplyBreadcrumbs(page, vm, crumbs);
-            page.Closed += (_, _) => vm.Dispose();
-            return view;
+            return vm;
         };
         return page;
     }

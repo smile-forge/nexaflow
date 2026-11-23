@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using System.IO;
-using System.Windows;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Layers;
-using Nexaflow.Features.Images.Views;
+
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Images.ViewModels;
@@ -30,11 +30,6 @@ public sealed class NewLayeredPictureOptions : ObservableObject, IFileCreateOpti
 
     /// <summary>The canvas's size and background.</summary>
     public CanvasSetup Setup { get; } = new();
-
-    /// <summary>Made when the picker first shows it.</summary>
-    public FrameworkElement View => _view ??= new CanvasSetupView { DataContext = Setup };
-
-    private FrameworkElement? _view;
 
     public bool CanCreate => Setup.IsValid;
 

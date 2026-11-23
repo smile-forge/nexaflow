@@ -158,6 +158,12 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
         else CurrentPath = UsbLocationPath.Normalize(location);
     }
 
+    /// <summary>The shell re-pointing this tab: a new <c>location</c> opens there; none leaves the user where they are.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.TryGetValue(UsbProbePageRegistration.LocationParam, out var location)) OpenWhenReady(location);
+    }
+
     /// <summary>Up is offered below the top: every bus has a place above it, the top has none.</summary>
     private bool CanGoUp() => Current is { } current && _browser.Parent(current) is not null;
 

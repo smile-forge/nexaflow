@@ -1,5 +1,4 @@
 using Nexaflow.Features.AIChat.ViewModels;
-using Nexaflow.Features.AIChat.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -42,17 +41,16 @@ public sealed class ConversationTabRegistration : IPageRegistration
             PageParams = pageParams,
         };
 
-        tab.ContentFactory = () =>
+        tab.ViewModelFactory = () =>
         {
             var vm = new ConversationViewModel(_aiService, _shell, _config, tab);
-            var view = new ConversationView(vm);
 
             var initialPrompt = pageParams?.GetValueOrDefault("initialPrompt");
             var load = pageParams is not null && pageParams.TryGetValue("conversationId", out var convId)
                 ? vm.LoadAsync(convId)
                 : vm.StartNew();
             _ = InitAsync(load, vm, initialPrompt);
-            return view;
+            return vm;
         };
 
         return tab;

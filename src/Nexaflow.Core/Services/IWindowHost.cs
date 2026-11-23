@@ -81,4 +81,13 @@ internal interface IWindowHost
 
     /// <summary>Submits a query through this window's AI pipeline (as if typed in the bar).</summary>
     void SubmitAiQuery(string query);
+
+    /// <summary>The page the user is on in this window: its focused pane's active one.</summary>
+    Page? ActiveTab { get; }
+
+    /// <summary>
+    /// Picks up work the assistant set going in the background that has ended, while the user is still on <paramref name="context"/>
+    /// here: a turn of the assistant's own, answered where any turn about that page is.
+    /// </summary>
+    Task ContinueAfterBackgroundJobAsync(IPageViewModel context, string about, string outcome);
 }

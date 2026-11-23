@@ -29,7 +29,7 @@ namespace Nexaflow.Visuals.Terminal.ViewModels;
 /// and the environment source/persistence are supplied by a feature-specific subclass — so cmd and a
 /// future PowerShell feature share everything here without referencing each other.
 /// </summary>
-public abstract partial class TerminalViewModel : ObservableObject, IDisposable, IPageViewModel, IChatEngagement
+public abstract partial class TerminalViewModel : ObservableObject, IDisposable, IPageViewModel
 {
     // ── Terminal back-end ─────────────────────────────────────────────────
     private readonly ITerminalLauncher _launcher;
@@ -311,7 +311,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// <summary>Sends Ctrl-C to the hosted shell (interrupt the running program / clear the line).</summary>
     public void SendCtrlC()
     {
-        EngagementInvalidated?.Invoke();
         StopWatcher();
         _transport?.Interrupt();
         IsBusy = false;
@@ -324,7 +323,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// </summary>
     public void HardStop()
     {
-        EngagementInvalidated?.Invoke();
         StopWatcher();
         _transport?.TerminateForeground();
         IsBusy = false;
@@ -340,9 +338,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     public void SendText(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        // The user is typing into the terminal: dissolve any AI banner, and — for a real character (not a
-        // lone space) — take over any background-command watch.
-        EngagementInvalidated?.Invoke();
+        // The user is typing into the terminal: a real character (not a lone space) takes over any
+        // background-command watch.
         if (!string.IsNullOrWhiteSpace(text)) StopWatcher();
         Send(text);
     }
@@ -356,9 +353,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     {
         var seq = TerminalKeys.Encode(key, modifiers);
         if (seq is null) return false;
-        // A special key (arrow / backspace / Ctrl-combo) is real interaction: dissolve the banner and
-        // take over any background-command watch.
-        EngagementInvalidated?.Invoke();
+        // A special key (arrow / backspace / Ctrl-combo) is real interaction: it takes over any
+        // background-command watch.
         StopWatcher();
         Send(seq);
         return true;
@@ -371,9 +367,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// </summary>
     public void HandleEnter()
     {
-        // Pressing Enter is a user action — dissolve any lingering AI banner. (A lone Enter does NOT stop
-        // a background-command watch; the watcher only yields to real typing or Ctrl-C.)
-        EngagementInvalidated?.Invoke();
+        // A lone Enter does NOT stop a background-command watch; the watcher only yields to real typing or Ctrl-C.
 
         var decision = TerminalEnterRouting.Decide(_atPrompt ? CurrentInputLine() : null, ShellBuiltins);
         switch (decision.Action)
@@ -721,6 +715,16 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         }
     }
 
+    /// <summary>Shown again: scrolls to the newest output, and moves to the path or environment the re-open names.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        ScrollRequested?.Invoke(this, EventArgs.Empty);
+        var newPath = pageParams.GetValueOrDefault("path");
+        var envName = pageParams.GetValueOrDefault("env");
+        if (newPath is not null || envName is not null)
+            ApplyParams(newPath, envName);
+    }
+
     // ── Environment snapshot ──────────────────────────────────────────────
 
     [RelayCommand]
@@ -1003,29 +1007,14 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         };
     }
 
-    // ── IChatEngagement (inline AI banner host) ───────────────────────────
-
-    private System.Windows.Controls.ContentControl? _engagementHost;
-    private IAIResponseHandler? _bannerHandler;   // set by the shell when it wires the inline banner
-
-    /// <summary>Called once by the View to hand the VM the banner host (bottom of the console column).</summary>
-    public void SetEngagementHost(System.Windows.Controls.ContentControl host) => _engagementHost = host;
-
-    public System.Windows.Controls.ContentControl GetHostUserControl()
-        => _engagementHost ??= new System.Windows.Controls.ContentControl();
-
-    public int? MaxResponseRows => null;
-
-    public event Action? EngagementInvalidated;
-
-    public void SetResponseHandler(IAIResponseHandler handler) => _bannerHandler = handler;
 
     // ── AI command capture + background watcher ───────────────────────────
     //
     // run_command sends a command then waits only for the display to *settle* (a clean prompt, or output
     // going quiet) — never for the command to actually finish. It then returns the plain output, the VT
-    // screen, or a classification; a command that hasn't settled to a prompt is handed to a background
-    // watcher that reports back to the AI when it eventually completes.
+    // screen, or a classification; a command that hasn't settled to a prompt is handed off to the
+    // assistant's background tasks (ToolResult.HandOff), and a watch carries it to its end and says how
+    // it ended. The assistant owns that work, not this console: it decides whom to tell.
 
     private const int StabilizeQuietMs     = 2500;   // settle once output pauses this long
     private const int InitialCallTimeoutMs = 8000;   // bound only the run_command call, never the command
@@ -1047,8 +1036,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     private DateTime _watchStart;
     private string?  _watchPartial;
 
-    /// <summary>Cancelled on Dispose; backs background-completion report turns so they outlive the watcher
-    /// (a run_command the AI issues during a report must not cancel the report via the watcher token).</summary>
+    /// <summary>Cancelled on Dispose: ends the work this console does on its own, and any watch it carries.</summary>
     private readonly CancellationTokenSource _disposeCts = new();
 
     private enum CommandKind { StillFinishing, LongRunning, WaitingForInput }
@@ -1058,8 +1046,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// <summary>
     /// Runs <paramref name="command"/> and returns a result for the AI: the plain output (a clean,
     /// non-VT command), the terminal screen (a VT / full-screen app), a classification (a process that
-    /// won't return, or is waiting for input), or — when there's nothing to say yet — an "end silently"
-    /// result while a background watcher takes over and reports when it finishes.
+    /// won't return, or is waiting for input), or — when it is still finishing — what it has said so far,
+    /// with the rest handed off to the assistant's background tasks to be watched to its end.
     /// </summary>
     public async Task<ToolResult> RunCommandCaptureAsync(string command, CancellationToken ct)
     {
@@ -1102,11 +1090,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
         // No prompt yet. Nothing on screen → hand straight to the watcher, say nothing.
         var output = snap.Plain.Length > 0 ? snap.Plain : snap.Screen;
-        if (string.IsNullOrWhiteSpace(output))
-        {
-            StartWatcher(command, null);
-            return ToolResult.EndSilently($"{command}: running, no output yet");
-        }
+        if (string.IsNullOrWhiteSpace(output)) return HandOffWatch(command, null, $"{command}: running, no output yet");
 
         // Some output but no prompt → classify what kind of process this is.
         switch (await ClassifyAsync(command, output, ct))
@@ -1119,9 +1103,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
                 return ToolResult.Ok($"{command}: long-running",
                     $"`{command}` is a long-running process that won't return to a prompt (e.g. a server). " +
                     $"Output so far:\n\n{Fence(output)}\n\nLet the user know it's running.");
-            default:   // StillFinishing → watch silently
-                StartWatcher(command, output);
-                return ToolResult.EndSilently($"{command}: still running");
+            default:   // StillFinishing → watched to its end in the background
+                return HandOffWatch(command, output, $"{command}: still running");
         }
     }
 
@@ -1169,32 +1152,46 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     // ── Background watcher ─────────────────────────────────────────────────
 
-    private void StartWatcher(string command, string? partial)
+    /// <summary>
+    /// Hands the rest of <paramref name="command"/> off to the assistant's background tasks: watched from now until it returns to a
+    /// prompt or stops to wait for input. The user typing, a newer command or this console closing ends the watch.
+    /// </summary>
+    private ToolResult HandOffWatch(string command, string? partial, string summary)
     {
         StopWatcher();
         _watchCommand = command;
         _watchStart   = DateTime.Now;
         _watchPartial = partial;
-        _watcherCts   = new CancellationTokenSource();
-        _ = WatchAsync(command, _watcherCts.Token);
+        _watcherCts   = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
+        var watch     = _watcherCts.Token;
+
+        var said = partial is null ? summary : $"{summary}. Output so far:\n\n{Fence(partial)}";
+        return ToolResult.HandOff(summary, Str.Format("Terminal.Console.RunningFormat", command),
+                                  stopped => WatchToEndAsync(command, watch, stopped)) with { ModelText = said };
     }
 
-    private async Task WatchAsync(string command, CancellationToken ct)
+    /// <summary>
+    /// Watches a handed-off command to its end: until it returns to a prompt, or stops to wait for input. Says how it ended, for the
+    /// user and the assistant; throws <see cref="OperationCanceledException"/> when the user or a newer command takes over, or the
+    /// assistant's background task is stopped.
+    /// </summary>
+    private async Task<ToolResult> WatchToEndAsync(string command, CancellationToken watch, CancellationToken stopped)
     {
-        var interval        = Math.Max(1000, WatcherInitialMs);
-        var cap             = Math.Max(WatcherInitialMs, WatcherMaxMs);
-        var lastSig         = string.Empty;
-        var reportedWaiting = false;
+        using var either = CancellationTokenSource.CreateLinkedTokenSource(watch, stopped);
+        var ct       = either.Token;
+        var interval = Math.Max(1000, WatcherInitialMs);
+        var cap      = Math.Max(WatcherInitialMs, WatcherMaxMs);
+        var lastSig  = string.Empty;
         try
         {
-            while (!ct.IsCancellationRequested)
+            while (true)
             {
                 await Task.Delay(interval, ct);
 
                 var snap = await ReadCaptureAsync();
                 _watchPartial = Pick(snap);
 
-                if (snap.AtPrompt) { await ReportCompletionAsync(command, snap); return; }   // finished
+                if (snap.AtPrompt) return Finished(command, snap);
 
                 if (Signature(snap) == lastSig) { interval = Math.Min(interval * 2, cap); continue; }   // quiet → back off
 
@@ -1203,24 +1200,20 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
                 var settled = await ReadCaptureAsync();
                 _watchPartial = Pick(settled);
                 lastSig       = Signature(settled);
-                if (settled.AtPrompt) { await ReportCompletionAsync(command, settled); return; }
+                if (settled.AtPrompt) return Finished(command, settled);
 
                 var output = Pick(settled);
-                var kind   = string.IsNullOrWhiteSpace(output)
-                    ? CommandKind.StillFinishing
-                    : await ClassifyAsync(command, output, ct);
-
-                if (kind == CommandKind.WaitingForInput)
-                {
-                    if (!reportedWaiting) { reportedWaiting = true; await ReportWaitingAsync(command, output); }
-                }
-                else reportedWaiting = false;   // state moved on — a later wait can be reported again
+                if (!string.IsNullOrWhiteSpace(output) && await ClassifyAsync(command, output, ct) == CommandKind.WaitingForInput)
+                    return Waiting(command, output);
 
                 interval = Math.Max(1000, WatcherInitialMs);   // there's activity — check promptly again
             }
         }
-        catch (OperationCanceledException) { /* the user (or a newer command) took over */ }
-        finally { ClearWatch(); }
+        finally
+        {
+            // Only the watch still current: a newer command's has already set its own.
+            if (_watcherCts is { } current && current.Token == watch) ClearWatch();
+        }
     }
 
     private static string Pick(CaptureSnapshot s)      => s.Plain.Length > 0 ? s.Plain : s.Screen;
@@ -1240,40 +1233,18 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         _watchPartial = null;
     }
 
-    private Task ReportCompletionAsync(string command, CaptureSnapshot snap)
+    private ToolResult Finished(string command, CaptureSnapshot snap)
     {
         var elapsed = DescribeElapsed(DateTime.Now - _watchStart);
         var output  = (!snap.SawAnsi && !snap.AltScreen) ? snap.Plain : snap.Screen;
-        ClearWatch();
-        return ReportToAiAsync(
-            $"The command `{command}` you ran earlier has now finished (after {elapsed}). Its output:\n\n" +
-            $"{Fence(output)}\n\nBriefly tell the user the result.");
+        return ToolResult.Ok(Str.Format("Terminal.Console.FinishedFormat", command),
+            $"The command `{command}` you ran earlier has now finished (after {elapsed}). Its output:\n\n{Fence(output)}");
     }
 
-    private Task ReportWaitingAsync(string command, string output)
-        => ReportToAiAsync(
+    private static ToolResult Waiting(string command, string output)
+        => ToolResult.Ok(Str.Format("Terminal.Console.WaitingFormat", command),
             $"The command `{command}` you ran is now waiting for input. Current screen:\n\n{Fence(output)}\n\n" +
             "Decide what to send and call run_command with that input, or ask the user.");
-
-    /// <summary>
-    /// Runs a continuation turn against the page's own banner handler to deliver a background-command
-    /// update, then — if the page isn't the active tab — posts a notification with an "Open" link. Uses the
-    /// VM-lifetime token (not the watcher's) so a run_command the AI issues here can't cancel itself.
-    /// </summary>
-    private async Task ReportToAiAsync(string note)
-    {
-        var handler = _bannerHandler;
-        if (handler is null) return;
-
-        try { await _ai.RunAgentAsync(this, note, includeContext: true, handler, _disposeCts.Token); }
-        catch (OperationCanceledException) { return; }
-        catch { return; }
-
-        var active = await _shell.RunOnUiAsync(() => Task.FromResult(Tab?.IsActive ?? false));
-        if (!active && Tab is { } tab)
-            await _shell.RunOnUiAsync(() =>
-                _shell.ShowNotification(Str.Get("Terminal.Console.NeedsAttention"), tab));
-    }
 
     // ── Capture helpers ────────────────────────────────────────────────────
 

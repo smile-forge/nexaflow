@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Hdf5.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Hdf5.Views;
 
@@ -10,7 +10,8 @@ namespace Nexaflow.Features.Hdf5.Views;
 /// The HDF5 viewer tab: the object tree on the left, the selected object's content in the middle, the details
 /// drawer on the right. The table is the shared windowed grid, fed one window of rows at a time.
 /// </summary>
-public partial class Hdf5View : UserControl, IPageView
+[ViewFor(typeof(Hdf5ViewModel))]
+public partial class Hdf5View : UserControl
 {
     private const double DefaultDrawerWidth = 320;
 
@@ -28,20 +29,6 @@ public partial class Hdf5View : UserControl, IPageView
         TableGrid.FocalRowChanged += OnFocalRowChanged;
         ApplyDrawer();
         Watch(viewModel.Table);
-    }
-
-    IPageViewModel IPageView.ViewModel => ViewModel;
-
-    /// <summary>A re-open that names another object in this file selects it here.</summary>
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.GetValueOrDefault("node") is { Length: > 0 } node) _ = NavigateWhenOpenAsync(node);
-    }
-
-    private async Task NavigateWhenOpenAsync(string node)
-    {
-        await ViewModel.Loaded;
-        await ViewModel.NavigateToAsync(node);
     }
 
     private void OnTreeSelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> e)

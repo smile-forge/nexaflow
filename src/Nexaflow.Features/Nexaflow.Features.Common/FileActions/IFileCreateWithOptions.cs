@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using System.Windows;
+
 
 namespace Nexaflow.Features.Common;
 
@@ -18,12 +18,13 @@ public interface IFileCreateWithOptions : IFileCreateEntry
     IFileCreateOptions OpenOptions(string folderPath);
 }
 
-/// <summary>The options one new item is being set up with, as <see cref="IFileCreateWithOptions.OpenOptions"/> opens them.</summary>
+/// <summary>
+/// The options one new item is being set up with, as <see cref="IFileCreateWithOptions.OpenOptions"/> opens them: a
+/// view-model, shown in the picker beneath the kinds by the view marked as drawing its type, and disposed when the picker
+/// lets it go.
+/// </summary>
 public interface IFileCreateOptions : INotifyPropertyChanged, IDisposable
 {
-    /// <summary>The options' view, shown in the picker beneath the kinds.</summary>
-    FrameworkElement View { get; }
-
     /// <summary>Whether they say enough to make the item; the picker's Create waits on it.</summary>
     bool CanCreate { get; }
 

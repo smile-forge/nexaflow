@@ -13,8 +13,8 @@ namespace Nexaflow.Tests.Features.AIChat;
 /// <summary>
 /// The context strip: what gets pinned, what doesn't get pinned twice, and what happens when the tab is
 /// reactivated. Reactivation re-runs <see cref="ConversationViewModel.LoadAsync"/> (via
-/// <c>IPageView.Reinitialize</c>), which used to stack a fresh copy of the saved context onto the strip
-/// every single time — the reason the strip filled up with items nobody dragged in.
+/// <c>IPageViewModel.Reinitialize</c>), so it must not stack a fresh copy of the saved context onto the strip
+/// each time.
 /// </summary>
 [TestClass]
 public class ConversationContextStripTests
@@ -24,11 +24,6 @@ public class ConversationContextStripTests
         public string GetContext() => "fake context";
     }
 
-    private sealed class FakePageView : UserControl, IPageView
-    {
-        public IPageViewModel? ViewModel { get; init; }
-    }
-
     private static Page PageOf(string kind, string? id = null)
     {
         var page = new Page
@@ -36,9 +31,9 @@ public class ConversationContextStripTests
             PageKind       = kind,
             Title          = kind,
             PageParams     = id is null ? null : new Dictionary<string, string> { ["id"] = id },
-            ContentFactory = () => new FakePageView { ViewModel = new FakeVm() },
+            ViewModelFactory = () => new FakeVm(),
         };
-        page.GetOrCreateContent();
+        page.GetOrCreateViewModel();
         return page;
     }
 
@@ -55,9 +50,9 @@ public class ConversationContextStripTests
             PageKind       = kind,
             Title          = kind,
             PageParams     = new Dictionary<string, string> { ["id"] = id },
-            ContentFactory = () => new FakePageView { ViewModel = new RiskyVm(risk) },
+            ViewModelFactory = () => new RiskyVm(risk),
         };
-        page.GetOrCreateContent();
+        page.GetOrCreateViewModel();
         return page;
     }
 

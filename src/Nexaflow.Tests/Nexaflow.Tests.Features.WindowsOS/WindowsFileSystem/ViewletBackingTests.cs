@@ -58,7 +58,7 @@ public class ViewletBackingTests
         public string DisplayName => "Tooling";
         public bool   AppliesToDrives => false;
         public string[]? ContainsFileGlobs => ["*.csproj"];
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     /// <summary>Matches on nothing at all — the contract permits it (both glob sets default to null), so
@@ -67,7 +67,7 @@ public class ViewletBackingTests
     {
         public string DisplayName => "Always";
         public bool   AppliesToDrives => false;
-        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+        public object CreateViewModel(string folderPath, IViewletController controller) => new object();
     }
 
     private static FileSystemFeatureRegistry Registry()

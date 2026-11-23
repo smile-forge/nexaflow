@@ -4,6 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+                          xmlns:viewing="clr-namespace:Nexaflow.Visuals.Common.Viewing;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="Image_LayersPictures">
 
     <!-- In the layers panel, beneath its heading: Generate layer being set up, and the pictures being generated for the canvas
@@ -23,7 +24,7 @@
         <!-- Generate layer, being set up: what the model offers, the proportions the canvas's nearest. Its button is in the
              layers panel's heading. -->
         <StackPanel Margin="0,0,0,6" Visibility="{Binding IsAsking, Converter={StaticResource BoolVis}}">
-            <ContentControl Content="{Binding Options.View}" Focusable="False"/>
+            <viewing:ModelHost Model="{Binding Options}" Focusable="False"/>
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                 <Button Command="{Binding GenerateLayerCommand}" Style="{StaticResource ToolbarPrimaryButtonStyle}" Margin="0,0,4,0"
                         AutomationProperties.AutomationId="Image_LayersGenerateGo">

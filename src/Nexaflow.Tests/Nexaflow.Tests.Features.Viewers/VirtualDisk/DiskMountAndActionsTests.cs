@@ -47,7 +47,7 @@ public class DiskMountAndActionsTests
         shell.Received(1).OpenTab(
             "VirtualDisk",
             Arg.Is<Dictionary<string, string>>(d => d["path"] == @"C:\images\disk.vhdx"),
-            Arg.Any<IPageView?>(),
+            Arg.Any<Page?>(),
             Arg.Any<bool>());
     }
 

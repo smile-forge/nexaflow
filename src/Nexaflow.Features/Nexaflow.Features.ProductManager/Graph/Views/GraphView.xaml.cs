@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.Graph.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.ProductManager.Graph.Views;
 
@@ -15,7 +16,8 @@ namespace Nexaflow.Features.ProductManager.Graph.Views;
 /// Scale/Translate transform so they pan/zoom together), with wheel-zoom-to-cursor and armed-on-press pan copied
 /// from the SVG viewer. The view-model loads + lays out the graph; this code-behind fits it and drives the transform.
 /// </summary>
-public partial class GraphView : UserControl, IPageView
+[ViewFor(typeof(GraphViewModel))]
+public partial class GraphView : UserControl
 {
     private const double MinScale = 0.05;
     private const double MaxScale = 8.0;
@@ -28,8 +30,6 @@ public partial class GraphView : UserControl, IPageView
     private bool _panning;
     private Point _panStart;
     private double _panOffX, _panOffY;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     private bool _tweenOn;
 

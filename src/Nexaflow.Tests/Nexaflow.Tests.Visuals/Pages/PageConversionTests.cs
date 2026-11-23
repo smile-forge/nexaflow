@@ -160,7 +160,7 @@ public class PageConversionTests
           : call.Arg<string>() == DiagramDrawing.DifferencesInstruction ? "NONE"
           : "```mermaid\nflowchart TD\n  A[Read] --> B[Write]\n```"));
         var shell = Shell();
-        var caller = Substitute.For<IPageView>();
+        var caller = new Page();
         Dictionary<string, string>? opened = null;
         shell.When(s => s.OpenTab("Markdown", Arg.Any<Dictionary<string, string>?>(), caller, true))
              .Do(call => opened = call.Arg<Dictionary<string, string>?>());
@@ -258,7 +258,7 @@ public class PageConversionTests
     public async Task AStop_AsksFirst_AndShowingWhatWasRead_OpensItAsADraft()
     {
         var shell = Shell();
-        var caller = Substitute.For<IPageView>();
+        var caller = new Page();
         Dictionary<string, string>? opened = null;
         shell.When(s => s.OpenTab("Markdown", Arg.Any<Dictionary<string, string>?>(), caller, true))
              .Do(call => opened = call.Arg<Dictionary<string, string>?>());
@@ -301,7 +301,7 @@ public class PageConversionTests
         conversion.DiscardReadingCommand.Execute(null);
         await converting;
 
-        shell.DidNotReceive().OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>(), Arg.Any<IPageView?>(), Arg.Any<bool>());
+        shell.DidNotReceive().OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>(), Arg.Any<Page?>(), Arg.Any<bool>());
         Assert.IsFalse(conversion.HasStatus, "the banner goes once the reading is let go");
         Assert.IsFalse(conversion.IsAskingToStop);
     }

@@ -162,7 +162,7 @@ public class TabularSurfaceTests
             vm.OpenBreadcrumb(folder);
             shell.Received(1).OpenTab("FileSystem",
                 Arg.Is<Dictionary<string, string>>(p => p["mode"] == "path" && p["path"] == folder.FullPath),
-                Arg.Any<IPageView?>());
+                Arg.Any<Page?>());
         }
         finally { Directory.Delete(dir, recursive: true); }
     }
@@ -185,7 +185,7 @@ public class TabularSurfaceTests
 
         shell.Received(1).OpenTab("Tabular",
             Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\data\sales.csv"),
-            Arg.Any<IPageView?>());
+            Arg.Any<Page?>());
     }
 
     /// <summary>

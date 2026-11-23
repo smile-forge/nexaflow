@@ -661,7 +661,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
     /// <summary>A compact, read-only preview for the conversation context panel — file name, a meta line, and a
     /// capped monospace snippet. Built fresh each time; it never re-hosts the live editor.</summary>
-    public System.Windows.Controls.UserControl CreateContextPreview()
+    public object CreateContextPreview()
     {
         var meta = $"{LineCount:N0} line{(LineCount == 1 ? "" : "s")} · {SelectedEncoding.Name}"
                  + (IsDirty ? " · unsaved edits" : string.Empty)
@@ -669,7 +669,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         const int cap = 8000;
         var text = Document.Text;
         var body = text.Length > cap ? text[..cap] + "\n… (preview truncated)" : text;
-        return new ReadOnlyTextPreview(meta, body);
+        return new TextContextPreview(meta, body);
     }
 
     // ── Dispose ────────────────────────────────────────────────────────────────

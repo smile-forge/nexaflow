@@ -4,15 +4,15 @@ using System.Windows.Controls.Primitives;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.ViewModels;
 using Nexaflow.Visuals.Common;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Processes.Views;
 
-public partial class ProcessDetailView : UserControl, IPageView
+[ViewFor(typeof(ProcessDetailViewModel))]
+public partial class ProcessDetailView : UserControl
 {
     public ProcessDetailViewModel ViewModel { get; }
     private WindowMinimizeWatcher? _minimizeWatcher;
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     public ProcessDetailView(ProcessDetailViewModel viewModel)
     {
@@ -42,11 +42,5 @@ public partial class ProcessDetailView : UserControl, IPageView
     {
         if (e.OriginalSource is GridViewColumnHeader { Column.Header: SortableHeader header })
             ViewModel.SortModulesCommand.Execute(header.Key);
-    }
-
-    void IPageView.Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("pid", out var s) && int.TryParse(s, out var pid))
-            ViewModel.Reinitialize(pid);
     }
 }

@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
-using Nexaflow.Features.WindowsFileSystem.Views;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -17,9 +17,8 @@ public sealed class FileSystemTabPinHandler : ITabPinHandler
 
     public RibbonPinResult? Pin(Page tab, int insertIndex = -1)
     {
-        if (tab.Content is FileSystemView fsPage)
+        if (tab.ViewModel is FileSystemViewModel vm)
         {
-            var vm       = fsPage.ViewModel;
             var path     = vm.CurrentPath;
             var isThisPc = string.IsNullOrEmpty(path) || path == "This PC";
             if (!isThisPc)
@@ -36,7 +35,7 @@ public sealed class FileSystemTabPinHandler : ITabPinHandler
             };
         }
 
-        // Content not yet loaded — snapshot whatever the tab already knows.
+        // View-model not yet made — snapshot whatever the tab already knows.
         return new RibbonPinResult
         {
             PageKind   = FileSystemPageRegistration.PageKind,

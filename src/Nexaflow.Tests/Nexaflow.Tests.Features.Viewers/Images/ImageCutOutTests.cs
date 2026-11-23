@@ -242,7 +242,7 @@ public class ImageCutOutTests
     {
         var shell = Shell();
         var opened = new List<Dictionary<string, string>>();
-        shell.When(s => s.OpenTab("Artist", Arg.Any<Dictionary<string, string>>(), Arg.Any<IPageView?>(), Arg.Any<bool>()))
+        shell.When(s => s.OpenTab("Artist", Arg.Any<Dictionary<string, string>>(), Arg.Any<Page?>(), Arg.Any<bool>()))
              .Do(call => opened.Add(call.ArgAt<Dictionary<string, string>>(1)));
         var vm = Editing(new Patch(), shell);
         var args = new System.Text.Json.Nodes.JsonObject { ["what"] = "mug" };

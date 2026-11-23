@@ -62,7 +62,7 @@ public sealed partial class PageConversion : ObservableObject
     private readonly IAIService? _ai;
     private readonly IShellServices _shell;
     private CancellationTokenSource? _cts;
-    private (PageSource Source, IPageView? Caller)? _waiting;
+    private (PageSource Source, Page? Caller)? _waiting;
     private bool _offering;
 
     /// <summary>The reading whose reader asked to see what it had read when it was stopped, until that reading ends.</summary>
@@ -136,7 +136,7 @@ public sealed partial class PageConversion : ObservableObject
     /// <paramref name="caller"/>'s window, as a draft offered to be saved beside the source. Until page reading is here it
     /// waits for its download, which <see cref="Status"/> offers. Called on the UI thread.
     /// </summary>
-    public async Task ConvertAsync(PageSource source, IPageView? caller)
+    public async Task ConvertAsync(PageSource source, Page? caller)
     {
         var read = await ReadKeptAsync(source, CancellationToken.None);
         if (read is null)

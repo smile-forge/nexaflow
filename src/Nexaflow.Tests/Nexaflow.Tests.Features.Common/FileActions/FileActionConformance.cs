@@ -102,7 +102,7 @@ public abstract class ViewerActionConformanceTests : FileActionConformanceTests
         var tabs  = new List<Opened>();
         var shell = Substitute.For<IShellServices>();
         shell.When(s => s.OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>?>(),
-                                  Arg.Any<IPageView?>(), Arg.Any<bool>()))
+                                  Arg.Any<Page?>(), Arg.Any<bool>()))
              .Do(ci =>
              {
                  var p = ci.ArgAt<Dictionary<string, string>?>(1) ?? [];

@@ -79,6 +79,14 @@ public interface IAIResponseHandler
     void BackgroundJobEnded(string outcome) { }
 
     /// <summary>
+    /// A turn the user did not ask for begins: work a run of this handler set going in the background has ended while the user
+    /// was still where it was asked for, and the assistant picks it up. <paramref name="about"/> says what ended, for the user;
+    /// <paramref name="outcome"/> is what came of it, as the model reads it. A conversation keeps the outcome as it keeps any ended
+    /// work, not as the user's words. Default: shown as the request a turn begins with.
+    /// </summary>
+    void BeginFollowUp(string about, string outcome) => BeginResponse(about);
+
+    /// <summary>
     /// Queues a message the user submitted WHILE this response was being generated. The agent loop
     /// delivers it at the next turn boundary (see <see cref="TakeInterjections"/>) so the model can
     /// steer mid-task. Default: no-op (handlers that don't support queuing).

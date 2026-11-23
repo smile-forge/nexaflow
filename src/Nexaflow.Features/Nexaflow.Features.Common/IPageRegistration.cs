@@ -20,13 +20,13 @@ public interface IPageRegistration
     /// <summary>
     /// Returns a lightweight <see cref="Page"/> <b>definition</b> for this page kind: its
     /// <see cref="Page.Title"/>, <see cref="Page.Icon"/>, breadcrumbs, and an <b>un-invoked</b>
-    /// <see cref="Page.ContentFactory"/>. The real view/view-model is built lazily only when the page
-    /// is shown (<see cref="Page.GetOrCreateContent"/>).
+    /// <see cref="Page.ViewModelFactory"/>. The view-model is built lazily, only when the page is first needed
+    /// (<see cref="Page.GetOrCreateViewModel"/>), and the view that draws it is the UI layer's.
     /// <para>
     /// Keep this method cheap and side-effect-free — do NOT construct view-models, open files, hit the
     /// network, or load data here. Callers create definitions speculatively (e.g. to read a page's
     /// Title/Icon for a menu) without ever realizing them. Put all such work inside the
-    /// <see cref="Page.ContentFactory"/> closure so it runs only when the content is actually needed.
+    /// <see cref="Page.ViewModelFactory"/> closure so it runs only when the page is actually needed.
     /// </para>
     /// </summary>
     /// <param name="pageParams">Optional parameters (e.g. <c>{"folder":"MyProject"}</c>).</param>
@@ -40,7 +40,7 @@ public interface IPageRegistration
     /// This is also what tells the shell which params make a tab a <em>different</em> tab. Mark any
     /// param that merely locates a view inside the document — a byte offset, a selected node — as
     /// <see cref="PageParameter.Identity"/> <c>false</c>, and re-opening that document at a new
-    /// location re-points the open tab via <see cref="IPageView.Reinitialize"/> instead of adding one.
+    /// location re-points the open tab via <see cref="IPageViewModel.Reinitialize"/> instead of adding one.
     /// </para>
     /// </summary>
     IReadOnlyList<PageParameter> Parameters => [];
@@ -52,7 +52,7 @@ public interface IPageRegistration
     /// <para>
     /// When this is (or can become) true, <see cref="CreatePageDefinition"/> MUST be cheap: the menu
     /// builds a definition just to read its Title/Icon and discards it if not chosen, so any heavy work
-    /// must live in the <see cref="Page.ContentFactory"/>, not in the definition.
+    /// must live in the <see cref="Page.ViewModelFactory"/>, not in the definition.
     /// </para>
     /// </summary>
     bool CanBeContextItem => false;

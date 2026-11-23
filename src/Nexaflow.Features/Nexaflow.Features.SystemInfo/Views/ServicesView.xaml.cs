@@ -1,15 +1,14 @@
 using System.Windows.Controls;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Features.SystemInfo.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.SystemInfo.Views;
 
-public partial class ServicesView : UserControl, IPageView
+[ViewFor(typeof(ServicesViewModel))]
+public partial class ServicesView : UserControl
 {
     public ServicesViewModel ViewModel { get; }
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     public ServicesView(ServicesViewModel viewModel)
     {

@@ -14,6 +14,7 @@ using Nexaflow.Features.Model3D.Loaders;
 using Nexaflow.Features.Model3D.Viewing;
 using Nexaflow.Features.Model3D.ViewModels;
 using WpfModel3D = System.Windows.Media.Media3D.Model3D;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Model3D.Views;
 
@@ -22,7 +23,8 @@ namespace Nexaflow.Features.Model3D.Views;
 /// stats footer and inspector. The view-model loads the geometry; this code-behind drops it into the
 /// viewport, builds the on-demand wireframe, and fulfils the camera / capture delegates the AI tools call.
 /// </summary>
-public partial class Model3DView : UserControl, IPageView
+[ViewFor(typeof(Model3DViewModel))]
+public partial class Model3DView : UserControl
 {
     private const double TurnDegreesPerPixel = 0.4;
 
@@ -41,8 +43,6 @@ public partial class Model3DView : UserControl, IPageView
     private Vector3D _homeLook;
     private Vector3D _homeUp;
     private double? _homeFieldOfView;
-
-    IPageViewModel? IPageView.ViewModel => _vm;
 
     public Model3DView(Model3DViewModel vm)
     {

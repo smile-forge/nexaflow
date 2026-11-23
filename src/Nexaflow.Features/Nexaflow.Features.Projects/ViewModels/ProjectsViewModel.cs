@@ -105,6 +105,12 @@ public partial class ProjectsViewModel : ObservableObject, IPageViewModel
         if (IsEnabled) Load();
     }
 
+    /// <summary>Shown again with no parameters (its tab re-clicked): reads the projects again.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        if (pageParams.Count == 0) Refresh();
+    }
+
     private void Load()
     {
         // A reload replaces every row — including on a bucket switch, where a search of the old bucket

@@ -29,14 +29,14 @@ public sealed partial class ReadPageViewModel : ObservableObject
     private readonly ImageEditingServices _editing;
     private readonly Func<Action, Task> _runOnUi;
     private readonly Func<string, ImageRecipe, MadeByTools> _made;
-    private readonly Func<IPageView?> _host;
+    private readonly Func<Page?> _host;
     private ImageEditSession? _session;
     private CancellationTokenSource? _looking;
 
     /// <param name="made">What the picture tools made of a photo for a recipe — what the page is rendered with.</param>
     /// <param name="host">The tab showing the picture, beside which the Markdown opens.</param>
     public ReadPageViewModel(IPageReading? reading, IAIService? ai, IShellServices? shell, ImageEditingServices editing,
-                             Func<Action, Task> runOnUi, Func<string, ImageRecipe, MadeByTools> made, Func<IPageView?> host)
+                             Func<Action, Task> runOnUi, Func<string, ImageRecipe, MadeByTools> made, Func<Page?> host)
     {
         _reading = reading;
         _editing = editing;

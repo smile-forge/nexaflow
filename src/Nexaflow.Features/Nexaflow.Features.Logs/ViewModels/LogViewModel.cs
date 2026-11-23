@@ -650,7 +650,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     /// file. A fresh control each time the chip is selected, per the contract; it copies what it shows. On the UI
     /// thread, which owns the document.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview()
+    public object CreateContextPreview()
     {
         var meta = SelectedLineCount > 0
             ? LineCount == 1
@@ -659,7 +659,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             : LineCount == 1
                 ? Str.Format("Logs.Preview.LineFormat", FileSizeText, LineCount)
                 : Str.Format("Logs.Preview.LinesFormat", FileSizeText, LineCount);
-        return new ReadOnlyTextPreview(meta, string.Join("\n", PreviewLines()));
+        return new TextContextPreview(meta, string.Join("\n", PreviewLines()));
     }
 
     private IEnumerable<string> PreviewLines()

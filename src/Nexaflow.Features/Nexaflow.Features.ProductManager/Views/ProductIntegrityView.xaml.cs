@@ -4,11 +4,13 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.ProductManager.Views;
 
 /// <summary>The Integrity page — broken snaplinks, selectable and repairable in place.</summary>
-public partial class ProductIntegrityView : UserControl, IPageView
+[ViewFor(typeof(ProductIntegrityViewModel))]
+public partial class ProductIntegrityView : UserControl
 {
     public ProductIntegrityViewModel ViewModel { get; }
 
@@ -17,10 +19,7 @@ public partial class ProductIntegrityView : UserControl, IPageView
         InitializeComponent();
         ViewModel   = viewModel;
         DataContext = viewModel;
-        ViewModel.Host = this;   // so a right-pane open splits the window that owns this page
     }
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
 
     // Picking a target (its two-way SelectedItem binding already filled the row's fields) or a moved-file
     // suggestion closes the dropdown it lives in — a Popup stays open until dismissed otherwise.

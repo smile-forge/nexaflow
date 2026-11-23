@@ -1,23 +1,22 @@
 using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Viewing;
 namespace Nexaflow.Core.Views;
 
 /// <summary>
-/// The content of a tab the shell could not fill. Left wordless it is indistinguishable from a feature that
-/// loaded and drew nothing, so a caller that knows <em>why</em> the page is empty says so here.
+/// Draws a <see cref="PlaceholderViewModel"/>: a tab that only says why it is empty.
 /// </summary>
-public partial class PlaceholderPage : UserControl, IPageView
+[ViewFor(typeof(PlaceholderViewModel))]
+public partial class PlaceholderPage : UserControl
 {
     public PlaceholderPage() => InitializeComponent();
 
-    public PlaceholderPage(string headline, string? detail = null) : this()
+    public PlaceholderPage(PlaceholderViewModel model) : this()
     {
-        HeadlineText.Text = headline;
-        if (string.IsNullOrWhiteSpace(detail)) return;
-        DetailText.Text = detail;
+        HeadlineText.Text = model.Headline;
+        if (string.IsNullOrWhiteSpace(model.Detail)) return;
+        DetailText.Text = model.Detail;
         DetailText.Visibility = Visibility.Visible;
     }
-
-    public IPageViewModel? ViewModel => null;
 }

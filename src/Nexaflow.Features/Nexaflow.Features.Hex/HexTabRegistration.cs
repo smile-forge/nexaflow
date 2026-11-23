@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Hex.Buffer;
 using Nexaflow.Features.Hex.ViewModels;
-using Nexaflow.Features.Hex.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Globalization;
@@ -16,7 +15,7 @@ namespace Nexaflow.Features.Hex;
 /// <para>
 /// Only <c>path</c> identifies the tab: the byte range says where you are looking, not which file
 /// this is. So jumping again from the inspector re-points the open tab (see
-/// <see cref="Views.HexView"/>'s <c>Reinitialize</c>) rather than stacking up a tab per offset.
+/// <see cref="HexViewModel.Reinitialize"/>) rather than stacking up a tab per offset.
 /// </para>
 /// </summary>
 public sealed class HexTabRegistration(IShellServices shell, IVirtualFileSystem vfs) : IPageRegistration
@@ -49,12 +48,12 @@ public sealed class HexTabRegistration(IShellServices shell, IVirtualFileSystem 
         };
         page.SetFileBreadcrumbs(path, title);
 
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new HexViewModel(path, shell, vfs);
             vm.ReadFailed += failure => _ = PromptRetryAsync(page, vm, failure);
             if (offset >= 0) vm.RevealRange(offset, Math.Max(0, length));
-            return new HexView(vm);
+            return vm;
         };
 
         return page;

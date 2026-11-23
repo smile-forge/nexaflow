@@ -5,11 +5,13 @@ using System.Windows.Threading;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Locate;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 
 namespace Nexaflow.Core.Help;
 
-public partial class HelpView : UserControl, IPageView
+[ViewFor(typeof(HelpViewModel))]
+public partial class HelpView : UserControl
 {
     private readonly HelpViewModel _vm;
     private DispatcherTimer? _hint;
@@ -41,11 +43,6 @@ public partial class HelpView : UserControl, IPageView
 
         DataContext = vm;
     }
-
-    public IPageViewModel? ViewModel => _vm;
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-        => _vm.Navigate(pageParams.GetValueOrDefault("topic"), pageParams.GetValueOrDefault("query"), fromUser: false);
 
     /// <summary>
     /// A <c>locate:</c> link points at the screen rather than going anywhere: lasso what it names, in this pane's window,

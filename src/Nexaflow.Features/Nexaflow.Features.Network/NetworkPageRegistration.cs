@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Network.ViewModels;
-using Nexaflow.Features.Network.Views;
+
 using Nexaflow.IO.Network.Actions;
 using Nexaflow.IO.Network.Probes;
 using Nexaflow.Plugins;
@@ -42,8 +42,7 @@ public sealed class NetworkPageRegistration(
         };
 
         NetworkViewModel? viewModel = null;
-        page.ContentFactory = () =>
-            new NetworkView(viewModel = new NetworkViewModel(layers, actions, config, shellServices));
+        page.ViewModelFactory = () => viewModel = new NetworkViewModel(layers, actions, config, shellServices);
 
         // Options → Save closes and reopens this tab to apply what changed. The page being closed stops
         // sending there and then, rather than finishing a sweep under settings the user has just changed.

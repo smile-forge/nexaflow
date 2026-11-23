@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.ViewModels;
-using Nexaflow.Features.Processes.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Processes;
@@ -25,15 +24,14 @@ public sealed class ProcessDetailPageRegistration(IShellServices shellServices) 
             Breadcrumbs = { new BreadcrumbSegment { Label = Str.Format("Processes.Detail.TitleFormat", pid) } },
             PageParams  = pageParams,
         };
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new ProcessDetailViewModel(shellServices, pid);
             vm.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(ProcessDetailViewModel.Title)) page.Title = vm.Title;
             };
-            page.Closed += (_, _) => vm.Dispose();
-            return new ProcessDetailView(vm);
+            return vm;
         };
         return page;
     }

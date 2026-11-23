@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.ViewModels;
-using Nexaflow.Features.ProductManager.Views;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -46,7 +45,7 @@ public sealed class ProductSearchTabRegistration(IShellServices shell) : IPageRe
             Title       = title,
             Icon        = "🔎",
             Breadcrumbs = { new BreadcrumbSegment { Label = title } },
-            ContentFactory = () => new ProductSearchView(new ProductSearchViewModel(root, query, shell)),
+            ViewModelFactory = () => new ProductSearchViewModel(root, query, shell),
         };
     }
 }

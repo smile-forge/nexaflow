@@ -1,6 +1,5 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
-using Nexaflow.Features.SystemInfo.Views;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo;
@@ -21,11 +20,10 @@ public sealed class EnvironmentVariablesPageRegistration(IShellServices shellSer
             Icon        = "🧬",
             Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("SystemInfo.Page.EnvVars") } },
         };
-        page.ContentFactory = () =>
+        page.ViewModelFactory = () =>
         {
             var vm = new EnvironmentVariablesViewModel(shellServices);
-            page.Closed += (_, _) => vm.Dispose();
-            return new EnvironmentVariablesView(vm);
+            return vm;
         };
         return page;
     }

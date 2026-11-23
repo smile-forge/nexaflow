@@ -28,7 +28,7 @@ internal sealed class FakeShellServices : IShellServices
     public event Action? FolderBusyChanged { add { } remove { } }
 
     // ── Unused surface ──
-    public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null, IPageView? caller = null, bool inRightPane = false) => throw new NotSupportedException();
+    public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null, Page? caller = null, bool inRightPane = false) => throw new NotSupportedException();
     public void CloseTab(Page tab) => throw new NotSupportedException();
     public IReadOnlyList<Page> GetContextItemPages() => throw new NotSupportedException();
     public IReadOnlyList<Page> GetOpenTabs() => throw new NotSupportedException();

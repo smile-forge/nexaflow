@@ -1,19 +1,15 @@
 using System.Windows.Controls;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.SystemInfo.Views;
 
-public partial class EnvironmentVariablesView : UserControl, IPageView
+[ViewFor(typeof(EnvironmentVariablesViewModel))]
+public partial class EnvironmentVariablesView : UserControl
 {
-    public EnvironmentVariablesViewModel ViewModel { get; }
-
-    IPageViewModel? IPageView.ViewModel => ViewModel;
-
     public EnvironmentVariablesView(EnvironmentVariablesViewModel viewModel)
     {
         InitializeComponent();
-        ViewModel   = viewModel;
         DataContext = viewModel;
     }
 }

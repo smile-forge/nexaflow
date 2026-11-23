@@ -10,7 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Features.Audio.Controls;
+
 using Nexaflow.Features.Audio.Models;
 using Nexaflow.Features.Audio.Services;
 using Nexaflow.Features.Common;
@@ -294,7 +294,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         {
             _backgrounded = true;
             _mediatedHandle = _shell.RegisterMediatedTask(
-                new MediatedTaskRegistration(NowPlayingText, () => new AudioMiniTransport { DataContext = this }));
+                new MediatedTaskRegistration(NowPlayingText, new AudioRemote(this)));
             return;   // don't pause — the chrome remote drives play/pause/skip; the engine keeps its position
         }
 
@@ -311,6 +311,21 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     private void StartRenderTimerIfVisible()
     {
         if (!_backgrounded && IsPlaying) _renderTimer.Start();
+    }
+
+    /// <summary>A re-open with a play queue loads it here, starting on its <c>index</c>.</summary>
+    public void Reinitialize(Dictionary<string, string> pageParams)
+    {
+        var paths = pageParams.GetValueOrDefault("paths")?
+            .Split('|', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+        if (paths is not { Count: > 0 }) return;
+
+        int index = 0;
+        if (pageParams.GetValueOrDefault("index") is { } raw && int.TryParse(raw, out var i))
+            index = i;
+
+        _ = ReinitializeAsync(paths, index);
     }
 
     /// <summary>Re-points the tab at a new queue/track (shell tab reuse). A no-op if the queue is unchanged,
@@ -911,7 +926,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     /// player. The panel's header names the file. A fresh control each time the chip is selected, per the contract;
     /// it binds to the now-playing state and queue but owns none of it.
     /// </summary>
-    public System.Windows.Controls.UserControl CreateContextPreview() => new AudioContextPreview { DataContext = this };
+    public object CreateContextPreview() => new PagePreview<AudioViewModel>(this);
 
     public void Dispose()
     {

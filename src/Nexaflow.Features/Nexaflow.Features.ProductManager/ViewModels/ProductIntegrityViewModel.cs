@@ -86,8 +86,8 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     /// <summary>Lazily-built basename → relative-path index, so suggesting a moved file is instant.</summary>
     private Dictionary<string, List<string>>? _filesByName;
 
-    /// <summary>The view that owns this page, so a right-pane open splits the right window.</summary>
-    public IPageView? Host { get; set; }
+    /// <summary>The tab showing this page, so a right-pane open splits the window that owns it.</summary>
+    private readonly Page? _tab;
 
     /// <summary>The shell holds the AI send until the first scan has landed.</summary>
     public bool IsContextReady => !IsScanning;
@@ -97,10 +97,12 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     /// the Product page is using rather than reading the archive back per call.</summary>
     private readonly ProductSession _session;
 
-    public ProductIntegrityViewModel(ProductStore store, string productRoot, IShellServices shell)
+    /// <param name="tab">The tab showing this page, which what opens in the right-hand pane opens beside.</param>
+    public ProductIntegrityViewModel(ProductStore store, string productRoot, IShellServices shell, Page? tab = null)
     {
         _store = store;
         _shell = shell;
+        _tab   = tab;
         ProductRoot = productRoot;
 
         IssuesView = CollectionViewSource.GetDefaultView(Issues);
@@ -506,7 +508,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         if (SelectedIssue is not { } row) return;
         _shell.OpenTab(ProductManagerTabRegistration.StaticPageKind,
             new Dictionary<string, string> { ["path"] = ProductRoot, ["node"] = row.NodeId },
-            Host, inRightPane: true);
+            _tab, inRightPane: true);
     }
 
     /// <summary>Opens the link's target file beside this page, so the right class/heading can be read off it.</summary>
@@ -518,7 +520,7 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         var full = Path.IsPathRooted(row.Doc) ? row.Doc : Path.Combine(ProductRoot, row.Doc);
         if (!File.Exists(full)) { _shell.ShowError(Str.Format("ProductManager.Integrity.Error.MissingFileFormat", row.Doc)); return; }
         _shell.OpenTab(row.IsMarkdown ? "Markdown" : "Code",
-            new Dictionary<string, string> { ["path"] = full }, Host, inRightPane: true);
+            new Dictionary<string, string> { ["path"] = full }, _tab, inRightPane: true);
     }
 
     // ── IPageViewModel ───────────────────────────────────────────────────────

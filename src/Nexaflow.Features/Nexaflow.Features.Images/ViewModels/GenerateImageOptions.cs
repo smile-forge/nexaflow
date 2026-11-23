@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
-using System.Windows;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Images.Views;
+
 using Nexaflow.Visuals.Common.Generation;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -14,8 +14,8 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// <summary>
 /// The options a picture made from the New picker is drawn with: what to draw, and what the workspace's image model at
 /// the quality chosen offers besides — its proportions, size and detail, a seed, what to keep out, a transparent
-/// background, a LoRA — as <c>generate_image</c> offers the assistant. The workspace's models are followed while the view is
-/// shown, so a model assigned or downloaded meanwhile is offered at once; one waiting on its download is offered to
+/// background, a LoRA — as <c>generate_image</c> offers the assistant. The workspace's models are followed from opening until the picker lets the
+/// options go, so a model assigned or downloaded meanwhile is offered at once; one waiting on its download is offered to
 /// download.
 /// </summary>
 public sealed partial class GenerateImageOptions : ObservableObject, IFileCreateOptions
@@ -32,7 +32,7 @@ public sealed partial class GenerateImageOptions : ObservableObject, IFileCreate
     {
         _ai     = ai;
         _folder = folder;
-        Refresh();
+        Follow();
     }
 
     /// <summary>Whether the New picker offers a picture: a model draws one now, or will once a model of Nexaflow's own downloads.</summary>
@@ -41,18 +41,6 @@ public sealed partial class GenerateImageOptions : ObservableObject, IFileCreate
     /// <summary>The image rows whose model of Nexaflow's own waits on its download.</summary>
     private static IEnumerable<AiAbility> Waiting(IAIService ai) =>
         ImageRows.Where(r => ai.StatusOf(r).State is AiAbilityState.NeedsDownload or AiAbilityState.Downloading);
-
-    /// <summary>Made when the picker first shows it, and following the workspace's models while it is shown.</summary>
-    public FrameworkElement View => _view ??= Shown(new GenerateImageOptionsView { DataContext = this });
-
-    private FrameworkElement? _view;
-
-    private FrameworkElement Shown(FrameworkElement view)
-    {
-        view.Loaded   += (_, _) => Follow();
-        view.Unloaded += (_, _) => Unfollow();
-        return view;
-    }
 
     /// <summary>Whether a model draws a picture now; until one does, the options say why and offer its download.</summary>
     [ObservableProperty]

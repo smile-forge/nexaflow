@@ -165,7 +165,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         set => (value is null ? FocusedPane : OwningPane(value) ?? FocusedPane).ActivePage = value;
     }
 
-    public UserControl? CurrentPage => FocusedPane.ActivePage?.GetOrCreateContent();
+    /// <summary>The focused pane's page view, when it has been shown: what a view itself offers (keys, a selection).</summary>
+    internal FrameworkElement? ActivePageView => ActiveTab is { } tab ? PageViews.Instance.Shown(tab) : null;
 
     private void WireRootPane()
     {
@@ -175,7 +176,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     // The breadcrumb/content bind each Pane directly in PaneView, so the shell only owes a re-notify of its
-    // computed ActiveTab/CurrentPage facades when the *focused* pane's active page changes.
+    // computed ActiveTab facade when the *focused* pane's active page changes.
     private void OnLeafPanePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // Any pane: an open Help tab in the other one follows what this one now shows.
@@ -185,7 +186,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         if (e.PropertyName == nameof(Pane.ActivePage) && ReferenceEquals(sender, FocusedPane))
         {
             OnPropertyChanged(nameof(ActiveTab));
-            OnPropertyChanged(nameof(CurrentPage));
         }
     }
 
@@ -208,7 +208,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     partial void OnFocusedPaneChanged(Pane? oldValue, Pane newValue)
     {
         OnPropertyChanged(nameof(ActiveTab));
-        OnPropertyChanged(nameof(CurrentPage));
     }
 
     // ── Notifications ─────────────────────────────────────────────────────
@@ -649,7 +648,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _pageCoveredByOverlay = covered;
 
         foreach (var page in LeafPanes.SelectMany(p => p.Pages))
-            if (page.Content is IAirspaceContent airspace)
+            if ((PageViews.Instance.Shown(page) as IAirspaceContent ?? page.ViewModel as IAirspaceContent) is { } airspace)
                 airspace.SetCoveredByOverlay(covered);
     }
 
@@ -831,13 +830,15 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (tab.IsActive && tab == ActiveTab)
         {
-            (CurrentPage as IPageView)?.Reinitialize(tab.PageParams ?? []);
+            tab.GetOrCreateViewModel();
+            tab.Reinitialize(tab.PageParams ?? []);
             return;
         }
 
         ((IWindowHost)this).BringToFront(tab);
         ((IWindowHost)this).SetActiveTab(tab);
-        (CurrentPage as IPageView)?.Reinitialize(tab.PageParams ?? []);
+        tab.GetOrCreateViewModel();
+        tab.Reinitialize(tab.PageParams ?? []);
     }
 
     [RelayCommand]
@@ -879,7 +880,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// </summary>
     [RelayCommand]
     private void OpenPage(OpenPageRequest req)
-        => _shellServices.OpenTab(req.PageKind, req.PageParams, CurrentPage as IPageView);
+        => _shellServices.OpenTab(req.PageKind, req.PageParams, ActiveTab);
 
     /// <summary>Closes every tab in <paramref name="tab"/>'s pane except <paramref name="tab"/> itself.</summary>
     [RelayCommand(CanExecute = nameof(CanCloseOthersInPane))]
@@ -986,7 +987,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
             if (executor is not null)
             {
-                var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
+                var paths = (ActivePageView as ISelectionProvider ?? ActivePageViewModel as ISelectionProvider)?.SelectedFilePaths
                             ?? (IReadOnlyList<string>)[];
                 var ctx = new RibbonExecutionContext(
                     paths,
@@ -1016,7 +1017,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             var newHost = _shellServices.CreateAndShowNewWindow();
             if (newHost is null) return;
 
-            var paths = (CurrentPage as ISelectionProvider)?.SelectedFilePaths
+            var paths = (ActivePageView as ISelectionProvider ?? ActivePageViewModel as ISelectionProvider)?.SelectedFilePaths
                         ?? (IReadOnlyList<string>)[];
             var ctx = new RibbonExecutionContext(
                 paths,
@@ -1307,7 +1308,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void EvaluateHandlers(string text, CancellationToken token)
     {
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var pageVm = ActivePageViewModel;
         var (_, clearWinner, effectiveText, prefixed) = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
 
         if (clearWinner?.Symbol is not null)
@@ -1354,7 +1355,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// result (optionally rewriting the bar text), or <see cref="ChatKeyResult.NotHandled"/>.</summary>
     public ChatKeyResult HandleChatKey(ConsoleKey key, KeyModifiers modifiers, string text, int caretIndex)
     {
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var pageVm = ActivePageViewModel;
         foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentRuntime))
         {
             if (!h.CanHandle(pageVm)) continue;
@@ -1367,8 +1368,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>The handlers the AI bar's drops are put to, for this window's runtime.</summary>
     internal IReadOnlyList<IChatDropHandler> ChatDropHandlers => FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime);
 
-    /// <summary>The view-model of the page shown, which handlers gate on.</summary>
-    internal IPageViewModel? ActivePageViewModel => (CurrentPage as IPageView)?.ViewModel;
+    /// <summary>The focused pane's page view-model, made if the page has not been shown yet.</summary>
+    internal IPageViewModel? ActivePageViewModel => FocusedPane.ActivePage?.GetOrCreateViewModel();
 
     /// <summary>
     /// What was dropped on a pane's tabs — files, or a link — each opened in a tab of its own. This window is made the
@@ -1388,7 +1389,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void PushInputPreview(string text)
     {
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
+        var pageVm = ActivePageViewModel;
         foreach (var p in FeatureManager.Instance.GetChatInputPreviews(CurrentRuntime))
             if (p.CanPreview(pageVm)) p.OnInputChanged(text, pageVm);
     }
@@ -1420,28 +1421,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     private enum TurnOutcome { Completed, Cancelled, Prefill, Error }
-
-    /// <summary>One inline banner handler per engagement page (keyed by the page's view-model).</summary>
-    private readonly Dictionary<IChatEngagement, InlineAiResponseHandler> _inlineHandlers = [];
-
-    /// <summary>
-    /// Gets — or lazily creates and wires — the inline banner handler for an engagement page: builds the
-    /// banner, injects it into the page's host, hands the handler to the page (so it can drive its own
-    /// banner, e.g. for a background-command result), and caches it. Called only while the engagement page
-    /// is the active tab, so <see cref="ActiveTab"/> is that page.
-    /// </summary>
-    private InlineAiResponseHandler AcquireInlineHandler(IChatEngagement eng)
-    {
-        if (_inlineHandlers.TryGetValue(eng, out var existing)) return existing;
-
-        var page    = ActiveTab!;
-        var handler = new InlineAiResponseHandler(this, eng, page);
-        eng.GetHostUserControl().Content = new Controls.AiResponseBanner { DataContext = handler };
-        eng.SetResponseHandler(handler);
-        _inlineHandlers[eng] = handler;
-        page.Closed += (_, _) => _inlineHandlers.Remove(eng);
-        return handler;
-    }
 
     /// <summary>The handler driving the in-flight run, or null when idle. While set, a new submission is
     /// queued into it as an interjection rather than starting a fresh run.</summary>
@@ -1488,125 +1467,176 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                 AiInputText = originalInput;
         }
 
-        var pageVm = (CurrentPage as IPageView)?.ViewModel;
-        var svc    = CurrentRuntime.AiService!;
+        var pageVm  = ActivePageViewModel;
+        var handler = ResponseSurfaceFor(pageVm);
+        await RunTurnsAsync(handler,
+                            () => RunTypedTurnAsync(text, pageVm, handler, sendToken),
+                            leftover => RunTypedTurnAsync(leftover, pageVm, handler, sendToken),
+                            RestoreInputIfCancelled);
+    }
 
-        // Pick the response surface: a page that renders AI itself (e.g. the conversation) uses its own;
-        // a page that hosts the shared inline banner (IChatEngagement, e.g. the console) gets that banner;
-        // otherwise the shell's modal overlay (Ai). Either way the agent loop talks only to this handler.
-        IAIResponseHandler handler =
-            pageVm as IAIResponseHandler
-            ?? (pageVm is IChatEngagement eng ? (IAIResponseHandler)AcquireInlineHandler(eng) : null)
-            ?? Ai;
+    /// <summary>
+    /// Picks up work the assistant set going in the background that has ended, while the user is still on <paramref name="context"/>:
+    /// a turn of the assistant's own, answered where any turn about that page is, the outcome its request. With a run already in
+    /// flight, the outcome joins it, as words typed meanwhile do.
+    /// </summary>
+    public async Task ContinueAfterBackgroundJobAsync(IPageViewModel context, string about, string outcome)
+    {
+        if (_runningHandler is { } running) { running.Enqueue(PickUp(outcome)); return; }
 
-        // Runs one prompt → answer. Returns how it ended so the outer loop can deliver any late interjections.
-        async Task<TurnOutcome> RunTurn(string input)
+        var handler = ResponseSurfaceFor(context);
+        _aiSendCts = new CancellationTokenSource();
+        var token = _aiSendCts.Token;
+
+        async Task<TurnOutcome> PickUpTurn()
         {
-            // Scored BEFORE anything is shown. A query handler that owns the input never reaches the AI, so
-            // presenting the AI's response surface for it is wrong even briefly — and not briefly at all
-            // when the handler is slow: the overlay stayed up for the whole of a folder scan, sitting over
-            // the results that scan was busy producing. Scoring is synchronous, so there is nothing to
-            // show during it.
-            var (scored, clearWinner, effectiveText, prefixed) = svc.ScoreHandlers(input, pageVm);
-            var effective = effectiveText;
-
-            if (clearWinner is not null)
-            {
-                string? won;
-                try   { won = await clearWinner.ProcessAsync(effective, prefixed, pageVm); }
-                catch (Exception ex) { ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
-
-                // Only a handler with something to SAY needs the surface. One that renders its own result —
-                // a search filling its list — stays silent, and the overlay never appears.
-                if (won is not null)
-                {
-                    handler.BeginResponse(input);
-                    handler.ShowFinal(won);
-                }
-                return TurnOutcome.Completed;
-            }
-
-            handler.BeginResponse(input);   // echo the user + show a "considering" placeholder
-
-            // Pinned context may still be gathering (e.g. SystemInfo's background scan). Hold the turn
-            // until the active page reports ready so the model sees real data, not a "still gathering…" stub.
-            await WaitForContextAsync(handler, pageVm, sendToken);
-            if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
-
-            // No clear winner: asking the model which tool to use is itself an AI call, so the surface is
-            // already up by here and stays up.
-            IQueryHandler? selected = null;
-            if (scored.Count > 0)
-            {
-                try   { selected = await svc.DisambiguateToolSelection(pageVm, effective, scored); }
-                catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
-            }
-
-            // A query handler matched — run it; its result is the final answer.
-            if (selected is not null)
-            {
-                string? result;
-                try   { result = await selected.ProcessAsync(effective, prefixed, pageVm); }
-                catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
-
-                if (result is not null) handler.ShowFinal(result);
-                else                    handler.Abort();
-                return TurnOutcome.Completed;
-            }
-
-            // No handler → client-side agent run; the loop drives `handler` (progress / approval / final).
-            AiResponse? response;
-            try
-            {
-                // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly.
-                var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed;
-                response = await svc.RunAgentAsync(pageVm, effective, IncludeContext, handler, options, sendToken);
-            }
-            catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }
-            catch (Exception ex)               { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
-
-            if (response is null)
-            {
-                // Nothing assigned to answer: said in the reply's place, rather than the request vanishing.
-                if (!sendToken.IsCancellationRequested && !svc.StatusOf(AiAbility.GeneralIntelligence).IsUsable)
-                {
-                    handler.ShowFinal(Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
-                    return TurnOutcome.Completed;
-                }
-                handler.Abort();
-                return sendToken.IsCancellationRequested ? TurnOutcome.Cancelled : TurnOutcome.Completed;
-            }
-
-            // Carry the agent's touched files for the shell handler's "Continue as Conversation".
-            Ai.AgentContextPaths = response.Attachments;
-
-            if (response.Kind == AiResponseKind.Prefill)
-            {
-                handler.Abort();
-                await AnimatePrefillAsync(response.Text!);
-                return TurnOutcome.Prefill;
-            }
-            return TurnOutcome.Completed;   // Message: already rendered by handler.ShowFinal in the loop
+            handler.BeginFollowUp(about, outcome);
+            await WaitForContextAsync(handler, context, token);
+            if (token.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
+            return await RunAgentTurnAsync(context, PickUp(outcome), handler, includeContext: true, token);
         }
 
+        await RunTurnsAsync(handler, PickUpTurn, leftover => RunTypedTurnAsync(leftover, context, handler, token), onCancelled: null);
+    }
+
+    /// <summary>What the assistant is told when work it set going has ended and it picks it up.</summary>
+    private static string PickUp(string outcome) =>
+        $"Work you set going in the background has ended: {outcome}\n\n" +
+        "Tell the user briefly what came of it, or carry on with it where it waits on something you can do.";
+
+    /// <summary>
+    /// Where a turn about <paramref name="pageVm"/> is answered: a page that renders the assistant itself (e.g. the conversation) in
+    /// itself; any other in this window's AI bar (Ai). Either way the agent loop talks only to this handler.
+    /// </summary>
+    private IAIResponseHandler ResponseSurfaceFor(IPageViewModel? pageVm) => pageVm as IAIResponseHandler ?? Ai;
+
+    /// <summary>
+    /// Runs a run's turns on <paramref name="handler"/>: the first, then each follow-up the user typed after the run's last turn
+    /// boundary, until one ends other than completed. While it runs, words typed meanwhile join it as interjections.
+    /// </summary>
+    private async Task RunTurnsAsync(IAIResponseHandler handler, Func<Task<TurnOutcome>> first, Func<string, Task<TurnOutcome>> next,
+                                     Action? onCancelled)
+    {
         _runningHandler = handler;
         AiIsBusy = true;
         try
         {
-            var input = text;
+            var outcome = await first();
             while (true)
             {
-                var outcome = await RunTurn(input);
-                if (outcome == TurnOutcome.Cancelled) { RestoreInputIfCancelled(); break; }
+                if (outcome == TurnOutcome.Cancelled) { onCancelled?.Invoke(); break; }
                 if (outcome != TurnOutcome.Completed) break;   // Prefill / Error
 
                 // A message arrived after the run's last turn boundary — run it as a fresh follow-up.
                 var leftover = handler.DrainQueue();
                 if (leftover.Count == 0) break;
-                input = string.Join("\n", leftover);
+                outcome = await next(string.Join("\n", leftover));
             }
         }
         finally { _runningHandler = null; AiIsBusy = false; }
+    }
+
+    /// <summary>
+    /// Runs one typed prompt → answer: a query handler that owns it answers it; otherwise the agent does. Returns how it ended so
+    /// the caller can deliver any late interjections.
+    /// </summary>
+    private async Task<TurnOutcome> RunTypedTurnAsync(string input, IPageViewModel? pageVm, IAIResponseHandler handler, CancellationToken sendToken)
+    {
+        var svc = CurrentRuntime.AiService!;
+
+        // Scored BEFORE anything is shown. A query handler that owns the input never reaches the AI, so
+        // presenting the AI's response surface for it is wrong even briefly — and not briefly at all
+        // when the handler is slow: the overlay stayed up for the whole of a folder scan, sitting over
+        // the results that scan was busy producing. Scoring is synchronous, so there is nothing to
+        // show during it.
+        var (scored, clearWinner, effectiveText, prefixed) = svc.ScoreHandlers(input, pageVm);
+        var effective = effectiveText;
+
+        if (clearWinner is not null)
+        {
+            string? won;
+            try   { won = await clearWinner.ProcessAsync(effective, prefixed, pageVm); }
+            catch (Exception ex) { ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
+
+            // Only a handler with something to SAY needs the surface. One that renders its own result —
+            // a search filling its list — stays silent, and the overlay never appears.
+            if (won is not null)
+            {
+                handler.BeginResponse(input);
+                handler.ShowFinal(won);
+            }
+            return TurnOutcome.Completed;
+        }
+
+        handler.BeginResponse(input);   // echo the user + show a "considering" placeholder
+
+        // Pinned context may still be gathering (e.g. SystemInfo's background scan). Hold the turn
+        // until the active page reports ready so the model sees real data, not a "still gathering…" stub.
+        await WaitForContextAsync(handler, pageVm, sendToken);
+        if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
+
+        // No clear winner: asking the model which tool to use is itself an AI call, so the surface is
+        // already up by here and stays up.
+        IQueryHandler? selected = null;
+        if (scored.Count > 0)
+        {
+            try   { selected = await svc.DisambiguateToolSelection(pageVm, effective, scored); }
+            catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
+        }
+
+        // A query handler matched — run it; its result is the final answer.
+        if (selected is not null)
+        {
+            string? result;
+            try   { result = await selected.ProcessAsync(effective, prefixed, pageVm); }
+            catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
+
+            if (result is not null) handler.ShowFinal(result);
+            else                    handler.Abort();
+            return TurnOutcome.Completed;
+        }
+
+        // No handler → client-side agent run.
+        return await RunAgentTurnAsync(pageVm, effective, handler, IncludeContext, sendToken);
+    }
+
+    /// <summary>One request of the agent's: the client-side agent loop, driving <paramref name="handler"/> (progress / approval / final).</summary>
+    private async Task<TurnOutcome> RunAgentTurnAsync(IPageViewModel? pageVm, string input, IAIResponseHandler handler, bool includeContext,
+                                                      CancellationToken token)
+    {
+        var svc = CurrentRuntime.AiService!;
+        AiResponse? response;
+        try
+        {
+            // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly.
+            var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed;
+            response = await svc.RunAgentAsync(pageVm, input, includeContext, handler, options, token);
+        }
+        catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }
+        catch (Exception ex)               { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
+
+        if (response is null)
+        {
+            // Nothing assigned to answer: said in the reply's place, rather than the request vanishing.
+            if (!token.IsCancellationRequested && !svc.StatusOf(AiAbility.GeneralIntelligence).IsUsable)
+            {
+                handler.ShowFinal(Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
+                return TurnOutcome.Completed;
+            }
+            handler.Abort();
+            return token.IsCancellationRequested ? TurnOutcome.Cancelled : TurnOutcome.Completed;
+        }
+
+        // Carry the agent's touched files for the shell handler's "Continue as Conversation".
+        Ai.AgentContextPaths = response.Attachments;
+
+        if (response.Kind == AiResponseKind.Prefill)
+        {
+            handler.Abort();
+            await AnimatePrefillAsync(response.Text!);
+            return TurnOutcome.Prefill;
+        }
+        return TurnOutcome.Completed;   // Message: already rendered by handler.ShowFinal in the loop
     }
 
     private async Task AnimatePrefillAsync(string prefill)
@@ -1646,10 +1676,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         string language = SpokenLanguage();
         if (ai is not null && ai.CanConverse(language))
         {
-            var pageVm = (CurrentPage as IPageView)?.ViewModel;
+            var pageVm = ActivePageViewModel;
             try
             {
-                await Voice.StartAsync(ai, () => (CurrentPage as IPageView)?.ViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
+                await Voice.StartAsync(ai, () => ActivePageViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
             }
             catch (Exception ex)
             {

@@ -67,7 +67,7 @@ public class VirtualDiskViewModelTests
         // The As-Disk tab is display-only: activating a file must not open a tab, hand it off, or launch it.
         shell.DidNotReceive().HandleObject(Arg.Any<object>());
         shell.DidNotReceive().OpenTab(Arg.Any<string>(), Arg.Any<System.Collections.Generic.Dictionary<string, string>>(),
-                                      Arg.Any<IPageView?>(), Arg.Any<bool>());
+                                      Arg.Any<Page?>(), Arg.Any<bool>());
     }
 
     [TestMethod]

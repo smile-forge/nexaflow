@@ -1,14 +1,14 @@
-using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Compressed.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Compressed.Views;
 
-public partial class CompressedView : UserControl, IPageView
+[ViewFor(typeof(CompressedViewModel))]
+public partial class CompressedView : UserControl
 {
     private readonly CompressedViewModel _vm;
 
@@ -17,13 +17,6 @@ public partial class CompressedView : UserControl, IPageView
         InitializeComponent();
         _vm = vm;
         DataContext = vm;
-    }
-
-    public IPageViewModel? ViewModel => _vm;
-
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        // Single-archive tab — params don't change after creation; nothing to re-init.
     }
 
     private void EntryList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
