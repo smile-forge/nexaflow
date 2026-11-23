@@ -79,7 +79,8 @@ public sealed class ConsoleAgentModelTests
         var folder = TestTemp.CreateSubdirectory("nexa-agent-console-").FullName;
         await System.IO.File.WriteAllTextAsync(System.IO.Path.Combine(folder, "facts.txt"), Facts.Replace("\n", "\r\n"));
 
-        await AsksAsync(model, new TerminalShellRoute(new PseudoConsoleLauncher(), new CmdShellDialect(), folder), []);
+        await AsksAsync(model, new TerminalShellRoute(new PseudoConsoleLauncher(), new CmdShellDialect(), folder,
+                                                      Nexaflow.IO.Common.VirtualFileSystem.Instance), []);
     }
 
     [TestMethod]

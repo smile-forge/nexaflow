@@ -125,7 +125,12 @@ public abstract class LiveShellTests
         _ui.InvokeShutdown();
     }
 
-    private void OnUi(Action action) => _ui.Invoke(action);
+    protected void OnUi(Action action) => _ui.Invoke(action);
+
+    protected T OnUi<T>(Func<T> read) => _ui.Invoke(read);
+
+    /// <summary>The terminal under test, to be read and driven on its UI thread (<see cref="OnUi(Action)"/>).</summary>
+    protected TerminalViewModel Terminal => _terminal;
 
     protected async Task<TerminalViewModel> TerminalOnceItsProgramsAreListedAsync()
     {
@@ -135,7 +140,7 @@ public abstract class LiveShellTests
 
     private string Everything() => _ui.Invoke(() => string.Join("\n", _terminal.Scrollback.Append(_terminal.ScreenText)));
 
-    private async Task UntilAsync(Func<bool> met, string what)
+    protected async Task UntilAsync(Func<bool> met, string what)
     {
         var deadline = DateTime.UtcNow + Patience;
         while (DateTime.UtcNow < deadline)
@@ -266,7 +271,7 @@ public sealed class LiveCmdShellTests : LiveShellTests
         _folder = TestTemp.CreateSubdirectory("nexa-live-cmd-").FullName;
         System.IO.File.WriteAllText(System.IO.Path.Combine(_folder, "claim.txt"),
             $"\x1b]7;file://localhost/{Windows.Replace('\\', '/')}\x1b\\{Windows}>");
-        return Task.FromResult((new TerminalShellRoute(new PseudoConsoleLauncher(), new CmdShellDialect(), _folder),
+        return Task.FromResult((new TerminalShellRoute(new PseudoConsoleLauncher(), new CmdShellDialect(), _folder, VirtualFileSystem.Instance),
                                 new Dictionary<string, string>()));
     }
 
@@ -305,6 +310,38 @@ public sealed class LiveWslShellTests : LiveShellTests
 {
     private LocationSessionPool? _pool;
     private LocationSet? _set;
+    private LocationFileSystem? _files;
+
+    [TestMethod]
+    [CoversNode("console-env-panel")]
+    public async Task InADistro_TheConsoleShowsItsFolder_ItsFiles_AndItsOwnVariables()
+    {
+        var name   = $"nexaflow-console-{Guid.NewGuid():N}";
+        var folder = $@"{_set!.Mounts[0].Root}\tmp\{name}";
+        await _files!.CreateDirectoryAsync(folder);
+        await _files.WriteAllTextAsync(_files.ChildPath(folder, "at 12:30.txt"), "half past");
+        try
+        {
+            OnUi(() => Terminal.SendCommand($"cd '/tmp/{name}' && export NEXAFLOW_PROBE='from the distro'"));
+
+            await UntilAsync(() => Terminal.ShownPath == $"/tmp/{name}", "the folder, as Linux names it");
+            await UntilAsync(() => Terminal.Files.Any(f => f.Name == "at 12:30.txt"), "its file, as Linux names it");
+            await UntilAsync(() => Terminal.EnvVars.Any(v => v.Name == "NEXAFLOW_PROBE" && v.Value == "from the distro"),
+                             "the shell's own export, live");
+            Assert.IsFalse(OnUi(() => Terminal.EnvVars.Any(v => v.Name.Equals("SystemRoot", StringComparison.OrdinalIgnoreCase))),
+                           "none of this computer's");
+            Assert.IsTrue(OnUi(() => Terminal.EnvScopes.Contains(EnvScope.Startup)), "variables can be kept for new shells");
+
+            OnUi(() => Terminal.ListsStartupEnvironment = true);
+            await UntilAsync(() => Terminal.EnvVars.Any(v => v.Name == "HOME") && Terminal.EnvVars.All(v => v.Name != "NEXAFLOW_PROBE"),
+                             "a new shell's variables, without this one's export");
+        }
+        finally
+        {
+            OnUi(() => Terminal.SendCommand("cd /tmp"));
+            await _files.DeleteAsync(folder, recursive: true);
+        }
+    }
 
     private sealed class NoSecrets : ISecretStore
     {
@@ -325,6 +362,7 @@ public sealed class LiveWslShellTests : LiveShellTests
         _set  = _pool.Acquire([distros[0]]);
         var files = new LocationFileSystem(VirtualFileSystem.Instance);
         files.RegisterLocation(_set.Mounts[0]);
+        _files = files;
 
         return (TerminalShellRoute.ForFolder(files, $@"{_set.Mounts[0].Root}\tmp", new PseudoConsoleLauncher(), new CmdShellDialect(files)),
                 new Dictionary<string, string> { ["HISTFILE"] = "/dev/null" });

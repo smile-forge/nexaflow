@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Terminal;
@@ -56,7 +57,7 @@ public class ConsoleSurfaceTests
 
     [TestMethod]
     [CoversNode("console-files-panel")]
-    public void TheFilesPanelListsFilesFirst_ThenFolders()
+    public async Task TheFilesPanelListsFilesFirst_ThenFolders()
     {
         // Explorer puts folders first. This panel does the opposite on purpose: it exists mainly to drag
         // a path onto the console or the AI bar, and that is nearly always a file.
@@ -65,7 +66,7 @@ public class ConsoleSurfaceTests
         File.WriteAllText(Path.Combine(_tmp, "b.txt"), "");
         File.WriteAllText(Path.Combine(_tmp, "a.txt"), "");
 
-        var listed = TerminalFileList.Enumerate(_tmp);
+        var listed = await TerminalFileList.ListAsync(VirtualFileSystem.Instance, _tmp, path => path, CancellationToken.None);
 
         CollectionAssert.AreEqual(new[] { "a.txt", "b.txt", "alpha-folder", "zeta-folder" },
                                   listed.Select(e => Path.GetFileName(e.FullPath)).ToArray());
@@ -75,13 +76,14 @@ public class ConsoleSurfaceTests
 
     [TestMethod]
     [CoversNode("console-files-panel")]
-    public void AFolderTheShellCannotReachListsEmpty_RatherThanThrowing()
+    public async Task AFolderTheShellCannotReachListsEmpty_RatherThanThrowing()
     {
         // The panel follows a live shell, which can be sitting anywhere — including a path that has just
         // been removed under it, or one it has no rights to.
-        Assert.AreEqual(0, TerminalFileList.Enumerate(Path.Combine(_tmp, "gone")).Count);
-        Assert.AreEqual(0, TerminalFileList.Enumerate(null).Count);
-        Assert.AreEqual(0, TerminalFileList.Enumerate("").Count);
+        var files = VirtualFileSystem.Instance;
+        Assert.AreEqual(0, (await TerminalFileList.ListAsync(files, Path.Combine(_tmp, "gone"), p => p, CancellationToken.None)).Count);
+        Assert.AreEqual(0, (await TerminalFileList.ListAsync(files, null, p => p, CancellationToken.None)).Count);
+        Assert.AreEqual(0, (await TerminalFileList.ListAsync(files, "", p => p, CancellationToken.None)).Count);
     }
 
     [TestMethod]
@@ -90,12 +92,12 @@ public class ConsoleSurfaceTests
     {
         var vm = Terminal(out _);
 
-        vm.NavigateInto(new TerminalFsEntry(@"C:\work\src", isDirectory: true));
+        vm.NavigateInto(new TerminalFsEntry(@"C:\work\src", "src", @"C:\work\src", isDirectory: true));
         Assert.AreEqual(1, vm.CommandHistory.Count);
         StringAssert.Contains(vm.CommandHistory[0], @"cd /d ""C:\work\src""",
                               "the quoted /d form, so a drive change works and a space in the path survives");
 
-        vm.NavigateInto(new TerminalFsEntry(@"C:\work\notes.txt", isDirectory: false));
+        vm.NavigateInto(new TerminalFsEntry(@"C:\work\notes.txt", "notes.txt", @"C:\work\notes.txt", isDirectory: false));
         Assert.AreEqual(1, vm.CommandHistory.Count, "a file is there to be dragged, not to be run");
     }
 

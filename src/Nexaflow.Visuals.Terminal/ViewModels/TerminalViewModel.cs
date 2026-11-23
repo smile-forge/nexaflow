@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Common.Terminal;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Common.Localization;
@@ -83,15 +84,21 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// on each chunk. Together with <see cref="Scrollback"/> this is the full terminal display.</summary>
     [ObservableProperty] private string _screenText = string.Empty;
 
-    /// <summary>The shell's folder, shown in the top bar, as its dialect names folders: where it started, then where its host
-    /// says it is. It is what the assistant is granted and what the tab saves, so nothing printed ever sets it.</summary>
-    [ObservableProperty] private string _currentPath =
+    /// <summary>The shell's folder as the file system names it: where it started, then where its host says it is. It is what
+    /// the assistant is granted and what the tab saves, so nothing printed ever sets it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownPath))]
+    private string _currentPath =
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    /// <summary>The shell's folder in the top bar, as the shell names it — <c>/home/adam</c> in a WSL distro.</summary>
+    public string ShownPath => Dialect.ShowPath(CurrentPath);
 
     /// <summary>True while the most recently sent command is still running.</summary>
     [ObservableProperty] private bool _isBusy;
 
-    /// <summary>Live process environment snapshot for the Environment sub-tab.</summary>
+    /// <summary>The shell's variables for the Environment sub-tab: its host's where it can say — a WSL distro's, live or as a
+    /// new shell starts — and this computer's for this computer's own shell.</summary>
     public ObservableCollection<EnvVar> EnvVars { get; } = [];
 
     /// <summary>Filter text for the Environment list (matches name or value, case-insensitive).</summary>
@@ -193,7 +200,6 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         _initPhase       = _pendingInitCmd is not null ? 0 : 2;
 
         ShellStarted = StartAsync(new TerminalLaunch(_route.StartFolder, overrides, _cols, _rows));
-        RefreshEnvVars();
         RefreshFiles();
     }
 
@@ -236,6 +242,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         if ((_cols, _rows) != (launch.Columns, launch.Rows)) transport.Resize(_cols, _rows);
         ShellCommandsListed = LoadShellCommandsAsync();
         _ = KeepFollowingShellFolderAsync(_disposeCts.Token);
+        await _shell.RunOnUiAsync(() => AdoptShellEnvironment(transport.ShellEnvironment));
     }
 
     /// <summary>Sends <paramref name="text"/> as typed; before the shell is there it waits, and goes once it is.</summary>
@@ -541,7 +548,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         _captureTcs?.TrySetResult(true);   // a capture in flight: the command finished (clean prompt)
         if (!shellsOwn) return;
 
-        RefreshEnvVars();
+        RefreshEnvVars(atPrompt: true);
         HandlePromptDetected();
         SyncTabMeta();
     }
@@ -764,8 +771,48 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     [ObservableProperty] private string   _envEditValue = string.Empty;
     [ObservableProperty] private EnvScope _envEditScope = EnvScope.Session;
 
-    /// <summary>Scopes offered in the edit overlay's selector.</summary>
-    public IReadOnlyList<EnvScope> EnvScopes { get; } = [EnvScope.Session, EnvScope.User, EnvScope.Machine];
+    /// <summary>Scopes offered in the edit overlay's selector: this computer's for its own shell, and for a shell whose host
+    /// knows its environment the shell's own — live, and for new shells where it keeps a startup file.</summary>
+    [ObservableProperty] private IReadOnlyList<EnvScope> _envScopes = [EnvScope.Session, EnvScope.User, EnvScope.Machine];
+
+    /// <summary>The shell's environment as its host knows it, once the shell is there; null for this computer's own shell.</summary>
+    private IShellEnvironment? _shellEnvironment;
+
+    /// <summary>Whether this computer's variables are the shell's — known once the shell is there.</summary>
+    private bool _listsThisComputer;
+
+    // Each listing of the variables, so one overtaken by a later one is not shown.
+    private int _envListing;
+
+    /// <summary>Whether the panel switches between the shell's live variables and a new shell's.</summary>
+    [ObservableProperty] private bool _switchesEnvironment;
+
+    /// <summary>Which of the shell's environments the panel lists.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ListsLiveEnvironment), nameof(ListsStartupEnvironment))]
+    private ShellEnvironmentView _shownEnvironment = ShellEnvironmentView.Live;
+
+    partial void OnShownEnvironmentChanged(ShellEnvironmentView value) => RefreshEnvVars(atPrompt: false);
+
+    /// <summary>The panel lists the variables the shell holds now; set to show them.</summary>
+    public bool ListsLiveEnvironment
+    {
+        get => ShownEnvironment == ShellEnvironmentView.Live;
+        set { if (value) ShownEnvironment = ShellEnvironmentView.Live; }
+    }
+
+    /// <summary>The panel lists the variables a new shell starts with; set to show them.</summary>
+    public bool ListsStartupEnvironment
+    {
+        get => ShownEnvironment == ShellEnvironmentView.Startup;
+        set { if (value) ShownEnvironment = ShellEnvironmentView.Startup; }
+    }
+
+    /// <summary>The scope an edit starts at: the one matching what the panel lists.</summary>
+    private EnvScope DefaultEnvScope
+        => _shellEnvironment is null                                                              ? EnvScope.Session
+         : ShownEnvironment == ShellEnvironmentView.Startup && EnvScopes.Contains(EnvScope.Startup) ? EnvScope.Startup
+         : EnvScope.Live;
 
     /// <summary>The name is fixed when editing an existing variable; only new variables can name themselves.</summary>
     public bool EnvEditNameReadOnly => !EnvEditIsNew;
@@ -777,7 +824,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         EnvEditIsNew  = false;
         EnvEditName   = env.Name;
         EnvEditValue  = env.Value;
-        EnvEditScope  = EnvScope.Session;
+        EnvEditScope  = DefaultEnvScope;
         EnvEditVisible = true;
     }
 
@@ -787,7 +834,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         EnvEditIsNew  = true;
         EnvEditName   = string.Empty;
         EnvEditValue  = string.Empty;
-        EnvEditScope  = EnvScope.Session;
+        EnvEditScope  = DefaultEnvScope;
         EnvEditVisible = true;
     }
 
@@ -800,6 +847,9 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
         if (await WriteEnvVarAsync(EnvEditScope, name, EnvEditValue))
         {
+            // The shell's own list follows the shell: a live change at the prompt after its export, a kept one as it is read
+            // again.
+            if (_shellEnvironment is not null) return;
             // Reflect the change in the snapshot. A Session write also shows up at the next prompt
             // refresh; User/Machine writes are visible immediately via GetEnvironmentVariables.
             var existing = EnvVars.FirstOrDefault(e =>
@@ -874,17 +924,27 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// shell never saw it).</item>
     /// <item><b>User</b> — the current user's persistent environment (no elevation).</item>
     /// <item><b>Machine</b> — the machine-wide environment via the elevated bridge (approval-gated).</item>
+    /// <item><b>Live</b> — a shell whose host knows its environment: the running shell, as Session is.</item>
+    /// <item><b>Startup</b> — that shell's startup file, through the file system, so new shells start with it.</item>
     /// </list>
     /// </summary>
     public async Task<bool> WriteEnvVarAsync(EnvScope scope, string name, string value)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
+        if (!Dialect.NamesVariable(name))
+        {
+            _shell.ShowError(Str.Format("Terminal.EnvEdit.NotANameFormat", name));
+            return false;
+        }
 
         switch (scope)
         {
-            case EnvScope.Session:
+            case EnvScope.Session or EnvScope.Live:
                 SendCommand(Dialect.FormatSetCommand(name, value));
                 return true;
+
+            case EnvScope.Startup:
+                return await KeepForNewShellsAsync(name, value);
 
             case EnvScope.User:
                 try
@@ -912,31 +972,153 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         }
     }
 
-    private void RefreshEnvVars()
+    /// <summary>
+    /// Takes the shell's environment from its host once the shell is there: a WSL distro's shell lists the distro's variables —
+    /// live at each prompt, or as a new shell starts — and its edits go to that shell or its startup file; this computer's own
+    /// shell lists this computer's.
+    /// </summary>
+    private void AdoptShellEnvironment(IShellEnvironment? environment)
     {
-        var sorted = Environment.GetEnvironmentVariables()
-            .Cast<System.Collections.DictionaryEntry>()
-            .Select(kv => new EnvVar
+        if (_disposed) return;
+        _shellEnvironment  = environment;
+        _listsThisComputer = environment is null;
+        if (environment is { Views: [var first, ..] views })
+        {
+            SwitchesEnvironment = views.Count > 1;
+            EnvScopes           = [EnvScope.Live];
+            _ = OfferStartupScopeAsync(environment);
+            if (ShownEnvironment != first)
             {
-                Name  = kv.Key?.ToString()   ?? string.Empty,
-                Value = kv.Value?.ToString() ?? string.Empty
-            })
-            .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+                ShownEnvironment = first;   // lists it
+                return;
+            }
+        }
+        RefreshEnvVars(atPrompt: false);
+    }
 
+    /// <summary>Offers to keep a variable for new shells once the shell is known to read a startup file it can be kept in.</summary>
+    private async Task OfferStartupScopeAsync(IShellEnvironment environment)
+    {
+        try
+        {
+            if (await environment.FindStartupFileAsync(_disposeCts.Token) is null) return;
+            await _shell.RunOnUiAsync(() => EnvScopes = [EnvScope.Live, EnvScope.Startup]);
+        }
+        catch (Exception unknown) when (unknown is OperationCanceledException or LocationException or IOException)
+        {
+            // closed, or the host cannot say: only the live scope is offered
+        }
+    }
+
+    /// <summary>
+    /// Lists the shell's variables: its host's where it knows them, else this computer's once the shell is this computer's
+    /// own. At a prompt only the live list is read again — a new shell's is read when shown, and after a change kept for it.
+    /// </summary>
+    private void RefreshEnvVars(bool atPrompt)
+    {
+        if (_shellEnvironment is { } environment)
+        {
+            if (atPrompt && ShownEnvironment != ShellEnvironmentView.Live) return;
+            _ = ListShellEnvironmentAsync(environment, ShownEnvironment, ++_envListing);
+            return;
+        }
+        if (!_listsThisComputer) return;   // the shell is not there yet: whose variables it has is not known
+
+        ShowEnvVars(Environment.GetEnvironmentVariables()
+            .Cast<System.Collections.DictionaryEntry>()
+            .Select(kv => new EnvVar { Name = kv.Key?.ToString() ?? string.Empty, Value = kv.Value?.ToString() ?? string.Empty }));
+    }
+
+    private async Task ListShellEnvironmentAsync(IShellEnvironment environment, ShellEnvironmentView view, int listing)
+    {
+        IReadOnlyDictionary<string, string>? variables;
+        try
+        {
+            variables = await environment.ReadAsync(view, _disposeCts.Token);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception unread) when (unread is LocationException or IOException)
+        {
+            System.Diagnostics.Trace.TraceWarning($"The shell's variables could not be read: {unread.Message}");
+            return;
+        }
+        if (variables is null) return;   // not known yet: what is listed stands
+
+        await _shell.RunOnUiAsync(() =>
+        {
+            if (listing != _envListing || _disposed) return;
+            ShowEnvVars(variables.Select(kv => new EnvVar { Name = kv.Key, Value = kv.Value }));
+        });
+    }
+
+    private void ShowEnvVars(IEnumerable<EnvVar> variables)
+    {
+        var sorted = variables.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Name, StringComparer.Ordinal).ToList();
         EnvVars.Clear();
         foreach (var v in sorted) EnvVars.Add(v);
     }
 
     /// <summary>
-    /// Lists the current directory for the Files sub-tab. Files are listed first (they're the panel's
-    /// main use — drag a path onto the console/bar); folders follow for navigation.
+    /// Keeps a variable for new shells in the shell's startup file, written through the file system so the file keeps its
+    /// permissions — between Nexaflow's own marks, so the user's lines stand as they are. A new shell's list is read again after.
     /// </summary>
-    private void RefreshFiles()
+    private async Task<bool> KeepForNewShellsAsync(string name, string value)
     {
-        Files.Clear();
-        foreach (var entry in TerminalFileList.Enumerate(CurrentPath)) Files.Add(entry);
+        if (_shellEnvironment is not { } environment) return false;
+        var ct = _disposeCts.Token;
+        try
+        {
+            if (await environment.FindStartupFileAsync(ct) is not { } named || Dialect.ToFolder(named) is not { } file)
+            {
+                _shell.ShowError(Str.Get("Terminal.EnvEdit.NoStartupFile"));
+                return false;
+            }
+            var text = await _route.Files.ExistsAsync(file, ct) ? await _route.Files.ReadAllTextAsync(file, null, ct) : string.Empty;
+            if (Dialect.KeepInStartupFile(text, name, value) is not { } kept)
+            {
+                _shell.ShowError(Str.Format("Terminal.EnvEdit.CannotKeepFormat", name));
+                return false;
+            }
+            await _route.Files.WriteAllTextAsync(file, kept, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), ct);
+        }
+        catch (OperationCanceledException) { return false; }
+        catch (Exception failed) when (failed is LocationException or IOException or UnauthorizedAccessException)
+        {
+            _shell.ShowError(Str.Format("Terminal.EnvEdit.StartupFailedFormat", name, failed.Message));
+            return false;
+        }
+
+        await _shell.RunOnUiAsync(() => { if (ShownEnvironment == ShellEnvironmentView.Startup) RefreshEnvVars(atPrompt: false); });
+        return true;
     }
+
+    /// <summary>
+    /// Lists the shell's folder for the Files sub-tab, through the file system it is named in — a WSL distro's as well as this
+    /// disk's. Files are listed first (they're the panel's main use — drag a path onto the console/bar); folders follow for
+    /// navigation. A listing overtaken by a later move is not shown.
+    /// </summary>
+    private void RefreshFiles() => _ = ListFilesAsync(CurrentPath, ++_filesListing);
+
+    // Each listing of the folder, so one overtaken by a later move is not shown.
+    private int _filesListing;
+
+    private async Task ListFilesAsync(string folder, int listing)
+    {
+        var listed = await TerminalFileList.ListAsync(_route.Files, folder, Dialect.ShowPath, _disposeCts.Token);
+        await _shell.RunOnUiAsync(() =>
+        {
+            if (listing != _filesListing || _disposed) return;
+            Files.Clear();
+            foreach (var entry in listed) Files.Add(entry);
+        });
+    }
+
+    /// <summary>A file of the Files panel as another program opens it: where Windows reaches it — a WSL distro's by its
+    /// <c>\\wsl.localhost</c> path — dragged out of the panel.</summary>
+    public string WindowsPathOf(TerminalFsEntry entry) => _route.Files.TryResolveReal(entry.FullPath) ?? entry.FullPath;
+
+    /// <summary>Files dropped on the console or its AI bar, as the words of this shell's command line that name them.</summary>
+    public string? FormatDroppedPaths(IDataObject data) => TerminalDropLogic.BuildInsertText(data, Dialect.FormatPathWord);
 
     /// <summary>Navigates the shell into a folder from the Files panel (double-click).</summary>
     public void NavigateInto(TerminalFsEntry entry)
@@ -948,7 +1130,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     public string GetContext()
     {
-        var ctx = $"Terminal: '{CurrentPath}', running {Dialect.Description}.";
+        var ctx = $"Terminal: '{Dialect.DescribeFolder(CurrentPath)}', running {Dialect.Description}.";
 
         // If a command the AI ran is still being watched in the background, tell the model about it so a
         // new question carries that state (it hasn't completed; here's the output so far).

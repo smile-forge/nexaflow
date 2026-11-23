@@ -14,11 +14,11 @@ internal sealed class WslSession : ILocationSession
 
     private readonly WslHelperLink _link;
 
-    private WslSession(string distro, WslHelperLink link, ILocationShell shell)
+    private WslSession(string distro, WslHelperLink link, string shims, string loginShell, string home)
     {
         Distro = distro;
         _link  = link;
-        Shell  = shell;
+        Shell  = new WslShell(distro, shims, loginShell, home, link, this);
     }
 
     public string Distro { get; }
@@ -41,9 +41,9 @@ internal sealed class WslSession : ILocationSession
                 throw new LocationException(LocationError.Disconnected, "/",
                                             $"The WSL helper in '{distro}' speaks protocol {version}, not {WslWire.ProtocolVersion}.");
             reader.UInt32();
-            reader.Text();
+            var home       = reader.Text();
             var loginShell = reader.Text();
-            return new WslSession(distro, start.Link, new WslShell(distro, start.Folder, loginShell, start.Link));
+            return new WslSession(distro, start.Link, start.Folder, loginShell, home);
         }
         catch
         {

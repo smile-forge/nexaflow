@@ -124,8 +124,22 @@
           "type": "code",
           "doc": "src/Nexaflow.IO.Location.Wsl/WslTerminal.cs",
           "class": "WslTerminal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslShellEnvironment.cs",
+          "class": "WslShellEnvironment"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/Wsl/WslShellEnvironmentTests.cs",
+            "class": "WslShellEnvironmentTests"
+          }
+        ]
+      }
     },
     "io-locations-wsl-helper": {
       "links": [
@@ -265,6 +279,12 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/LiveShellTests.cs",
             "class": "LiveWslShellTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/LiveShellTests.cs",
+            "class": "LiveWslShellTests",
+            "method": "InADistro_TheConsoleShowsItsFolder_ItsFiles_AndItsOwnVariables"
           }
         ]
       }
@@ -306,6 +326,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Terminal/TerminalScreenTests.cs",
             "class": "TerminalScreenTests",
             "method": "CursorRowText_IsTheRowTheCursorIsOn"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/DistroConsoleTests.cs",
+            "class": "DistroConsoleTests",
+            "method": "TheTopBar_ShowsTheDistrosFolderAsLinuxNamesIt"
           }
         ]
       }
@@ -919,16 +945,196 @@
           }
         ]
       }
+    },
+    "console-files-panel": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "RefreshFiles"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "NavigateInto"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Terminal/TerminalFileList.cs",
+          "class": "TerminalFileList"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Terminal/TerminalFileList.cs",
+          "class": "TerminalFileList",
+          "method": "ListAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleSurfaceTests.cs",
+            "class": "ConsoleSurfaceTests",
+            "method": "TheFilesPanelListsFilesFirst_ThenFolders"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleSurfaceTests.cs",
+            "class": "ConsoleSurfaceTests",
+            "method": "AFolderTheShellCannotReachListsEmpty_RatherThanThrowing"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleSurfaceTests.cs",
+            "class": "ConsoleSurfaceTests",
+            "method": "DoubleClickingAFolderCdsIntoIt_ButAFileIsNotACommand"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/DistroConsoleTests.cs",
+            "class": "DistroConsoleTests",
+            "method": "TheFilesPanel_ListsTheDistrosFolderThroughTheDistro_NamedAsLinuxNamesThem"
+          }
+        ]
+      }
+    },
+    "console-env-panel": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "RefreshEnvVars"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Console/ConsoleJourneyTests.cs",
+          "class": "ConsoleJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+          "class": "ConsoleViewModelCommandTests"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Terminal/IShellEnvironment.cs"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+            "class": "ConsoleViewModelCommandTests",
+            "method": "EnvFilter_NarrowsTheEnvVarView_ByNameOrValue_CaseInsensitive"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/DistroConsoleTests.cs",
+            "class": "DistroConsoleTests",
+            "method": "TheLiveListIsReadAtEachPrompt_ANewShellsOnlyWhenShown"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/DistroConsoleTests.cs",
+            "class": "DistroConsoleTests",
+            "method": "TheEnvironmentPanel_ListsTheDistrosVariables_NotThisComputers"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Console/DistroConsoleJourneyTests.cs",
+            "class": "DistroConsoleJourneyTests"
+          }
+        ]
+      }
+    },
+    "console-env-edit-overlay": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+            "class": "ConsoleViewModelCommandTests",
+            "method": "AddEnvVar_OpensOverlay_AsNew_WithEditableName"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+            "class": "ConsoleViewModelCommandTests",
+            "method": "EditEnvVar_OpensOverlay_WithReadOnlyNameAndExistingValues"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleViewModelCommandTests.cs",
+            "class": "ConsoleViewModelCommandTests",
+            "method": "CancelEnvEdit_HidesOverlay"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/DistroConsoleTests.cs",
+            "class": "DistroConsoleTests",
+            "method": "AVariableKeptForNewShells_GoesBetweenNexaflowsMarks_InTheDistrosStartupFile"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/DistroConsoleTests.cs",
+            "class": "PosixStartupFileTests"
+          }
+        ]
+      }
+    },
+    "console-bar-drop": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleSurfaceTests.cs",
+            "class": "ConsoleSurfaceTests",
+            "method": "ADroppedPathWithASpaceIsQuoted"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleSurfaceTests.cs",
+            "class": "ConsoleSurfaceTests",
+            "method": "SeveralDroppedPathsBecomeOneSpaceSeparatedArgumentList"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/ConsoleSurfaceTests.cs",
+            "class": "ConsoleSurfaceTests",
+            "method": "DroppingSomethingThatIsNotAFileInsertsNothing"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Console/DistroConsoleTests.cs",
+            "class": "DistroConsoleTests",
+            "method": "AFileDropped_IsGivenToADistrosShellByItsOwnPath_HoweverItWasNamed"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 44,
+  "changed_sets": 51,
   "touched_nodes": [
     "ai-context-paths",
     "audio-tageditor-save",
     "compressed-unzip-here",
     "compressed-zip-it",
+    "console-bar-drop",
     "console-enter-classify",
+    "console-env-edit-overlay",
+    "console-env-panel",
+    "console-files-panel",
     "console-gt-prefix",
     "console-location-shell",
     "console-path-bar",

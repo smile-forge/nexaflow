@@ -8,7 +8,9 @@ namespace Nexaflow.Visuals.Terminal.Shells;
 /// The shell a terminal runs: what starts it, how to speak to it, and the folder it starts in — named as its dialect names
 /// folders, or null for wherever the shell starts on its own.
 /// </summary>
-public sealed record TerminalShellRoute(ITerminalLauncher Launcher, TerminalShellDialect Dialect, string? StartFolder)
+/// <param name="Files">The file system the shell's folders are named in, which lists them and keeps its startup file.</param>
+public sealed record TerminalShellRoute(ITerminalLauncher Launcher, TerminalShellDialect Dialect, string? StartFolder,
+                                        IVirtualFileSystem Files)
 {
     /// <summary>
     /// The shell for a terminal opened on <paramref name="folder"/>. On a location with a shell
@@ -20,14 +22,14 @@ public sealed record TerminalShellRoute(ITerminalLauncher Launcher, TerminalShel
     public static TerminalShellRoute ForFolder(IVirtualFileSystem files, string? folder,
                                                ITerminalLauncher localShell, TerminalShellDialect localDialect)
     {
-        if (folder is null) return new TerminalShellRoute(localShell, localDialect, null);
+        if (folder is null) return new TerminalShellRoute(localShell, localDialect, null, files);
 
         if ((files.GetCapabilities(folder) & LocationCapabilities.Shell) != 0)
             return new TerminalShellRoute(new LocationShellLauncher(files, folder),
-                                          PosixShellDialect.ForLocation(files, folder), folder);
+                                          PosixShellDialect.ForLocation(files, folder), folder, files);
 
         return new TerminalShellRoute(localShell, localDialect,
-            files.ResolveOnDisk(folder) ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            files.ResolveOnDisk(folder) ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), files);
     }
 }
 

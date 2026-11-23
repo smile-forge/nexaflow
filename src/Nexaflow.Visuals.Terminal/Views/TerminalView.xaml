@@ -30,7 +30,7 @@
                            Foreground="{StaticResource TextBrush}"
                            TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center"
-                           ToolTip="{Binding FullPath}"/>
+                           ToolTip="{Binding ShownPath}"/>
             </StackPanel>
         </DataTemplate>
 
@@ -225,7 +225,7 @@
 
                 <TextBlock DockPanel.Dock="Left" Text="&#x2B21;" Foreground="{StaticResource AccentBrush}"
                            FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                <TextBlock DockPanel.Dock="Left" Text="{Binding CurrentPath}"
+                <TextBlock DockPanel.Dock="Left" Text="{Binding ShownPath}"
                            Foreground="{StaticResource TextBrush}"
                            FontFamily="Consolas, Courier New" FontSize="13"
                            VerticalAlignment="Center"/>
@@ -269,6 +269,18 @@
                     <TabItem Header="{loc:Str Terminal.Side.Environment}"
                              AutomationProperties.AutomationId="Console_EnvironmentTab">
                         <DockPanel>
+                            <!-- A shell whose host knows its variables: what it holds now, or what a new one starts with. -->
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,6,6,0"
+                                        Visibility="{Binding SwitchesEnvironment, Converter={StaticResource BoolVis}}">
+                                <RadioButton Style="{StaticResource TbToggle}" GroupName="ShownEnvironment"
+                                             Content="{loc:Str Terminal.Env.Live}" ToolTip="{loc:Str Terminal.Env.LiveTip}"
+                                             AutomationProperties.AutomationId="Console_EnvLive"
+                                             IsChecked="{Binding ListsLiveEnvironment}"/>
+                                <RadioButton Style="{StaticResource TbToggle}" GroupName="ShownEnvironment" Margin="4,0,0,0"
+                                             Content="{loc:Str Terminal.Env.Startup}" ToolTip="{loc:Str Terminal.Env.StartupTip}"
+                                             AutomationProperties.AutomationId="Console_EnvStartup"
+                                             IsChecked="{Binding ListsStartupEnvironment}"/>
+                            </StackPanel>
                             <Grid DockPanel.Dock="Top" Margin="6,6,6,4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>

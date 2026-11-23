@@ -482,6 +482,8 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
         public void TerminateForeground() => inner.TerminateForeground();
         public ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken ct) => inner.GetWorkingDirectoryAsync(ct);
 
+        public IShellEnvironment? ShellEnvironment => inner.ShellEnvironment;
+
         public void Dispose()
         {
             inner.Dispose();

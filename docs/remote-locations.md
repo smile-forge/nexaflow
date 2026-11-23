@@ -216,7 +216,7 @@ shell runs in this computer's ConPTY, as WSL's does — and its own packages, as
 
 | Backend | Phase | Built on | Ranged read | Watch | Shell | Main risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| WSL | 1 | `\\wsl.localhost` for bytes; `Nexaflow.WslHelper`, run with `wsl.exe -d <distro> --exec`, for listings, POSIX metadata, renames and inotify | yes | inotify via the helper | `wsl.exe` in ConPTY, bash and zsh through a shim that marks prompts (OSC 133) and links the shell's `/proc/<pid>/cwd` for the helper to read | 9P listing is slow on big folders, so the helper lists |
+| WSL | 1 | `\\wsl.localhost` for bytes; `Nexaflow.WslHelper`, run with `wsl.exe -d <distro> --exec`, for listings, POSIX metadata, renames and inotify | yes | inotify via the helper | `wsl.exe` in ConPTY, bash and zsh through a shim that marks prompts (OSC 133), links the shell's `/proc/<pid>/cwd` for the helper to read and writes its variables at each prompt | 9P listing is slow on big folders, so the helper lists |
 | SMB | 1 | Windows' SMB client through UNC paths | yes | `ReadDirectoryChangesW` over SMB | none | Credentials, This PC rows and the async path |
 | SFTP | 2 | SSH.NET (MIT) | yes | polling, adaptive | SSH shell on the same session | Polling cost on busy folders |
 | FTP / FTPS | 3 | FluentFTP (MIT) | yes, `REST` | polling | none | Servers that lie about listings; `MLSD` first, `LIST` parsing as fallback |
@@ -251,8 +251,16 @@ full-screen programs, because over SSH that is half of what people run.
   can be given one command's output rather than the scrollback. Where the shell is, is asked of its host
   (`ITerminalTransport.GetWorkingDirectoryAsync`): cmd's own current folder, read from its process, and a distro shell's
   `/proc/<pid>/cwd`, read by the helper. Output is only the cue to ask, with a heartbeat for output that swallows the
-  prompt, so `cd` can move a linked browser and sets what the assistant may reach. OSC 7 and the folder in a prompt are
-  never believed: any file printed can carry them.
+    prompt, so `cd` can move a linked browser and sets what the assistant may reach. OSC 7 and the folder in a prompt are
+    never believed: any file printed can carry them.
+  - **A console describes the machine its shell runs on.** The path bar shows the folder as the shell names it
+    (`TerminalShellDialect.ShowPath` — `/home/adam` in a distro), the Files tab lists it through the runtime's file system,
+    and a file dropped on the console or its AI bar is given as the shell's own path (`FormatPathWord`). Its variables are
+    its host's (`ITerminalTransport.ShellEnvironment`): in a distro the shim writes `env -0` to a file beside its folder link
+    at each prompt (Live), and the user's login shell is started on its own to print a new shell's (Startup). An edit is an
+    `export` in the running shell, or a line kept for new shells in the startup file that login shell reads, between
+    Nexaflow's own marks and written through the location. cmd's are this computer's, kept for the session, the Windows user
+    or the machine.
 - **Full-screen programs get a grid view (2.0, phase 2).** `TerminalScreen` keeps a correct VT100 grid; when a program
   switches to the alternate screen buffer (vim, htop, less, tmux), the view draws that grid with cursor, colours and mouse
   reporting, and returns to the line view when it leaves. This is the largest single piece of new UI in 2.0.
@@ -343,7 +351,6 @@ permissions. The Recycle Bin is never offered for one, and a name Windows would 
 | Gap | Effect |
 | --- | --- |
 | A file copied from one location to another is written there new | It takes the destination's default permissions, not its own |
-| The console shows `::wsl-ubuntu\usr`, an empty Files tab and Windows' variables | The page describes the wrong machine |
 | The browser shows no address, no link target and a disk icon for a distro; the action reads Cmd Here | Linux folders do not read as Linux |
 | Names that are not UTF-8 cross the helper's wire as text | Those files cannot be opened, renamed or deleted |
 

@@ -10,15 +10,22 @@ namespace Nexaflow.IO.Location.Wsl;
 /// bash and zsh start through a shim beside the helper that runs the user's own startup files and then reports the
 /// working folder (OSC 7) and marks prompts and output (OSC 133), and leave the helper a link to their folder
 /// (<see cref="WslTerminal"/>), so the terminal follows <c>cd</c> without believing what is printed; any other shell
-/// starts as the distro starts it. Variables the launch lays over are passed into Linux through <c>WSLENV</c>.
+/// starts as the distro starts it. The shims also write the shell's variables at each prompt to a file beside the link, which
+/// the terminal's environment reads (<see cref="WslShellEnvironment"/>). Variables the launch lays over are passed into Linux
+/// through <c>WSLENV</c>.
 /// </summary>
 /// <param name="shims">The distro's own path of the folder holding the shims.</param>
 /// <param name="loginShell">The user's login shell, as the helper read it.</param>
+/// <param name="home">The user's home folder, as the helper read it.</param>
 /// <param name="link">The distro's helper, which each terminal asks where its shell is.</param>
-internal sealed class WslShell(string distro, string shims, string loginShell, WslHelperLink link) : ILocationShell
+/// <param name="files">The distro's files, which each terminal's environment is read from.</param>
+internal sealed class WslShell(string distro, string shims, string loginShell, string home, WslHelperLink link, ILocationSession files)
+    : ILocationShell
 {
-    // Run by sh, which then becomes the shell: the pid it links is the shell's. $0 is the link, "$@" the shell.
-    private const string LinkFolderThenRun = "ln -s \"/proc/$$/cwd\" \"$0\" 2>/dev/null; exec \"$@\"";
+    // Run by sh, which then becomes the shell: the pid it links is the shell's. $0 is the link, "$@" the shell; the file
+    // beside the link is named to the shims, which write the shell's variables to it.
+    private const string LinkFolderThenRun =
+        "ln -s \"/proc/$$/cwd\" \"$0\" 2>/dev/null; export NEXAFLOW_ENVIRONMENT=\"$0.env\"; exec \"$@\"";
 
     // Ends whatever a profile prints, so a greeting's words are not taken for programs.
     private const string ListMark = "--nexaflow-commands--";
@@ -72,7 +79,8 @@ internal sealed class WslShell(string distro, string shims, string loginShell, W
         var launcher = new PseudoConsoleLauncher(WslHelperDeployment.WslExecutable, arguments.ToString());
         var console  = await launcher.LaunchAsync(launch with { WorkingDirectory = null, Environment = Shared(launch.Environment) }, ct)
                                      .ConfigureAwait(false);
-        return new WslTerminal(console, link, folderLink);
+        var environment = new WslShellEnvironment(distro, loginShell, home, files, folderLink is null ? null : $"{folderLink}.env");
+        return new WslTerminal(console, link, folderLink, environment);
     }
 
     // WSLENV names the variables wsl.exe carries into Linux; the launch's own are added to any the user already shares.

@@ -40,6 +40,20 @@ public abstract class TerminalShellDialect
     /// differ.</summary>
     public virtual string DescribeFolder(string folder) => folder;
 
+    /// <summary>A path — the shell's folder, a file in it — as the shell names it, for people to read.</summary>
+    public virtual string ShowPath(string path) => path;
+
+    /// <summary><paramref name="path"/> — a file dropped on the terminal or its AI bar, named as the file system or Windows
+    /// names it — as one word of the shell's command line.</summary>
+    public virtual string FormatPathWord(string path) => TerminalDropLogic.Quote(path);
+
+    /// <summary>Whether <paramref name="name"/> is one the shell sets a variable by.</summary>
+    public virtual bool NamesVariable(string name) => name.Length > 0 && !name.Contains('=');
+
+    /// <summary>A startup file's <paramref name="text"/> with <paramref name="name"/> kept as <paramref name="value"/> for new
+    /// shells; null for a shell whose startup file the terminal does not write, or a variable it cannot keep there.</summary>
+    public virtual string? KeepInStartupFile(string text, string name, string value) => null;
+
     /// <summary>The prompt the screen row <paramref name="row"/> starts with, or null when it starts with none. Read for a
     /// shell that does not mark its prompts (OSC 133); one that does is followed by its marks.</summary>
     public virtual ShellPromptRow? ReadPrompt(string row) => null;

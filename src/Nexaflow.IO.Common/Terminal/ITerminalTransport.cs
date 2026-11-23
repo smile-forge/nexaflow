@@ -37,4 +37,8 @@ public interface ITerminalTransport : IDisposable
     /// from what the shell prints: any file printed can imitate a prompt or a report, and the folder decides what the
     /// assistant may reach. Null when the host cannot say. A transport that wraps another passes it on.</summary>
     ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken ct) => new((string?)null);
+
+    /// <summary>The shell's environment as its host knows it, or null when the host cannot say — this computer's own shell,
+    /// whose variables are this computer's. A transport that wraps another passes it on.</summary>
+    IShellEnvironment? ShellEnvironment => null;
 }

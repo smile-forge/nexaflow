@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.RegularExpressions;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 
@@ -9,19 +11,30 @@ namespace Nexaflow.Visuals.Terminal.Shells;
 /// shell marks its prompts (OSC 133) and its host says where it is. The terminal names the location's folders as the
 /// file system does (<c>::wsl-ubuntu\home\adam</c>) and hands the shell its own (<c>/home/adam</c>).
 /// </summary>
-public sealed class PosixShellDialect : TerminalShellDialect
+public sealed partial class PosixShellDialect : TerminalShellDialect
 {
+    // The lines a variable kept for new shells goes between, so it is found and changed again rather than added twice.
+    private const string KeptStart = "# >>> Nexaflow: variables set from its Environment panel >>>";
+    private const string KeptEnd   = "# <<< Nexaflow <<<";
+
     private readonly string _root;
     private readonly string _description;
     private readonly StringComparison _comparison;
+    private readonly IVirtualFileSystem? _files;
+
+    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_]*\z")]
+    private static partial Regex VariableName();
 
     /// <param name="locationRoot">The location's root as the file system names it (<c>::wsl-ubuntu</c>).</param>
     /// <param name="locationName">The location as people know it, for the assistant.</param>
     /// <param name="pathComparison">How names compare on the location.</param>
-    public PosixShellDialect(string locationRoot, string locationName, StringComparison pathComparison)
+    /// <param name="files">Names a file dropped by the Windows folder showing the location as the location does; without it
+    /// only the location's own paths are.</param>
+    public PosixShellDialect(string locationRoot, string locationName, StringComparison pathComparison, IVirtualFileSystem? files = null)
     {
         _root        = locationRoot.TrimEnd('\\', '/');
         _comparison  = pathComparison;
+        _files       = files;
         _description = $"a POSIX shell on {locationName} (sh / bash syntax such as `ls`, `cd`, `export` — not cmd or " +
                        "PowerShell), where paths are the location's own, such as `/home`";
     }
@@ -32,7 +45,7 @@ public sealed class PosixShellDialect : TerminalShellDialect
     {
         var root = files.GetBreadcrumbs(folder)[0].Path;
         return new PosixShellDialect(root, $"{files.GetDisplayName(root)} ({files.GetDisplayPath(root)})",
-                                     files.GetNameComparison(root));
+                                     files.GetNameComparison(root), files);
     }
 
     public override string Description => _description;
@@ -52,6 +65,44 @@ public sealed class PosixShellDialect : TerminalShellDialect
 
     public override string DescribeFolder(string folder)
         => ShellPath(folder) is { } path ? $"{path} ({folder})" : folder;
+
+    /// <summary>The location's own path (<c>/home/adam</c>); a path on no part of it as it is.</summary>
+    public override string ShowPath(string path) => ShellPath(path) ?? path;
+
+    /// <summary>The location's own path for a file on it — named by the location or by the Windows folder showing it — as one
+    /// single-quoted word; any other path is quoted as it is.</summary>
+    public override string FormatPathWord(string path)
+        => Quote(ShellPath(_files?.TryToVirtual(path) ?? path) ?? path);
+
+    /// <summary>A POSIX name: a letter or underscore, then letters, digits and underscores.</summary>
+    public override bool NamesVariable(string name) => VariableName().IsMatch(name);
+
+    /// <summary>
+    /// The variable as an <c>export</c> line between Nexaflow's own marks at the end of the startup file — changed in place
+    /// when it is there already, the marks added when they are not — so the user's own lines are left as written. A value is
+    /// kept on one line; one holding a line break is not kept.
+    /// </summary>
+    public override string? KeepInStartupFile(string text, string name, string value)
+    {
+        if (!NamesVariable(name) || value.Contains('\n') || value.Contains('\r')) return null;
+
+        var line  = FormatSetCommand(name, value);
+        var lines = text.Split('\n').ToList();
+        int start = lines.IndexOf(KeptStart);
+        int end   = start < 0 ? -1 : lines.IndexOf(KeptEnd, start + 1);
+        if (end < 0)
+        {
+            var kept = new StringBuilder(text);
+            if (text.Length > 0) kept.Append(text.EndsWith('\n') ? "\n" : "\n\n");
+            return kept.Append(KeptStart).Append('\n').Append(line).Append('\n').Append(KeptEnd).Append('\n').ToString();
+        }
+
+        var prefix = $"export {name}=";
+        int at = lines.FindIndex(start + 1, end - start - 1, kept => kept.StartsWith(prefix, StringComparison.Ordinal));
+        if (at >= 0) lines[at] = line;
+        else         lines.Insert(end, line);
+        return string.Join('\n', lines);
+    }
 
     /// <summary>The location's own path (<c>/srv/app</c>) as the file system names it.</summary>
     public override string? ToFolder(string hostFolder)

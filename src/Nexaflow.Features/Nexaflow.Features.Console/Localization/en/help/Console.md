@@ -12,8 +12,7 @@ Runs a Windows command prompt in a tab — or the shell of a location, such as a
 - Ctrl+V pastes into the shell. Right-click Paste puts the clipboard in the AI bar instead, to read over before you run it.
 - Ctrl+Shift+C, or right-click and Copy, copies the whole session including the scrollback.
 - Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the [File System](help:FileSystem) page. It starts in that folder.
-- On a folder of a location with a shell of its own — a WSL distro — Cmd Here opens that shell instead, starting in the folder. With bash or zsh the path bar follows it as it moves. A location with no shell offers no Cmd Here.
-- In a distro's shell the Files tab is empty, and the Environment tab shows and saves Windows' variables, not the distro's.
+- On a folder of a location with a shell of its own — a WSL distro — Cmd Here opens that shell instead, starting in the folder. The path bar shows the folder as Linux names it, such as `/home/adam`, and with bash or zsh it follows the shell as it moves. A location with no shell offers no Cmd Here.
 
 ## With the assistant
 - Say what you want done in [the AI bar](locate:AiInputBox) — `what is filling this disk?`. Answers appear in a banner under the console, which clears when you start typing.
@@ -36,12 +35,12 @@ Runs a Windows command prompt in a tab — or the shell of a location, such as a
 - Start the line with `>` to run it in the console whatever it reads like, with no model seeing it — `>git status`. Use it for an unusual command holding a secret.
 - A command from the bar or the assistant first clears anything half-typed at the prompt, so it runs exactly as written.
 - With the bar empty or starting with `>`, Up and Down walk back through your commands, most recent first.
-- Drop files onto the bar to insert their paths, quoted where they contain spaces. This works on every tab.
+- Drop files onto the bar to insert their paths, quoted where they contain spaces. This works on every tab. Over a distro's console, a file in the distro is given as its Linux path.
 
 ## Files and history
-- [The Files tab](locate:Console_FilesTab) lists the console's current folder and follows the shell as it moves.
+- [The Files tab](locate:Console_FilesTab) lists the console's current folder and follows the shell as it moves — a distro's folder too, with its files named as Linux names them.
 - Double-click a folder to change into it.
-- Drag an entry onto the console to type its path, or onto the AI bar to use it there. [Show me](locate:Console_FilesTab,AiInputBox) Files dropped in from elsewhere work the same way.
+- Drag an entry onto the console to type its path, or onto the AI bar to use it there. [Show me](locate:Console_FilesTab,AiInputBox) Files dropped in from elsewhere work the same way. In a distro the path typed is the distro's own; dragged out to another program, it is the `\\wsl.localhost` path Windows opens.
 - Every command you run is listed on the right, newest first. Click one to run it again; it moves back to the top instead of being listed twice.
 
 ## Environments
@@ -55,3 +54,8 @@ Runs a Windows command prompt in a tab — or the shell of a location, such as a
 - [The Environment tab](locate:Console_EnvironmentTab,Console_EnvFilter,Console_AddEnvVar) lists the variables every shell you open inherits, sorted by name, with a filter that matches names and values.
 - Right-click one to copy it as `NAME=value` or to edit it. Add a new one with ＋.
 - Saving asks how far the change reaches: Session, this running shell only, gone when the tab closes; User, your Windows user environment, kept, with no elevation; or Machine, every account on the PC, which takes a Windows administrator prompt.
+
+## Variables in a distro
+- In a WSL distro's console the Environment tab lists the distro's variables, not Windows'. [Live and Startup](locate:Console_EnvironmentTab,Console_EnvLive,Console_EnvStartup) switch between the variables this shell holds now, updated at each prompt, and the ones a new shell starts with once its startup files have run.
+- Saving asks how far the change reaches: Live, an `export` in this shell; or Startup, a line kept in your startup file, so every new shell has it. That file is the one your login shell reads — `.bash_profile`, `.bash_login` or `.profile` for bash, `.zshenv` for zsh — and Nexaflow's lines go between its own marks at the end, leaving yours as they are. Saving the same variable again changes its line.
+- Live is listed only for bash and zsh, whose prompts report it; another shell lists what a new one starts with.

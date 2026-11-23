@@ -144,7 +144,7 @@ public partial class TerminalView : UserControl, IPageView
 
     private void Terminal_Drop(object sender, DragEventArgs e)
     {
-        var text = TerminalDropLogic.BuildInsertText(e.Data);
+        var text = ViewModel.FormatDroppedPaths(e.Data);
         if (text is not null)
         {
             ViewModel.SendText(text);
@@ -187,7 +187,7 @@ public partial class TerminalView : UserControl, IPageView
 
         if ((sender as ListBox)?.SelectedItem is not TerminalFsEntry entry) return;
 
-        var data = new DataObject(DataFormats.FileDrop, new[] { entry.FullPath });
+        var data = new DataObject(DataFormats.FileDrop, new[] { ViewModel.WindowsPathOf(entry) });
         DragDrop.DoDragDrop((DependencyObject)sender, data, DragDropEffects.Copy);
     }
 
