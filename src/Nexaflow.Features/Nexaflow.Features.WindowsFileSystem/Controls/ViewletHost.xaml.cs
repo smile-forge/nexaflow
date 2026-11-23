@@ -9,6 +9,7 @@ namespace Nexaflow.Features.WindowsFileSystem.Controls;
 public partial class ViewletHost : UserControl, IViewletController
 {
     private readonly IFolderViewlet _viewlet;
+    private readonly object _model;
     private ViewletDisplayMode _mode;
 
     public event Action<ViewletDisplayMode>? ModeChanged;
@@ -23,13 +24,13 @@ public partial class ViewletHost : UserControl, IViewletController
 
     public ViewletDisplayMode CurrentMode => _mode;
 
-    /// <summary>The hosted viewlet's AI surface, if its view exposes one — its context line and
+    /// <summary>The hosted viewlet's AI surface, if its view-model offers one — its context line and
     /// tools are merged into the file browser's AI context. Null when the viewlet contributes nothing.</summary>
-    public IViewletAiSurface? AiSurface => ViewletContentArea.Content as IViewletAiSurface;
+    public IViewletAiSurface? AiSurface => _model as IViewletAiSurface;
 
-    /// <summary>The hosted viewlet's quiesce surface, if its view exposes one (see
+    /// <summary>The hosted viewlet's quiesce surface, if its view-model offers one (see
     /// <see cref="IViewletQuiescible"/>). Null when it holds nothing that needs releasing before a mutation.</summary>
-    public IViewletQuiescible? Quiescible => ViewletContentArea.Content as IViewletQuiescible;
+    public IViewletQuiescible? Quiescible => _model as IViewletQuiescible;
 
     Task IViewletController.QuiesceFolderAsync(CancellationToken ct)
         => QuiesceFolderHandler?.Invoke(ct) ?? Task.CompletedTask;
@@ -48,7 +49,8 @@ public partial class ViewletHost : UserControl, IViewletController
             folderPath = vfs.TryResolveReal(folderPath) ?? folderPath;
 
         DisplayNameText.Text        = viewlet.DisplayName;
-        ViewletContentArea.Content  = viewlet.CreateView(folderPath, this);
+        _model                      = viewlet.CreateViewModel(folderPath, this);
+        ViewletContentArea.Model    = _model;
 
         ApplyMode();
     }

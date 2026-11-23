@@ -29,6 +29,6 @@ public sealed class BacklogStatusViewlet : IFolderViewlet
     public ViewletDisplayMode   DefaultDisplayMode => ViewletDisplayMode.SingleBar;
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar];
 
-    public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new BacklogStatusViewletView(_config, _shell, folderPath, controller);
+    public object CreateViewModel(string folderPath, IViewletController controller)
+        => new ViewModels.BacklogStatusViewletViewModel(_config, _shell, folderPath);
 }

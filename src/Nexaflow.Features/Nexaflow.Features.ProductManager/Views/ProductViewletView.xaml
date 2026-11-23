@@ -15,14 +15,14 @@
                    Foreground="{StaticResource AccentBrush}"/>
 
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-            <TextBlock x:Name="TitleText" Text="{loc:Str ProductManager.Viewlet.Name}" FontSize="12" FontWeight="SemiBold"
+            <TextBlock x:Name="TitleText" Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
                        Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
-            <TextBlock x:Name="SummaryText" Text="…" FontSize="11"
+            <TextBlock x:Name="SummaryText" Text="{Binding Summary}" FontSize="11"
                        Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
         </StackPanel>
 
         <Button x:Name="OpenButton" Grid.Column="2" VerticalAlignment="Center" Cursor="Hand"
-                Click="OpenButton_Click"
+                Command="{Binding OpenCommand}"
                 Background="Transparent" Foreground="{StaticResource AccentBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,5" AutomationProperties.AutomationId="Product_ViewletOpen">
             <Button.Template>

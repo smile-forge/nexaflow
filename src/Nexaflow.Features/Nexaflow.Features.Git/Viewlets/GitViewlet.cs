@@ -25,6 +25,6 @@ public sealed class GitViewlet : IFolderViewlet
     public ViewletDisplayMode   DefaultDisplayMode => ViewletDisplayMode.SingleBar;
     public ViewletDisplayMode[] SupportedModes     => [ViewletDisplayMode.SingleBar];
 
-    public FrameworkElement CreateView(string folderPath, IViewletController controller)
-        => new GitViewletView(_options, _shell, folderPath, controller);
+    public object CreateViewModel(string folderPath, IViewletController controller)
+        => new ViewModels.GitViewletViewModel(_options, _shell, folderPath, controller);
 }

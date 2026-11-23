@@ -25,7 +25,7 @@ namespace Nexaflow.Features.Git.ViewModels;
 /// rather than pre-coloured runs, so the wording and severity can be asserted without WPF and the view stays
 /// the only place a theme brush is resolved.
 /// </remarks>
-public sealed partial class GitViewletViewModel : ObservableObject
+public sealed partial class GitViewletViewModel : ObservableObject, IViewletAiSurface
 {
     private readonly GitOptions          _options;
     private readonly IShellServices      _shell;

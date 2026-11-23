@@ -412,9 +412,9 @@ long as the user keeps the icon it was pinned with.
 ### Folder viewlets (`Viewlets/`)
 | Interface | What it's for |
 |---|---|
-| `IFolderViewlet` | Inline view shown above the file list when the open folder matches (Git status, .NET build). |
-| `IViewletController` | Host handle passed to a viewlet's `CreateView` — read/set its display mode. |
-| `IViewletAiSurface` | Optional: a viewlet view feeding folder-specific context + tools into the host page's AI surface. |
+| `IFolderViewlet` | Shown above the file list when the open folder matches (Git status, .NET build): `CreateViewModel` returns its view-model, drawn by the view marked `[ViewFor]` it, which may also be its `IViewletAiSurface` / `IViewletQuiescible`. |
+| `IViewletController` | Host handle passed to a viewlet's `CreateViewModel` — read/set its display mode. |
+| `IViewletAiSurface` | Optional: a viewlet's view-model feeding folder-specific context + tools into the host page's AI surface. |
 
 ### Ribbon pinning (`Ribbon/`)
 | Interface | What it's for |

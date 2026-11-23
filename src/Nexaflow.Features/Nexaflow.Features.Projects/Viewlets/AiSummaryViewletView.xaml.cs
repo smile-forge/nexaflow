@@ -1,32 +1,27 @@
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Projects.Model;
+using Nexaflow.Features.Projects.ViewModels;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Windows;
 using System.Windows.Controls;
 
 namespace Nexaflow.Features.Projects.Viewlets;
 
+[ViewFor(typeof(AiSummaryViewletViewModel))]
 public partial class AiSummaryViewletView : UserControl
 {
-    private readonly ProjectOperations  _ops;
-    private readonly string             _folderPath;
-    private readonly IViewletController _controller;
-    private string _savedText = string.Empty;
-    private bool   _isEditing;
+    private readonly AiSummaryViewletViewModel _vm;
+    private bool _isEditing;
 
-    public AiSummaryViewletView(ProjectOperations ops, string folderPath, IViewletController controller)
+    public AiSummaryViewletView(AiSummaryViewletViewModel vm)
     {
         InitializeComponent();
-        _ops        = ops;
-        _folderPath = folderPath;
-        _controller = controller;
+        _vm = vm;
 
-        _controller.ModeChanged += OnModeChanged;
+        vm.Controller.ModeChanged += OnModeChanged;
+        SummaryText.Text = vm.SavedText;
 
-        var text = ops.ReadDirectorySummary(folderPath) ?? string.Empty;
-        _savedText       = text;
-        SummaryText.Text = text;
-
-        ApplyMode(controller.CurrentMode);
+        ApplyMode(vm.Controller.CurrentMode);
         Loaded += (_, _) => CheckOverflow();
     }
 
@@ -54,7 +49,7 @@ public partial class AiSummaryViewletView : UserControl
 
     private void CheckOverflow()
     {
-        if (_isEditing || _controller.CurrentMode != ViewletDisplayMode.DoubleBar)
+        if (_isEditing || _vm.Controller.CurrentMode != ViewletDisplayMode.DoubleBar)
         {
             OverflowButton.Visibility = Visibility.Collapsed;
             return;
@@ -90,19 +85,13 @@ public partial class AiSummaryViewletView : UserControl
 
     private void EditTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        SaveButton.IsEnabled = EditTextBox.Text != _savedText;
+        SaveButton.IsEnabled = EditTextBox.Text != _vm.SavedText;
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
         var text = EditTextBox.Text;
-        try
-        {
-            _ops.WriteDirectorySummary(_folderPath, text);
-            _savedText = text;
-        }
-        catch { /* access denied — leave edit mode open so user sees the button is still clickable */ }
-
+        _vm.Save(text);
         ExitEditMode(text);
     }
 
@@ -123,5 +112,5 @@ public partial class AiSummaryViewletView : UserControl
     // ── Overflow indicator click ──────────────────────────────────────────
 
     private void OverflowButton_Click(object sender, RoutedEventArgs e)
-        => _controller.SetDisplayMode(ViewletDisplayMode.Large);
+        => _vm.Controller.SetDisplayMode(ViewletDisplayMode.Large);
 }

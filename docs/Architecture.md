@@ -212,7 +212,8 @@ The contract layer. Every feature depends on this; nothing else does.
 | `Services/IQueryHandler.cs` | Intercepts the AI input bar; registered globally or inferred from the active page's ViewModel |
 | `FileActions/IFileAction.cs` / `IFolderAction.cs` / `IFileCreateAction.cs` / `IFileCreateWithOptions.cs` / `ICacheable.cs` | File/folder context-action contracts (discovered by `FileSystemFeatureRegistry`, not `FeatureManager`) |
 | `Ribbon/*.cs` | `IRibbonPinHandler`, `IRibbonExecutionContext`, `ISelectionProvider`, `RibbonPinResult` — drag-to-ribbon pinning |
-| `Viewlets/*.cs` | `IFolderViewlet`, `IViewletController`, `ViewletDisplayMode` — folder-display extensions |
+| `Viewlets/*.cs` | `IFolderViewlet`, `IViewletController`, `ViewletDisplayMode` — folder-display extensions, each a view-model drawn by its `[ViewFor]` view |
+| `IContextPreview.cs` / `PagePreview.cs` / `TextContextPreview.cs` | A page's preview for the conversation's context panel, as a model: the page itself (`PagePreview<TPage>`), a text summary (`TextContextPreview`), or a feature's own |
 | `IKeyboardHandler.cs` | Claims global keyboard shortcuts; queried against the active page |
 | `FileViewRequest.cs` | "Show this file in its viewer" through `HandleObject` — never launches it |
 
@@ -418,6 +419,11 @@ view-model; `FeatureCatalog` records it (in feature assemblies and in `Nexaflow.
 and Core's `PageViews` keeps one per page until the tab closes, so a tab moved between panes or windows keeps its
 view. A page whose view-model or view cannot be made is drawn by `PageLoadErrorView` saying why. Because nothing in a
 page's contract is WPF's, another toolkit can draw the same view-models with views of its own.
+
+The same holds for what a contract hands out to be shown inside a feature's own surface — a page's context preview, a
+folder viewlet. Those are models too, and the feature hosting them places a `ModelHost` (`Visuals.Common/Viewing/`),
+which draws its model with the registry every main window hands down (`ViewRegistry.Registry`, an inherited
+property), so a feature never reaches for the app's registry itself.
 
 `IPageViewModel` is also the AI pipeline contract: the shell queries context and exposes **client tools** the AI agent may invoke. A client tool is a self-contained `IClientTool` (use `DelegateClientTool` for one-liners) carrying its own metadata and execution. Safe tools (`ToolSafety.SafeOperation` — observers, or changes the user can see / must still save) auto-run; tools with real consequence (`ToolSafety.RequiresApproval`) are approved first. `GetClientTools()` and `GetContextObject()` have defaults, so a page that only supplies context overrides nothing else.
 
