@@ -39,6 +39,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Location.Memory\Nexaflow.IO.Location.Memory.csproj" />
 
     <ProjectReference Include="..\..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />

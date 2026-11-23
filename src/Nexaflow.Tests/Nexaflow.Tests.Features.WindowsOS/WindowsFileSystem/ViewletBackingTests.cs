@@ -127,13 +127,23 @@ public class ViewletBackingTests
         finally { VirtualFileSystem.Instance.UnregisterMount(id); }
     }
 
-    /// <summary>Changes the folder with Windows' own tools — stands in for Git, .NET and the AI summary.</summary>
+    /// <summary>Changes the folder with Windows' own tools and no other way — stands in for the AI summary.</summary>
     private sealed class ChangingViewlet : IFolderViewlet, ICacheable
     {
         public string DisplayName => "Changing";
         public bool   AppliesToDrives => false;
         public bool   RequiresLocalFolder => true;
         public string[]? ContainsFileGlobs => ["*.csproj"];
+        public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
+    }
+
+    /// <summary>Changes the folder with tools that run on a location's own host there — stands in for Git and .NET.</summary>
+    private sealed class HostViewlet : IFolderViewlet, ICacheable
+    {
+        public string DisplayName => "Host";
+        public bool   AppliesToDrives => false;
+        public bool   RunsOnLocationHost => true;
+        public string[]? ContainsFolderGlobs => [".git"];
         public FrameworkElement CreateView(string folderPath, IViewletController controller) => new FrameworkElement();
     }
 
@@ -144,29 +154,47 @@ public class ViewletBackingTests
         public string FromNativeName(string nativeName) => nativeName;
     }
 
-    [TestMethod]
-    public void OnALocation_AViewletThatChangesFilesWithWindowsToolsIsNotOffered_OneThatReadsIs()
+    /// <summary>The viewlets offered on a repository in a location Windows also shows as a folder, as a WSL distro is, named
+    /// by the location's path, by that Windows folder, and — for comparison — on this PC.</summary>
+    private (string[] OnLocation, string[] ByNative, string[] OnThisPc) OfferedOnADistro(
+        Nexaflow.IO.Common.Locations.LocationCapabilities capabilities)
     {
-        // A location Windows also shows as a folder, as a WSL distro is, holding a repository like the one on this PC.
         var distro = Path.Combine(_dir, "distro");
         Directory.CreateDirectory(Path.Combine(distro, "repo", ".git"));
         File.WriteAllText(Path.Combine(distro, "repo", "App.csproj"), "<Project/>");
+
         var files = new Nexaflow.IO.Common.Locations.LocationFileSystem(VirtualFileSystem.Instance);
         files.RegisterLocation(new Nexaflow.IO.Common.Locations.LocationMount(
-            new Nexaflow.IO.Common.Locations.ConnectionProfile("viewlet-probe", "wsl", "Probe", "Probe"),
-            Nexaflow.IO.Common.Locations.LocationCapabilities.SameMachine, null!)
+            new Nexaflow.IO.Common.Locations.ConnectionProfile("viewlet-probe", "wsl", "Probe", "Probe"), capabilities, null!)
         { NativeRoots = [distro], NativePaths = new SameNames() });
         var shell = Substitute.For<IShellServices>();
-        shell.DiscoverImplementations<IFolderViewlet>().Returns([typeof(ToolingViewlet), typeof(ChangingViewlet)]);
+        shell.DiscoverImplementations<IFolderViewlet>().Returns([typeof(ToolingViewlet), typeof(ChangingViewlet), typeof(HostViewlet)]);
         var registry = FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files);
 
-        var onLocation = FolderViewletRegistry.GetMatchingViewlets(@"::viewlet-probe\repo", registry).Select(v => v.DisplayName).ToArray();
-        var byNative   = FolderViewletRegistry.GetMatchingViewlets(Path.Combine(distro, "repo"), registry).Select(v => v.DisplayName).ToArray();
-        var onThisPc   = FolderViewletRegistry.GetMatchingViewlets(Path.Combine(_dir, "repo"), registry).Select(v => v.DisplayName).ToArray();
+        string[] Offered(string folder) => FolderViewletRegistry.GetMatchingViewlets(folder, registry).Select(v => v.DisplayName).ToArray();
+        return (Offered(@"::viewlet-probe\repo"), Offered(Path.Combine(distro, "repo")), Offered(Path.Combine(_dir, "repo")));
+    }
 
-        CollectionAssert.AreEquivalent(new[] { "Tooling" }, onLocation, "one that reads is offered there; one that changes files is not");
+    [TestMethod]
+    public void OnALocation_AViewletThatChangesFilesWithWindowsToolsIsNotOffered_OneThatReadsIs()
+    {
+        var (onLocation, byNative, onThisPc) = OfferedOnADistro(Nexaflow.IO.Common.Locations.LocationCapabilities.SameMachine);
+
+        CollectionAssert.AreEquivalent(new[] { "Tooling" }, onLocation,
+            "one that reads is offered there; one that changes files with Windows' tools is not, nor one whose host runs nothing");
         CollectionAssert.AreEquivalent(new[] { "Tooling" }, byNative, "the distro's folder named as Windows shows it is the same folder");
-        CollectionAssert.AreEquivalent(new[] { "Tooling", "Changing" }, onThisPc);
+        CollectionAssert.AreEquivalent(new[] { "Tooling", "Changing", "Host" }, onThisPc);
+    }
+
+    [TestMethod]
+    public void OnALocationWhoseHostRunsPrograms_AViewletThatRunsItsToolsThereIsOffered_ByEitherName()
+    {
+        var (onLocation, byNative, onThisPc) = OfferedOnADistro(
+            Nexaflow.IO.Common.Locations.LocationCapabilities.SameMachine | Nexaflow.IO.Common.Locations.LocationCapabilities.Shell);
+
+        CollectionAssert.AreEquivalent(new[] { "Tooling", "Host" }, onLocation, "git and dotnet run on the host; Windows' tools still do not");
+        CollectionAssert.AreEquivalent(new[] { "Tooling", "Host" }, byNative, "named by its Windows folder, it is still the location's");
+        CollectionAssert.AreEquivalent(new[] { "Tooling", "Changing", "Host" }, onThisPc);
     }
 
     /// <summary>A folder action that changes the folder with Windows' own calls.</summary>

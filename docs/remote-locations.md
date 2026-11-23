@@ -169,8 +169,10 @@ public interface ILocationSessionSource                          // the pool, pe
     inside an archive, there as on this PC.
   - **A change made with Windows' own tools is not offered on a location.** `PassThrough` says where a file's bytes can be
     read, not that Windows may change them there. A file action, folder action or viewlet that changes files with Windows'
-    own calls or tools — mounting a disk image, removing an image's edits, Git, .NET, the AI summary — declares
-    `RequiresLocalFolder` and is not offered on a location, named by its path or by its Windows folder's. A page that writes
+    own calls or tools — mounting a disk image, removing an image's edits, the AI summary — declares
+    `RequiresLocalFolder` and is not offered on a location, named by its path or by its Windows folder's. A viewlet whose
+    tools can run on the location's own host — Git, .NET — declares `RunsOnLocationHost` instead, and is offered on a
+    location whose host runs programs ([Folder viewlets work remotely](#viewers-search-and-the-assistant)). A page that writes
     with a Windows library shows what it reads and offers no change there: an audio file's tags are read-only in a distro.
     An image edited in a distro keeps its edits while it is open, with no sidecar to hold them, and Save writes them into
     the file.
@@ -216,7 +218,7 @@ shell runs in this computer's ConPTY, as WSL's does — and its own packages, as
 
 | Backend | Phase | Built on | Ranged read | Watch | Shell | Main risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| WSL | 1 | `\\wsl.localhost` for bytes; `Nexaflow.WslHelper`, run with `wsl.exe -d <distro> --exec`, for listings, POSIX metadata, renames and inotify | yes | inotify via the helper | `wsl.exe` in ConPTY, bash and zsh through a shim that marks prompts (OSC 133) and links the shell's `/proc/<pid>/cwd` for the helper to read | 9P listing is slow on big folders, so the helper lists |
+| WSL | 1 | `\\wsl.localhost` for bytes; `Nexaflow.WslHelper`, run with `wsl.exe -d <distro> --exec`, for listings, POSIX metadata, renames, inotify and programs | yes | inotify via the helper | `wsl.exe` in ConPTY, bash and zsh through a shim that marks prompts (OSC 133) and links the shell's `/proc/<pid>/cwd` for the helper to read | 9P listing is slow on big folders, so the helper lists |
 | SMB | 1 | Windows' SMB client through UNC paths | yes | `ReadDirectoryChangesW` over SMB | none | Credentials, This PC rows and the async path |
 | SFTP | 2 | SSH.NET (MIT) | yes | polling, adaptive | SSH shell on the same session | Polling cost on busy folders |
 | FTP / FTPS | 3 | FluentFTP (MIT) | yes, `REST` | polling | none | Servers that lie about listings; `MLSD` first, `LIST` parsing as fallback |
@@ -257,6 +259,14 @@ full-screen programs, because over SSH that is half of what people run.
   switches to the alternate screen buffer (vim, htop, less, tmux), the view draws that grid with cursor, colours and mouse
   reporting, and returns to the line view when it leaves. This is the largest single piece of new UI in 2.0.
 - **PowerShell remoting rides SSH.** `pwsh` over SSH is an SSH profile whose command is `pwsh`; WinRM is out of scope.
+- **A shell's host runs programs too, with no terminal.** `ILocationShell.RunProgramAsync` runs one program to its end —
+  found on the host's login `PATH`, its arguments handed over whole with no shell reading them, nothing on its stdin — and
+  streams what it writes, stdout and stderr apart, through `ProgramOutput`, so every backend reports the same lines;
+  cancelling ends it and what it started. A feature reaches it through `IVirtualFileSystem.GetProgramHost(folder)`, read
+  without the network, which takes the file system's paths — the location's or the Windows folder's — and maps them with
+  `HostPathOf` and `PathOnLocation`; a folder of this PC gets none, and runs its own. WSL runs programs in its helper
+  (`WslOp.Run`), in the environment a login `sh` sets, skipping the Windows folders WSL appends under `/mnt`, so `git`
+  is always the distro's.
 
 ## Viewers, search and the assistant
 
@@ -274,8 +284,17 @@ and grants do the rest.
 - **`?` search on a remote folder** runs on the server where it can — `grep -rn` or `find` over the SSH or WSL shell,
   streamed back as hits. Where it cannot (FTP, SMB without an index), Nexaflow walks and reads files itself, the fallback
   used for unindexed local folders, with the same offer-first prompt.
-- **Folder viewlets work remotely.** Git and .NET detection runs through the VFS; `git` runs over the remote shell when
-  there is one, so status is the server's answer, not a slow walk of `.git`.
+- **Folder viewlets work remotely.** Git and .NET are found by a folder's name and contents, read through the Windows
+  folder a location is shown as, and are offered by either name of the folder on a location whose host runs programs
+  (`LocationCapabilities.Shell`) — `IFolderViewlet.RunsOnLocationHost` says so, and the registry asks the location, so the
+  next backend with a shell gets them unchanged. There the viewlet takes the folder's `IProgramHost` and runs the host's
+  own `git` and `dotnet` on the host's paths: status is git's answer there, so a script committed runnable reads clean;
+  pull, switching branch, restore, build, run, test and clean write as the host writes; removing a worktree moves its folder
+  aside and deletes its registration through the location, and the host's git deletes its branch. `IGitWorkingCopy` is the
+  seam — `LocalGitWorkingCopy` on this PC, `HostGitWorkingCopy` on a location. The assistant there gets what the host's git
+  answers — status, diffs and worktrees — and not the history tools, which read a repository in process: LibGit2Sharp
+  refuses one another account owns, as a distro's is to Windows. A pull on a location uses the host's own credentials, and
+  is never offered a token for Windows' store.
 - **Assistant grants are location-aware.** `PathScope` compares through the location, so case sensitivity and escaping are
   the provider's, and a grant on `::{nas}\srv\app` never reaches `::{nas}\srv`. Pages holding a remote path add the host
   to the high-risk check that asks before context leaves the PC, so a folder on a work server is not sent to a cloud

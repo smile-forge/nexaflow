@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Dotnet.Models;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Dotnet.Services;
 
@@ -27,9 +28,11 @@ public static class NugetUpdateChecker
         public static readonly CheckResult NotChecked = new(false, []);
     }
 
-    public static async Task<CheckResult> CheckAsync(DotnetTarget target, CancellationToken ct)
+    /// <param name="host">The location's host the target is on, which checks with its own <c>dotnet</c>; null for a target
+    /// on this PC.</param>
+    public static async Task<CheckResult> CheckAsync(DotnetTarget target, IProgramHost? host, CancellationToken ct)
     {
-        var result = await DotnetCli.RunListOutdatedAsync(target, ct);
+        var result = await DotnetCli.RunListOutdatedAsync(target, host, ct);
         if (!result.Succeeded)
             return CheckResult.NotChecked;
 

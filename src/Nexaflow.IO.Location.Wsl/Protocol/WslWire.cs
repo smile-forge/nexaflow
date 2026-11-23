@@ -15,7 +15,7 @@ namespace Nexaflow.IO.Location.Wsl.Protocol;
 internal static class WslWire
 {
     /// <summary>Raised whenever what a frame means changes; the backend refuses a helper that says another.</summary>
-    public const int ProtocolVersion = 1;
+    public const int ProtocolVersion = 2;
 
     /// <summary>The largest frame either side sends or accepts.</summary>
     public const int MaxFrame = 4 * 1024 * 1024;
@@ -123,6 +123,15 @@ internal sealed class WslWriter
         return this;
     }
 
+    /// <summary>Bytes as their length (int32) and themselves.</summary>
+    public WslWriter Bytes(ReadOnlySpan<byte> value)
+    {
+        Int32(value.Length);
+        value.CopyTo(_buffer.GetSpan(value.Length));
+        _buffer.Advance(value.Length);
+        return this;
+    }
+
     public WslWriter Entry(WireEntry entry)
         => String(entry.Name).Byte((byte)entry.Kind).Int64(entry.Size).Int64(entry.ModifiedTicks).Int64(entry.CreatedTicks)
            .UInt32(entry.Mode).Bool(entry.HasOwner).UInt32(entry.Uid).UInt32(entry.Gid).String(entry.Owner).String(entry.Group)
@@ -172,6 +181,9 @@ internal sealed class WslReader(ReadOnlyMemory<byte> payload)
 
     /// <summary>A string that may not be null.</summary>
     public string Text() => String() ?? throw new InvalidDataException("A frame held no text where it must.");
+
+    /// <summary>Bytes as <see cref="WslWriter.Bytes"/> wrote them.</summary>
+    public ReadOnlySpan<byte> Bytes() => Take(Int32());
 
     public WireEntry Entry()
         => new(Text(), (WireKind)Byte(), Int64(), Int64())

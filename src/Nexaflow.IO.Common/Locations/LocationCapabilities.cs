@@ -32,7 +32,8 @@ public enum LocationCapabilities
     /// <summary>Names that differ only by case are different names, so comparisons are ordinal.</summary>
     CaseSensitive = 1 << 6,
 
-    /// <summary><see cref="ILocationSession.Shell"/> opens a shell on the same host.</summary>
+    /// <summary><see cref="ILocationSession.Shell"/> opens a shell on the same host, and runs programs there
+    /// (<see cref="ILocationShell.RunProgramAsync"/>).</summary>
     Shell = 1 << 7,
 
     /// <summary>

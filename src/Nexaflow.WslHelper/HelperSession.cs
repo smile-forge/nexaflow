@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Nexaflow.IO.Location.Wsl.Protocol;
 using Nexaflow.WslHelper.Files;
 using Nexaflow.WslHelper.Native;
+using Nexaflow.WslHelper.Programs;
 using Nexaflow.WslHelper.Watching;
 
 namespace Nexaflow.WslHelper;
@@ -11,7 +12,8 @@ namespace Nexaflow.WslHelper;
 /// long listing never holds up a stat. A request still answering is cancelled by its id and sends nothing more; a watch
 /// already set up is ended by the same cancel.
 /// </summary>
-internal sealed class HelperSession(ReplyChannel replies, FileRequests files, InotifyWatcher watcher, AccountNames accounts)
+internal sealed class HelperSession(ReplyChannel replies, FileRequests files, InotifyWatcher watcher, AccountNames accounts,
+                                    ProgramRequests programs)
 {
     private readonly ConcurrentDictionary<int, CancellationTokenSource> _running = new();
 
@@ -155,6 +157,18 @@ internal sealed class HelperSession(ReplyChannel replies, FileRequests files, In
                 return;
             }
 
+            case WslOp.Run:
+            {
+                string program = request.Text();
+                string folder = DistroPath.Checked(request.Text());
+                var arguments = new string[Count(request)];
+                for (int i = 0; i < arguments.Length; i++) arguments[i] = request.Text();
+                var environment = new KeyValuePair<string, string>[Count(request)];
+                for (int i = 0; i < environment.Length; i++) environment[i] = KeyValuePair.Create(request.Text(), request.Text());
+                await programs.RunAsync(id, program, folder, arguments, environment, ct).ConfigureAwait(false);
+                break;
+            }
+
             case WslOp.Unwatch:
                 watcher.Remove(request.Int32());
                 break;
@@ -163,6 +177,15 @@ internal sealed class HelperSession(ReplyChannel replies, FileRequests files, In
                 throw new HelperFailure(WslFailure.Other, $"request code {frame.Code} is not one this helper answers");
         }
         await replies.SendAsync(new WslWriter(WslReply.Done, id), ct).ConfigureAwait(false);
+    }
+
+    // A count read off the wire, held to what a frame could carry before anything is made that size.
+    private static int Count(WslReader request)
+    {
+        int count = request.Int32();
+        return count is >= 0 and <= WslWire.MaxFrame / 4
+            ? count
+            : throw new InvalidDataException($"A request said it holds {count} items.");
     }
 
     private async Task HelloAsync(int id, int version, CancellationToken ct)

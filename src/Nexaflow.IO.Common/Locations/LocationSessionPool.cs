@@ -375,6 +375,10 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
     internal ValueTask<ITerminalTransport> OpenShellAsync(ILocationShell shell, TerminalLaunch launch, CancellationToken ct)
         => Run(() => shell.LaunchAsync(launch, ct));
 
+        /// <summary>A program run on the host, counted as use until it ends.</summary>
+        internal ValueTask<ProgramExit> RunProgramAsync(ILocationShell shell, ProgramRun run, IProgress<string>? lines, CancellationToken ct)
+            => Run(() => shell.RunProgramAsync(run, lines, ct));
+
     /// <summary>A stream the session opened, counted as use until it is closed.</summary>
     private sealed class HeldStream(Stream inner, PooledConnection owner) : Stream
     {
@@ -464,6 +468,9 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
         }
 
         public ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct) => inner.ListCommandsAsync(ct);
+
+        public ValueTask<ProgramExit> RunProgramAsync(ProgramRun run, IProgress<string>? lines, CancellationToken ct)
+            => session.RunProgramAsync(inner, run, lines, ct);
     }
 
     /// <summary>A terminal on the location, counted as use until it is closed.</summary>

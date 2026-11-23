@@ -84,8 +84,18 @@ public interface ILocationWatch : IDisposable
     event Action<string>? Changed;
 }
 
-/// <summary>A shell on a location's host. Its <see cref="TerminalLaunch.WorkingDirectory"/> is a provider path.</summary>
-public interface ILocationShell : ITerminalLauncher { }
+/// <summary>A shell on a location's host, and the programs run there. Its <see cref="TerminalLaunch.WorkingDirectory"/> and
+/// its <see cref="ProgramRun.WorkingDirectory"/> are provider paths.</summary>
+public interface ILocationShell : ITerminalLauncher
+{
+    /// <summary>
+    /// Runs one program on the host to its end, without a terminal, as <see cref="ProgramRun"/> describes. Each line it
+    /// writes, to stdout or stderr, reaches <paramref name="lines"/> as it is written. Cancelling ends the program and what
+    /// it started. Fails with <see cref="LocationError.NotFound"/> when the program is not on the host's login
+    /// <c>PATH</c> or the folder is not there.
+    /// </summary>
+    ValueTask<ProgramExit> RunProgramAsync(ProgramRun run, IProgress<string>? lines, CancellationToken ct);
+}
 
 /// <summary>
 /// The live session behind one connected location. The session pool implements it per connection, sharing one

@@ -124,6 +124,17 @@
           "type": "code",
           "doc": "src/Nexaflow.IO.Location.Wsl/WslTerminal.cs",
           "class": "WslTerminal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslShell.cs",
+          "class": "WslShell",
+          "method": "RunProgramAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.WslHelper/Programs/ProgramRequests.cs",
+          "class": "ProgramRequests"
         }
       ]
     },
@@ -638,6 +649,22 @@
         {
           "type": "code",
           "doc": "src/Nexaflow.IO.Common/ArchiveEntryPlacement.cs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ProgramRun.cs",
+          "class": "IProgramHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/LocationFileSystem.cs",
+          "class": "LocationFileSystem",
+          "method": "GetProgramHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/ProgramOutput.cs",
+          "class": "ProgramOutput"
         }
       ],
       "concerns": {
@@ -651,6 +678,16 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationArchiveTests.cs",
             "class": "LocationArchiveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/LocationProgramHostTests.cs",
+            "class": "LocationProgramHostTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/ProgramOutputTests.cs",
+            "class": "ProgramOutputTests"
           }
         ]
       }
@@ -888,8 +925,8 @@
           "doc": "docs/features.md",
           "title_path": [
             "Building a Feature",
-            "Interface reference \u2014 \u0060Features.Common\u0060",
-            "Folder viewlets (\u0060Viewlets/\u0060)"
+            "Interface reference — `Features.Common`",
+            "Folder viewlets (`Viewlets/`)"
           ]
         },
         {
@@ -897,6 +934,12 @@
           "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FolderViewletRegistry.cs",
           "class": "FolderViewletRegistry",
           "method": "GetMatchingViewlets"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Viewlets/IFolderViewlet.cs",
+          "class": "IFolderViewlet",
+          "method": "RunsOnLocationHost"
         }
       ],
       "concerns": {
@@ -916,6 +959,11 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/ViewletBackingTests.cs",
             "class": "ViewletBackingTests",
             "method": "OnALocation_AViewletThatChangesFilesWithWindowsToolsIsNotOffered_OneThatReadsIs"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/ViewletsOnADistroTests.cs",
+            "class": "ViewletsOnADistroTests"
           }
         ]
       }

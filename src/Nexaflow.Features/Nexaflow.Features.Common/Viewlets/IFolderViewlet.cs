@@ -38,12 +38,22 @@ public interface IFolderViewlet
     bool RequiresFullyBackedPath => true;
 
     /// <summary>
-    /// True when this viewlet changes the folder's files with Windows' own tools — a repository checked out, a project built,
-    /// a summary saved beside it. Only a folder of this PC may be changed so: a location's folder — a WSL distro's, though
+    /// True when this viewlet changes the folder's files with Windows' own tools and has no other way to change them — a
+    /// summary saved beside it. Only a folder of this PC may be changed so: a location's folder — a WSL distro's, though
     /// Windows shows it as a folder — changes only through the location, which keeps its exact names and its permissions, so
-    /// the viewlet is not offered there. Defaults to <c>false</c>: a viewlet that only reads works on a location too.
+    /// the viewlet is not offered there. A viewlet whose tools can run on the location's own host declares
+    /// <see cref="RunsOnLocationHost"/> instead. Defaults to <c>false</c>: a viewlet that only reads works on a location too.
     /// </summary>
     bool RequiresLocalFolder => false;
+
+    /// <summary>
+    /// True when this viewlet's tools — <c>git</c>, <c>dotnet</c> — change the folder, and on a location run on the location's
+    /// own host (<c>IVirtualFileSystem.GetProgramHost</c>), so what they change keeps the names and permissions the host gives
+    /// it. Such a viewlet is offered on a location whose host runs programs — one with a shell, named by the location's path or
+    /// by a Windows folder showing it — and on no other; on this PC it runs its tools here. Defaults to <c>false</c>: a viewlet
+    /// that only reads needs nothing of a location's host.
+    /// </summary>
+    bool RunsOnLocationHost => false;
 
     ViewletDisplayMode DefaultDisplayMode => ViewletDisplayMode.DoubleBar;
 

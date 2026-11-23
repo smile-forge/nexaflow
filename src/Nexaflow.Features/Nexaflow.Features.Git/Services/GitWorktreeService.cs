@@ -52,6 +52,9 @@ public sealed record GitWorktreeRemovalResult(bool Success, string Message);
 [LocalDiskOnly("a git repository's worktrees, which git keeps as folders on this disk")]
 public sealed class GitWorktreeService(string folderPath)
 {
+    /// <summary>The mainline names a worktree's merged state is tested against, in the order they are tried.</summary>
+    internal static readonly string[] MergeTargetCandidates = ["main", "master", "develop", "trunk"];
+
     /// <summary>True when <c>folderPath</c> is a linked worktree (its <c>.git</c> is a pointer file).</summary>
     public bool IsWorktree() => File.Exists(Path.Combine(folderPath, ".git"));
 
@@ -286,14 +289,12 @@ public sealed class GitWorktreeService(string folderPath)
     /// is found (merged-state then reads as "unknown", so removal still prompts).</summary>
     private static (string? name, Commit? tip) ResolveMergeTarget(Repository repo, string? currentBranch)
     {
-        string[] candidates = ["main", "master", "develop", "trunk"];
-
-        foreach (var c in candidates)
+        foreach (var c in MergeTargetCandidates)
             if (repo.Branches[c] is { IsRemote: false, Tip: not null } b &&
                 !string.Equals(b.FriendlyName, currentBranch, StringComparison.Ordinal))
                 return (b.FriendlyName, b.Tip);
 
-        foreach (var c in candidates)
+        foreach (var c in MergeTargetCandidates)
             if (repo.Branches.FirstOrDefault(b =>
                     b.IsRemote && b.FriendlyName.EndsWith("/" + c, StringComparison.Ordinal)) is { Tip: not null } rb &&
                 !string.Equals(rb.FriendlyName, currentBranch, StringComparison.Ordinal))

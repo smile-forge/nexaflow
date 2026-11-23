@@ -246,6 +246,9 @@ public sealed partial class VirtualFileSystem
     public ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
         => ValueTask.FromResult<ITerminalLauncher?>(null);
 
+    // Nothing here is on a location: the caller runs its programs on this computer.
+    public IProgramHost? GetProgramHost(string folderPath) => null;
+
     public ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default)
         => OffThread(() => DescribeArchive(containerPath), containerPath, ct);
 
