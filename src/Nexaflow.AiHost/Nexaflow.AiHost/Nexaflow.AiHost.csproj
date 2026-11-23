@@ -40,8 +40,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
-    <!-- ComputeHardware: the GPU memory the VRAM budget is drawn from. -->
-    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The log file the SDK writes too: one source, compiled into each. -->
+    <Compile Include="..\Shared\AiHostLogFile.cs" Link="AiHostLogFile.cs" />
+    <!-- The cards as their driver reads them: budgets follow what is free on each. -->
+    <Compile Include="..\Shared\Nvml.cs" Link="Nvml.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -173,7 +173,7 @@ internal sealed class HostConnection : IAsyncDisposable
     {
         var security = new PipeSecurity();
         security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User!, PipeAccessRights.FullControl, AccessControlType.Allow));
-        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 1, PipeTransmissionMode.Message,
+        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
                                                PipeOptions.Asynchronous, PipeBuffer, PipeBuffer, security);
     }
 

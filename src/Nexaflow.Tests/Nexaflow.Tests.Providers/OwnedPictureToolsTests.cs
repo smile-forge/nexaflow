@@ -1,7 +1,7 @@
 using System.Text;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Providers.Support;
@@ -15,11 +15,11 @@ namespace Nexaflow.Tests.Providers;
 [TestClass]
 public class OwnedPictureToolsTests
 {
-    private static ComputeHardwareReport Nvidia() => new([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 8L << 30, IsIntegrated: false, IsNpu: false)], CudaRuntimePack.MinimumDriver);
+    private static MachineCards Nvidia() => new([new MachineCard("gpu", 8L << 30)], CudaRuntimePack.MinimumDriver);
 
-    private static ComputeHardwareReport NoGpu() => new([], null);
+    private static MachineCards NoGpu() => new([], null);
 
-    private static OwnedPictureTools Tools(FakeModelStore store, FakeAiHost host, ComputeHardwareReport? hardware = null)
+    private static OwnedPictureTools Tools(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
         => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Nvidia());
 
     private static IReadOnlyList<ModelAsset> Files => Tools(new FakeModelStore(), new FakeAiHost()).Catalog!.Files;

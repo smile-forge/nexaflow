@@ -67,7 +67,7 @@ public class MossImageModelTests
         var (client, _) = Host();
         var replies = new List<HostReply>();
         await foreach (var reply in client.SendAsync(draw, TimeSpan.FromMinutes(5))) replies.Add(reply);
-        var png = replies.OfType<Drawn>().Single().Png;
+        var png = replies.OfType<Drawn>().Single().AsPng();
         if (saveAs is not null)
         {
             var saved = Path.Combine(TestContext.TestRunResultsDirectory!, saveAs);

@@ -5,7 +5,7 @@ using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Drawing;
 using Nexaflow.AiHost.Models;
 using Nexaflow.AiHost.Speech;
-using Nexaflow.IO.Common.Hardware;
+
 using Nexaflow.AiHost.Filming;
 using Nexaflow.AiHost.Restoring;
 using Nexaflow.AiHost.Selecting;
@@ -32,7 +32,6 @@ internal static class HostProgram
 
             var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             await pipe.ConnectAsync((int)AiHostProtocol.ConnectTimeout.TotalMilliseconds);
-            pipe.ReadMode = PipeTransmissionMode.Message;
             await using var channel = new HostChannel(pipe);
 
             await channel.SendAsync(new Hello(token, AiHostProtocol.Version, Environment.ProcessId));

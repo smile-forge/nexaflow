@@ -1,6 +1,6 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Providers.Support;
@@ -13,14 +13,14 @@ public class OwnedSpeechToTextProviderTests
 {
     private const string ModelId = "nemotron-whisper-turbo";
 
-    private static ComputeHardwareReport Amd() => new([new ComputeAdapter("gpu", ComputeVendor.Amd, 24L << 30, IsIntegrated: false, IsNpu: false)], null);
+    private static MachineCards Amd() => MachineCards.None;
 
-    private static ComputeHardwareReport Nvidia() => new([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 24L << 30, IsIntegrated: false, IsNpu: false)], new Version(13, 0));
+    private static MachineCards Nvidia() => new([new MachineCard("gpu", 24L << 30)], new Version(13, 0));
 
-    private static OwnedSpeechToTextProvider Provider(FakeModelStore store, FakeAiHost host, ComputeHardwareReport? hardware = null)
+    private static OwnedSpeechToTextProvider Provider(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
         => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Amd(), new ProviderModel(ModelId));
 
-    private static IReadOnlyList<ModelAsset> FilesOn(ComputeHardwareReport hardware)
+    private static IReadOnlyList<ModelAsset> FilesOn(MachineCards hardware)
         => Provider(new FakeModelStore(), new FakeAiHost(), hardware).Catalog.Single(m => m.Id == ModelId).Files;
 
     [TestMethod]

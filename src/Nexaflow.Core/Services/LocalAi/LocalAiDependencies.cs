@@ -17,7 +17,7 @@ internal sealed class NvidiaGpuDependency : IExternalDependency
     public ExternalDependencyKind Kind => ExternalDependencyKind.Optional;
     public string? InstallUrl => null;
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.Gpu(LocalAiRequirements.Hardware);
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.Gpu(LocalAiRequirements.Cards, LocalAiRequirements.Adapters);
 }
 
 /// <summary>NVIDIA's driver, new enough for the CUDA the pack's libraries are built for.</summary>
@@ -29,7 +29,7 @@ internal sealed class CudaDriverDependency : IExternalDependency
     public ExternalDependencyKind Kind => ExternalDependencyKind.Optional;
     public string? InstallUrl => "https://www.nvidia.com/Download/index.aspx";
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.CudaDriver(LocalAiRequirements.Hardware);
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.CudaDriver(LocalAiRequirements.Cards);
 }
 
 /// <summary>The CUDA pack the models' runtime loads its GPU libraries from, downloaded into the model store.</summary>
@@ -43,7 +43,7 @@ internal sealed class CudaRuntimePackDependency : IExternalDependency
     /// <summary>No link: it is downloaded by the app, with the models.</summary>
     public string? InstallUrl => null;
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.CudaPack(LocalAiRequirements.Hardware, LocalAiRequirements.Store);
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.CudaPack(LocalAiRequirements.Cards, LocalAiRequirements.Store);
 }
 
 /// <summary>The process every model Nexaflow runs itself is loaded in, installed with the app.</summary>

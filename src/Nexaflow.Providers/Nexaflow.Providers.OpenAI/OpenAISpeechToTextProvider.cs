@@ -1,4 +1,5 @@
-using Nexaflow.IO.Common.Audio;
+
+using Nexaflow.Media.Audio;
 using Nexaflow.Providers.Common;
 using OpenAI;
 using OpenAI.Realtime;

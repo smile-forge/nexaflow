@@ -1,4 +1,5 @@
 using Nexaflow.Providers.Common;
+using Nexaflow.AiHost.Provisioning;
 
 namespace Nexaflow.Tests.Providers.Support;
 

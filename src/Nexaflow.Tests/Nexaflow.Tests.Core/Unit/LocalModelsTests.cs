@@ -18,7 +18,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.AiHost.Client;
-using Nexaflow.IO.Common.Hardware;
+using Nexaflow.AiHost.Provisioning;
+using Nexaflow.Providers.Local;
 
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -265,7 +266,7 @@ public class LocalModelsTests
     [TestMethod]
     public void ThePlan_SaysWhatTheDriveIsShort()
     {
-        _store = new ModelAssetStore(_root, [], new HttpClient(_server), weigh: (path, bytes) => new(path, bytes, 10_000, null, null, Nexaflow.IO.Common.SaveTrouble.None));
+        _store = new ModelAssetStore(_root, [], new HttpClient(_server), freeOn: _ => 10_000);
         var setup = Open();
 
         var plan = LocalDownloadPlan.For([OptionOf(setup, LocalSlot.Language, E4b), OptionOf(setup, LocalSlot.ImageGeneration, Z)], _store);
@@ -290,7 +291,7 @@ public class LocalModelsTests
     [TestMethod]
     public void TheGrid_OffersNoDownloadTheDriveHasNoRoomFor_AndSaysWhy()
     {
-        _store = new ModelAssetStore(_root, [], new HttpClient(_server), weigh: (path, bytes) => new(path, bytes, 1_000, null, null, Nexaflow.IO.Common.SaveTrouble.None));
+        _store = new ModelAssetStore(_root, [], new HttpClient(_server), freeOn: _ => 1_000);
 
         var grid = Open().Grid;
 
@@ -682,7 +683,7 @@ public class LocalModelsTests
     [TestMethod]
     public void TheCudaPack_IsOfferedOnceAboveTheTools_OnlyOnAMachineThatRunsOnItsGpu() => OnUi(() =>
     {
-        var gpu   = new ComputeHardwareReport([new ComputeAdapter("NVIDIA GeForce RTX 3080", ComputeVendor.Nvidia, 10L << 30, IsIntegrated: false, IsNpu: false)],
+        var gpu   = new MachineCards([new MachineCard("NVIDIA GeForce RTX 3080", 10L << 30)],
                                               CudaRuntimePack.MinimumDriver);
         var setup = Open();
 
@@ -693,7 +694,7 @@ public class LocalModelsTests
         Assert.AreEqual(Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(CudaRuntimePack.Size)), offered.DownloadLabel);
 
         var unused = new LocalModelsViewModel(setup.Shelf, setup.Grid, setup.Workspace, setup.Downloads, () => _saves++, [],
-                                              new CudaPackDownload(_store, _root, new ComputeHardwareReport([], null), null)).CudaPack!;
+                                              new CudaPackDownload(_store, _root, MachineCards.None, null)).CudaPack!;
         Assert.IsFalse(unused.IsMissing, "a machine without an NVIDIA GPU runs on its CPU, and is offered no pack");
         Assert.IsFalse(unused.DownloadCommand.CanExecute(null));
         return Task.CompletedTask;

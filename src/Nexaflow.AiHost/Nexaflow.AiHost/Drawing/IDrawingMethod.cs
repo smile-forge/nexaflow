@@ -16,9 +16,10 @@ internal interface IDrawingMethod
     /// <summary>Whether it draws pictures of this size.</summary>
     bool Draws(int width, int height);
 
-    /// <summary>Whether it draws an edit — a picture made from pictures to work from — at this size, and reads a picture to
-    /// work from at it.</summary>
-    bool Reads(int width, int height);
+    /// <summary>The size it reads a <paramref name="width"/> × <paramref name="height"/> picture to work from at — its proportions
+    /// kept as nearly as its tokens allow — and so draws an edit made from it at. Never asked of a method that draws from a
+    /// prompt alone (<see cref="MaxSources"/> 0).</summary>
+    (int Width, int Height) ReadSize(int width, int height);
 
     /// <summary>Whether it is told what to keep out of a picture (<see cref="Draw.NegativePrompt"/>).</summary>
     bool TakesNegativePrompts { get; }

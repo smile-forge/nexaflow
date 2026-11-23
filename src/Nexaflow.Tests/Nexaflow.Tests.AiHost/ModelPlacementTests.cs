@@ -1,6 +1,6 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;
@@ -162,18 +162,15 @@ public class ModelPlacementTests
     }
 
     [TestMethod]
-    public void BeforeTheHostRuns_ItsGpusAreExpectedFromTheAdapters()
+    public void BeforeTheHostRuns_ItsGpusAreExpectedFromTheCardsTheDriverManages()
     {
-        var hardware = new ComputeHardwareReport(
-        [
-            new ComputeAdapter("NVIDIA GeForce RTX 4080", ComputeVendor.Nvidia, 16 * GB, IsIntegrated: false, IsNpu: false),
-            new ComputeAdapter("Intel UHD", ComputeVendor.Intel, 0, IsIntegrated: true, IsNpu: false),
-        ], CudaRuntimePack.MinimumDriver);
+        var machine = new MachineCards([new MachineCard("NVIDIA GeForce RTX 4080", 16 * GB, "00000000:01:00.0")], CudaRuntimePack.MinimumDriver);
 
-        var gpu = ModelPlacement.Expected(hardware).Single();
+        var gpu = ModelPlacement.Expected(machine).Single();
 
+        Assert.AreEqual((0, "00000000:01:00.0"), (gpu.Device, gpu.BusId));
         Assert.AreEqual(16 * GB - ModelPlacement.DesktopBytes - HostGpu.ReservedBytes, gpu.BudgetBytes);
-        Assert.AreEqual(0, ModelPlacement.Expected(hardware with { CudaDriver = null }).Count, "without a CUDA driver the host runs on the CPU");
+        Assert.AreEqual(0, ModelPlacement.Expected(machine with { CudaDriver = null }).Count, "without a CUDA driver the host runs on the CPU");
     }
 
     /// <summary>Gemma 4 26B A4B as the catalog has it: 18.8 GB with no context, 14.4 GB of it its 30 layers' weights; 13.6 KB a token

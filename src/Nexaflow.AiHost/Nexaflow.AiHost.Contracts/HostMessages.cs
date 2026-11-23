@@ -27,6 +27,7 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(UnloadModel), "unload")]
 [JsonDerivedType(typeof(Generate), "generate")]
 [JsonDerivedType(typeof(TextDelta), "delta")]
+[JsonDerivedType(typeof(ReasoningDelta), "reasoning-delta")]
 [JsonDerivedType(typeof(ToolCallMade), "tool-call")]
 [JsonDerivedType(typeof(GenerationEnded), "generated")]
 [JsonDerivedType(typeof(Listen), "listen")]
@@ -41,7 +42,7 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(Drawn), "drawn")]
 [JsonDerivedType(typeof(MadeWay), "made-way")]
 [JsonDerivedType(typeof(Film), "film")]
-[JsonDerivedType(typeof(Filmed), "filmed")]
+[JsonDerivedType(typeof(FilmedFrames), "filmed-frames")]
 [JsonDerivedType(typeof(RestorePicture), "restore-picture")]
 [JsonDerivedType(typeof(PictureRestored), "picture-restored")]
 [JsonDerivedType(typeof(SelectInPicture), "select-in-picture")]
@@ -94,7 +95,16 @@ public abstract record HostReply(long RequestId) : HostMessage;
 
 /// <summary>Work under way — a model loading, a file being prepared. Also what keeps a long request from looking
 /// stalled to the client's watchdog.</summary>
-public sealed record Progress(long RequestId, string Stage, long Done, long Total) : HostReply(RequestId);
+public sealed record Progress(long RequestId, string Stage, long Done, long Total) : HostReply(RequestId)
+{
+    /// <summary>The stage the host says for a request waiting behind more urgent work — for a turn on its device, a slot to answer
+    /// in, room in its model's context, a model loading — when it has said nothing itself for a while.</summary>
+    public const string Queued = "queued";
+
+    /// <summary>The stage the host says for a request that has gone on since its last wait, a step at a time between other work's,
+    /// with nothing of its own to show yet.</summary>
+    public const string Working = "working";
+}
 
 /// <summary>The request finished.</summary>
 public sealed record Completed(long RequestId) : HostReply(RequestId);

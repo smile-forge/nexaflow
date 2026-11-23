@@ -1,4 +1,3 @@
-using Nexaflow.IO.Common.Logging;
 
 namespace Nexaflow.AiHost;
 
@@ -15,9 +14,9 @@ internal sealed class HostLog : IDisposable
     /// <summary>Names the host's files in the shared logs folder.</summary>
     public const string FilePrefix = "aihost";
 
-    private readonly SessionLogFile? _file;
+    private readonly AiHostLogFile? _file;
 
-    public HostLog(string? directory) => _file = directory is null ? null : new SessionLogFile(directory, FilePrefix);
+    public HostLog(string? directory) => _file = directory is null ? null : new AiHostLogFile(directory, FilePrefix);
 
     public void Write(string line) => _file?.Write(line);
 

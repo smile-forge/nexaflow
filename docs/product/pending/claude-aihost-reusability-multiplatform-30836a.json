@@ -1,0 +1,598 @@
+{
+  "branch": "claude/aihost-reusability-multiplatform-30836a",
+  "nodes": {
+    "owned-images-hidream-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamPictureReader.cs",
+          "class": "HiDreamPictureReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDrawing.cs",
+          "class": "HiDreamDrawing",
+          "method": "DrawAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/VisionPromptPositions.cs",
+          "class": "VisionPromptPositions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Imaging/PatchFitting.cs",
+          "class": "PatchFitting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Sampling/FlowInpainting.cs",
+          "class": "FlowInpainting"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/hidream-o1/edit_reference.py"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HiDreamSamplerTests.cs",
+            "class": "HiDreamSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HiDreamModelTests.cs",
+            "class": "HiDreamModelTests",
+            "method": "AFill_DrawsAgainOnlyWhatItsMaskCovers_KeepingThePictureElsewhereToThePixel"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Imaging/PatchFittingTests.cs",
+            "class": "PatchFittingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Imaging/PilResamplingTests.cs",
+            "class": "PilResamplingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/FlowInpaintingTests.cs",
+            "class": "FlowInpaintingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedModelsTests.cs",
+            "class": "OwnedModelsTests",
+            "method": "TheShippedHighQualityImageModel_IsHiDreamO1_ItsDenoiserAndPictureReader_BuiltForCuda_EditingUpToFourPicturesUnderAMask"
+          }
+        ]
+      }
+    },
+    "picture-tools": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureTools.cs",
+          "class": "PictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureTools.cs",
+          "class": "OwnedPictureTools"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/PictureMessages.cs",
+          "class": "RestorePicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/RestoreHandler.cs",
+          "class": "RestoreHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/PictureUpscaling.cs",
+          "class": "PictureUpscaling"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/FaceRepair.cs",
+          "class": "FaceAlignment"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/FaceRepair.cs",
+          "class": "RetinaFaceDecoding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Restoring/RestoringModels.cs",
+          "class": "RestoringModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Imaging/ReferenceResampling.cs",
+          "class": "ReferenceResampling"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Imaging/Affine2D.cs",
+          "class": "Affine2D"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/real-esrgan-gfpgan/README.md",
+          "title_path": [
+            "Real-ESRGAN, GFPGAN, RetinaFace and ParseNet for ONNX Runtime"
+          ]
+        }
+      ]
+    },
+    "owned-images-qwen-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/QwenEditDrawing.cs",
+          "class": "QwenEditDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/QwenEditSampler.cs",
+          "class": "QwenEditSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/QwenEditPictureReader.cs",
+          "class": "QwenEditPictureReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/QwenEditPromptEncoder.cs",
+          "class": "QwenEditPromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/QwenEditDenoiser.cs",
+          "class": "QwenEditDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/QwenEditPictureEncoder.cs",
+          "class": "QwenEditPictureEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/QwenEditDecoder.cs",
+          "class": "QwenEditDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Imaging/ReferenceResampling.cs",
+          "class": "ReferenceResampling",
+          "method": "ResizeAsTorch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedImageGenerationProvider.cs",
+          "class": "OwnedImageGenerationProvider",
+          "method": "DrawsFromPromptsOf"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/qwen-image-edit/edit_reference.py"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json"
+        },
+        {
+          "type": "code",
+          "doc": "tools/ai-models/qwen-image-edit/README.md"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/QwenEditSamplerTests.cs",
+            "class": "QwenEditSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/QwenEditModelTests.cs",
+            "class": "QwenEditModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Imaging/TorchResamplingTests.cs",
+            "class": "TorchResamplingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ImageEditingRowTests.cs",
+            "class": "ImageEditingRowTests",
+            "method": "AModelThatOnlyChangesPictures_ServesImageEditing_AndNeitherDrawingRow"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedModelsTests.cs",
+            "class": "OwnedModelsTests",
+            "method": "QwenImageEdit_OnlyChangesPictures_ItsFivePartsBuiltForCuda_FromThreePicturesUnderAMask_OnA32GbCard"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedImageGenerationProviderTests.cs",
+            "class": "OwnedImageGenerationProviderTests",
+            "method": "AModelThatSaysNoSizes_OnlyChangesPictures_AndOneThatDoes_DrawsFromPromptsToo"
+          }
+        ]
+      }
+    },
+    "scene-depth": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/SceneDepthMessages.cs",
+          "class": "EstimateSceneDepth"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/SceneDepth/SceneDepthHandler.cs",
+          "class": "SceneDepthHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/SceneDepth/SceneDepthHandover.cs",
+          "class": "SceneDepthHandover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/SceneDepth/SceneDepthNetwork.cs",
+          "class": "SceneDepthNetwork"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Imaging/ReferenceResampling.cs",
+          "class": "ReferenceResampling",
+          "method": "ResizeCubicAsOpenCv"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Imaging/PictureResampling.cs",
+          "class": "PictureResampling",
+          "method": "ResizePlaneBilinearAligned"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedSceneDepth.cs",
+          "class": "OwnedSceneDepth"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/SceneDepthEstimation.cs",
+          "class": "SceneDepthEstimation"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "ISceneDepth"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/depth-anything-v2-small/README.md",
+          "title_path": [
+            "Depth Anything V2 Small for ONNX Runtime"
+          ]
+        }
+      ]
+    },
+    "picture-erasing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ErasingMessages.cs",
+          "class": "ErasePicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/EraseHandler.cs",
+          "class": "EraseHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/ErasingHandover.cs",
+          "class": "ErasingHandover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/PictureInpainter.cs",
+          "class": "PictureInpainter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Erasing/ErasingRegions.cs",
+          "class": "ErasingRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPictureErasing.cs",
+          "class": "OwnedPictureErasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PictureErasing.cs",
+          "class": "PictureErasing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPictureErasing"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/big-lama/README.md",
+          "title_path": [
+            "big-lama for ONNX Runtime"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Erasing/PictureErasingTests.cs",
+            "class": "PictureErasingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Erasing/PictureErasingHandoverTests.cs",
+            "class": "PictureErasingHandoverTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Erasing/ErasingRegionsTests.cs",
+            "class": "ErasingRegionsTests"
+          }
+        ]
+      }
+    },
+    "ai-model-assets": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/ModelAssetStore.cs",
+          "class": "ModelAssetStore"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/VerifiedDownload.cs",
+          "class": "VerifiedDownload"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/ModelAssets.cs",
+          "class": "ModelCatalog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Common/Nexaflow.Providers.Common.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Provisioning/ModelRoom.cs",
+          "class": "ModelRoom"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Provisioning/ModelAssetStoreTests.cs",
+            "class": "ModelAssetStoreTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Provisioning/VerifiedDownloadTests.cs",
+            "class": "VerifiedDownloadTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/ModelCatalogTests.cs",
+            "class": "ModelCatalogTests"
+          }
+        ]
+      }
+    },
+    "owned-images": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedImageGenerationProvider.cs",
+          "class": "OwnedImageGenerationProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/DrawHandler.cs",
+          "class": "DrawHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageSampler.cs",
+          "class": "ZImageSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImagePromptEncoder.cs",
+          "class": "ZImagePromptEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDenoiser.cs",
+          "class": "ZImageDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDecoder.cs",
+          "class": "ZImageDecoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/Png/PngEncoder.cs",
+          "class": "PngEncoder"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/z-image-turbo/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDrawing.cs",
+          "class": "HiDreamDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamSampler.cs",
+          "class": "HiDreamSampler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Sampling/FlowUniPc.cs",
+          "class": "FlowUniPc"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/HiDreamDenoiser.cs",
+          "class": "HiDreamDenoiser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Drawing/ZImageDrawing.cs",
+          "class": "ZImageDrawing"
+        },
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/hidream-o1/README.md"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/Nexaflow.Providers.AiHost.csproj"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ImageModelTests.cs",
+            "class": "ImageModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ZImageSamplerTests.cs",
+            "class": "ZImageSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OwnedImageGenerationProviderTests.cs",
+            "class": "OwnedImageGenerationProviderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Png/PngEncoderTests.cs",
+            "class": "PngEncoderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HiDreamSamplerTests.cs",
+            "class": "HiDreamSamplerTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HiDreamModelTests.cs",
+            "class": "HiDreamModelTests"
+          }
+        ]
+      }
+    },
+    "iocommon-audio-test": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.AudioTools/AudioEndpoints.cs",
+          "class": "AudioEndpointCatalog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.AudioTools/AudioSignals.cs",
+          "class": "ChannelWalkSignal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.UsbProbe.AudioTools/AudioEndpointStreams.cs",
+          "class": "AudioLevelMeter"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/UsbProbe/AudioSignalTests.cs",
+            "class": "AudioSignalTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/UsbProbe/AudioEndpointCatalogTests.cs",
+            "class": "AudioEndpointCatalogTests"
+          }
+        ]
+      }
+    },
+    "providers-speech-to-text": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/OpenAISpeechToTextTests.cs",
+            "class": "OpenAISpeechToTextTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/WhisperProviderTests.cs",
+            "class": "WhisperProviderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Providers/ModelKindsTests.cs",
+            "class": "ModelKindsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Media/Audio/PcmResamplerTests.cs",
+            "class": "PcmResamplerTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 15,
+  "touched_nodes": [
+    "ai-model-assets",
+    "iocommon-audio-test",
+    "owned-images",
+    "owned-images-hidream-edit",
+    "owned-images-qwen-edit",
+    "picture-erasing",
+    "picture-tools",
+    "providers-speech-to-text",
+    "scene-depth"
+  ]
+}

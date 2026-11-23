@@ -1,9 +1,9 @@
 using System.IO;
 using Nexaflow.AiHost.Client;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
-using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
@@ -18,10 +18,10 @@ namespace Nexaflow.Tests.Core.Unit;
 [CoversNode("ai-local-models")]
 public class CudaPackDownloadTests
 {
-    private static readonly ComputeHardwareReport Gpu =
-        new([new ComputeAdapter("NVIDIA GeForce RTX 3080", ComputeVendor.Nvidia, 10L << 30, IsIntegrated: false, IsNpu: false)], CudaRuntimePack.MinimumDriver);
+    private static readonly MachineCards Gpu =
+        new([new MachineCard("NVIDIA GeForce RTX 3080", 10L << 30)], CudaRuntimePack.MinimumDriver);
 
-    private static readonly ComputeHardwareReport NoGpu = new([], null);
+    private static readonly MachineCards NoGpu = new([], null);
 
     private string _root = null!;
 
@@ -44,7 +44,7 @@ public class CudaPackDownloadTests
     }
 
     /// <summary>The pack's download over a store that fetches nothing: what can come, comes from disk.</summary>
-    private CudaPackDownload Pack(ComputeHardwareReport machine, IBackgroundActivityManager? activities = null)
+    private CudaPackDownload Pack(MachineCards machine, IBackgroundActivityManager? activities = null)
         => new(new ModelAssetStore(_root, CudaRuntimePack.EarlierIn(_root), downloadsAllowed: false), _root, machine, activities);
 
     [TestMethod]

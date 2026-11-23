@@ -2,7 +2,7 @@
 Nexaflow's host to be held to: the sizes it reads pictures at, the vision tower's inputs and their windows, an edit's
 prompt tokens and rotary positions, the image tokens' positions, the noise levels, and how a mask lies over the latents
 — for src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Drawing/qwen-image-edit.json; and PyTorch's 8-bit antialiased resizes,
-which the processor sizes pictures with, for src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Imaging/torch-resampling-reference.json.
+which the processor sizes pictures with, for src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Imaging/torch-resampling-reference.json.
 Both are written to <out-dir>, to be put there. Everything here runs on the CPU.
 
 usage: python -I -X utf8 edit_reference.py <Qwen-Image-Edit-2511 checkpoint> <out-dir>

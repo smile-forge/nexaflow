@@ -71,19 +71,22 @@ public sealed record DrawingModel(DrawingMethod Method, IReadOnlyDictionary<stri
 /// replies get in between; each denoising step is reported as a <see cref="Progress"/> (stage "drawing", done of total).
 /// The picture comes back as one <see cref="Drawn"/>.
 /// </summary>
-/// <param name="Width">In pixels; with <see cref="Height"/>, a size the model draws at.</param>
+/// <param name="Width">In pixels; with <see cref="Height"/>, a size the model draws a picture from a prompt alone at. An edit —
+/// a picture made from <see cref="Sources"/> — is drawn at the size its model reads the first at, which the host decides and
+/// <see cref="Drawn"/> reports, so it names none: 0 × 0.</param>
 /// <param name="Seed">The noise the picture starts from: the same seed and prompt draw the same picture.</param>
 /// <param name="NegativePrompt">What to keep out of the picture, for a model that is told; null for none.</param>
 /// <param name="Lora">The LoRA it is drawn with, for a model that takes one; null for none.</param>
 public sealed record Draw(long RequestId, DrawingModel Model, string Prompt, int Width, int Height, long Seed,
                           RequestPriority Priority, string? NegativePrompt = null, DrawingLora? Lora = null) : HostRequest(RequestId)
 {
-    /// <summary>The pictures to work from, in order, each at a size its model reads; none to draw from the prompt alone.</summary>
+    /// <summary>The pictures to work from, in order, each at the size it is: the host reads each at the size its model reads a
+    /// picture of its proportions at. None to draw from the prompt alone.</summary>
     public IReadOnlyList<DrawingSource> Sources { get; init; } = [];
 
-    /// <summary>What is drawn again over the first source, which is then <see cref="Width"/> × <see cref="Height"/>: a byte a
-    /// pixel, row by row — 255 where the picture is drawn again, 0 where the first source is kept, and between them a
-    /// blend; null to draw the whole picture.</summary>
+    /// <summary>What is drawn again over the first source, at that source's size as sent: a byte a pixel, row by row — 255 where
+    /// the picture is drawn again, 0 where the first source is kept, and between them a blend; null to draw the whole
+    /// picture.</summary>
     public byte[]? Mask { get; init; }
 }
 
@@ -100,8 +103,9 @@ public sealed record DrawingSource(int Width, int Height, byte[] Rgb);
 /// sampler.</param>
 public sealed record DrawingLora(string Adapter, float Strength, string? Sampler = null);
 
-/// <summary>The picture, as a PNG.</summary>
-public sealed record Drawn(long RequestId, byte[] Png) : HostReply(RequestId);
+/// <summary>The picture, <paramref name="Width"/> × <paramref name="Height"/>, interleaved 8-bit RGB row by row: encoding it is
+/// whoever keeps it's.</summary>
+public sealed record Drawn(long RequestId, int Width, int Height, byte[] Rgb) : HostReply(RequestId);
 
 /// <summary>Resident models that made way on their GPU for this picture or clip — unloaded until the last one is done,
 /// when they load again. Until then a request for one waits.</summary>

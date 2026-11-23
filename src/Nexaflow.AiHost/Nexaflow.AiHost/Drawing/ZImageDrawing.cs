@@ -15,7 +15,7 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
 
     public bool Draws(int width, int height) => ZImageSampler.Draws(width, height);
 
-    public bool Reads(int width, int height) => false;
+    public (int Width, int Height) ReadSize(int width, int height) => throw new NotSupportedException("Z-Image draws from a prompt alone.");
 
     public bool TakesNegativePrompts => false;
 

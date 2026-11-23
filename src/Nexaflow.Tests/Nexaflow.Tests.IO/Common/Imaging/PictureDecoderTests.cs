@@ -1,4 +1,5 @@
 using Nexaflow.IO.Common.Imaging;
+using Nexaflow.Media.Png;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.IO.Common.Imaging;

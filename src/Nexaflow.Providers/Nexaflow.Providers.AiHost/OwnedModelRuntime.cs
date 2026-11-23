@@ -1,7 +1,9 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Providers.AiHost;
 
@@ -12,7 +14,7 @@ namespace Nexaflow.Providers.AiHost;
 /// the context its GPU leaves it. When the setup moves them — another model taken on — they are loaded again there.
 /// </summary>
 internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
-                                        ComputeHardwareReport hardware) : IModelHolder
+                                        MachineCards hardware) : IModelHolder
 {
     /// <summary>How long a request may go without a word from the host — a load takes seconds, a token milliseconds.</summary>
     internal static readonly TimeSpan StallLimit = TimeSpan.FromMinutes(2);

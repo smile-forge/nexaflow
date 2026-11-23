@@ -21,7 +21,7 @@ internal sealed class KleinDrawing(ModelRegistry models, GpuScheduler gpu) : IDr
 
     public bool Draws(int width, int height) => KleinSampler.Draws(width, height);
 
-    public bool Reads(int width, int height) => KleinSampler.Draws(width, height);
+    public (int Width, int Height) ReadSize(int width, int height) => KleinSampler.ReadSize(width, height);
 
     public bool TakesNegativePrompts => false;
 

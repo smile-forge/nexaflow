@@ -27,11 +27,12 @@ using System.Windows.Threading;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Core.Localization;
 using Nexaflow.AiHost.Client;
-using Nexaflow.IO.Common.Hardware;
+
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Core.Services.Tools;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.AiHost.Provisioning;
 
 namespace Nexaflow.Core;
 
@@ -315,16 +316,16 @@ public partial class App : Application
         var preloadConfig = (ModelPreloadConfig)ConfigManager.Instance.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
         var aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent);
         // An earlier CUDA pack's folder is adopted from as well: a version that moves the pack on fetches only what changed.
-        var aiRoot = ModelAssetStore.DefaultRoot();
+        var aiRoot = LocalAiFolder.Root();
         var assets = new ModelAssetStore(aiRoot, [Path.Combine(ConfigManager.Instance.BaseDir, "voice", "models"), .. CudaRuntimePack.EarlierIn(aiRoot)],
                                          downloadsAllowed: !UiTest);
         // The picture tools run in the same host, on the same plan of its GPUs, from the same store, as the owned models.
         var hostSetup = new HostModelSetup(aiHost);
-        _residency = new ModelResidency(preloadConfig, new ModelUseHistory(Path.Combine(ModelAssetStore.DefaultRoot(), "model-use.json")));
+        _residency = new ModelResidency(preloadConfig, new ModelUseHistory(Path.Combine(LocalAiFolder.Root(), "model-use.json")));
         // A host with nothing held in it closes after the same idle time a model is let go after.
         if (preloadConfig.IdleRelease is { } idle) aiHost.RetireWhenIdle(idle, () => hostSetup.HoldsModels);
         StartupTimings.Mark("Init.ModelStore");
-        var hardware = ComputeHardware.Probe();
+        var hardware = MachineCards.Probe();
         StartupTimings.Mark("Init.HardwareProbe");
         // A machine that had the CUDA pack gets this version's in place of it, in the background, without being asked again.
         var cudaPack = new CudaPackDownload(assets, aiRoot, hardware, activityManager);
@@ -457,7 +458,7 @@ public partial class App : Application
     private static AiHostClient StartAiHost(int memoryShare)
     {
         _aiHost = new AiHostClient(new ProcessAiHostLauncher(AiHostInstall.ExecutablePath,
-                                                             ModelAssetStore.DefaultRoot(), memoryShare,
+                                                             LocalAiFolder.Root(), memoryShare,
                                                              () => ShellSafetyLog.Instance.Folder));
         // A host's end is recorded only while the user keeps logs; the request it took down fails on its own.
         _aiHost.HostExited += (_, e) => ShellSafetyLog.Instance.AiHostEnded(e);

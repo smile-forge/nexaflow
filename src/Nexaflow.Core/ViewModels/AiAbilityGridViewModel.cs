@@ -5,6 +5,7 @@ using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
