@@ -208,6 +208,10 @@ public class PseudoConsoleHostService : ITerminalTransport
         catch (IOException) { /* shell exited */ }
     }
 
+    /// <summary>The current folder of the hosted program itself: a shell started inside it keeps its own.</summary>
+    public ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken ct)
+        => new(IsRunning && _processHandle is { } process ? ProcessWorkingDirectory.Read(process) : null);
+
     /// <summary>Sends Ctrl-C into the PTY.</summary>
     public void Interrupt() => Write([0x03]);
 

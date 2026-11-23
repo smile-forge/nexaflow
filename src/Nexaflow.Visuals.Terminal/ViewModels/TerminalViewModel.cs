@@ -77,7 +77,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     /// on each chunk. Together with <see cref="Scrollback"/> this is the full terminal display.</summary>
     [ObservableProperty] private string _screenText = string.Empty;
 
-    /// <summary>Current path shown in the top bar — updated by parsing shell prompts.</summary>
+    /// <summary>The shell's folder, shown in the top bar: where it started, then where its host says it is. It is what the
+    /// assistant is granted and what the tab saves, so nothing printed ever sets it.</summary>
     [ObservableProperty] private string _currentPath =
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -191,6 +192,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         _pendingInitCmd  = _activeEnv?.InitialCommand;
         _initPhase       = _pendingInitCmd is not null ? 0 : 2;
 
+        // Where the shell starts is its folder until its host says otherwise.
+        if (initialPath is not null) CurrentPath = initialPath;
         ShellStarted = StartAsync(new TerminalLaunch(initialPath, overrides, _cols, _rows));
         RefreshEnvVars();
         RefreshFiles();
@@ -233,6 +236,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
         transport.Exited += OnProcessExited;
         foreach (var text in pending) transport.Write(Encoding.UTF8.GetBytes(text));
         if ((_cols, _rows) != (launch.Columns, launch.Rows)) transport.Resize(_cols, _rows);
+        _ = KeepFollowingShellFolderAsync(_disposeCts.Token);
     }
 
     /// <summary>Sends <paramref name="text"/> as typed; before the shell is there it waits, and goes once it is.</summary>
@@ -464,6 +468,8 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
 
     private void ProcessScreenOutput(string rawChunk)
     {
+        // Before the screen reads it: a prompt in this chunk ends a capture, which then waits for the folder asked for here.
+        FollowShellFolder();
         _screen.Feed(rawChunk);
 
         // Lines that scrolled off the top become scrollback; the visible grid is the live screen.
@@ -490,12 +496,10 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
                 IsBusy    = false;
                 _captureTcs?.TrySetResult(true);   // a capture in flight: the command finished (clean prompt)
 
-                if (ExtractPathFromPrompt(prompt) is { } path)
+                // The folder a prompt shows is not read: any output can draw one. Only that it is cmd's own prompt is.
+                if (ShowsFolder(prompt))
                 {
-                    bool pathChanged = !string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase);
-                    CurrentPath = path;
                     RefreshEnvVars();
-                    if (pathChanged) RefreshFiles();   // re-enumerate only when the directory changes
                     HandlePromptDetected();
                     SyncTabMeta();
                 }
@@ -515,22 +519,111 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
     //
     // The screen buffer gives us clean text with cursor-move effects already
     // applied, so prompt detection is straightforward: does the row end in '>'
-    // and contain a drive-letter path?
+    // and contain a drive-letter path? That says a prompt is back, never where the
+    // shell is: printed text can draw the same row, so the folder is only ever
+    // asked of the host (FollowShellFolder).
 
     private static readonly Regex PromptPathRegex = new(
         @"(?:PS )?[A-Za-z]:\\[^>]*>",
         RegexOptions.Compiled);
 
-    private static string? ExtractPathFromPrompt(string line)
+    /// <summary>Whether a bare prompt is cmd's own — one showing a drive path, not a lone <c>&gt;</c> another program
+    /// may print.</summary>
+    private static bool ShowsFolder(string line)
     {
         var t = line.TrimEnd();
-        if (t.Length < 3 || !t.EndsWith('>')) return null;
-        var m = PromptPathRegex.Match(t);
-        if (!m.Success) return null;
-        var path = m.Value[..^1];   // strip trailing '>'
-        if (path.StartsWith("PS ", StringComparison.OrdinalIgnoreCase))
-            path = path[3..];
-        return path.Trim();
+        return t.Length >= 3 && t.EndsWith('>') && PromptPathRegex.IsMatch(t);
+    }
+
+    // How often the host is asked while output pours, how often while none comes, and how long one answer is waited for.
+    private static readonly TimeSpan FolderPace      = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan FolderHeartbeat = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan FolderPatience  = TimeSpan.FromSeconds(5);
+
+    private volatile bool _folderStale;
+    private long _folderAskedAt = -(long)FolderPace.TotalMilliseconds;
+    private Task _followingFolder = Task.CompletedTask;
+
+    /// <summary>The folder the shell's host named, as this terminal names folders; null when it is none it reaches. cmd's
+    /// are drive paths.</summary>
+    protected virtual string? FolderFromHost(string hostFolder)
+        => hostFolder is [var drive, ':', '\\', ..] && char.IsAsciiLetter(drive) ? hostFolder : null;
+
+    /// <summary>The shell is in <paramref name="folder"/>; the Files panel and the tab follow only when that is a move.</summary>
+    private void MoveTo(string folder)
+    {
+        if (_disposed) return;
+        bool moved  = !string.Equals(folder, CurrentPath, StringComparison.OrdinalIgnoreCase);
+        CurrentPath = folder;
+        if (!moved) return;
+
+        RefreshFiles();
+        SyncTabMeta();
+    }
+
+    /// <summary>
+    /// Has the host asked where the shell is. Any output is the cue, whatever it holds — a shell prints once it is back at
+    /// its prompt, so the last answer is the true one, and nothing printed can name a folder. Printed text can stop the
+    /// prompt being printed (an escape left open swallows what follows it), so the host is asked on a heartbeat too
+    /// (<see cref="KeepFollowingShellFolderAsync"/>). Called on the UI thread; asks share one loop.
+    /// </summary>
+    private void FollowShellFolder()
+    {
+        _folderStale = true;
+        if (_followingFolder.IsCompleted) _followingFolder = FollowShellFolderAsync();
+    }
+
+    private async Task FollowShellFolderAsync()
+    {
+        while (_folderStale && !_disposed)
+        {
+            try
+            {
+                var early = (long)FolderPace.TotalMilliseconds - (Environment.TickCount64 - _folderAskedAt);
+                if (early > 0) await Task.Delay(TimeSpan.FromMilliseconds(early), _disposeCts.Token);
+
+                _folderStale   = false;
+                _folderAskedAt = Environment.TickCount64;
+                if (_transport is not { } transport) return;
+
+                using var patience = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token);
+                patience.CancelAfter(FolderPatience);
+                if (await transport.GetWorkingDirectoryAsync(patience.Token) is { } named && FolderFromHost(named) is { } folder)
+                    await _shell.RunOnUiAsync(() => MoveTo(folder));
+            }
+            catch (OperationCanceledException)
+            {
+                // closed, or no answer in time: the last folder the host named stands
+            }
+            catch (Exception e)
+            {
+                System.Diagnostics.Trace.TraceWarning($"The shell's folder could not be read: {e.Message}");
+            }
+        }
+    }
+
+    /// <summary>Asks the host where the shell is every <see cref="FolderHeartbeat"/>, so a move the shell printed nothing
+    /// after is followed too, until the terminal closes.</summary>
+    private async Task KeepFollowingShellFolderAsync(CancellationToken ct)
+    {
+        using var beat = new PeriodicTimer(FolderHeartbeat);
+        try
+        {
+            while (await beat.WaitForNextTickAsync(ct)) await _shell.RunOnUiAsync(FollowShellFolder);
+        }
+        catch (OperationCanceledException) { /* closed */ }
+    }
+
+    /// <summary>Waits for the folder the output so far asked for, so what follows a <c>cd</c> is judged by where it went.</summary>
+    private async Task ShellFolderSettledAsync(CancellationToken ct)
+    {
+        var following = Task.CompletedTask;
+        await _shell.RunOnUiAsync(() => { following = _followingFolder; });
+        try { await following.WaitAsync(FolderPatience, ct); }
+        catch (Exception unsettled) when (unsettled is TimeoutException or OperationCanceledException)
+        {
+            // the last folder the host named stands
+        }
     }
 
     // ── Init state machine ────────────────────────────────────────────────
@@ -1008,6 +1101,7 @@ public abstract partial class TerminalViewModel : ObservableObject, IDisposable,
             await _shell.RunOnUiAsync(() => { _capturing = false; StopQuietTimer(); });
         }
 
+        if (promptReturned) await ShellFolderSettledAsync(ct);
         var snap = await ReadCaptureAsync();
 
         // Finished (a clean prompt returned): plain text for a clean command, the screen for VT output.

@@ -108,6 +108,42 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool CloseHandle(IntPtr hObject);
+
+    // ── The shell's current folder ──────────────────────────────────────────
+
+    internal const int ProcessBasicInformation = 0;
+
+    [DllImport("ntdll.dll")]
+    internal static extern int NtQueryInformationProcess(
+        SafeProcessHandle process,
+        int informationClass,
+        out PROCESS_BASIC_INFORMATION information,
+        int informationLength,
+        out int returnLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ReadProcessMemory(
+        SafeProcessHandle process,
+        IntPtr address,
+        ref byte buffer,
+        nuint size,
+        out nuint read);
+
+    [DllImport("kernel32.dll", EntryPoint = "IsWow64Process", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool RunsUnderWow64(SafeProcessHandle process, [MarshalAs(UnmanagedType.Bool)] out bool wow64);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct PROCESS_BASIC_INFORMATION
+{
+    public IntPtr ExitStatus;
+    public IntPtr PebBaseAddress;
+    public IntPtr AffinityMask;
+    public IntPtr BasePriority;
+    public IntPtr UniqueProcessId;
+    public IntPtr InheritedFromUniqueProcessId;
 }
 
 [StructLayout(LayoutKind.Sequential)]
