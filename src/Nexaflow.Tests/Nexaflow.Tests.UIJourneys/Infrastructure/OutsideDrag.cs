@@ -21,19 +21,6 @@ internal static class OutsideDrag
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
 
-    /// <summary>The account Windows Sandbox signs in as.</summary>
-    private const string SandboxUser = "WDAGUtilityAccount";
-
-    /// <summary>
-    /// Why no journey can drag in here, or null where it can. In Windows Sandbox a drag begins and the pointer follows it, but
-    /// nothing it passes over accepts it — Explorer included, so it is the session and not the app — and what a drop does is then
-    /// never seen. A journey about drops asks this before it launches anything, and is inconclusive rather than failed.
-    /// </summary>
-    public static string? WhyUnavailable =>
-        string.Equals(Environment.UserName, SandboxUser, StringComparison.OrdinalIgnoreCase)
-            ? "Windows Sandbox's session never delivers a drag to the window under the pointer, so no drop can be seen here; run it on a desktop."
-            : null;
-
     /// <summary>Files, offered to be copied, moved or linked, as Explorer offers them.</summary>
     public static DragDropEffects Files(Point from, Point to, params string[] paths)
         => Carry(() => new DataObject(DataFormats.FileDrop, paths), from, to, AnyEffect);

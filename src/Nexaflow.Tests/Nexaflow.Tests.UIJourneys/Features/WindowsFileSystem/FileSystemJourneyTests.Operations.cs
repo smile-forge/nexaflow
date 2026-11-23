@@ -59,6 +59,15 @@ public partial class FileSystemJourneyTests
         Wait.UntilInputIsProcessed();
 
         NavigateFileBrowserTo(destination);
+
+        // NavigateFileBrowserTo returns once the folder's "New" button shows, which the folder just left shows too: Paste goes into
+        // whichever folder is open, so it waits for the breadcrumb to name the destination. Pasting early copies the folder into the
+        // one it came from, and the check below waits out five minutes for a copy that is not coming.
+        if (!WaitForFs(() => BreadcrumbNames("destination"), 20))
+        {
+            Check("the destination is open before anything is pasted", () => false);
+            return;
+        }
         Check("the panel is not there before anything is happening", () => WaitForGone("FileOps_Progress", 2));
         if (CheckInvoke("Paste, once something is copied", "PasteFiles", 8) is null) return;
 
@@ -224,4 +233,8 @@ public partial class FileSystemJourneyTests
     {
         try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); } catch { }
     }
+
+    /// <summary>Whether the breadcrumb bar names <paramref name="folder"/> — the folder open, not the one that was.</summary>
+    private bool BreadcrumbNames(string folder) =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Chrome_BreadcrumbBar"))?.FindFirstDescendant(cf => cf.ByName(folder)) is not null;
 }

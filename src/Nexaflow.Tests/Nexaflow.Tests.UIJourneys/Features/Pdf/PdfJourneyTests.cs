@@ -162,7 +162,7 @@ public class PdfJourneyTests : UiJourneyTestBase
         if (find is not null)
         {
             find.AsTextBox().Text = PdfSamples.BodyNeedle;
-            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.RETURN);
+            Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.RETURN);
             Wait.UntilInputIsProcessed();
             Check("Find reports the word the page carries",
                   () => WaitForId("Pdf_FindStatus", 8) is { } status && status.Name.Contains('1'));
@@ -274,7 +274,7 @@ if (WaitForId("Pdf_ConvertScans", 10) is not null)
             CheckPresent("Insert a picture after it", "Pdf_Thumb_InsertImageAfter", 2);
             CheckPresent("Insert a PDF before it", "Pdf_Thumb_InsertPdfBefore", 2);
             CheckPresent("Insert a PDF after it", "Pdf_Thumb_InsertPdfAfter", 2);
-            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
+            Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
             Wait.UntilInputIsProcessed();
 
             var below = rows[2].BoundingRectangle;
@@ -282,7 +282,7 @@ if (WaitForId("Pdf_ConvertScans", 10) is not null)
             Wait.UntilInputIsProcessed();
             CheckPresent("Insert a picture between pages", "Pdf_Gap_InsertImage", 3);
             CheckPresent("Insert a PDF between pages", "Pdf_Gap_InsertPdf", 2);
-            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
+            Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.ESCAPE);
             Wait.UntilInputIsProcessed();
 
             // Split the page: the bar it is set up in, cancelled; then split into halves, and undone.
@@ -383,7 +383,7 @@ if (WaitForId("Pdf_ConvertScans", 10) is not null)
             // Delete the page selected, undo it, redo it: the page count follows each. The split undone gave the
             // page a new row, so the rows are found again.
             (Thumbnails(thumbnails) is { Length: 3 } again ? again[1] : rows[1]).Click();
-            Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.DELETE);
+            Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.DELETE);
             Wait.UntilInputIsProcessed();
             Check("Delete takes the page out", () => PageCountIs('2', 6));
             Check("The edits can be saved as another file", () => WaitForId("Pdf_SaveAs", 2)?.IsEnabled == true);

@@ -20,8 +20,6 @@ public class DropJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "Scratchpad";
 
-    protected override string? MissingPrerequisite() => OutsideDrag.WhyUnavailable;
-
     [DllImport("user32.dll")]
     private static extern bool MoveWindow(IntPtr window, int x, int y, int width, int height, bool repaint);
 

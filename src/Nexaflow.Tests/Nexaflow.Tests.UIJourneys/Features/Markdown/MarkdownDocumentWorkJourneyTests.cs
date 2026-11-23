@@ -69,6 +69,7 @@ public class MarkdownDocumentWorkJourneyTests : UiJourneyTestBase
             Assert.Inconclusive($"{AiDirVariable} names no folder of Nexaflow's own models on this machine.");
             return;
         }
+        OwnedModelFolder.RequireModel(aiDir, "gemma-4-e4b-it", AiDirVariable);
         _aiDir  = aiDir;
         _folder = TestTemp.CreateSubdirectory("nexaflow-documents-").FullName;
         File.WriteAllText(Path.Combine(_folder, FileName), Guide);

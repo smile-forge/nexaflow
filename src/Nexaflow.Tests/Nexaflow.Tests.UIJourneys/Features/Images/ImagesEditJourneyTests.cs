@@ -570,7 +570,7 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
         box.Click();
         Wait.UntilInputIsProcessed();
         Keyboard.Type(typed);
-        Keyboard.Press(VirtualKeyShort.ENTER);
+        Keyboard.Type(VirtualKeyShort.ENTER);
         Wait.UntilInputIsProcessed();
         return WaitForFs(() => slider.Patterns.RangeValue.PatternOrDefault is { } range && Math.Abs(range.Value.Value - meant) < 1e-6, 2);
     }
@@ -632,7 +632,7 @@ public class ImagesEditJourneyTests : ImageEditJourneyBase
 
     private void PicturesDroppedOnArtist()
     {
-        if (OutsideDrag.WhyUnavailable is { } why) Assert.Inconclusive(why);
+
 
                 var start = WaitForId("Images_Start", 15);
         Assert.IsNotNull(start, "Artist's start screen did not open.");

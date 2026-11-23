@@ -83,7 +83,7 @@ public abstract class OptionsOverlayJourney : UiJourneyTestBase
         // person gets to the bottom of a ListBox — it moves selection to the last item and realises it,
         // without depending on how the row reports itself to automation.
         list.Focus();
-        Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.END);
+        Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.END);
         Wait.UntilInputIsProcessed();
         System.Threading.Thread.Sleep(300);
 

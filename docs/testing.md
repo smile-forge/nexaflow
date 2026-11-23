@@ -22,6 +22,9 @@ Two tiers, matching the two node roles:
    popups dismissed, the tabs the step opened closed). A feature's other pages open inside the same app
    (`OpenPageViaSlash`) rather than in a journey of their own. See `TextJourneyTests`, `SystemInfoJourneyTests` and
    `UiJourneyTestBase` (soft `CheckPresent`/`CheckInvoke`/`Check` so one broken control doesn't hide the rest).
+   A key is tapped with `Keyboard.Type(key)`: FlaUI's `Keyboard.Press(key)` sends only the key going down, which leaves it held
+   in the operating system after the run — a held Escape cancels every drag begun afterwards, in this run and the next
+   (`JourneyKeyboardRulesTests`).
    Interactive-desktop only (`TestCategory=UI`), and it lives in `Nexaflow.Tests.UIJourneys`.
 
    **A feature gets a second launch only when** (a) its steps together take longer than 120 s, or (b) there is a
@@ -332,10 +335,8 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
   reading `start`'s output sees it end when it ends.
 - **Input waits for a run.** While a run drives the desktop, `run`, `launch`, `click`, `type` and `key` are refused;
   `shot`, `tree` and `status` still answer, so a running journey can be watched.
-- **What differs from your desktop**: no USB passthrough, so the USB journeys have nothing to drive; no drag from one
-  window to another — a drag begins but nothing it passes over accepts it, Explorer included — so the drop journeys
-  (`OutsideDrag.WhyUnavailable`) are inconclusive there and run on a desktop; and the sandbox user is an administrator
-  with UAC off, so an elevation never prompts.
+- **What differs from your desktop**: no USB passthrough, so the USB journeys have nothing to drive; and the sandbox
+  user is an administrator with UAC off, so an elevation never prompts.
 - It needs the Windows Sandbox feature and its app's `wsb` command.
 
 ### Flaky tests in CI

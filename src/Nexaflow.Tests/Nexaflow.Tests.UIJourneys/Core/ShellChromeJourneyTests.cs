@@ -290,14 +290,14 @@ public class ShellChromeJourneyTests : UiJourneyTestBase
         // at the page in use, and pressed again while it shows that page, closes it.
         Check("F1 points help back at the page in use", () =>
         {
-            Keyboard.Press(VirtualKeyShort.F1);
+            Keyboard.Type(VirtualKeyShort.F1);
             Wait.UntilInputIsProcessed();
             Thread.Sleep(400);
             return WaitForId("Help_Document", Affordable(3)) is not null;
         });
         Check("F1 again closes help, and the split with it", () =>
         {
-            Keyboard.Press(VirtualKeyShort.F1);
+            Keyboard.Type(VirtualKeyShort.F1);
             Wait.UntilInputIsProcessed();
             Thread.Sleep(500);
             return WaitForId("Help_Document", 1) is null && TabStrips() == 1;
@@ -373,7 +373,7 @@ public class ShellChromeJourneyTests : UiJourneyTestBase
         Keyboard.Type("/serv");
         Wait.UntilInputIsProcessed();
         Thread.Sleep(500);    // the palette rebuild is debounced off the keystroke
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        Keyboard.Type(VirtualKeyShort.RETURN);
         Wait.UntilInputIsProcessed();
 
         Assert.IsNotNull(WaitForId("TabItem_SystemServices", 8),

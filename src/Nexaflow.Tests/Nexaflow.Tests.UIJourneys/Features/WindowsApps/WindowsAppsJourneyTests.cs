@@ -111,12 +111,12 @@ public class WindowsAppsJourneyTests : UiJourneyTestBase
                     return true;
                 }
 
-                Keyboard.Press(VirtualKeyShort.ESCAPE);   // a Win32 row — close and try the next
+                Keyboard.Type(VirtualKeyShort.ESCAPE);   // a Win32 row — close and try the next
                 Thread.Sleep(100);
             }
 
             list.Click();                                  // focus the list so paging applies to it
-            Keyboard.Press(VirtualKeyShort.NEXT);          // Page Down → the next screenful of rows
+            Keyboard.Type(VirtualKeyShort.NEXT);          // Page Down → the next screenful of rows
             Thread.Sleep(250);
         }
         return false;

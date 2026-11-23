@@ -34,7 +34,7 @@ public abstract class FileSystemUiTestBase : UITestBase
         ai!.Click();
         System.Threading.Thread.Sleep(150);
         Keyboard.Type(path);
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        Keyboard.Type(VirtualKeyShort.RETURN);
 
         Assert.IsNotNull(WaitForId("NewMenuAction", 10),
             "File browser did not navigate to the target folder (the 'New' button never appeared).");

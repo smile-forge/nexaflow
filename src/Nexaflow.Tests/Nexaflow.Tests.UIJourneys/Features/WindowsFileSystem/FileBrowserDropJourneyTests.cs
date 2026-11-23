@@ -17,8 +17,6 @@ public class FileBrowserDropJourneyTests : UiJourneyTestBase
 
     protected override string? LaunchTabKind => "FileSystem";
 
-    protected override string? MissingPrerequisite() => OutsideDrag.WhyUnavailable;
-
     protected override IReadOnlyDictionary<string, string> LaunchTabParams
         => new Dictionary<string, string> { ["mode"] = "path", ["path"] = _into, ["label"] = "Drops" };
 

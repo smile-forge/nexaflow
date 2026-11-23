@@ -117,7 +117,7 @@ public class ConversationViewJourneyTests : UiJourneyTestBase
         // ContextMenu, which does close on Escape.
         CheckDoes("Add context opens the source menu", "Conversation_AddContext",
                   () => WaitForName("Open tabs", 6) is not null);
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
         Wait.UntilInputIsProcessed();
         // WaitForName returns the moment it FINDS something, so asking it for null is asking whether the
         // menu had already gone on the first poll — it had not, and the menu was blamed for still closing.

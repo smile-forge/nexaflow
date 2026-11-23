@@ -318,7 +318,7 @@ public abstract class UITestBase
                 aiBox.Click();
                 System.Threading.Thread.Sleep(200);
                 Keyboard.Type(aiInputFallback);
-                Keyboard.Press(VirtualKeyShort.RETURN);
+                Keyboard.Type(VirtualKeyShort.RETURN);
                 System.Threading.Thread.Sleep(1500);
 
                 var found = MainWindow.FindFirstDescendant(

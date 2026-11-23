@@ -70,7 +70,7 @@ public abstract partial class UiJourneyTestBase
             && MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Chrome_OptionsButton")) is { } options)
             Press(options);
 
-        if (OpenPopups().Any()) Keyboard.Press(VirtualKeyShort.ESCAPE);
+        if (OpenPopups().Any()) Keyboard.Type(VirtualKeyShort.ESCAPE);
 
         var opened = TabIdsOnScreen();
         foreach (var id in _baselineTabs ?? [])
@@ -106,7 +106,7 @@ public abstract partial class UiJourneyTestBase
         Keyboard.Type("/" + slashQuery);
         Wait.UntilInputIsProcessed();
         Thread.Sleep(500);                  // the palette's rebuild is debounced off the keystroke
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        Keyboard.Type(VirtualKeyShort.RETURN);
         Wait.UntilInputIsProcessed();
         return WaitForId(viewId, Affordable(seconds));
     }

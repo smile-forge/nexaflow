@@ -77,7 +77,7 @@ public abstract class UsbJourneyBase : OptionsOverlayJourney
         ai.Click();
         if (!WaitForFs(() => ai.Properties.HasKeyboardFocus.ValueOrDefault, 2)) return false;
         Keyboard.Type($"> {path}");
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        Keyboard.Type(VirtualKeyShort.RETURN);
         return WaitForFs(() => WaitForId("Usb_DetailPath", 1)?.AsTextBox().Text == path, Affordable(5));
     }
 
