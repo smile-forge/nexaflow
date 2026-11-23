@@ -152,7 +152,7 @@ internal sealed class TokenRounds(LlamaContext context, PromptReads prompts, Act
                    {
                        if (_rounds.Withdraw(this)) done.TrySetCanceled(ct);
                    }))
-                await done.Task;
+                await RequestActivity.WaitAsync(done.Task);
         }
 
         public void Dispose()

@@ -2,8 +2,11 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+using Nexaflow.AiHost.Provisioning;
+using Nexaflow.IO.Common.Audio;
+
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Providers.AiHost;
 
@@ -21,7 +24,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     private readonly OwnedModel?       _model;
 
     public OwnedLlmProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
-                            ComputeHardwareReport hardware, ProviderModel model)
+                            MachineCards hardware, ProviderModel model)
     {
         _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == model.Model);
@@ -187,12 +190,29 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
             var named = (m.Attachments ?? []).Except(read).Select(a => $"[attached: {a.FilePath}]").ToList();
             string text = named.Count == 0 ? m.Text : m.Text + "\n" + string.Join("\n", named);
             return new ChatTurn(role, text, read.Count == 0 ? null
-                : [.. read.Select(a => new ChatMedia(a.IsImage ? MediaKind.Image : MediaKind.Audio, a.Bytes is null ? a.FilePath : null, a.Bytes))])
+                : [.. read.Select(Medium)])
             {
                 ToolCalls = m.ToolCalls is { Count: > 0 } calls ? [.. calls.Select(Call)] : null,
                 Answers   = m.Answers is { } answered ? Call(answered) : null,
             };
         })];
+
+    /// <summary>An attachment as the host reads it: an image as it is, a recording as 16 kHz mono PCM — decoded here, where the app
+    /// keeps its files.</summary>
+    /// <exception cref="LlmProviderException">The recording is not one this app reads.</exception>
+    private static ChatMedia Medium(LlmAttachment attachment)
+    {
+        if (attachment.IsImage) return new ChatMedia(MediaKind.Image, attachment.Bytes is null ? attachment.FilePath : null, attachment.Bytes);
+        try
+        {
+            var (pcm, rate) = WavAudio.ReadMono(attachment.ReadBytes());
+            return new ChatMedia(MediaKind.Audio, null, rate == WavAudio.SpeechRate ? pcm : new PcmResampler(rate, WavAudio.SpeechRate).Convert(pcm));
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new LlmProviderException($"The recording {attachment.FilePath} cannot be read: {ex.Message}", ex);
+        }
+    }
 
     private static ChatToolCall Call(LlmToolCall call) => new(call.Id, call.Name, call.Arguments.ToJsonString());
 

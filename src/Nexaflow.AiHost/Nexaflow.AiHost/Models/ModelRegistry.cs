@@ -51,7 +51,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         while (true)
         {
             Task idle;
-            await _loading.WaitAsync(ct);
+            await RequestActivity.WaitAsync(_loading.WaitAsync(ct));   // behind another model's load
             try
             {
                 if (TryLease(spec, ref resident) is { } loaded) return loaded;
@@ -144,15 +144,15 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
             // A GPU's budget is a wall: past it a load fails in the middle of somebody's reply.
             if (spec.Device is { } gpu)
             {
-                long budget = gpus.Gpu(gpu).BudgetBytes;
                 var held = Held(entries.Where(e => e.Model.Spec.Device == gpu), e => e.Model.Spec.MemoryBytes);
+                long budget = gpus.BudgetNow(gpu, held.Sum(m => m.Bytes));
                 var admission = VramBudget.Plan(budget, held, spec.MemoryBytes, displaceResidents: room is not null);
                 if (admission is null || admission.Waits)
                 {
                     if (admission is null || room is null && !_displaced.ContainsKey(spec.Id))
                         throw new HostRequestException(HostErrorKind.Refused,
-                            $"{spec.Id} needs {spec.MemoryBytes >> 20} MiB of GPU {gpu}, and its {budget >> 20} MiB budget cannot make that room beside "
-                            + string.Join(", ", held.Select(m => m.Id)) + ".");
+                            $"{spec.Id} needs {spec.MemoryBytes >> 20} MiB of GPU {gpu}, and the {budget >> 20} MiB the card leaves this host cannot make that room"
+                            + (held.Count == 0 ? "." : " beside " + string.Join(", ", held.Select(m => m.Id)) + "."));
                     return false;
                 }
                 unload.AddRange(admission.Unload);

@@ -1,5 +1,6 @@
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Providers.AiHost;
 

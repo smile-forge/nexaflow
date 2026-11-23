@@ -1,4 +1,4 @@
-namespace Nexaflow.IO.Common.Imaging;
+namespace Nexaflow.AiHost.Imaging;
 
 /// <summary>
 /// A picture brought to whole patches within a square's area, as HiDream-O1's <c>resize_pilimage</c> does: halved with a
@@ -6,7 +6,7 @@ namespace Nexaflow.IO.Common.Imaging;
 /// that fits within the square's area, each side its scaled length rounded or cut to the patch, and resized bicubically
 /// to cover that size, the rest cropped from the middle. PIL's filters do the resizing (<see cref="PilFilter"/>).
 /// </summary>
-public static class PatchFitting
+internal static class PatchFitting
 {
     /// <summary>The size a <paramref name="width"/> × <paramref name="height"/> picture is brought to, whole
     /// <paramref name="patch"/>-pixel patches within <paramref name="side"/>².</summary>
@@ -25,7 +25,7 @@ public static class PatchFitting
         var pixels = rgb.ToArray();
         while (Math.Min(width, height) >= 2 * side)
         {
-            pixels = PictureResampling.ResizeAsPil(pixels, width, height, 3, width / 2, height / 2, PilFilter.Box);
+            pixels = ReferenceResampling.ResizeAsPil(pixels, width, height, 3, width / 2, height / 2, PilFilter.Box);
             width /= 2;
             height /= 2;
         }
@@ -35,14 +35,14 @@ public static class PatchFitting
         if (s1 < s2)
         {
             int covered = (int)Math.Round(height / s1);
-            var resized = PictureResampling.ResizeAsPil(pixels, width, height, 3, newWidth, covered, PilFilter.Bicubic);
+            var resized = ReferenceResampling.ResizeAsPil(pixels, width, height, 3, newWidth, covered, PilFilter.Bicubic);
             int top = (covered - newHeight) / 2;
             return (resized.AsSpan(top * newWidth * 3, newHeight * newWidth * 3).ToArray(), newWidth, newHeight);
         }
         else
         {
             int covered = (int)Math.Round(width / s2);
-            var resized = PictureResampling.ResizeAsPil(pixels, width, height, 3, covered, newHeight, PilFilter.Bicubic);
+            var resized = ReferenceResampling.ResizeAsPil(pixels, width, height, 3, covered, newHeight, PilFilter.Bicubic);
             int left = (covered - newWidth) / 2;
             var cropped = new byte[newWidth * newHeight * 3];
             for (int y = 0; y < newHeight; y++)

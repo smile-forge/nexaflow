@@ -15,17 +15,29 @@ internal sealed class HostServer
     private readonly Dictionary<Type, IHostRequestHandler> _handlers;
     private readonly ConcurrentDictionary<long, RunningRequest> _running = new();
 
-    public HostServer(HostChannel channel, HostLog log, IEnumerable<IHostRequestHandler> handlers)
+    private readonly TimeProvider _clock;
+
+    public HostServer(HostChannel channel, HostLog log, IEnumerable<IHostRequestHandler> handlers, TimeProvider? clock = null)
     {
         _channel  = channel;
         _log      = log;
         _handlers = handlers.ToDictionary(h => h.RequestType);
+        _clock    = clock ?? TimeProvider.System;
     }
+
+    /// <summary>How long a request may say nothing before the server speaks for it (<see cref="RequestActivity"/>): well inside any
+    /// stall limit the client sets.</summary>
+    internal static readonly TimeSpan Quiet = TimeSpan.FromSeconds(15);
+
+    /// <summary>How often the requests running are looked at for one that has been quiet that long.</summary>
+    private static readonly TimeSpan QuietCheck = TimeSpan.FromSeconds(5);
 
     /// <summary>Serves until the app closes the pipe; every request still running is then cancelled and awaited.</summary>
     public async Task RunAsync()
     {
         var serving = new List<Task>();
+        using var stop = new CancellationTokenSource();
+        var speaking = SpeakForQuietAsync(stop.Token);
         while (await _channel.ReceiveAsync() is { } message)
         {
             switch (message)
@@ -41,7 +53,7 @@ internal sealed class HostServer
                     break;
                 case HostRequest request:
                     // Registered before it runs, so input or a cancellation sent straight after it is never early.
-                    var running = new RunningRequest();
+                    var running = new RunningRequest(_clock);
                     _running[request.RequestId] = running;
                     serving.RemoveAll(t => t.IsCompleted);
                     serving.Add(Task.Run(() => ServeAsync(request, running)));
@@ -54,17 +66,24 @@ internal sealed class HostServer
 
         foreach (var running in _running.Values) running.Cancel();
         await Task.WhenAll(serving);
+        stop.Cancel();
+        await speaking;
     }
 
     private async Task ServeAsync(HostRequest request, RunningRequest running)
     {
         HostReply end;
+        running.Activity.Enter();
         try
         {
             if (!_handlers.TryGetValue(request.GetType(), out var handler))
                 throw new HostRequestException(HostErrorKind.Invalid, $"this host does not handle {request.GetType().Name}");
 
-            await handler.HandleAsync(request, reply => _channel.SendAsync(reply, CancellationToken.None), running.Input, running.Token);
+            await handler.HandleAsync(request, reply =>
+            {
+                running.Activity.Said();
+                return _channel.SendAsync(reply, CancellationToken.None);
+            }, running.Input, running.Token);
             end = new Completed(request.RequestId);
         }
         catch (OperationCanceledException) when (running.Token.IsCancellationRequested)
@@ -89,9 +108,30 @@ internal sealed class HostServer
         catch (Exception ex) when (ex is IOException or ObjectDisposedException) { /* the app has gone */ }
     }
 
-    /// <summary>A request being served: its cancellation, and the input the app sends it while it runs.</summary>
-    private sealed class RunningRequest
+    /// <summary>Says for each request quiet for <see cref="Quiet"/> what it is doing — waiting, or going on between waits — until the
+    /// pipe closes. A request stuck in one step is left silent, for the client's watchdog to hear.</summary>
+    private async Task SpeakForQuietAsync(CancellationToken ct)
     {
+        using var timer = new PeriodicTimer(QuietCheck, _clock);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+                foreach (var (id, running) in _running)
+                {
+                    if (running.Activity.Due(Quiet) is not { } stage) continue;
+                    running.Activity.Said();
+                    await _channel.SendAsync(new Progress(id, stage, 0, 0), ct);
+                }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException) { /* the app has gone */ }
+    }
+
+    /// <summary>A request being served: its cancellation, and the input the app sends it while it runs.</summary>
+    private sealed class RunningRequest(TimeProvider clock)
+    {
+        /// <summary>What it has done since it last said anything.</summary>
+        public RequestActivity Activity { get; } = new(clock);
         // Never disposed: the reading loop may still cancel a request that has just ended, and a source with no
         // timer holds nothing to free.
         private readonly CancellationTokenSource _cancel = new();

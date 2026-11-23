@@ -1,7 +1,7 @@
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Restoring;
 
@@ -86,7 +86,7 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
             var restorer = lease.As<FaceRestorer>();
             for (int i = 0; i < faces.Count; i++)
             {
-                var crop = PictureResampling.WarpAffine(rgb, width, height, 3, alignments[i], (0, 0, FaceRestorer.Size, FaceRestorer.Size),
+                var crop = ReferenceResampling.WarpAffine(rgb, width, height, 3, alignments[i], (0, 0, FaceRestorer.Size, FaceRestorer.Size),
                                                         FaceAlignment.CropBorder);
                 float[] face;
                 using (await lane.NextAsync(restorerSpec.Device, ct))
@@ -126,7 +126,7 @@ internal sealed class RestoreHandler(ModelRegistry models, GpuScheduler gpu) : H
         int width = request.Width, height = request.Height;
         double shrink = Math.Max(1, (double)Math.Max(width, height) / DetectionSide);
         int dw = (int)(width / shrink), dh = (int)(height / shrink);
-        var searched = shrink > 1 ? PictureResampling.ResizeLanczos(rgba, width, height, 4, dw, dh) : rgba;
+        var searched = shrink > 1 ? ReferenceResampling.ResizeLanczos(rgba, width, height, 4, dw, dh) : rgba;
 
         var spec = request.Parts[RestoringParts.FaceDetector];
         IReadOnlyList<FoundFace> found;

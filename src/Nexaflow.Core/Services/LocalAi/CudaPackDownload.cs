@@ -1,6 +1,7 @@
 using System.IO;
 using Nexaflow.AiHost.Client;
-using Nexaflow.IO.Common.Hardware;
+
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -17,7 +18,7 @@ public sealed class CudaPackDownload
 {
     private readonly ModelAssetStore _store;
     private readonly string _storeRoot;
-    private readonly ComputeHardwareReport _hardware;
+    private readonly MachineCards _hardware;
     private readonly IBackgroundActivityManager? _activities;
     private readonly Lock _gate = new();
     private readonly Lock _deleting = new();
@@ -28,7 +29,7 @@ public sealed class CudaPackDownload
     private Task _fetching = Task.CompletedTask;
 
     /// <param name="storeRoot">The folder <paramref name="store"/> keeps its files under, where earlier packs are found.</param>
-    public CudaPackDownload(ModelAssetStore store, string storeRoot, ComputeHardwareReport hardware, IBackgroundActivityManager? activities)
+    public CudaPackDownload(ModelAssetStore store, string storeRoot, MachineCards hardware, IBackgroundActivityManager? activities)
     {
         _store      = store;
         _storeRoot  = storeRoot;
@@ -107,8 +108,8 @@ public sealed class CudaPackDownload
         }
         catch (Exception ex)
         {
-            failure = ex.Message;
-            activity?.Fail(ex.Message);   // the earlier pack stays, with whatever was not yet taken from it; the next launch tries again
+            failure = ModelRoomText.MessageOf(ex);
+            activity?.Fail(failure);   // the earlier pack stays, with whatever was not yet taken from it; the next launch tries again
         }
         finally
         {

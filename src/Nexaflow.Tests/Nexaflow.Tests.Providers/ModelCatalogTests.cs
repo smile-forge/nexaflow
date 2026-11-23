@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Tests.Providers;
 

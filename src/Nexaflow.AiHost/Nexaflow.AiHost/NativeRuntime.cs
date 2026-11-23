@@ -21,6 +21,8 @@ internal static class NativeRuntime
     /// <exception cref="DllNotFoundException">The pack is incomplete.</exception>
     public static void Load(string? pack)
     {
+        // Cards numbered in PCI bus order, as NVML lists them and the SDK expects them (MachineCards), not fastest first.
+        Environment.SetEnvironmentVariable("CUDA_DEVICE_ORDER", "PCI_BUS_ID");
         if (pack is null) return;
 
         // The pack's folder first on PATH: NVIDIA's libraries are loaded by name, by the CUDA layers.

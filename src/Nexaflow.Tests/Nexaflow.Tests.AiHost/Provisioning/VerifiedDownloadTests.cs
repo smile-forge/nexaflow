@@ -2,10 +2,10 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
-using Nexaflow.IO.Common.Downloads;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common;
+namespace Nexaflow.Tests.AiHost.Provisioning;
 
 /// <summary>
 /// A download whose size and hash are known: resumed where an earlier attempt stopped, started over when the server

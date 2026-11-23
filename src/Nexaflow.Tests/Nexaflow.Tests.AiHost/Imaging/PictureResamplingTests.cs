@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Imaging;
+namespace Nexaflow.Tests.AiHost.Imaging;
 
 /// <summary>
 /// The resizes, warps, blurs and fits a model's Python pipeline did with OpenCV, as Nexaflow does them: held to what
@@ -40,7 +40,7 @@ public class PictureResamplingTests
     {
         var l = Reference["lanczos"]!;
         var into = l[which]!;
-        var resized = PictureResampling.ResizeLanczos(Bytes(l["pixels"]!), l["width"]!.GetValue<int>(), l["height"]!.GetValue<int>(), 3,
+        var resized = ReferenceResampling.ResizeLanczos(Bytes(l["pixels"]!), l["width"]!.GetValue<int>(), l["height"]!.GetValue<int>(), 3,
                                                       into["width"]!.GetValue<int>(), into["height"]!.GetValue<int>());
         Within(Bytes(into["pixels"]!), resized, 1, $"resized {which}");
     }
@@ -53,11 +53,11 @@ public class PictureResamplingTests
         var map = new Affine2D(m[0], m[1], m[2], m[3], m[4], m[5]);
         int width = w["into"]![0]!.GetValue<int>(), height = w["into"]![1]!.GetValue<int>();
 
-        var warped = PictureResampling.WarpAffine(Bytes(w["pixels"]!), w["width"]!.GetValue<int>(), w["height"]!.GetValue<int>(), 3, map,
+        var warped = ReferenceResampling.WarpAffine(Bytes(w["pixels"]!), w["width"]!.GetValue<int>(), w["height"]!.GetValue<int>(), 3, map,
                                                   (0, 0, width, height), Bytes(w["border"]!));
         Within(Bytes(w["warped"]!), warped, 1, "the warped picture");
 
-        var plane = PictureResampling.WarpAffine(Floats(w["plane"]!), w["width"]!.GetValue<int>(), w["height"]!.GetValue<int>(), map, (0, 0, width, height));
+        var plane = ReferenceResampling.WarpAffine(Floats(w["plane"]!), w["width"]!.GetValue<int>(), w["height"]!.GetValue<int>(), map, (0, 0, width, height));
         var expected = Floats(w["warped_plane"]!);
         Assert.IsTrue(expected.Zip(plane, (e, a) => Math.Abs(e - a)).Max() < 1e-4, "the warped plane");
     }
@@ -69,9 +69,9 @@ public class PictureResamplingTests
         var m = w["map"]!.AsArray().Select(v => v!.GetValue<double>()).ToArray();
         var map = new Affine2D(m[0], m[1], m[2], m[3], m[4], m[5]);
         var pixels = Bytes(w["pixels"]!);
-        var whole = PictureResampling.WarpAffine(pixels, 16, 12, 3, map, (0, 0, 14, 11), Bytes(w["border"]!));
+        var whole = ReferenceResampling.WarpAffine(pixels, 16, 12, 3, map, (0, 0, 14, 11), Bytes(w["border"]!));
 
-        var part = PictureResampling.WarpAffine(pixels, 16, 12, 3, map, (3, 2, 6, 5), Bytes(w["border"]!));
+        var part = ReferenceResampling.WarpAffine(pixels, 16, 12, 3, map, (3, 2, 6, 5), Bytes(w["border"]!));
 
         for (int y = 0; y < 5; y++)
             CollectionAssert.AreEqual(whole.AsSpan(((2 + y) * 14 + 3) * 3, 18).ToArray(), part.AsSpan(y * 18, 18).ToArray(), $"row {y}");
@@ -83,7 +83,7 @@ public class PictureResamplingTests
         var b = Reference["blur"]!;
         var plane = Floats(b["plane"]!);
 
-        PictureResampling.GaussianBlur(plane, b["width"]!.GetValue<int>(), b["height"]!.GetValue<int>(), b["size"]!.GetValue<int>(), b["sigma"]!.GetValue<double>());
+        ReferenceResampling.GaussianBlur(plane, b["width"]!.GetValue<int>(), b["height"]!.GetValue<int>(), b["size"]!.GetValue<int>(), b["sigma"]!.GetValue<double>());
 
         var expected = Floats(b["blurred"]!);
         Assert.IsTrue(expected.Zip(plane, (e, a) => Math.Abs(e - a)).Max() < 1e-2, "the blurred plane, of values to 255");

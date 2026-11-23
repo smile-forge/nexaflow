@@ -15,7 +15,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers.Local\Nexaflow.Providers.Local.csproj" />
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
+    <!-- The containers the host takes raw: pictures decoded and PNGs made, recordings read, clips encoded. -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>

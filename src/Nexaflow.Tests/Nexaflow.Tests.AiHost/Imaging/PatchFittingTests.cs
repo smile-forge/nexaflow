@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Imaging;
+namespace Nexaflow.Tests.AiHost.Imaging;
 
 /// <summary>
 /// Pictures brought to whole patches within a square, as HiDream-O1's <c>resize_pilimage</c> brings the pictures it

@@ -7,7 +7,7 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
-using Nexaflow.IO.Common.Hardware;
+
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
@@ -644,7 +644,7 @@ public partial class SetupWizardViewModel : ObservableObject
 
         // Who runs the AI — asked only where this machine can run Nexaflow's own model. A provider set is acquired
         // just long enough to find it among the providers by its harness.
-        var hardware = ProviderManager.Instance.Service<ComputeHardwareReport>() ?? ComputeHardware.Probe();
+        var hardware = ProviderManager.Instance.Service<MachineCards>() ?? MachineCards.Probe();
         var offers = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, []);
         try { ctx.Owned = OwnedModelOffer.Find(offers, hardware, ProviderManager.Instance.Assets); }
         finally { ProviderManager.Instance.ReleaseProviderSet(offers); }

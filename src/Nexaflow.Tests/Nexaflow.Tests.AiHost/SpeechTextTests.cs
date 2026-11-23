@@ -1,5 +1,5 @@
 using Nexaflow.AiHost.Speech;
-using Nexaflow.IO.Common.Speech;
+
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;
@@ -16,7 +16,7 @@ public class SpeechTextTests
     [DataRow("Nein, nicht das.", "de")]
     [DataRow("", "en")]
     public void AFinishedSentence_LooksFinished(string text, string language)
-        => Assert.IsTrue(SpokenTurns.LooksFinished(text, language));
+        => Assert.IsTrue(TurnWords.LooksFinished(text, language));
 
     [TestMethod]
     [DataRow("I was thinking that, um,", "en")]
@@ -26,25 +26,14 @@ public class SpeechTextTests
     [DataRow("Das ist die Datei, die", "de")]
     [DataRow("Ich wollte sagen…", "de")]
     public void ATurnEndingMidPhrase_DoesNot(string text, string language)
-        => Assert.IsFalse(SpokenTurns.LooksFinished(text, language));
+        => Assert.IsFalse(TurnWords.LooksFinished(text, language));
 
     [TestMethod]
     public void AWordThatOpensAPhraseInAnotherLanguage_CountsOnlyWhenTheLanguageIsUnknown()
     {
-        Assert.IsTrue(SpokenTurns.LooksFinished("Ich habe es und", "fr"), "'und' opens nothing in French");
-        Assert.IsFalse(SpokenTurns.LooksFinished("Ich habe es und", null));
+        Assert.IsTrue(TurnWords.LooksFinished("Ich habe es und", "fr"), "'und' opens nothing in French");
+        Assert.IsFalse(TurnWords.LooksFinished("Ich habe es und", null));
     }
-
-    [TestMethod]
-    [DataRow("Mm-hmm.", "en", true)]
-    [DataRow("Yeah, yeah.", "en", true)]
-    [DataRow("Ouais.", "fr", true)]
-    [DataRow("Ja, genau.", "de", true)]
-    [DataRow("No, stop.", "en", false)]
-    [DataRow("Yeah, but what about Friday?", "en", false)]
-    [DataRow("", "en", false)]
-    public void OnlyListenersNoises_AreABackchannel(string text, string language, bool backchannel)
-        => Assert.AreEqual(backchannel, SpokenTurns.IsBackchannel(text, language));
 
     [TestMethod]
     public void Pcm_IsCutIntoWholeFrames_HoweverItArrives()

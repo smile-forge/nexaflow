@@ -83,7 +83,7 @@ public class QwenEditModelTests
         var (client, _) = Host();
         var replies = new List<HostReply>();
         await foreach (var reply in client.SendAsync(draw, TimeSpan.FromMinutes(10))) replies.Add(reply);
-        var png = replies.OfType<Drawn>().Single().Png;
+        var png = replies.OfType<Drawn>().Single().AsPng();
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, name);
         File.WriteAllBytes(saved, png);
         TestContext.AddResultFile(saved);   // to look at: the test checks its shape, a person checks what it shows
@@ -98,7 +98,7 @@ public class QwenEditModelTests
         const int width = 1184, height = 896;
         var source = Scene(width, height);
 
-        var (replies, edited) = await EditAsync(id => new Draw(id, model, "Make it night, a full moon in the sky.", width, height, 4, RequestPriority.Job)
+        var (replies, edited) = await EditAsync(id => new Draw(id, model, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
                                                      { Sources = [new DrawingSource(width, height, source)] },
                                                 "edited-night-qwen.png");
 
@@ -124,7 +124,7 @@ public class QwenEditModelTests
         };
         const int width = 1184, height = 896;
         var source = Scene(width, height);
-        Draw Edit(long id, DrawingModel drawing) => new(id, drawing, "Make it night, a full moon in the sky.", width, height, 4, RequestPriority.Job)
+        Draw Edit(long id, DrawingModel drawing) => new(id, drawing, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
                                                     { Sources = [new DrawingSource(width, height, source)] };
 
         PngReader.Picture whole, stream;
@@ -151,7 +151,7 @@ public class QwenEditModelTests
             for (int x = 384; x < 640; x++)
                 mask[y * width + x] = 255;
 
-        var (_, filled) = await EditAsync(id => new Draw(id, model, "a bowl of oranges", width, height, 6, RequestPriority.Job)
+        var (_, filled) = await EditAsync(id => new Draw(id, model, "a bowl of oranges", 0, 0, 6, RequestPriority.Job)
                                                 { Sources = [new DrawingSource(width, height, source)], Mask = mask },
                                           "filled-oranges-qwen.png");
 

@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Imaging;
+namespace Nexaflow.Tests.AiHost.Imaging;
 
 /// <summary>
 /// PyTorch's antialiased resizes of 8-bit pictures — the ones torchvision and Qwen2-VL's image processor size pictures with
@@ -40,12 +40,12 @@ public class TorchResamplingTests
         var into = c["into"]!;
         var filter = c["filter"]!.GetValue<string>() == "bicubic" ? PilFilter.Bicubic : PilFilter.Bilinear;
 
-        var resized = PictureResampling.ResizeAsTorch(Bytes(c["pixels"]!), Int(c, "width"), Int(c, "height"), 3, Int(into, "width"), Int(into, "height"), filter);
+        var resized = ReferenceResampling.ResizeAsTorch(Bytes(c["pixels"]!), Int(c, "width"), Int(c, "height"), 3, Int(into, "width"), Int(into, "height"), filter);
 
         CollectionAssert.AreEqual(Bytes(into["pixels"]!), resized);
     }
 
     [TestMethod]
     public void ATorchResize_TakesOnlyTheFiltersTorchResizes8BitPicturesWith()
-        => Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PictureResampling.ResizeAsTorch(new byte[12], 2, 2, 3, 1, 1, PilFilter.Lanczos));
+        => Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => ReferenceResampling.ResizeAsTorch(new byte[12], 2, 2, 3, 1, 1, PilFilter.Lanczos));
 }

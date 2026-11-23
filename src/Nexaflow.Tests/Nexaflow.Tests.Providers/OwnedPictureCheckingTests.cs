@@ -1,6 +1,7 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+using Nexaflow.AiHost.Provisioning;
+using Nexaflow.IO.Common.Imaging;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Providers.Support;
@@ -14,11 +15,11 @@ namespace Nexaflow.Tests.Providers;
 [TestClass]
 public class OwnedPictureCheckingTests
 {
-    private static ComputeHardwareReport Nvidia() => new([new ComputeAdapter("gpu", ComputeVendor.Nvidia, 16L << 30, IsIntegrated: false, IsNpu: false)], CudaRuntimePack.MinimumDriver);
+    private static MachineCards Nvidia() => new([new MachineCard("gpu", 16L << 30)], CudaRuntimePack.MinimumDriver);
 
-    private static ComputeHardwareReport NoGpu() => new([], null);
+    private static MachineCards NoGpu() => new([], null);
 
-    private static OwnedPictureChecking Checking(FakeModelStore store, FakeAiHost host, ComputeHardwareReport? hardware = null)
+    private static OwnedPictureChecking Checking(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
         => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Nvidia());
 
     private static IReadOnlyList<ModelAsset> Files => Checking(new FakeModelStore(), new FakeAiHost()).Catalog!.Files;
@@ -40,17 +41,19 @@ public class OwnedPictureCheckingTests
     }
 
     [TestMethod]
-    public async Task APicture_IsCheckedOnTheCpu_AsItWasEncoded_AndItsVerdictGivenBack()
+    public async Task APicture_IsCheckedOnTheCpu_AsItsPixels_AndItsVerdictGivenBack()
     {
         var host = new FakeAiHost
         {
             Reply = (r, _) => r is CheckPicture check ? [new PictureChecked(check.RequestId, 0.05f, 0.6f, 0.35f), new Completed(check.RequestId)] : [],
         };
+        byte[] rgb = [1, 2, 3, 4, 5, 6];
 
-        var verdict = await Checking(Here(), host).CheckAsync([0x89, 0x50, 0x4E, 0x47], CancellationToken.None);
+        var verdict = await Checking(Here(), host).CheckAsync(PngEncoder.EncodeRgb(rgb, 2, 1), CancellationToken.None);
 
         var request = (CheckPicture)host.Requests.Single();
-        CollectionAssert.AreEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47 }, request.Picture, "the picture goes as it was encoded");
+        Assert.AreEqual((2, 1), (request.Width, request.Height));
+        CollectionAssert.AreEqual(rgb, request.Rgb, "the picture goes as its pixels, decoded here");
         Assert.IsNull(request.Classifier.Device, "the CPU, not the GPU");
         Assert.AreEqual(new PictureVerdict(0.05f, 0.6f, 0.35f), verdict);
     }

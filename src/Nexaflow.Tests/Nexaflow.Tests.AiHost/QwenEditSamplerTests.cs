@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using Nexaflow.AiHost.Drawing;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;
@@ -57,7 +57,7 @@ public class QwenEditSamplerTests
         var bytes = reader["patch_bytes"]!.AsArray().Select(v => v!.GetValue<int>()).ToArray();
 
         var (readWidth, readHeight) = QwenEditSampler.ProcessorSize(width, height);
-        var resized = PictureResampling.ResizeAsTorch(rgb, width, height, 3, readWidth, readHeight, PilFilter.Bicubic);
+        var resized = ReferenceResampling.ResizeAsTorch(rgb, width, height, 3, readWidth, readHeight, PilFilter.Bicubic);
         var patches = QwenEditSampler.ReaderPatches(resized, readWidth, readHeight);
 
         Assert.AreEqual((cols * QwenEditSampler.ReaderPatch, rows * QwenEditSampler.ReaderPatch), (readWidth, readHeight), "each side rounded to 28");
@@ -157,11 +157,11 @@ public class QwenEditSamplerTests
     }
 
     [TestMethod]
-    [DataRow(1024, 1024, true)]
-    [DataRow(1376, 768, true)]
-    [DataRow(1024, 1040, true)]
-    [DataRow(2048, 2048, false)]
-    [DataRow(1000, 1000, false)]
-    public void AnEdit_IsDrawnAtWholeTokensAboutAMegapixel(int width, int height, bool reads)
-        => Assert.AreEqual(reads, QwenEditSampler.Reads(width, height));
+    [DataRow(1024, 1024, 1024, 1024)]
+    [DataRow(1920, 1080, 1376, 768)]
+    [DataRow(640, 480, 1184, 896)]
+    [DataRow(333, 777, 672, 1568)]
+    [DataRow(100, 100, 1024, 1024)]
+    public void AnEdit_IsRoundedAboutAMegapixel_UpOrDown_AsQwenImageEditReadsIt(int width, int height, int readWidth, int readHeight)
+        => Assert.AreEqual((readWidth, readHeight), QwenEditSampler.ReadSize(width, height));
 }

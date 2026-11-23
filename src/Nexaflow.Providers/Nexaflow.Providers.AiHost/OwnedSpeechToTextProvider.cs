@@ -1,8 +1,10 @@
 using System.Runtime.CompilerServices;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 
 namespace Nexaflow.Providers.AiHost;
 
@@ -17,7 +19,7 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     private readonly OwnedModel?       _model;
 
     public OwnedSpeechToTextProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
-                                     ComputeHardwareReport hardware, ProviderModel model)
+                                     MachineCards hardware, ProviderModel model)
     {
         _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
         _model   = OwnedModels.OfKind(ModelKind.SpeechToText).FirstOrDefault(m => m.Id == model.Model);

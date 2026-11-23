@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Processes;
+
 
 namespace Nexaflow.AiHost.Client;
 
@@ -71,7 +71,7 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int mem
 
         var process = Process.Start(info)
             ?? throw new AiHostException(AiHostFailure.Unavailable, "The AI host could not be started.");
-        KillOnCloseJob.Assign(process.Handle);
+        HostProcessJob.Assign(process.Handle);
         process.StandardInput.WriteLine(token);
         process.StandardInput.Close();
         return new HostProcess(process, logs);

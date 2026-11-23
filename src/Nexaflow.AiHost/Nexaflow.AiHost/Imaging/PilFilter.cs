@@ -1,7 +1,7 @@
-namespace Nexaflow.IO.Common.Imaging;
+namespace Nexaflow.AiHost.Imaging;
 
-/// <summary>The filters PIL resizes 8-bit pictures with, as <see cref="PictureResampling.ResizeAsPil"/> applies them.</summary>
-public enum PilFilter
+/// <summary>The filters PIL resizes 8-bit pictures with, as <see cref="ReferenceResampling.ResizeAsPil"/> applies them.</summary>
+internal enum PilFilter
 {
     /// <summary>Each output pixel the plain average of the source pixels it covers (<c>Image.BOX</c>).</summary>
     Box,

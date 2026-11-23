@@ -54,6 +54,18 @@ public class ChatPromptTests
     }
 
     [TestMethod]
+    [DataRow("gemma-4", "<|channel>thought\nIt is in Downloads.\n<channel|>")]
+    [DataRow("qwen-3.6", "<think>\nIt is in Downloads.\n</think>")]
+    public void ReasoningGivenBack_IsWrittenWhereTheModelsOwnTemplateHasItRead(string family, string written)
+    {
+        ChatTurn[] turns = [WithACall[0], WithACall[1], WithACall[2] with { Reasoning = "It is in Downloads." }, WithACall[3]];
+        var variables = Variables(turns, [DeleteFile]);
+
+        Assert.AreEqual("It is in Downloads.", (string)Mapping(List(variables["messages"])[2])["reasoning_content"]!);
+        StringAssert.Contains(JinjaTemplate.Parse(ChatTemplateReferences.Template(family)).Render(variables), written);
+    }
+
+    [TestMethod]
     public void TheToolsAreGivenAsFunctions_WithTheirSchemas_ReasoningOn_AndTheModelsOwnTokens()
     {
         var variables = Variables(WithACall, [DeleteFile]);

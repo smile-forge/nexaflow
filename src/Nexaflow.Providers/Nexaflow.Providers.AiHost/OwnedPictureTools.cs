@@ -1,6 +1,7 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Providers.AiHost;
@@ -19,7 +20,7 @@ public sealed record RestoringStep(string Stage, int Done, int Total);
 /// </summary>
 public sealed class OwnedPictureTools : OwnedToolFront
 {
-    public OwnedPictureTools(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, ComputeHardwareReport hardware)
+    public OwnedPictureTools(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
         : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == OwnedToolKind.PictureRestoration))
     {
     }

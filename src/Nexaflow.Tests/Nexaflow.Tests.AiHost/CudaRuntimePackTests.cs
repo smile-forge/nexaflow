@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;
@@ -59,16 +59,16 @@ public class CudaRuntimePackTests
         Assert.AreEqual(0, CudaRuntimePack.EarlierIn(Path.Combine(root, "none")).Count, "a store no pack was ever kept in has none earlier");
     }
 
-    private static ComputeAdapter Gpu(ComputeVendor vendor, bool integrated = false) => new("gpu", vendor, 24L << 30, integrated, IsNpu: false);
+    private static MachineCards Machine(Version? driver, int cards = 1) => new([.. Enumerable.Repeat(new MachineCard("gpu", 24L << 30), cards)], driver);
 
     [TestMethod]
-    public void ThePackApplies_ToAnNvidiaGpuOfItsOwn_WithACuda13Driver()
+    public void ThePackApplies_ToAnNvidiaCard_WithACuda13Driver()
     {
-        Assert.IsTrue(CudaRuntimePack.Applies(new([Gpu(ComputeVendor.Nvidia)], new Version(13, 0))));
-        Assert.IsFalse(CudaRuntimePack.Applies(new([Gpu(ComputeVendor.Nvidia)], new Version(12, 8))), "an older driver cannot run CUDA 13");
-        Assert.IsFalse(CudaRuntimePack.Applies(new([Gpu(ComputeVendor.Nvidia)], null)), "no driver, no CUDA");
-        Assert.IsFalse(CudaRuntimePack.Applies(new([Gpu(ComputeVendor.Amd)], new Version(13, 0))));
-        Assert.IsFalse(CudaRuntimePack.Applies(new([Gpu(ComputeVendor.Nvidia, integrated: true)], new Version(13, 0))));
+        Assert.IsTrue(CudaRuntimePack.Applies(Machine(new Version(13, 0))));
+        Assert.IsFalse(CudaRuntimePack.Applies(Machine(new Version(12, 8))), "an older driver cannot run CUDA 13");
+        Assert.IsFalse(CudaRuntimePack.Applies(Machine(null)), "no driver, no CUDA");
+        Assert.IsFalse(CudaRuntimePack.Applies(Machine(new Version(13, 0), cards: 0)), "a driver that manages no card");
+        Assert.IsFalse(CudaRuntimePack.Applies(MachineCards.None));
     }
 
     /// <summary>The real pack, where a machine has one: <c>NEXAFLOW_TEST_RUNTIME_PACK</c> names its folder.</summary>

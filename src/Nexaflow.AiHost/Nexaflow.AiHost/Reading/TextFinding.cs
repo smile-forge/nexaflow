@@ -1,5 +1,5 @@
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 
 namespace Nexaflow.AiHost.Reading;
 
@@ -40,7 +40,7 @@ internal static class TextFinding
         {
             int rgb = 2 - c;   // BGR
             for (int i = 0; i < channel.Length; i++) channel[i] = rgba[i * 4 + rgb];
-            var resized = PictureResampling.ResizePlaneBilinear(channel, width, height, w, h);
+            var resized = ReferenceResampling.ResizePlaneBilinear(channel, width, height, w, h);
             var into = input.AsSpan(c * plane, plane);
             for (int i = 0; i < plane; i++)
             {

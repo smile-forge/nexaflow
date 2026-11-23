@@ -1,54 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Nexaflow.AiHost.Provisioning;
 
-namespace Nexaflow.Providers.Common;
-
-/// <summary>
-/// A file a model needs — its weights, a vocabulary, a runtime library — fetched once and kept. <see cref="RelativePath"/>
-/// is where it lives under the asset store's root and what identifies it; <see cref="Size"/> and <see cref="Sha256"/>
-/// are what it must be, so a file is used only when it is exactly what the catalog says. A file published inside an
-/// archive names it as <see cref="Archive"/>, and <see cref="Source"/> is then the archive's address.
-/// </summary>
-public sealed record ModelAsset(string RelativePath, Uri Source, long Size, string Sha256, ArchiveEntry? Archive = null);
-
-/// <summary>
-/// Where an asset is packed when it is not published on its own — an entry of a zip archive such as a Python wheel or
-/// a NuGet package, as NVIDIA and Microsoft ship their runtime libraries. The archive is fetched and checked whole,
-/// once for every asset packed in it, and only the entries wanted are kept.
-/// </summary>
-/// <param name="Entry">The entry's path inside the archive.</param>
-public sealed record ArchiveEntry(string Entry, long ArchiveSize, string ArchiveSha256);
-
-/// <summary>How far an asset's download has got.</summary>
-public readonly record struct AssetProgress(long Received, long Total)
-{
-    public double Fraction => Total > 0 ? (double)Received / Total : 0;
-}
-
-/// <summary>
-/// Where providers find the files their models need. Every model's files live under one root, outside the roaming
-/// profile; a download resumes where an interrupted one stopped, and a file is handed out only once its size and
-/// hash match.
-/// </summary>
-public interface IModelAssetStore
-{
-    /// <summary>The asset's path when it is on disk, complete and verified; null otherwise.</summary>
-    string? Locate(ModelAsset asset);
-
-    /// <summary>Makes the asset present — downloading it, or resuming a download — and returns its path.</summary>
-    /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
-    Task<string> EnsureAsync(ModelAsset asset, IProgress<AssetProgress>? progress = null, CancellationToken ct = default);
-
-    /// <summary>Makes every asset present and returns their paths in order. Each archive they are packed in is fetched
-    /// once for all of them; <paramref name="progress"/> counts every byte the set still needs.</summary>
-    /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
-    Task<IReadOnlyList<string>> EnsureAllAsync(IReadOnlyList<ModelAsset> assets, IProgress<AssetProgress>? progress = null,
-                                               CancellationToken ct = default);
-
-    /// <summary>An asset arrived on disk, verified, or was removed — whoever downloaded or removed it. A provider
-    /// whose model it is becomes available, or stops being. Raised on whichever thread made the change.</summary>
-    event EventHandler<ModelAsset>? Changed;
-}
+namespace Nexaflow.Providers.Local;
 
 /// <summary>
 /// A provider whose models are files kept on this machine, fetched through the <see cref="IModelAssetStore"/>: its
@@ -102,8 +56,8 @@ public sealed record LocalRuntime(string Id, string DisplayName, IReadOnlyList<M
 /// <summary>
 /// The manifest a provider ships of the models it can fetch: for each, an id (what an ability-grid column names),
 /// a display name, the job of its kind it is made for (<c>"tier": "highQuality"</c>; standard when it says nothing), and
-/// its files with their source, size and SHA-256. A file published inside an archive gives the
-/// archive's address as its url, and says which entry it is and what the archive must be:
+/// its files with their source, size and SHA-256, each as the AI host SDK writes one (<see cref="ModelAssetEntry"/>). A file
+/// published inside an archive gives the archive's address as its url, and says which entry it is and what the archive must be:
 /// <code>
 /// { "models": [ { "id": "base.en", "displayName": "…",
 ///                 "files": [ { "path": "whisper/ggml-base.en.bin", "url": "https://…", "size": 147964211, "sha256": "…" },
@@ -120,9 +74,7 @@ public static partial class ModelCatalog
     private sealed partial class ManifestJson : JsonSerializerContext;
 
     private sealed record Manifest(List<ManifestModel>? Models, List<ManifestModel>? Tools);
-    private sealed record ManifestModel(string? Id, string? DisplayName, List<ManifestFile>? Files, ModelTier? Tier);
-    private sealed record ManifestFile(string? Path, string? Url, long Size, string? Sha256, ManifestArchive? Archive);
-    private sealed record ManifestArchive(string? Entry, long Size, string? Sha256);
+    private sealed record ManifestModel(string? Id, string? DisplayName, List<ModelAssetEntry>? Files, ModelTier? Tier);
 
     /// <exception cref="InvalidDataException">The manifest is malformed, or a model or file lacks what it must say.</exception>
     public static IReadOnlyList<CatalogModel> Read(Stream json) => [.. (ParseManifest(json).Models ?? []).Select(ToModel)];
@@ -153,7 +105,7 @@ public static partial class ModelCatalog
     /// held to the same rules as the files a model lists.</summary>
     /// <exception cref="InvalidDataException">It does not say where it goes, where it comes from over https, its size or its SHA-256.</exception>
     public static ModelAsset FileOf(string ownerId, string? path, string? url, long size, string? sha256)
-        => ToAsset(ownerId, new ManifestFile(path, url, size, sha256, null));
+        => new ModelAssetEntry(path, url, size, sha256).ToAsset(ownerId);
 
     private static CatalogModel ToModel(ManifestModel m)
     {
@@ -161,26 +113,6 @@ public static partial class ModelCatalog
         if (m.Files is not { Count: > 0 }) throw new InvalidDataException($"Catalog model '{m.Id}' lists no files.");
 
         return new CatalogModel(m.Id, string.IsNullOrWhiteSpace(m.DisplayName) ? m.Id : m.DisplayName!,
-            [.. m.Files.Select(f => ToAsset(m.Id, f))], m.Tier ?? ModelTier.Standard);
-    }
-
-    private static ModelAsset ToAsset(string modelId, ManifestFile f)
-    {
-        if (string.IsNullOrWhiteSpace(f.Path) || Path.IsPathRooted(f.Path) || f.Path.Split('/', '\\').Contains(".."))
-            throw new InvalidDataException($"Catalog model '{modelId}' has a file without a relative path.");
-        if (!Uri.TryCreate(f.Url, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps)
-            throw new InvalidDataException($"Catalog file '{f.Path}' has no https source.");
-        if (f.Size <= 0 || f.Sha256 is not { Length: 64 })
-            throw new InvalidDataException($"Catalog file '{f.Path}' does not say its size and SHA-256.");
-
-        ArchiveEntry? archive = null;
-        if (f.Archive is { } a)
-        {
-            if (string.IsNullOrWhiteSpace(a.Entry) || a.Size <= 0 || a.Sha256 is not { Length: 64 })
-                throw new InvalidDataException($"Catalog file '{f.Path}' is packed in an archive it does not fully describe.");
-            archive = new ArchiveEntry(a.Entry, a.Size, a.Sha256.ToLowerInvariant());
-        }
-
-        return new ModelAsset(f.Path.Replace('\\', '/'), url, f.Size, f.Sha256.ToLowerInvariant(), archive);
+            [.. m.Files.Select(f => f.ToAsset(m.Id))], m.Tier ?? ModelTier.Standard);
     }
 }

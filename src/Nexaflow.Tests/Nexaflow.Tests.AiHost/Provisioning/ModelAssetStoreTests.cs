@@ -2,12 +2,10 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
-using Nexaflow.Core.Services;
-using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.IO.Common;
+using Nexaflow.AiHost.Provisioning;
 
-namespace Nexaflow.Tests.Core.Unit;
+namespace Nexaflow.Tests.AiHost.Provisioning;
 
 /// <summary>
 /// The store local models' files live in: what it hands out, what it fetches, and what it takes over from the folder
@@ -234,15 +232,14 @@ public class ModelAssetStoreTests
 
     // ── Room on the drive ─────────────────────────────────────────────────
 
-    /// <summary>A drive with <paramref name="free"/> bytes left, as <see cref="SaveRoom.For"/> would read it.</summary>
-    private static Func<string, long, SaveRoom> Drive(long free)
-        => (path, bytes) => new SaveRoom(path, bytes, free, null, null, SaveTrouble.None);
+    /// <summary>A drive with <paramref name="free"/> bytes left.</summary>
+    private static Func<string, long?> Drive(long free) => _ => free;
 
     [TestMethod]
     public async Task AFetchTheDriveHasNoRoomFor_IsRefusedBeforeAByteComes_SayingWhatItNeedsAndWhatIsFree()
     {
         var server = new Server();
-        var store  = new ModelAssetStore(_root, [], new HttpClient(server), weigh: Drive(Weights.Length - 1));
+        var store  = new ModelAssetStore(_root, [], new HttpClient(server), freeOn: Drive(Weights.Length - 1));
 
         var refused = await Assert.ThrowsExactlyAsync<ModelRoomException>(() => store.EnsureAsync(Asset));
 
@@ -255,7 +252,7 @@ public class ModelAssetStoreTests
     [TestMethod]
     public async Task AFetchThatFits_IsMade()
     {
-        var store = new ModelAssetStore(_root, [], new HttpClient(new Server()), weigh: Drive(Weights.Length));
+        var store = new ModelAssetStore(_root, [], new HttpClient(new Server()), freeOn: Drive(Weights.Length));
 
         await store.EnsureAsync(Asset);
 
@@ -266,7 +263,7 @@ public class ModelAssetStoreTests
     [TestMethod]
     public void AnArchive_IsWeighedWhole_BesideTheEntriesUnpackedFromIt()
     {
-        var store  = new ModelAssetStore(_root, [], new HttpClient(new ArchiveServer(Wheel)), weigh: Drive(1_000_000));
+        var store  = new ModelAssetStore(_root, [], new HttpClient(new ArchiveServer(Wheel)), freeOn: Drive(1_000_000));
         var cublas = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cublas, Wheel);
         var cudnn  = Packed("cudnn.dll", "nvidia/bin/cudnn.dll", Cudnn, Wheel);
 
@@ -277,7 +274,7 @@ public class ModelAssetStoreTests
     [TestMethod]
     public void WhatAnInterruptedDownloadKept_TakesNoMoreRoom()
     {
-        var store = new ModelAssetStore(_root, [], new HttpClient(new Server()), weigh: Drive(1_000_000));
+        var store = new ModelAssetStore(_root, [], new HttpClient(new Server()), freeOn: Drive(1_000_000));
         var path  = Path.Combine(_root, Asset.RelativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path + ".partial", Weights[..10_000]);
@@ -307,7 +304,7 @@ public class ModelAssetStoreTests
     public async Task AFetchUnderWay_HoldsItsRoom_AgainstTheNext_ButAFileItFetchesCountsOnce()
     {
         var server = new HeldServer();
-        var store  = new ModelAssetStore(_root, [], new HttpClient(server), weigh: Drive(Weights.Length + Wheel.Length));
+        var store  = new ModelAssetStore(_root, [], new HttpClient(server), freeOn: Drive(Weights.Length + Wheel.Length));
         var cublas = Packed("cublas.dll", "nvidia/bin/cublas.dll", Cublas, Wheel);
 
         var first = store.EnsureAsync(Asset);

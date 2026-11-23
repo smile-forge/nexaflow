@@ -72,7 +72,6 @@ internal sealed class FakeHost : IAiHostLauncher
         {
             var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             await pipe.ConnectAsync(5000);
-            pipe.ReadMode = PipeTransmissionMode.Message;
             var channel = new HostChannel(pipe);
             process.Channel = channel;
 

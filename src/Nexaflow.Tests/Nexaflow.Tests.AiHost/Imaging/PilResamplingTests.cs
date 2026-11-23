@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Imaging;
+namespace Nexaflow.Tests.AiHost.Imaging;
 
 /// <summary>
 /// PIL's resizes under its bicubic, Lanczos and box filters — the ones HiDream-O1 sizes the pictures it edits from with —
@@ -49,7 +49,7 @@ public class PilResamplingTests
             var other => throw new InvalidDataException($"no filter {other}"),
         };
 
-        var resized = PictureResampling.ResizeAsPil(Bytes(c["pixels"]!), Int(c, "width"), Int(c, "height"), 3, Int(into, "width"), Int(into, "height"), filter);
+        var resized = ReferenceResampling.ResizeAsPil(Bytes(c["pixels"]!), Int(c, "width"), Int(c, "height"), 3, Int(into, "width"), Int(into, "height"), filter);
 
         CollectionAssert.AreEqual(Bytes(into["pixels"]!), resized);
     }

@@ -1,17 +1,10 @@
-using System.IO;
-using System.Net.Http;
-using Nexaflow.IO.Common.Downloads;
-using Nexaflow.Providers.Common;
-using System.IO.Compression;
-using Nexaflow.IO.Common;
 using System.Collections.Concurrent;
+using System.IO.Compression;
 
-namespace Nexaflow.Core.Services;
+namespace Nexaflow.AiHost.Provisioning;
 
 /// <summary>
-/// The files local models need, under one root: <c>%LOCALAPPDATA%\Smile\nexaflow\ai\</c> — not the roaming profile,
-/// which would copy gigabytes of weights to every machine a user signs in to. <c>NEXAFLOW_AI_DIR</c> moves it (tests,
-/// a second drive).
+/// The files local models need, under one root the app names — a local, not a roaming, folder: weights are gigabytes.
 /// <para>
 /// A file is handed out only once verified: its size and SHA-256 match the catalog, recorded beside it in a
 /// <c>.verified</c> file so a large model is not hashed again at every start. A missing file is first looked for in
@@ -31,7 +24,7 @@ public sealed class ModelAssetStore : IModelAssetStore
     private readonly HttpClient            _http;
     private readonly bool                  _downloadsAllowed;
     private readonly Dictionary<string, SemaphoreSlim> _locks = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string, long, SaveRoom> _weigh;
+    private readonly Func<string, long?> _freeOn;
 
     /// <summary>The room each fetch under way still needs, by what it fetches — a file, or an archive with the entries kept
     /// from it — so fetches running side by side are weighed together, and a file two of them want counts once.</summary>
@@ -42,27 +35,36 @@ public sealed class ModelAssetStore : IModelAssetStore
     /// or replaced behind the store's back is still never located.</summary>
     private readonly ConcurrentDictionary<string, (long Length, DateTime Written)> _verified = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <param name="root">The folder every file is kept under.</param>
     /// <param name="adoptFrom">Folders where earlier versions kept model files under their bare file names.</param>
     /// <param name="downloadsAllowed">False keeps the store to what is already on disk or can be adopted.</param>
-    /// <param name="adoptFrom">Folders where earlier versions kept model files under their bare file names.</param>
-    /// <param name="downloadsAllowed">False keeps the store to what is already on disk or can be adopted.</param>
-    /// <param name="weigh">What writing a number of bytes under a path comes to on its drive; <see cref="SaveRoom.For"/> unless a
-    /// test stands in for the drive.</param>
+    /// <param name="freeOn">What the drive a path is on has left for this user, null when it will not say; the drive's own
+    /// reading unless a test stands in for it.</param>
     public ModelAssetStore(string root, IReadOnlyList<string> adoptFrom, HttpClient? http = null, bool downloadsAllowed = true,
-                           Func<string, long, SaveRoom>? weigh = null)
+                           Func<string, long?>? freeOn = null)
     {
         _root             = root;
         _adoptFrom        = adoptFrom;
         _http             = http ?? SharedHttp;
         _downloadsAllowed = downloadsAllowed;
-        _weigh            = weigh ?? ((path, bytes) => SaveRoom.For(path, bytes));
+        _freeOn           = freeOn ?? FreeOn;
     }
 
-    /// <summary><c>NEXAFLOW_AI_DIR</c>, or <c>%LOCALAPPDATA%\Smile\nexaflow\ai</c>.</summary>
-    public static string DefaultRoot()
-        => Environment.GetEnvironmentVariable("NEXAFLOW_AI_DIR") is { Length: > 0 } dir
-            ? dir
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Smile", "nexaflow", "ai");
+    /// <summary>What the drive <paramref name="path"/> is on has left for this user — the quota-aware figure, not the disk's
+    /// own; null for a share, which has no drive to ask, or a drive that will not say.</summary>
+    private static long? FreeOn(string path)
+    {
+        try
+        {
+            return Path.GetPathRoot(Path.GetFullPath(path)) is { Length: > 0 } root && !root.StartsWith(@"\\", StringComparison.Ordinal)
+                       ? new DriveInfo(root).AvailableFreeSpace
+                       : null;
+        }
+        catch (Exception e) when (e is ArgumentException or DriveNotFoundException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 
     public string? Locate(ModelAsset asset)
     {
@@ -130,7 +132,8 @@ public sealed class ModelAssetStore : IModelAssetStore
     private ModelRoom Weigh(IReadOnlyList<(string Key, Claim Claim)> claims)
     {
         long bytes = _claims.Values.Sum(c => c.Left) + claims.Where(c => !_claims.ContainsKey(c.Key)).Sum(c => c.Claim.Left);
-        return ModelRoom.Of(_weigh(Path.Combine(_root, ".downloads"), bytes));
+        var staging = Path.Combine(_root, ".downloads");
+        return new ModelRoom(bytes, _freeOn(staging), Path.GetPathRoot(Path.GetFullPath(staging)) ?? staging);
     }
 
     /// <summary>Holds <paramref name="claims"/> against the drive's room for a fetch — sharing any another fetch holds — or refuses
@@ -275,7 +278,7 @@ public sealed class ModelAssetStore : IModelAssetStore
                     entry.ExtractToFile(partial, overwrite: true);
 
                     if (new FileInfo(partial).Length != asset.Size
-                        || !string.Equals(await Nexaflow.IO.Common.Hashing.Sha256FileAsync(partial, ct), asset.Sha256, StringComparison.OrdinalIgnoreCase))
+                        || !string.Equals(await FileHash.Sha256Async(partial, ct), asset.Sha256, StringComparison.OrdinalIgnoreCase))
                     {
                         File.Delete(partial);
                         throw new InvalidDataException($"{asset.Archive.Entry} in {Path.GetFileName(archivePath)} is not the file the catalog describes.");
@@ -352,7 +355,7 @@ public sealed class ModelAssetStore : IModelAssetStore
         foreach (var old in EarlierCopies(asset))
         {
             if (!IsVerified(old, asset)
-                && !string.Equals(await Nexaflow.IO.Common.Hashing.Sha256FileAsync(old, ct), asset.Sha256, StringComparison.OrdinalIgnoreCase))
+                && !string.Equals(await FileHash.Sha256Async(old, ct), asset.Sha256, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);

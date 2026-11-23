@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
-using Nexaflow.IO.Common.Imaging;
+using Nexaflow.AiHost.Imaging;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.IO.Common.Imaging;
+namespace Nexaflow.Tests.AiHost.Imaging;
 
 /// <summary>
 /// The two bilinear resizes SAM 3.1's paths go through, as Nexaflow does them: PIL's, which squashes a picture to the
@@ -38,7 +38,7 @@ public class BilinearResamplingTests
         byte[] source = [.. c["pixels"]!.AsArray().Select(v => (byte)v!.GetValue<int>())];
         byte[] expected = [.. into["pixels"]!.AsArray().Select(v => (byte)v!.GetValue<int>())];
 
-        var resized = PictureResampling.ResizeBilinearAsPil(source, Int(c, "width"), Int(c, "height"), 3, Int(into, "width"), Int(into, "height"));
+        var resized = ReferenceResampling.ResizeBilinearAsPil(source, Int(c, "width"), Int(c, "height"), 3, Int(into, "width"), Int(into, "height"));
 
         CollectionAssert.AreEqual(expected, resized);
     }
@@ -55,7 +55,7 @@ public class BilinearResamplingTests
         float[] source = [.. c["plane"]!.AsArray().Select(v => v!.GetValue<float>())];
         float[] expected = [.. into["plane"]!.AsArray().Select(v => v!.GetValue<float>())];
 
-        var resized = PictureResampling.ResizePlaneBilinear(source, Int(c, "width"), Int(c, "height"), Int(into, "width"), Int(into, "height"));
+        var resized = ReferenceResampling.ResizePlaneBilinear(source, Int(c, "width"), Int(c, "height"), Int(into, "width"), Int(into, "height"));
 
         Assert.AreEqual(expected.Length, resized.Length);
         float worst = expected.Zip(resized, (e, a) => Math.Abs(e - a)).Max();

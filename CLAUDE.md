@@ -64,9 +64,9 @@ src/
   Nexaflow.Services.Initiatives/      WPF-free product tree + graph backend — never references WPF/Core/Features
   Nexaflow.Services.Initiatives.Cli/  nfi
   Nexaflow.Elevation/                 Elevation.Contracts (DTOs) + PrivilegeBridge (the elevated exe)
-  Nexaflow.AiHost/                    the AI host: Contracts (pipe protocol) + Client (the app's side) + the host exe — models Nexaflow runs itself
+  Nexaflow.AiHost/                    the AI host: Contracts (pipe protocol) + Client (the app's side) + Provisioning (model files and their store) + the host exe — models Nexaflow runs itself
   Nexaflow.Languages/                 one resource-only pack per language
-  Nexaflow.Providers/                 Providers.Common + OpenAICompatible (the chat-completions wire format) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria, Whisper; AiHost — "Nexaflow")
+  Nexaflow.Providers/                 Providers.Common + OpenAICompatible (the chat-completions wire format) + Providers.Local (what a local provider offers) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria, Whisper; AiHost — "Nexaflow")
   Nexaflow.Tests/                     one suite per subject — docs/testing.md
 ```
 
@@ -240,7 +240,9 @@ run them in Windows Sandbox with `Nexaflow.Tests.Sandbox`, which can also screen
 
 - Features depend only on `Features.Common` and `Nexaflow.Visuals.*` — never Core, rarely each other. Providers depend
   only on `Providers.Common` and `Providers.OpenAICompatible` (the chat-completions wire format several backends
-  speak) — never Core, never each other.
+  speak) — never Core, never each other. `Providers.Common` holds nothing of local models: a provider whose models run
+  on this machine also references `Providers.Local` (its catalog, what this machine cannot run) and the AI host SDK
+  (`Nexaflow.AiHost.*` — the model files and their store, `AiHost.Provisioning`); a cloud provider references neither.
 - Core never instantiates feature views or view-models — all tab and viewlet creation goes through `FeatureManager`. A
   feature advertises a page with an `IPageRegistration` (`PageKind` + `CreatePage`, plus `static string
   StaticPageKind`), discovered by reflection.

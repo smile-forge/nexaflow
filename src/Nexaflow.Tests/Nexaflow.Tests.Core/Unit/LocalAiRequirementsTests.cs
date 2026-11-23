@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media;
 using Nexaflow.AiHost.Client;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.LocalAi;
@@ -26,7 +27,23 @@ public class LocalAiRequirementsTests
     private static readonly ComputeAdapter Rtx3080 = new("NVIDIA GeForce RTX 3080", ComputeVendor.Nvidia, 10L << 30, IsIntegrated: false, IsNpu: false);
     private static readonly ComputeAdapter IntelUhd = new("Intel(R) UHD Graphics 770", ComputeVendor.Intel, 128L << 20, IsIntegrated: true, IsNpu: false);
 
-    private static ComputeHardwareReport Machine(Version? driver, params ComputeAdapter[] adapters) => new(adapters, driver);
+    /// <summary>A machine as the rows read it: the NVIDIA cards its driver manages — each NVIDIA GPU of its own — beside every
+    /// adapter Windows lists.</summary>
+    private sealed record TestMachine(MachineCards Cards, ComputeHardwareReport Adapters);
+
+    private static TestMachine Machine(Version? driver, params ComputeAdapter[] adapters)
+    {
+        var listed = new ComputeHardwareReport(adapters, driver);
+        return new(new MachineCards([.. listed.NvidiaGpus.Select(a => new MachineCard(a.Name, a.DedicatedMemoryBytes))], driver), listed);
+    }
+
+    private static ExternalDependencyStatus Gpu(TestMachine machine) => LocalAiRequirements.Gpu(machine.Cards, machine.Adapters);
+
+    private static ExternalDependencyStatus CudaDriver(TestMachine machine) => LocalAiRequirements.CudaDriver(machine.Cards);
+
+    private static ExternalDependencyStatus CudaPack(TestMachine machine, IModelAssetStore? store) => LocalAiRequirements.CudaPack(machine.Cards, store);
+
+    private static bool Applies(TestMachine machine) => CudaRuntimePack.Applies(machine.Cards);
 
     /// <summary>A store holding the first <paramref name="here"/> of the pack's files, verified.</summary>
     private static IModelAssetStore StoreHolding(int here)
@@ -52,16 +69,16 @@ public class LocalAiRequirementsTests
     {
         var machine = Machine(null, IntelUhd);
 
-        var gpu = LocalAiRequirements.Gpu(machine);
+        var gpu = Gpu(machine);
         Assert.AreEqual(ExternalDependencyState.Missing, gpu.State);
         StringAssert.Contains(gpu.Detail, IntelUhd.Name, "what was found is named, so the user can see why");
         StringAssert.Contains(gpu.Detail, Str.Format("Shell.Components.NvidiaGpu.IntegratedAdapterFormat", IntelUhd.Name, SizeFormatter.FormatBytes(IntelUhd.DedicatedMemoryBytes)));
 
-        var driver = LocalAiRequirements.CudaDriver(machine);
+        var driver = CudaDriver(machine);
         Assert.AreEqual(ExternalDependencyState.Missing, driver.State);
         Assert.AreEqual(Str.Get("Shell.Components.CudaDriver.NotNeeded"), driver.Detail);
 
-        var pack = LocalAiRequirements.CudaPack(machine, StoreHolding(0));
+        var pack = CudaPack(machine, StoreHolding(0));
         Assert.AreEqual(ExternalDependencyState.Missing, pack.State);
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.NotNeededFormat", Needed), pack.Detail,
             "the pack is not wanted here, so it must not read as something to fetch");
@@ -70,7 +87,7 @@ public class LocalAiRequirementsTests
     [TestMethod]
     public void NoAdapterAtAll_SaysWindowsReportsNone()
     {
-        var gpu = LocalAiRequirements.Gpu(Machine(null));
+        var gpu = Gpu(Machine(null));
 
         Assert.AreEqual(ExternalDependencyState.Missing, gpu.State);
         Assert.AreEqual(Str.Get("Shell.Components.NvidiaGpu.NoAdapters"), gpu.Detail);
@@ -81,11 +98,11 @@ public class LocalAiRequirementsTests
     {
         var shared = Rtx3080 with { Name = "NVIDIA integrated", IsIntegrated = true };
 
-        var gpu = LocalAiRequirements.Gpu(Machine(CudaRuntimePack.MinimumDriver, shared));
+        var gpu = Gpu(Machine(CudaRuntimePack.MinimumDriver, shared));
 
         Assert.AreEqual(ExternalDependencyState.Unusable, gpu.State);
         Assert.AreEqual(shared.Name, gpu.DetectedVersion);
-        Assert.IsFalse(CudaRuntimePack.Applies(Machine(CudaRuntimePack.MinimumDriver, shared)), "the row agrees with the runtime's own rule");
+        Assert.IsFalse(Applies(Machine(CudaRuntimePack.MinimumDriver, shared)), "the row agrees with the runtime's own rule");
     }
 
     // ── An NVIDIA GPU with a driver too old for CUDA 13 ─────────────────────
@@ -95,17 +112,17 @@ public class LocalAiRequirementsTests
     {
         var machine = Machine(new Version(12, 8), Rtx3080, IntelUhd);
 
-        var gpu = LocalAiRequirements.Gpu(machine);
+        var gpu = Gpu(machine);
         Assert.AreEqual(ExternalDependencyState.Present, gpu.State);
         Assert.AreEqual(Str.Format("Shell.Components.NvidiaGpu.AdapterFormat", Rtx3080.Name, SizeFormatter.FormatBytes(Rtx3080.DedicatedMemoryBytes)), gpu.DetectedVersion);
         StringAssert.Contains(gpu.Detail, IntelUhd.Name, "every adapter found is listed");
 
-        var driver = LocalAiRequirements.CudaDriver(machine);
+        var driver = CudaDriver(machine);
         Assert.AreEqual(ExternalDependencyState.Unusable, driver.State);
         Assert.AreEqual("12.8", driver.DetectedVersion);
         Assert.AreEqual(Str.Format("Shell.Components.CudaDriver.TooOldFormat", "12.8", Needed), driver.Detail);
 
-        var pack = LocalAiRequirements.CudaPack(machine, StoreHolding(0));
+        var pack = CudaPack(machine, StoreHolding(0));
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.NotNeededFormat", Needed), pack.Detail,
             "with the driver too old the models run on the CPU, as the runtime decides");
     }
@@ -113,7 +130,7 @@ public class LocalAiRequirementsTests
     [TestMethod]
     public void NoDriverAnswering_BesideAnNvidiaGpu_SaysToInstallIt()
     {
-        var driver = LocalAiRequirements.CudaDriver(Machine(null, Rtx3080));
+        var driver = CudaDriver(Machine(null, Rtx3080));
 
         Assert.AreEqual(ExternalDependencyState.Missing, driver.State);
         Assert.AreEqual(Str.Get("Shell.Components.CudaDriver.Absent"), driver.Detail);
@@ -126,11 +143,11 @@ public class LocalAiRequirementsTests
     {
         var machine = Machine(CudaRuntimePack.MinimumDriver, Rtx3080);
 
-        var none = LocalAiRequirements.CudaPack(machine, StoreHolding(0));
+        var none = CudaPack(machine, StoreHolding(0));
         Assert.AreEqual(ExternalDependencyState.Missing, none.State);
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.PartFormat", 0, PackFiles), none.Detail);
 
-        var part = LocalAiRequirements.CudaPack(machine, StoreHolding(1));
+        var part = CudaPack(machine, StoreHolding(1));
         Assert.AreEqual(ExternalDependencyState.Missing, part.State, "a pack is usable only whole");
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.PartFormat", 1, PackFiles), part.Detail);
     }
@@ -138,7 +155,7 @@ public class LocalAiRequirementsTests
     [TestMethod]
     public void ThePack_WithNoStoreSetUp_CannotBeJudged()
     {
-        var pack = LocalAiRequirements.CudaPack(Machine(CudaRuntimePack.MinimumDriver, Rtx3080), null);
+        var pack = CudaPack(Machine(CudaRuntimePack.MinimumDriver, Rtx3080), null);
 
         Assert.AreEqual(ExternalDependencyState.Unknown, pack.State, "unknown is not missing: nothing was learned about the machine");
     }
@@ -150,13 +167,13 @@ public class LocalAiRequirementsTests
     {
         var machine = Machine(new Version(13, 1), Rtx3080);
 
-        Assert.AreEqual(ExternalDependencyState.Present, LocalAiRequirements.Gpu(machine).State);
+        Assert.AreEqual(ExternalDependencyState.Present, Gpu(machine).State);
 
-        var driver = LocalAiRequirements.CudaDriver(machine);
+        var driver = CudaDriver(machine);
         Assert.AreEqual(ExternalDependencyState.Present, driver.State);
         Assert.AreEqual("13.1", driver.DetectedVersion);
 
-        var pack = LocalAiRequirements.CudaPack(machine, StoreHolding(PackFiles));
+        var pack = CudaPack(machine, StoreHolding(PackFiles));
         Assert.AreEqual(ExternalDependencyState.Present, pack.State);
         Assert.AreEqual(CudaRuntimePack.Id, pack.DetectedVersion);
         Assert.AreEqual(CudaRuntimePack.Locate(StoreHolding(PackFiles)), pack.Detail, "where the runtime loads it from");
@@ -165,7 +182,7 @@ public class LocalAiRequirementsTests
     [TestMethod]
     public void ThePackHere_OnAMachineItDoesNotSuit_IsSaidToGoUnused()
     {
-        var pack = LocalAiRequirements.CudaPack(Machine(new Version(12, 8), Rtx3080), StoreHolding(PackFiles));
+        var pack = CudaPack(Machine(new Version(12, 8), Rtx3080), StoreHolding(PackFiles));
 
         Assert.AreEqual(ExternalDependencyState.Present, pack.State);
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.UnusedFormat", CudaRuntimePack.Locate(StoreHolding(PackFiles)), Needed), pack.Detail);
@@ -222,7 +239,7 @@ public class LocalAiRequirementsTests
     {
         var warning = new SolidColorBrush(Colors.Orange);
         var report = new ExternalDependencyReport("nvidia-cuda-driver", "NVIDIA CUDA driver", "", ExternalDependencyKind.Optional, null,
-                                                  LocalAiRequirements.CudaDriver(Machine(new Version(12, 8), Rtx3080)), ["Core"]);
+                                                  CudaDriver(Machine(new Version(12, 8), Rtx3080)), ["Core"]);
 
         var row = new ComponentRow(report, key => key == "WarningBrush" ? warning : null);
 

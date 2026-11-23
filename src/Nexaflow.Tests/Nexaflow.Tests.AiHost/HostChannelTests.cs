@@ -13,10 +13,10 @@ public class HostChannelTests
     public async Task EveryMessage_ArrivesAsItWasSent()
     {
         string name = "nexaflow-test-" + Guid.NewGuid().ToString("N");
-        await using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous, 65536, 65536);
+        await using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 65536, 65536);
         var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
         await Task.WhenAll(server.WaitForConnectionAsync(), client.ConnectAsync());
-        client.ReadMode = PipeTransmissionMode.Message;
+
         await using var app  = new HostChannel(server);
         await using var host = new HostChannel(client);
 
@@ -44,10 +44,10 @@ public class HostChannelTests
     public async Task ADrawing_ArrivesWithItsModel_AndThePictureWithItsBytes()
     {
         string name = "nexaflow-test-" + Guid.NewGuid().ToString("N");
-        await using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous, 65536, 65536);
+        await using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 65536, 65536);
         var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
         await Task.WhenAll(server.WaitForConnectionAsync(), client.ConnectAsync());
-        client.ReadMode = PipeTransmissionMode.Message;
+
         await using var app  = new HostChannel(server);
         await using var host = new HostChannel(client);
 
@@ -60,16 +60,73 @@ public class HostChannelTests
         Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
         Assert.AreEqual(@"C:\ai\h\denoiser", draw.Model.Parts[DrawingParts.Denoiser].Folder);
 
-        byte[] png = [0x89, 0x50, 0x4E, 0x47, 1, 2, 3];
-        await host.SendAsync(new Drawn(5, png));
-        CollectionAssert.AreEqual(png, ((Drawn)(await app.ReceiveAsync())!).Png);
+        byte[] rgb = [1, 2, 3, 4, 5, 6];
+        await host.SendAsync(new Drawn(5, 2, 1, rgb));
+        var drawn = (Drawn)(await app.ReceiveAsync())!;
+        Assert.AreEqual((2, 1), (drawn.Width, drawn.Height));
+        CollectionAssert.AreEqual(rgb, drawn.Rgb);
+    }
+
+    [TestMethod]
+    [Timeout(30_000)]
+    public async Task AMessagesByteArrays_CrossBesideItsJson_ManyMegabytesAndSeveralAtOnce()
+    {
+        await using var pair = await PipePair.OpenAsync();
+        var model = new DrawingModel(DrawingMethod.HiDream, new Dictionary<string, ModelSpec>(), 4, 3f, 1f);
+        byte[] first = [.. Enumerable.Range(0, 1024 * 1024 * 3 * 3).Select(i => (byte)i)];
+        byte[] second = [7, 8, 9];
+        byte[] mask = new byte[1024 * 1024];
+        mask[12345] = 255;
+
+    var receiving = pair.Host.ReceiveAsync();   // a pipe holds a little: the other end reads as it is written, as a host's loop does
+        await pair.App.SendAsync(new Draw(5, model, "a fox", 1024, 1024, 42, RequestPriority.Job)
+        {
+            Sources = [new DrawingSource(3072, 1024, first), new DrawingSource(1, 1, second)],
+            Mask = mask,
+        });
+        var draw = (Draw)(await receiving)!;
+
+        CollectionAssert.AreEqual(first, draw.Sources[0].Rgb);
+        CollectionAssert.AreEqual(second, draw.Sources[1].Rgb);
+        CollectionAssert.AreEqual(mask, draw.Mask);
+    }
+
+    [TestMethod]
+    public async Task AStreamEndingInsideAFrame_IsNoMessage()
+    {
+        var stream = new MemoryStream([10, 0, 0, 0, (byte)'{']);
+        await using var channel = new HostChannel(stream);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => channel.ReceiveAsync());
+    }
+
+    /// <summary>The two ends of a byte-mode pipe, each with its channel.</summary>
+    private sealed class PipePair : IAsyncDisposable
+    {
+        public required HostChannel App { get; init; }
+        public required HostChannel Host { get; init; }
+
+        public static async Task<PipePair> OpenAsync()
+        {
+            string name = "nexaflow-test-" + Guid.NewGuid().ToString("N");
+            var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 65536, 65536);
+            var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
+            await Task.WhenAll(server.WaitForConnectionAsync(), client.ConnectAsync());
+            return new PipePair { App = new HostChannel(server), Host = new HostChannel(client) };
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await App.DisposeAsync();
+            await Host.DisposeAsync();
+        }
     }
 
     [TestMethod]
     public async Task AClosedPipe_ReadsAsTheEnd()
     {
         string name = "nexaflow-test-" + Guid.NewGuid().ToString("N");
-        await using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous);
+        await using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
         await Task.WhenAll(server.WaitForConnectionAsync(), client.ConnectAsync());
         await using var app = new HostChannel(server);

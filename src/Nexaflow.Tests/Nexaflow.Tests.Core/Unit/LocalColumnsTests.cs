@@ -1,6 +1,7 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;

@@ -1,12 +1,12 @@
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
-using Nexaflow.IO.Common.Imaging;
+
 
 namespace Nexaflow.AiHost.Drawing;
 
 /// <summary>
-/// Draws a picture by the method its model draws with (<see cref="IDrawingMethod"/>) and writes it as a PNG. The method
+/// Draws a picture by the method its model draws with (<see cref="IDrawingMethod"/>) and sends it as its pixels. The method
 /// takes the GPU a step at a time at the request's priority, so a reply or speech gets in between, and each denoising
 /// step is reported as it finishes. A part is held only while it is needed, so the host needs room for the largest of
 /// them, not all — and the picture borrows that room: residents nothing is using make way on its parts' GPUs, and load
@@ -20,10 +20,6 @@ internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMe
     {
         var method = methods.FirstOrDefault(m => m.Method == request.Model.Method)
                      ?? throw new HostRequestException(HostErrorKind.Invalid, $"This host does not draw the {request.Model.Method} way.");
-        // A picture made from pictures to work from is drawn at the sizes the model reads them at; one from a prompt alone at
-        // the sizes it draws at.
-        if (!(request.Sources.Count > 0 ? method.Reads(request.Width, request.Height) : method.Draws(request.Width, request.Height)))
-            throw new HostRequestException(HostErrorKind.Invalid, $"{request.Width}x{request.Height} is not a size this model draws at.");
         if (string.IsNullOrWhiteSpace(request.Prompt))
             throw new HostRequestException(HostErrorKind.Invalid, "Drawing needs a prompt.");
         if (request.NegativePrompt is not null && !method.TakesNegativePrompts)
@@ -32,26 +28,27 @@ internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMe
             throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way takes no LoRA.");
         if (request.Sources.Count > method.MaxSources)
             throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way works from at most {method.MaxSources} picture(s).");
-        foreach (var source in request.Sources)
+        if (request.Mask is not null && !method.Masks)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way takes no mask.");
+
+        if (request.Sources.Count > 0)
         {
-            if (!method.Reads(source.Width, source.Height))
-                throw new HostRequestException(HostErrorKind.Invalid, $"A {source.Width}x{source.Height} picture to work from is not a size this model reads.");
-            if (source.Rgb.Length != source.Width * source.Height * 3)
-                throw new HostRequestException(HostErrorKind.Invalid, $"A {source.Width}x{source.Height} picture is {source.Width * source.Height * 3} bytes of RGB, not {source.Rgb.Length}.");
+            // An edit is drawn at the size its model reads the first picture at, so it names no size of its own.
+            if ((request.Width, request.Height) != (0, 0))
+                throw new HostRequestException(HostErrorKind.Invalid, "An edit is drawn at the size its model reads its first picture at; it names no size (0x0).");
+            request = EditFitting.Fitted(request, method.ReadSize);
         }
-        if (request.Mask is { } mask)
+        else
         {
-            if (!method.Masks)
-                throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way takes no mask.");
-            if (request.Sources.Count == 0 || (request.Sources[0].Width, request.Sources[0].Height) != (request.Width, request.Height))
-                throw new HostRequestException(HostErrorKind.Invalid, "A mask lies over a first picture to work from the size of the picture drawn.");
-            if (mask.Length != request.Width * request.Height)
-                throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} mask is {request.Width * request.Height} bytes, not {mask.Length}.");
+            if (request.Mask is not null)
+                throw new HostRequestException(HostErrorKind.Invalid, "A mask lies over a picture to work from.");
+            if (!method.Draws(request.Width, request.Height))
+                throw new HostRequestException(HostErrorKind.Invalid, $"{request.Width}x{request.Height} is not a size this model draws at.");
         }
 
         using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
         var rgb = await method.DrawAsync(request, stage => reply(new Progress(request.RequestId, stage, 0, 0)),
                                          (done, total) => reply(new Progress(request.RequestId, Drawing, done, total)), room, ct);
-        await reply(new Drawn(request.RequestId, PngEncoder.EncodeRgb(rgb, request.Width, request.Height)));
+        await reply(new Drawn(request.RequestId, request.Width, request.Height, rgb));
     }
 }

@@ -197,7 +197,7 @@ internal sealed class ConversationLog : IDisposable
     /// </summary>
     public async Task<IDisposable> AnsweringAsync(CancellationToken ct)
     {
-        await _answering.WaitAsync(ct);
+        await RequestActivity.WaitAsync(_answering.WaitAsync(ct));
         return new Answering(_answering);
     }
 
@@ -306,7 +306,7 @@ internal sealed class ConversationLog : IDisposable
                 }
                 freed = _freed.Task;
             }
-            await freed.WaitAsync(ct);
+            await RequestActivity.WaitAsync(freed.WaitAsync(ct));
         }
     }
 

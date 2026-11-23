@@ -2,17 +2,17 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 
-namespace Nexaflow.IO.Common.Downloads;
+namespace Nexaflow.AiHost.Provisioning;
 
 /// <summary>How far a download has got.</summary>
-public readonly record struct DownloadProgress(long Received, long Total);
+internal readonly record struct DownloadProgress(long Received, long Total);
 
 /// <summary>
 /// Downloads a file whose size and SHA-256 are known in advance. The bytes go to <c>&lt;destination&gt;.partial</c>,
 /// which a later attempt resumes from with a range request — a large model survives a dropped connection or a
 /// closed app. The file takes its name only once its size and hash are right; a mismatch deletes what arrived.
 /// </summary>
-public static class VerifiedDownload
+internal static class VerifiedDownload
 {
     private const int BufferSize = 1 << 16;
 
@@ -87,5 +87,15 @@ public static class VerifiedDownload
     {
         try { File.Delete(partial); } catch (IOException) { /* the next attempt replaces it */ }
         return new InvalidDataException($"The download from {source} is not the file it should be: {what}.");
+    }
+}
+
+/// <summary>A file's SHA-256 as the manifests write it: lower-case hex.</summary>
+internal static class FileHash
+{
+    public static async Task<string> Sha256Async(string path, CancellationToken ct = default)
+    {
+        await using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, useAsync: true);
+        return Convert.ToHexStringLower(await SHA256.HashDataAsync(file, ct));
     }
 }

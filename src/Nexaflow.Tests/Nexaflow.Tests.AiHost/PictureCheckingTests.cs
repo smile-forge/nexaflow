@@ -44,28 +44,29 @@ public class PictureCheckingTests
         return (_client, _classifier);
     }
 
-    /// <summary>A plain outdoor scene, 640 × 480: a sky lightening toward the horizon over a strip of grass.</summary>
+    /// <summary>A plain outdoor scene, 640 × 480: a sky lightening toward the horizon over a strip of grass, as its RGB.</summary>
     private static byte[] Meadow()
     {
-        const int width = 640, height = 480;
-        var rgb = new byte[width * height * 3];
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
+        var rgb = new byte[MeadowWidth * MeadowHeight * 3];
+        for (int y = 0; y < MeadowHeight; y++)
+            for (int x = 0; x < MeadowWidth; x++)
             {
-                float t = y / (float)height;
-                var (r, g, b) = y > height * 2 / 3 ? (70, 140, 60) : ((int)(90 + 100 * t), (int)(150 + 80 * t), (int)(230 - 20 * t));
-                int at = (y * width + x) * 3;
+                float t = y / (float)MeadowHeight;
+                var (r, g, b) = y > MeadowHeight * 2 / 3 ? (70, 140, 60) : ((int)(90 + 100 * t), (int)(150 + 80 * t), (int)(230 - 20 * t));
+                int at = (y * MeadowWidth + x) * 3;
                 (rgb[at], rgb[at + 1], rgb[at + 2]) = ((byte)r, (byte)g, (byte)b);
             }
-        return PngEncoder.EncodeRgb(rgb, width, height);
+        return rgb;
     }
+
+    private const int MeadowWidth = 640, MeadowHeight = 480;
 
     [TestMethod]
     public void APicture_IsScaledWhole_IntoThePlanesTheClassifierReads()
     {
-        var picture = new RgbPicture(3, 2, [10, 20, 30, 10, 20, 30, 10, 20, 30, 10, 20, 30, 10, 20, 30, 10, 20, 30]);
+        byte[] rgb = [10, 20, 30, 10, 20, 30, 10, 20, 30, 10, 20, 30, 10, 20, 30, 10, 20, 30];
 
-        var planes = PictureSafetyClassifier.Planes(picture);
+        var planes = PictureSafetyClassifier.Planes(rgb, 3, 2);
 
         const int plane = PictureSafetyClassifier.Side * PictureSafetyClassifier.Side;
         Assert.AreEqual(3 * plane, planes.Length);
@@ -80,7 +81,7 @@ public class PictureCheckingTests
         var (client, classifier) = Host();
 
         PictureChecked? verdict = null;
-        await foreach (var reply in client.SendAsync(id => new CheckPicture(id, classifier, Meadow()), TimeSpan.FromMinutes(1)))
+        await foreach (var reply in client.SendAsync(id => new CheckPicture(id, classifier, MeadowWidth, MeadowHeight, Meadow()), TimeSpan.FromMinutes(1)))
             if (reply is PictureChecked done) verdict = done;
 
         Assert.IsNotNull(verdict);
@@ -90,14 +91,14 @@ public class PictureCheckingTests
 
     [TestMethod]
     [Timeout(120_000, CooperativeCancellation = true)]
-    public async Task WhatIsNotAPicture_IsRefused()
+    public async Task PixelsThatDoNotFillThePicture_AreRefused()
     {
         var (client, classifier) = Host();
 
         var ex = await Assert.ThrowsAsync<AiHostException>(async () =>
         {
-            await foreach (var _ in client.SendAsync(id => new CheckPicture(id, classifier, [1, 2, 3, 4]), TimeSpan.FromMinutes(1))) { }
+            await foreach (var _ in client.SendAsync(id => new CheckPicture(id, classifier, 2, 2, [1, 2, 3, 4]), TimeSpan.FromMinutes(1))) { }
         });
-        StringAssert.Contains(ex.Message, "could not be read");
+        StringAssert.Contains(ex.Message, "bytes of RGB");
     }
 }

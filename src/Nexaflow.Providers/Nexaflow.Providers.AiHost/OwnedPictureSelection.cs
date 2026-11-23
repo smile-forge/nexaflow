@@ -1,6 +1,7 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.IO.Common.Hardware;
+
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Providers.AiHost;
@@ -11,7 +12,7 @@ namespace Nexaflow.Providers.AiHost;
 /// </summary>
 public sealed class OwnedPictureSelection : OwnedToolFront
 {
-    public OwnedPictureSelection(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, ComputeHardwareReport hardware)
+    public OwnedPictureSelection(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
         : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == OwnedToolKind.PictureSelection))
     {
     }

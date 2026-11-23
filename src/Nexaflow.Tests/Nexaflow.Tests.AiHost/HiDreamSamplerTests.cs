@@ -218,13 +218,12 @@ public class HiDreamSamplerTests
         => Assert.AreEqual(side, HiDreamSampler.ReferenceSide(sources, width, height));
 
     [TestMethod]
-    [DataRow(2336, 1760, true)]
-    [DataRow(64, 32, true)]
-    [DataRow(2048, 2048, true)]
-    [DataRow(2080, 2048, false)]
-    [DataRow(100, 64, false)]
-    public void AnEdit_IsDrawnAtAnySizeOfWholePatches_WithinItsSquare(int width, int height, bool reads)
-        => Assert.AreEqual(reads, HiDreamSampler.Reads(width, height));
+    [DataRow(1024, 1024, 2048, 2048)]
+    [DataRow(3000, 2000, 2496, 1664)]
+    [DataRow(5000, 3300, 2496, 1664)]
+    [DataRow(640, 480, 2336, 1760)]
+    public void AnEdit_IsFilledToTheModelsSquare_UpOrDown_AsHiDreamReadsIt(int width, int height, int readWidth, int readHeight)
+        => Assert.AreEqual((readWidth, readHeight), HiDreamSampler.ReadSize(width, height));
 
     [TestMethod]
     public void APicturesTokens_AreItsPixelsAsRgbReadsThemBack_AndAMaskLiesOverEachValue()

@@ -34,6 +34,8 @@
     <!-- The host twice over: its internals tested in this process (the scheduler, the context log, the adapters), and
          its executable run as the app runs it, from AiHost\. -->
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" HelperFolder="AiHost" />
+    <!-- An app that is not Nexaflow, using the SDK alone: run from AiHostSample\, never compiled against. -->
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Sample\Nexaflow.AiHost.Sample.csproj" HelperFolder="AiHostSample" ReferenceOutputAssembly="false" />
 
     <!-- The [CoversNode] / [NoCoverage] attributes every test class declares its coverage with. -->
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
@@ -48,6 +50,7 @@
     <EmbeddedResource Include="Jinja\*.json" LogicalName="%(Filename)%(Extension)" />
     <!-- What HiDream-O1's own sampler does, for the host's port to match (tools/ai-models/hidream-o1/unipc_reference.py). -->
     <EmbeddedResource Include="Drawing\*.json" LogicalName="%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Imaging\*.json" LogicalName="%(Filename)%(Extension)" />
     <!-- What Wan2.2’s own sampling and text handling do, for the host’s port to match (tools/ai-models/wan2.2-ti2v-5b/wan_reference.py). -->
     <EmbeddedResource Include="Filming\*.json" LogicalName="%(Filename)%(Extension)" />
   </ItemGroup>

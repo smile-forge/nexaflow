@@ -1,9 +1,9 @@
-namespace Nexaflow.IO.Common.Imaging;
+namespace Nexaflow.AiHost.Imaging;
 
 /// <summary>
 /// A 2D affine map, <c>x' = A·x + B·y + C</c>, <c>y' = D·x + E·y + F</c> — the 2×3 matrix OpenCV's warps take, row by row.
 /// </summary>
-public readonly record struct Affine2D(double A, double B, double C, double D, double E, double F)
+internal readonly record struct Affine2D(double A, double B, double C, double D, double E, double F)
 {
     public static Affine2D Identity => new(1, 0, 0, 0, 1, 0);
 

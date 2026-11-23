@@ -57,7 +57,8 @@ public sealed record FilmingModel(FilmingMethod Method, IReadOnlyDictionary<stri
 /// Makes one clip from a prompt, and from a picture to start from where one is given. Each step — reading the prompt,
 /// every denoising step, decoding each stretch of frames — takes the GPU at the request's priority, so speech and replies
 /// get in between; each denoising step is reported as a <see cref="Progress"/> (<see cref="FilmingStages.Filming"/>),
-/// then each latent frame decoded (<see cref="FilmingStages.Decoding"/>). The clip comes back as one <see cref="Filmed"/>.
+/// then each latent frame decoded (<see cref="FilmingStages.Decoding"/>). The clip comes back as <see cref="FilmedFrames"/> as each
+/// stretch of it is decoded.
 /// </summary>
 /// <param name="Width">In pixels; with <see cref="Height"/>, a size the model films at.</param>
 /// <param name="Frames">How many frames: one, then a multiple of the model's frames per latent frame.</param>
@@ -70,5 +71,7 @@ public sealed record Film(long RequestId, FilmingModel Model, string Prompt, int
     public byte[]? FirstFrame { get; init; }
 }
 
-/// <summary>The clip, as an H.264 MP4.</summary>
-public sealed record Filmed(long RequestId, byte[] Mp4) : HostReply(RequestId);
+/// <summary>Frames of the clip as they are decoded, in order: interleaved 8-bit RGB, one frame after another, each the
+/// <see cref="Film"/>'s size. The request completes once the last is sent; encoding the clip is whoever keeps it's, frame by frame,
+/// so it is never held whole as pictures.</summary>
+public sealed record FilmedFrames(long RequestId, byte[] Rgb) : HostReply(RequestId);

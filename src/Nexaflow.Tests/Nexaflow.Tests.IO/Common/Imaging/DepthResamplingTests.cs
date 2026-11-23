@@ -5,11 +5,10 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.IO.Common.Imaging;
 
 /// <summary>
-/// The two resizes Depth Anything V2's infer_image goes through, as Nexaflow does them: OpenCV's cubic, which brings the
-/// picture to the size the network reads, and PyTorch's bilinear with the corners aligned, which brings the disparity back to
-/// the picture — held to what OpenCV and PyTorch themselves made of the same small pictures (depth-resampling-reference.json,
-/// from tools/ai-models/depth-anything-v2-small/resampling_reference.py). OpenCV works in double precision with single
-/// precision weights, PyTorch in single precision, and each is matched to its rounding.
+/// PyTorch's bilinear resize with the corners aligned, which Depth Anything V2's infer_image brings the disparity back to the
+/// picture with, as Nexaflow does it — held to what PyTorch itself made of the same small planes
+/// (depth-resampling-reference.json, from tools/ai-models/depth-anything-v2-small/resampling_reference.py), in single
+/// precision.
 /// </summary>
 [TestClass]
 [CoversNode("scene-depth")]
@@ -24,26 +23,6 @@ public class DepthResamplingTests
     }
 
     private static int Int(JsonNode node, string name) => node[name]!.GetValue<int>();
-
-    [TestMethod]
-    [DataRow(0, DisplayName = "37x23 to 16x11: more than halved, nothing averaged")]
-    [DataRow(1, DisplayName = "9x7 to 28x14: enlarged")]
-    [DataRow(2, DisplayName = "30x5 to 12x14: narrowed and made taller")]
-    [DataRow(3, DisplayName = "64x48 to 42x28")]
-    [DataRow(4, DisplayName = "13x13 to 13x6: down only")]
-    public void ACubicResize_IsOpenCvs_ToItsRounding(int which)
-    {
-        var c = Reference["cubic"]![which]!;
-        var into = c["into"]!;
-        double[] source = [.. c["pixels"]!.AsArray().Select(v => v!.GetValue<double>())];
-        double[] expected = [.. into["pixels"]!.AsArray().Select(v => v!.GetValue<double>())];
-
-        var resized = PictureResampling.ResizeCubicAsOpenCv(source, Int(c, "width"), Int(c, "height"), 3, Int(into, "width"), Int(into, "height"));
-
-        Assert.AreEqual(expected.Length, resized.Length);
-        double worst = expected.Zip(resized, (e, a) => Math.Abs(e - a)).Max();
-        Assert.IsTrue(worst < 1e-7, $"a value is {worst} from OpenCV's");
-    }
 
     [TestMethod]
     [DataRow(0, DisplayName = "13x11 to 40x36: enlarged")]
