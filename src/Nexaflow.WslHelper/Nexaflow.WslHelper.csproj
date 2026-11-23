@@ -44,6 +44,8 @@
   <ItemGroup>
     <!-- The wire, compiled from the backend's own sources so the two sides never disagree. -->
     <Compile Include="..\Nexaflow.IO.Location.Wsl\Protocol\*.cs" Link="Protocol\%(Filename)%(Extension)" />
+    <!-- How a name's bytes, UTF-8 or not, are held as text: the wire carries names this way. -->
+    <Compile Include="..\Nexaflow.IO.Common\Locations\PosixNames.cs" Link="Protocol\PosixNames.cs" />
   </ItemGroup>
 
 </Project>

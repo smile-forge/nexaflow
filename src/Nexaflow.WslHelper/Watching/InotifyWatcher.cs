@@ -1,6 +1,5 @@
-using System.IO.Enumeration;
 using System.Runtime.InteropServices;
-using System.Text;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Location.Wsl.Protocol;
 using Nexaflow.WslHelper.Files;
 using Nexaflow.WslHelper.Native;
@@ -54,7 +53,8 @@ internal sealed unsafe class InotifyWatcher(ReplyChannel replies)
             Attach(subscription, wd, root);
             try
             {
-                if (recursive && Directory.Exists(root) && !AttachTree(subscription, root, ct))
+                if (recursive && PosixFiles.Stat(root, followLink: true, out var at) == 0 && at.Kind == WireKind.Directory
+                    && !AttachTree(subscription, root, ct))
                     MarkChanged(subscription, root, Environment.TickCount64);
                 ct.ThrowIfCancellationRequested();
             }
@@ -160,7 +160,7 @@ internal sealed unsafe class InotifyWatcher(ReplyChannel replies)
                     int nameLength = MemoryMarshal.Read<int>(events[(at + 12)..]);
                     ReadOnlySpan<byte> name = events.Slice(at + EventHeader, nameLength);
                     int end = name.IndexOf((byte)0);
-                    Dispatch(wd, mask, nameLength == 0 ? null : Encoding.UTF8.GetString(end < 0 ? name : name[..end]), now);
+                    Dispatch(wd, mask, nameLength == 0 ? null : PosixNames.FromBytes(end < 0 ? name : name[..end]), now);
                     at += EventHeader + nameLength;
                 }
             }
@@ -239,12 +239,8 @@ internal sealed unsafe class InotifyWatcher(ReplyChannel replies)
         while (waiting.TryPop(out string? folder))
         {
             ct.ThrowIfCancellationRequested();
-            List<string> children;
-            try
-            {
-                children = [.. SubFolderNames(folder)];
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            var children = SubFolderNames(folder);
+            if (children is null)
             {
                 complete = false;
                 continue;
@@ -355,11 +351,14 @@ internal sealed unsafe class InotifyWatcher(ReplyChannel replies)
         ? new HelperFailure(WslFailure.Other, $"{path}: the distro's inotify watch limit is reached (fs.inotify.max_user_watches)")
         : HelperFailure.FromErrno(errno, path);
 
-    private static FileSystemEnumerable<string> SubFolderNames(string folder)
-        => new(folder, static (ref FileSystemEntry entry) => entry.FileName.ToString(), FileRequests.EveryEntry)
-        {
-            ShouldIncludePredicate = static (ref FileSystemEntry entry) => (entry.Attributes & FileAttributes.ReparsePoint) == 0 && entry.IsDirectory,
-        };
+    // The folders in a folder, each by its exact bytes, never a link to one; null when it cannot be read.
+    private static List<string>? SubFolderNames(string folder)
+    {
+        var entries = new List<(string Name, WireKind Kind)>();
+        return PosixFiles.ReadFolder(folder, entries) == 0
+            ? [.. entries.Where(entry => entry.Kind == WireKind.Directory).Select(entry => entry.Name)]
+            : null;
+    }
 
     private enum FolderWatch
     {

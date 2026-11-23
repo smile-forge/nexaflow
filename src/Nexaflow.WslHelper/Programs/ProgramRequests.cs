@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Location.Wsl.Protocol;
+using Nexaflow.WslHelper.Files;
 
 namespace Nexaflow.WslHelper.Programs;
 
@@ -14,6 +16,15 @@ internal sealed class ProgramRequests(ReplyChannel replies)
     private const string Mark = "--nexaflow-environment--";
 
     private const string PrintEnvironment = "printf '\\n%s\\n' '" + Mark + "'; exec env -0";
+
+    // Run by sh, which becomes the program. A .NET process start writes every string as UTF-8, so a folder, program or
+    // argument whose bytes are no UTF-8 would arrive as some other name: each comes as a printf %b escape instead
+    // (PosixNames.ForPrintf), all ASCII, and is made its exact bytes again here — the x keeps a trailing newline that $( )
+    // would strip. $1 is the folder, then the program and its arguments.
+    private const string ExactlyThen =
+        "d=$(printf '%bx' \"$1\"); cd -- \"${d%x}\" || exit 127; shift; "
+        + "n=$#; while [ \"$n\" -gt 0 ]; do a=$(printf '%bx' \"$1\"); shift; set -- \"$@\" \"${a%x}\"; n=$((n - 1)); done; "
+        + "exec \"$@\"";
 
     private static readonly TimeSpan LoginPatience = TimeSpan.FromSeconds(15);
 
@@ -30,19 +41,21 @@ internal sealed class ProgramRequests(ReplyChannel replies)
         var variables = new Dictionary<string, string>(login, StringComparer.Ordinal);
         foreach (var (name, value) in environment) variables[name] = value;
 
-        if (!Directory.Exists(folder)) throw new HelperFailure(WslFailure.NotFound, $"{folder}: no such folder");
+        if (PosixFiles.Stat(folder, followLink: true, out var at) != 0 || at.Kind != WireKind.Directory)
+            throw new HelperFailure(WslFailure.NotFound, $"{folder}: no such folder");
         string file = Resolve(program, variables.GetValueOrDefault("PATH"))
                       ?? throw new HelperFailure(WslFailure.NotFound, $"{program}: not on the PATH of a login shell");
 
-        var start = new ProcessStartInfo(file)
+        var start = new ProcessStartInfo("/bin/sh")
         {
-            WorkingDirectory       = folder,
             UseShellExecute        = false,
             RedirectStandardInput  = true,
             RedirectStandardOutput = true,
             RedirectStandardError  = true,
         };
-        foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        foreach (var argument in (string[])["-c", ExactlyThen, "nexaflow-run", PosixNames.ForPrintf(folder), PosixNames.ForPrintf(file),
+                                            .. arguments.Select(PosixNames.ForPrintf)])
+            start.ArgumentList.Add(argument);
         start.Environment.Clear();
         foreach (var (name, value) in variables) start.Environment[name] = value;
 
@@ -80,9 +93,8 @@ internal sealed class ProgramRequests(ReplyChannel replies)
 
     private static bool IsRunnable(string file)
     {
-        const UnixFileMode AnyExecute = UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
-        try { return File.Exists(file) && (File.GetUnixFileMode(file) & AnyExecute) != 0; }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+        const uint AnyExecute = 0x49;   // --x--x--x
+        return PosixFiles.Stat(file, followLink: true, out var stat) == 0 && stat.Kind == WireKind.File && (stat.Mode & AnyExecute) != 0;
     }
 
     /// <summary>The variables after the mark in <c>env -0</c>'s output; null when there is no mark.</summary>

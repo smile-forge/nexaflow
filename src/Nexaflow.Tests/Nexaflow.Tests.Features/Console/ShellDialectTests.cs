@@ -113,4 +113,17 @@ public sealed class ShellDialectTests
     public void Posix_NeverTypesAControlCharacterFromAName(string segment)
         => Assert.IsNull(Posix.FormatCdCommand($@"{TerminalFiles.Distro}\srv\{segment}"),
                          "quotes hold it from the shell, not from the tty, which acts on it as a key");
+
+    [TestMethod]
+    [CoversNode("io-locations-wsl-names")]
+    public void Posix_TypesANameThatIsNoUtf8_AsTheShellsOwnPrintfOfIt_AndShowsItsHex()
+    {
+        var distro = new PosixShellDialect(TerminalFiles.Distro, "Probe", StringComparison.Ordinal);
+        var file   = $@"{TerminalFiles.Distro}\home\caf%uDCE9.txt";
+
+        Assert.AreEqual("\"$(printf '%b' '/home/caf\\0351.txt')\"", distro.FormatPathWord(file),
+                        "no keystroke types a stray byte; the shell makes it from an escape");
+        Assert.AreEqual(@"/home/caf\xE9.txt", distro.ShowPath(file));
+        Assert.AreEqual("cd -- \"$(printf '%b' '/home/caf\\0351.txt')\"", distro.FormatCdCommand(file));
+    }
 }

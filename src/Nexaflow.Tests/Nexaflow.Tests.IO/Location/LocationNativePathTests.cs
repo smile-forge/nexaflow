@@ -158,4 +158,14 @@ public sealed class LocationNativePathTests
         Assert.AreEqual(allowed, _vfs.CanName(folder, name), name);
         if (allowed) Assert.AreEqual(Path.Combine(folder, name), _vfs.ChildPath(folder, name));
     }
+
+    [TestMethod]
+    [CoversNode("io-locations-wsl-names")]
+    public void ANameThatIsNoUtf8_HasNoNativePath_ForWindowsCannotNameIt()
+    {
+        Assert.IsNull(_vfs.TryResolveReal($@"{Root}\home\caf%uDCE9.txt"), "WSL's file server shows the stray byte as U+FFFD");
+        Assert.IsNull(_vfs.TryResolveReal($@"{Root}\home\caf%uDCE9\inner.txt"), "nor anything under a folder so named");
+        Assert.AreEqual(VirtualBacking.Remote, _vfs.GetBacking($@"{Root}\home\caf%uDCE9.txt"));
+        Assert.AreEqual(@"caf\xE9.txt", _vfs.GetDisplayName($@"{Root}\home\caf%uDCE9.txt"));
+    }
 }

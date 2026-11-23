@@ -58,6 +58,28 @@ internal enum WslOp : byte
     /// chmod(2) takes. A write gives the file it makes the bits it was asked for this way, on its hidden temp before the
     /// rename puts it in place.</summary>
     ChangeMode = 12,
+
+    /// <summary>String path, int64 offset, int32 count → <see cref="WslReply.Data"/>: up to count bytes of the file from
+    /// offset, at most <see cref="WslWire.MaxChunk"/>, fewer only at its end. How a file with no Windows path — one whose
+    /// name is no UTF-8, which WSL's file server cannot name — is read.</summary>
+    Read = 13,
+
+    /// <summary>String path, byte <see cref="WireWrite"/>, int64 offset, bytes → <see cref="WslReply.Done"/>: the bytes
+    /// written into the file, at most <see cref="WslWire.MaxChunk"/>. How a file with no Windows path is written.</summary>
+    Write = 14,
+}
+
+/// <summary>How a <see cref="WslOp.Write"/> opens its file.</summary>
+internal enum WireWrite : byte
+{
+    /// <summary>Makes the file, which must not be there (<see cref="WslFailure.Conflict"/>), and writes from its start.</summary>
+    CreateNew = 0,
+
+    /// <summary>Writes into the file there, at the offset.</summary>
+    At = 1,
+
+    /// <summary>Adds to the file's end, making it where it is not there.</summary>
+    Append = 2,
 }
 
 /// <summary>What the helper answers, with the payload each carries.</summary>
@@ -86,6 +108,9 @@ internal enum WslReply : byte
 
     /// <summary>Int32 exit code: how a <see cref="WslOp.Run"/>'s program ended, after all it wrote.</summary>
     Exited = 8,
+
+    /// <summary>Bytes: what a <see cref="WslOp.Read"/> read.</summary>
+    Data = 9,
 }
 
 /// <summary>Why a request failed, as the backend reports it.</summary>

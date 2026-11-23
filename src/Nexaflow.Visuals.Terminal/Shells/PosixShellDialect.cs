@@ -59,20 +59,21 @@ public sealed partial class PosixShellDialect : TerminalShellDialect
     // Quotes hold a name from the shell, not from the tty: a control character typed is a key — Ctrl+C drops the line and
     // Enter runs what follows — so a folder named with one is never typed.
     public override string? FormatCdCommand(string folder)
-        => ShellPath(folder) is { } path && !path.Any(char.IsControl) ? $"cd -- {Quote(path)}" : null;
+        => ShellPath(folder) is { } path && !path.Any(char.IsControl) ? $"cd -- {ExactWord(path)}" : null;
 
     public override string FormatSetCommand(string name, string value) => $"export {name}={Quote(value)}";
 
     public override string DescribeFolder(string folder)
-        => ShellPath(folder) is { } path ? $"{path} ({folder})" : folder;
+        => ShellPath(folder) is { } path ? $"{PosixNames.Shown(path)} ({folder})" : folder;
 
-    /// <summary>The location's own path (<c>/home/adam</c>); a path on no part of it as it is.</summary>
-    public override string ShowPath(string path) => ShellPath(path) ?? path;
+    /// <summary>The location's own path (<c>/home/adam</c>), a byte that is no part of a character shown as <c>\xHH</c>; a
+    /// path on no part of it as it is.</summary>
+    public override string ShowPath(string path) => ShellPath(path) is { } shown ? PosixNames.Shown(shown) : path;
 
     /// <summary>The location's own path for a file on it — named by the location or by the Windows folder showing it — as one
     /// single-quoted word; any other path is quoted as it is.</summary>
     public override string FormatPathWord(string path)
-        => Quote(ShellPath(_files?.TryToVirtual(path) ?? path) ?? path);
+        => ShellPath(_files?.TryToVirtual(path) ?? path) is { } own ? ExactWord(own) : Quote(path);
 
     /// <summary>A POSIX name: a letter or underscore, then letters, digits and underscores.</summary>
     public override bool NamesVariable(string name) => VariableName().IsMatch(name);
@@ -121,6 +122,12 @@ public sealed partial class PosixShellDialect : TerminalShellDialect
         if (folder.Length == _root.Length) return "/";
         return folder[_root.Length] is '\\' or '/' ? LocationPath.ToProviderPath(folder[(_root.Length + 1)..]) : null;
     }
+
+    /// <summary>A location's path as one shell word that is its exact bytes: single-quoted, or — where a name is no UTF-8,
+    /// whose stray bytes no keystroke can type — the shell's own <c>printf %b</c> of an all-ASCII escape of them
+    /// (<see cref="PosixNames.ForPrintf"/>).</summary>
+    public static string ExactWord(string path)
+        => PosixNames.HoldsStrayBytes(path) ? $"\"$(printf '%b' {Quote(PosixNames.ForPrintf(path))})\"" : Quote(path);
 
     /// <summary><paramref name="word"/> as one POSIX shell word: single-quoted, each <c>'</c> in it closed, escaped and
     /// reopened (<c>'\''</c>), so nothing in it is expanded.</summary>

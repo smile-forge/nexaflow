@@ -1,4 +1,5 @@
-using System.IO.Enumeration;
+using System.Buffers;
+using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 using Nexaflow.IO.Location.Wsl.Protocol;
 using Nexaflow.WslHelper.Native;
@@ -11,17 +12,13 @@ namespace Nexaflow.WslHelper.Files;
 /// </summary>
 internal sealed class FileRequests(EntryReader entries, ReplyChannel replies)
 {
-    /// <summary>Every entry of one folder, the dot-named ones too, which .NET reads as hidden and skips by default.</summary>
-    public static readonly EnumerationOptions EveryEntry = new()
-    {
-        AttributesToSkip = 0,
-        IgnoreInaccessible = false,
-        RecurseSubdirectories = false,
-        ReturnSpecialDirectories = false,
-    };
-
     // rwxrwxrwx, which the umask narrows, as mkdir(1) makes a folder.
     private const uint AnyoneMayOpen = 0x1FF;
+
+    // rw-rw-rw-, which the umask narrows, as a program makes a file.
+    private const uint AnyoneMayWrite = 0x1B6;
+
+    private const int CopyBuffer = 128 * 1024;
 
     /// <summary>Sends the folder's entries in pages of <see cref="WslWire.PageSize"/>, then Done.</summary>
     public async Task ListAsync(int id, string path, CancellationToken ct)
@@ -99,8 +96,7 @@ internal sealed class FileRequests(EntryReader entries, ReplyChannel replies)
         }
         if (recursive)
         {
-            // On Linux Directory.Delete removes a link inside the tree as a link and never descends through it.
-            Directory.Delete(path, recursive: true);
+            DeleteTree(path);
             return;
         }
         if (Libc.RemoveDirectory(path) == 0) return;
@@ -109,6 +105,19 @@ internal sealed class FileRequests(EntryReader entries, ReplyChannel replies)
         throw errno is Errno.ENOTEMPTY or Errno.EEXIST
             ? new HelperFailure(WslFailure.NotEmpty, $"{path} is not empty")
             : HelperFailure.FromErrno(errno, path);
+    }
+
+    // Everything in the folder, then the folder: a link inside it is removed as a link, never descended through.
+    private static void DeleteTree(string folder)
+    {
+        foreach (var (name, kind) in Children(folder))
+        {
+            string child = DistroPath.Join(folder, name);
+            if (kind == WireKind.Directory) DeleteTree(child);
+            else if (Libc.Unlink(child) != 0 && Marshal.GetLastPInvokeError() is var errno && errno != Errno.ENOENT)
+                throw HelperFailure.FromErrno(errno, child);
+        }
+        if (Libc.RemoveDirectory(folder) != 0) throw HelperFailure.FromErrno(Marshal.GetLastPInvokeError(), folder);
     }
 
     /// <summary>Renames in one step: what is at <paramref name="to"/> is replaced only when <paramref name="replace"/>, and
@@ -161,10 +170,75 @@ internal sealed class FileRequests(EntryReader entries, ReplyChannel replies)
         if (replacing && target.IsSameFile(source))
             throw new HelperFailure(WslFailure.Conflict, $"{to} is {from} itself");
 
-        File.Copy(from, to, replace);
+        using SafeFileHandle input  = Open(from, PosixFiles.ReadOnly, 0);
+        using SafeFileHandle output = Open(to, PosixFiles.WriteOnly | PosixFiles.Create | (replace ? PosixFiles.Truncate : PosixFiles.Exclusive),
+                                           source.Mode);
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(CopyBuffer);
+        try
+        {
+            for (long at = 0; ;)
+            {
+                int read = RandomAccess.Read(input, buffer, at);
+                if (read == 0) break;
+                RandomAccess.Write(output, buffer.AsSpan(0, read), at);
+                at += read;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+
         // A new copy is the source's, bits and all; one over a file keeps that file's, as a write over it does.
         uint bits = replacing && target.Kind == WireKind.File ? target.Mode : source.Mode;
-        if ((uint)File.GetUnixFileMode(to) != bits) File.SetUnixFileMode(to, (UnixFileMode)bits);
+        if (Libc.FChangeMode((int)output.DangerousGetHandle(), bits) != 0)
+            throw HelperFailure.FromErrno(Marshal.GetLastPInvokeError(), to);
+    }
+
+    /// <summary>Up to <paramref name="count"/> bytes of the file from <paramref name="offset"/> — fewer only at its end — sent
+    /// as one <see cref="WslReply.Data"/>.</summary>
+    public async Task ReadAsync(int id, string path, long offset, int count, CancellationToken ct)
+    {
+        count = Math.Clamp(count, 0, WslWire.MaxChunk);
+        using SafeFileHandle file = Open(path, PosixFiles.ReadOnly, 0);
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(Math.Max(count, 1));
+        try
+        {
+            int read = 0;
+            while (read < count)
+            {
+                int got = RandomAccess.Read(file, buffer.AsSpan(read, count - read), offset + read);
+                if (got == 0) break;
+                read += got;
+            }
+            await replies.SendAsync(new WslWriter(WslReply.Data, id).Bytes(buffer.AsSpan(0, read)), ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    /// <summary>Writes <paramref name="data"/> into the file as <paramref name="how"/> says; a file it makes is made as open(2)
+    /// makes one, which the umask narrows.</summary>
+    public static void Write(string path, WireWrite how, long offset, ReadOnlySpan<byte> data)
+    {
+        int flags = how switch
+        {
+            WireWrite.CreateNew => PosixFiles.WriteOnly | PosixFiles.Create | PosixFiles.Exclusive,
+            WireWrite.Append    => PosixFiles.WriteOnly | PosixFiles.Create | PosixFiles.Append,
+            _                   => PosixFiles.WriteOnly,
+        };
+        using SafeFileHandle file = Open(path, flags, AnyoneMayWrite);
+        // Opened to append, the file takes the bytes at its end whatever offset is given.
+        RandomAccess.Write(file, data, how == WireWrite.Append ? 0 : offset);
+    }
+
+    // A file opened as open(2) opens it, or the failure that stopped it — a file already there being a conflict.
+    private static SafeFileHandle Open(string path, int flags, uint mode)
+    {
+        int errno = PosixFiles.Open(path, flags, mode, out var file);
+        return errno == 0 ? file! : throw HelperFailure.FromErrno(errno, path);
     }
 
     /// <summary>Gives the file the permission bits named — the twelve chmod(2) takes — following a link, as chmod does.</summary>
@@ -216,11 +290,14 @@ internal sealed class FileRequests(EntryReader entries, ReplyChannel replies)
         return errno == 0 ? stat : throw HelperFailure.FromErrno(errno, path);
     }
 
-    // Each entry's name, and its kind as the folder itself records it — what is left to say of one that cannot be read.
-    private static FileSystemEnumerable<(string Name, WireKind Kind)> Children(string folder)
-        => new(folder, static (ref FileSystemEntry entry) => (entry.FileName.ToString(),
-                   (entry.Attributes & FileAttributes.ReparsePoint) != 0 ? WireKind.Symlink : entry.IsDirectory ? WireKind.Directory : WireKind.File),
-               EveryEntry);
+    // Each entry's name, by its exact bytes, and its kind as the folder itself records it — what is left to say of one that
+    // cannot be read.
+    private static List<(string Name, WireKind Kind)> Children(string folder)
+    {
+        var children = new List<(string Name, WireKind Kind)>();
+        int errno = PosixFiles.ReadFolder(folder, children);
+        return errno == 0 ? children : throw HelperFailure.FromErrno(errno, folder);
+    }
 
     private Task SendPageAsync(int id, List<WireEntry> page, CancellationToken ct)
     {

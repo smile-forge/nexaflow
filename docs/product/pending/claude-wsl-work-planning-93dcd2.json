@@ -1493,10 +1493,42 @@
           }
         ]
       }
+    },
+    "io-locations-wsl-names": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Locations/PosixNames.cs",
+          "class": "PosixNames"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.WslHelper/Native/PosixPathMarshaller.cs",
+          "class": "PosixPathMarshaller"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Location.Wsl/WslHelperStreams.cs"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/PosixNamesTests.cs",
+            "class": "PosixNamesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Location/Wsl/WslStrayNameTests.cs",
+            "class": "WslStrayNameTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 80,
+  "changed_sets": 82,
   "touched_nodes": [
     "ai-context-paths",
     "audio-tageditor-save",
@@ -1522,6 +1554,7 @@
     "io-locations-transfer-permissions",
     "io-locations-wsl",
     "io-locations-wsl-helper",
+    "io-locations-wsl-names",
     "ioterm-screen",
     "ioterm-transport",
     "locations-browse",

@@ -53,8 +53,19 @@ carry it unchanged; what changes is that a mount can be backed by a provider rat
 - **Segment escaping.** POSIX names may hold `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|` or control characters, or end in a
   dot or space. `LocationPath` percent-encodes exactly those characters in a segment — and `%` itself, so decoding is
   never ambiguous — and decodes them at the provider boundary, so the round trip is lossless. A listing through the VFS
-  names each entry by its segment, so it combines into a path with `\`; `GetDisplayName` gives the name back as people
-  read it.
+    names each entry by its segment, so it combines into a path with `\`; `GetDisplayName` gives the name back as people
+    read it.
+  - **Names that are no UTF-8.** A POSIX name is bytes: `caf` and a stray `0xE9` is a name Linux holds. `PosixNames` holds
+    it in a .NET string with each stray byte as the lone surrogate U+DC80 + byte, as Python's `surrogateescape` does, so
+    every byte comes back. The WSL helper's wire carries names this way, and every syscall the helper makes is given the
+    exact bytes (`PosixPathMarshaller`): it reads folders with `getdents64` and copies through descriptors, never through
+    .NET's file APIs, which decode as UTF-8 and lose them. A segment carries a stray byte as `%uDCE9`, so a path holding one
+    is plain text that tab sets and JSON keep. People read it as `caf\xE9.txt`, as `ls -b` shows it, and the display form
+    writes it so — with a backslash in a name as `\\` — and reads it back exactly. WSL's file server shows such a name with
+    U+FFFD and cannot open it, so it has no native path: it is read and written through the helper (`WslOp.Read`,
+    `WslOp.Write`). A program the helper runs gets its folder and arguments as `printf %b` escapes that an `sh` trampoline
+    makes exact again, a shell starts in such a folder the same way, and a dropped file is typed as the shell's own
+    `printf` of its name, since no keystroke types a stray byte.
 - **Case.** Each provider declares whether its names are case-sensitive. Comparisons (selection, `PathScope`, dedup of
   open tabs) ask the location, never `StringComparison.OrdinalIgnoreCase` directly.
 - **Display form.** People and the assistant see a URI: `sftp://adam@nas/home/adam/notes.md`, `wsl://Ubuntu/home/adam`,
@@ -374,16 +385,13 @@ beneath `iocommon-vfs`, with a node per backend and the grid view added as each 
 `locations` node under `features` with the first backend a person can reach. Each is snaplinked to its code as it lands
 and committed in the branch's pending file.
 
-## What WSL needs before it ships
+## Changes go through the location
 
 A native path is for readers: a save, copy, move or delete of a location's file goes through the location, whether it is
 named by the location's path or by the Windows folder showing it (a paste from Explorer, a cut from here, an editor that
 opened it by that folder) — Windows replaces no file there, and a file it moves over another takes none of its
-permissions. The Recycle Bin is never offered for one, and a name Windows would trim has no native path. These are open.
-
-| Gap | Effect |
-| --- | --- |
-| Names that are not UTF-8 cross the helper's wire as text | Those files cannot be opened, renamed or deleted |
+permissions. The Recycle Bin is never offered for one, and a name Windows would trim, or one that is no UTF-8, has no
+native path.
 
 ## Decisions
 

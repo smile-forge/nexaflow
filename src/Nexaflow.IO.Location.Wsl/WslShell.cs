@@ -28,6 +28,10 @@ internal sealed class WslShell(string distro, string shims, string loginShell, s
     private const string LinkFolderThenRun =
         "ln -s \"/proc/$$/cwd\" \"$0\" 2>/dev/null; export NEXAFLOW_ENVIRONMENT=\"$0.env\"; exec \"$@\"";
 
+    // A folder wsl.exe's --cd cannot name — one whose name is no UTF-8, which no Windows command line holds — comes as a
+    // printf %b escape in $1 (PosixNames.ForPrintf) and is changed into here, the x keeping a trailing newline $( ) strips.
+    private const string ChangeIntoExactly = "d=$(printf '%bx' \"$1\"); cd -- \"${d%x}\" || exit 1; shift; ";
+
     // Ends whatever a profile prints, so a greeting's words are not taken for programs.
     private const string ListMark = "--nexaflow-commands--";
 
@@ -85,9 +89,11 @@ internal sealed class WslShell(string distro, string shims, string loginShell, s
 
     public async ValueTask<ITerminalTransport> LaunchAsync(TerminalLaunch launch, CancellationToken ct)
     {
+        var folder = launch.WorkingDirectory;
+        bool exact = folder is not null && PosixNames.HoldsStrayBytes(folder);
         var arguments = new StringBuilder()
             .Append("-d ").Append(Quote(distro))
-            .Append(" --cd ").Append(Quote(launch.WorkingDirectory ?? "~"));
+            .Append(" --cd ").Append(Quote(exact ? "~" : folder ?? "~"));
 
         string[]? shimmed = loginShell[(loginShell.LastIndexOf('/') + 1)..] switch
         {
@@ -97,12 +103,22 @@ internal sealed class WslShell(string distro, string shims, string loginShell, s
         };
 
         string? folderLink = null;
+        string[]? run = null;
         if (shimmed is not null)
         {
             folderLink = $"{shims}/terminal-{Guid.NewGuid():N}";
+            run = exact
+                ? ["sh", "-c", ChangeIntoExactly + LinkFolderThenRun, folderLink, PosixNames.ForPrintf(folder!), .. shimmed]
+                : ["sh", "-c", LinkFolderThenRun, folderLink, .. shimmed];
+        }
+        else if (exact)
+        {
+            run = ["sh", "-c", ChangeIntoExactly + "exec \"$@\"", "nexaflow-shell", PosixNames.ForPrintf(folder!), loginShell, "-l"];
+        }
+        if (run is not null)
+        {
             arguments.Append(" --exec");
-            foreach (var argument in (string[])["sh", "-c", LinkFolderThenRun, folderLink, .. shimmed])
-                arguments.Append(' ').Append(Quote(argument));
+            foreach (var argument in run) arguments.Append(' ').Append(Quote(argument));
         }
 
         var launcher = new PseudoConsoleLauncher(WslHelperDeployment.WslExecutable, arguments.ToString());

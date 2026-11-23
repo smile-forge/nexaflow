@@ -6,7 +6,8 @@ namespace Nexaflow.WslHelper.Native;
 /// <summary>
 /// The C library calls the helper makes, bound to whichever C library the distro has: glibc's <c>libc.so.6</c>, or musl's
 /// <c>libc.musl-&lt;arch&gt;.so.1</c> — never a bare <c>libc.so</c> first, which on glibc is a linker script that cannot be
-/// loaded. A call that fails leaves its errno for <see cref="Marshal.GetLastPInvokeError"/>.
+/// loaded. A call that fails leaves its errno for <see cref="Marshal.GetLastPInvokeError"/>. Every path is passed as its
+/// exact bytes (<see cref="PosixPathMarshaller"/>), so a name that is no UTF-8 is the name the distro holds.
 /// </summary>
 internal static unsafe partial class Libc
 {
@@ -39,35 +40,35 @@ internal static unsafe partial class Libc
     [LibraryImport(Library, EntryPoint = "getgrgid")]
     public static partial nint GetGroupByGid(uint gid);
 
-    [LibraryImport(Library, EntryPoint = "rename", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "rename", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial int Rename(string from, string to);
 
-    [LibraryImport(Library, EntryPoint = "link", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "link", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial int Link(string existing, string created);
 
-    [LibraryImport(Library, EntryPoint = "unlink", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "unlink", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial int Unlink(string path);
 
-    [LibraryImport(Library, EntryPoint = "rmdir", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "rmdir", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial int RemoveDirectory(string path);
 
-    [LibraryImport(Library, EntryPoint = "mkdir", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "mkdir", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial int MakeDirectory(string path, uint mode);
 
-    [LibraryImport(Library, EntryPoint = "chmod", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "chmod", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial int ChangeMode(string path, uint mode);
 
     /// <summary><c>lchown</c>: a link's own owner, never its target's. <see cref="uint.MaxValue"/> leaves an id as it is.</summary>
-    [LibraryImport(Library, EntryPoint = "lchown", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "lchown", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial int ChangeOwner(string path, uint uid, uint gid);
 
-    [LibraryImport(Library, EntryPoint = "readlink", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "readlink", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial nint ReadLink(string path, byte* buffer, nint size);
 
     [LibraryImport(Library, EntryPoint = "inotify_init1", SetLastError = true)]
     public static partial int InotifyInit(int flags);
 
-    [LibraryImport(Library, EntryPoint = "inotify_add_watch", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport(Library, EntryPoint = "inotify_add_watch", SetLastError = true, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(PosixPathMarshaller))]
     public static partial int InotifyAddWatch(int descriptor, string path, uint mask);
 
     [LibraryImport(Library, EntryPoint = "inotify_rm_watch", SetLastError = true)]
@@ -78,6 +79,10 @@ internal static unsafe partial class Libc
 
     [LibraryImport(Library, EntryPoint = "poll", SetLastError = true)]
     public static partial int Poll(PollDescriptor* descriptors, nuint count, int timeoutMilliseconds);
+
+    /// <summary>Gives the open file the permission bits named.</summary>
+    [LibraryImport(Library, EntryPoint = "fchmod", SetLastError = true)]
+    public static partial int FChangeMode(int descriptor, uint mode);
 }
 
 /// <summary><c>struct pollfd</c>.</summary>

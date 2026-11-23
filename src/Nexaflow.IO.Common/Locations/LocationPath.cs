@@ -10,7 +10,8 @@ namespace Nexaflow.IO.Common.Locations;
 /// POSIX name may hold characters no Windows path segment can (<c>\ : * ? " &lt; &gt; |</c>, control characters) or end
 /// in a dot or a space; those are percent-encoded in the segment and decoded at the provider boundary. <c>%</c> is
 /// encoded too, so decoding is never ambiguous and the round trip is lossless. A name with none of them is its own
-/// segment.
+/// segment. A byte that is no part of a character — held as a lone surrogate (<see cref="PosixNames"/>) — is encoded as
+/// <c>%uXXXX</c>, so a path holding one is plain text that any store keeps, JSON included.
 /// </para>
 /// </summary>
 public static class LocationPath
@@ -31,10 +32,14 @@ public static class LocationPath
         for (int i = 0; i < name.Length; i++)
         {
             char c = name[i];
-            bool encode = c < ' ' || Reserved.IndexOf(c) >= 0 || (i == last && (c == '.' || c == ' '));
+            bool lone = char.IsSurrogate(c) && !(char.IsHighSurrogate(c) && i < last && char.IsLowSurrogate(name[i + 1]))
+                                            && !(char.IsLowSurrogate(c) && i > 0 && char.IsHighSurrogate(name[i - 1]));
+            bool encode = lone || c < ' ' || Reserved.IndexOf(c) >= 0 || (i == last && (c == '.' || c == ' '));
             if (!encode) { sb?.Append(c); continue; }
             sb ??= new StringBuilder(name.Length + 8).Append(name, 0, i);
-            sb.Append(Escape).Append(((int)c).ToString("X2", CultureInfo.InvariantCulture));
+            sb.Append(Escape);
+            if (lone) sb.Append('u').Append(((int)c).ToString("X4", CultureInfo.InvariantCulture));
+            else sb.Append(((int)c).ToString("X2", CultureInfo.InvariantCulture));
         }
         return sb?.ToString() ?? name;
     }
@@ -51,7 +56,14 @@ public static class LocationPath
         var sb = new StringBuilder(segment.Length).Append(segment, 0, at);
         for (int i = at; i < segment.Length; i++)
         {
-            if (segment[i] == Escape && i + 2 < segment.Length
+            if (segment[i] == Escape && i + 5 < segment.Length && segment[i + 1] == 'u'
+                && int.TryParse(segment.AsSpan(i + 2, 4), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int unit)
+                && char.IsSurrogate((char)unit))
+            {
+                sb.Append((char)unit);
+                i += 5;
+            }
+            else if (segment[i] == Escape && i + 2 < segment.Length
                 && int.TryParse(segment.AsSpan(i + 1, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int code))
             {
                 sb.Append((char)code);
@@ -106,7 +118,9 @@ public static class LocationPath
     /// <summary>
     /// The display form of a provider path on a connection — <c>sftp://adam@nas/home/adam/notes.md</c>,
     /// <c>wsl://Ubuntu/home/adam</c> — as the address bar shows it and <see cref="TryParseDisplayForm"/> reads it back.
-    /// Names are shown as the server holds them: the display form is for people, not for a URI parser.
+    /// Names are shown as the server holds them: the display form is for people, not for a URI parser — but for a byte that
+    /// is no part of a character, shown as <c>\xHH</c>, and a backslash in a name, shown as <c>\\</c>, so the form reads back
+    /// exactly (<see cref="PosixNames.Addressed"/>).
     /// </summary>
     public static string ToDisplayForm(ConnectionProfile connection, string providerPath)
     {
@@ -115,7 +129,7 @@ public static class LocationPath
         if (!string.IsNullOrEmpty(connection.User)) sb.Append(connection.User).Append('@');
         sb.Append(connection.Host);
         if (connection.Port is { } port) sb.Append(':').Append(port.ToString(CultureInfo.InvariantCulture));
-        sb.Append(providerPath.Length == 0 ? "/" : providerPath);
+        sb.Append(providerPath.Length == 0 ? "/" : PosixNames.Addressed(providerPath));
         return sb.ToString();
     }
 
@@ -138,7 +152,7 @@ public static class LocationPath
         var rest  = text[(scheme + 3)..];
         int slash = rest.IndexOf('/');
         var authority = slash < 0 ? rest : rest[..slash];
-        var path      = slash < 0 ? "/" : rest[slash..];
+        var path      = slash < 0 ? "/" : PosixNames.FromAddressed(rest[slash..]);
 
         int at = authority.LastIndexOf('@');
         var user     = at < 0 ? null : authority[..at];

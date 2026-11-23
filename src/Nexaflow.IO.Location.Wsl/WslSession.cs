@@ -117,6 +117,14 @@ internal sealed class WslSession : ILocationSession
 
     public async ValueTask<Stream> OpenReadAsync(string path, ReadIntent intent, CancellationToken ct)
     {
+        // WSL's file server cannot name a file whose name is no UTF-8, so it is read through the helper.
+        if (PosixNames.HoldsStrayBytes(path))
+        {
+            var entry = await GetEntryAsync(path, ct).ConfigureAwait(false)
+                        ?? throw new LocationException(LocationError.NotFound, path, $"'{path}' is not there.");
+            return new WslHelperReadStream(this, path, entry.Size);
+        }
+
         var native  = Native(path);
         var options = FileOptions.Asynchronous | (intent == ReadIntent.Random ? FileOptions.RandomAccess : FileOptions.SequentialScan);
         try
@@ -144,6 +152,19 @@ internal sealed class WslSession : ILocationSession
     /// <summary>Gives a file the permission bits named (<see cref="WslOp.ChangeMode"/>).</summary>
     internal async ValueTask ChangeModeAsync(string path, UnixFileMode bits, CancellationToken ct)
         => await _link.CallAsync(WslOp.ChangeMode, w => w.String(path).UInt32((uint)bits), path, ct).ConfigureAwait(false);
+
+    /// <summary>Up to <paramref name="count"/> bytes of the file from <paramref name="offset"/>, read by the helper
+    /// (<see cref="WslOp.Read"/>); fewer only at its end.</summary>
+    internal async ValueTask<byte[]> ReadRangeAsync(string path, long offset, int count, CancellationToken ct)
+    {
+        var frame = await _link.CallAsync(WslOp.Read, w => w.String(path).Int64(offset).Int32(count), path, ct).ConfigureAwait(false);
+        return frame.Read().Bytes().ToArray();
+    }
+
+    /// <summary>Writes the bytes into the file through the helper (<see cref="WslOp.Write"/>).</summary>
+    internal async ValueTask WriteRangeAsync(string path, WireWrite how, long offset, ReadOnlyMemory<byte> data, CancellationToken ct)
+        => await _link.CallAsync(WslOp.Write, w => w.String(path).Byte((byte)how).Int64(offset).Bytes(data.Span), path, ct)
+                      .ConfigureAwait(false);
 
     public async ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct)
         => await _link.CallAsync(WslOp.Copy, w => w.String(from).String(to).Bool(replace), from, ct).ConfigureAwait(false);

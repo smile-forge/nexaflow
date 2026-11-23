@@ -190,13 +190,17 @@ public sealed partial class LocationFileSystem : IVirtualFileSystem, ILocationPu
 
     /// <summary>Where the path is on this disk, when its location is reachable as a Windows folder; null otherwise — and
     /// null where a name on the way ends in a dot or a space, which Windows trims and so reads as its neighbour
-    /// (<c>notes.</c> as <c>notes</c>): such a file is reached only through the location.</summary>
+    /// (<c>notes.</c> as <c>notes</c>), or that is no UTF-8, which Windows cannot name: such a file is reached only through
+    /// the location.</summary>
     private static string? NativePathOf(LocationMount location, string remainder)
     {
         if (location is not { NativePaths: { } native, NativeRoots: [var root, ..] }) return null;
         root = root.TrimEnd('\\', '/');
 
-        var names = LocationPath.ToProviderPath(remainder).Split('/', StringSplitOptions.RemoveEmptyEntries)
+        // A name that is no UTF-8 has no Windows name at all: WSL's file server shows its stray bytes as U+FFFD.
+        var providerPath = LocationPath.ToProviderPath(remainder);
+        if (PosixNames.HoldsStrayBytes(providerPath)) return null;
+        var names = providerPath.Split('/', StringSplitOptions.RemoveEmptyEntries)
                                 .Select(native.ToNativeName).ToList();
         if (names.Any(name => name.EndsWith('.') || name.EndsWith(' '))) return null;
         return names.Count == 0 ? root : root + "\\" + string.Join('\\', names);
@@ -335,7 +339,8 @@ public sealed partial class LocationFileSystem : IVirtualFileSystem, ILocationPu
         if (!TryRoute(path, out var location, out var remainder)) return _shared.GetDisplayName(path);
         if (remainder.Length == 0) return location.Label;
         int sep = remainder.LastIndexOfAny(['\\', '/']);
-        return LocationPath.DecodeSegment(sep < 0 ? remainder : remainder[(sep + 1)..]);
+        // A byte that is no part of a character reads as \xHH, as ls -b shows it.
+        return PosixNames.Shown(LocationPath.DecodeSegment(sep < 0 ? remainder : remainder[(sep + 1)..]));
     }
 
     public IReadOnlyList<(string Label, string Path)> GetBreadcrumbs(string path)
@@ -346,7 +351,7 @@ public sealed partial class LocationFileSystem : IVirtualFileSystem, ILocationPu
         foreach (var segment in remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))
         {
             built += "\\" + segment;
-            crumbs.Add((LocationPath.DecodeSegment(segment), built));
+            crumbs.Add((PosixNames.Shown(LocationPath.DecodeSegment(segment)), built));
         }
         return crumbs;
     }

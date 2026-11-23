@@ -1,4 +1,5 @@
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.IO.Location.Wsl.Protocol;
 
 namespace Nexaflow.IO.Location.Wsl;
 
@@ -8,7 +9,8 @@ namespace Nexaflow.IO.Location.Wsl;
 /// link never leaves half a file. An append writes in place, because an append has nothing to swap. A write given the
 /// entry it read checks the target is still that version, read the same way it was, before anything lands. A file the
 /// write makes is given the permission bits asked of it before its first byte — with its owner's write while it is
-/// written, and nothing else wider — and exactly them before it appears.
+/// written, and nothing else wider — and exactly them before it appears. A path WSL's file server cannot name — one whose
+/// name is no UTF-8 — is written through the helper instead, in the same steps.
 /// </summary>
 internal sealed class WslWrite : ILocationWrite
 {
@@ -19,14 +21,13 @@ internal sealed class WslWrite : ILocationWrite
     private readonly WriteMode _mode;
     private readonly LocationEntry? _expected;
     private readonly string? _temp;
-    private readonly FileStream _content;
+    private readonly Stream _content;
 
     /// <summary>The permission bits the file this write makes is given, or null when it makes none or was asked for none.</summary>
     private readonly UnixFileMode? _bits;
     private bool _finished;
 
-    private WslWrite(WslSession session, string path, WriteMode mode, LocationEntry? expected, string? temp, FileStream content,
-                     UnixFileMode? bits)
+    private WslWrite(WslSession session, string path, WriteMode mode, LocationEntry? expected, string? temp, Stream content, UnixFileMode? bits)
     {
         _session  = session;
         _path     = path;
@@ -81,8 +82,18 @@ internal sealed class WslWrite : ILocationWrite
         return write;
     }
 
-    private static async ValueTask<FileStream> OpenFileAsync(WslSession session, string path, FileMode mode, CancellationToken ct)
+    // The file opened to write — made new, or appended to — over WSL's file server, or through the helper where the server
+    // cannot name it.
+    private static async ValueTask<Stream> OpenFileAsync(WslSession session, string path, FileMode mode, CancellationToken ct)
     {
+        if (PosixNames.HoldsStrayBytes(path))
+        {
+            bool append = mode == FileMode.Append;
+            await session.WriteRangeAsync(path, append ? WireWrite.Append : WireWrite.CreateNew, 0, ReadOnlyMemory<byte>.Empty, ct)
+                         .ConfigureAwait(false);
+            return new WslHelperWriteStream(session, path, append);
+        }
+
         var native = session.Native(path);
         try
         {

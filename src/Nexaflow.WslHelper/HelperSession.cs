@@ -149,6 +149,24 @@ internal sealed class HelperSession(ReplyChannel replies, FileRequests files, In
                 break;
             }
 
+            case WslOp.Read:
+            {
+                string path = DistroPath.Checked(request.Text());
+                long offset = request.Int64();
+                int count = request.Int32();
+                await files.ReadAsync(id, path, offset, count, ct).ConfigureAwait(false);
+                return;
+            }
+
+            case WslOp.Write:
+            {
+                string path = DistroPath.Checked(request.Text());
+                var how = (WireWrite)request.Byte();
+                long offset = request.Int64();
+                FileRequests.Write(path, how, offset, request.Bytes());
+                break;
+            }
+
             case WslOp.ChangeMode:
             {
                 string path = DistroPath.Checked(request.Text());

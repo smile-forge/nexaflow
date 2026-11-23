@@ -160,4 +160,28 @@ public sealed class LocationPathTests
         Assert.AreEqual("/home/b", LocationPath.ToProviderPath(@"home\link\..\b"), "before the host can follow the link");
         Assert.AreEqual("/etc", LocationPath.ToProviderPath(@"..\..\.\etc"));
     }
+
+    [TestMethod]
+    [CoversNode("io-locations-wsl-names")]
+    public void AStrayByte_IsAnAsciiEscapeInTheSegment_AndComesBack()
+    {
+        const string name = "caf\uDCE9.txt";
+
+        Assert.AreEqual("caf%uDCE9.txt", LocationPath.EncodeSegment(name), "plain text that any store keeps");
+        Assert.AreEqual(name, LocationPath.DecodeSegment(LocationPath.EncodeSegment(name)));
+        Assert.AreEqual("😀", LocationPath.EncodeSegment("😀"), "a surrogate pair is a character, its own segment");
+    }
+
+    [TestMethod]
+    [CoversNode("io-locations-wsl-names")]
+    public void AStrayByte_ReadsInTheDisplayFormAsItsHex_AndBackExactly()
+    {
+        var distro = new ConnectionProfile("wsl-ubuntu", "wsl", "Ubuntu", "Ubuntu");
+
+        var shown = LocationPath.ToDisplayForm(distro, "/tmp/caf\uDCE9.txt");
+
+        Assert.AreEqual(@"wsl://Ubuntu/tmp/caf\xE9.txt", shown);
+        Assert.IsTrue(LocationPath.TryParseDisplayForm(shown, out var address));
+        Assert.AreEqual("/tmp/caf\uDCE9.txt", address!.Path);
+    }
 }

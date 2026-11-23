@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Text;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.IO.Location.Wsl.Protocol;
 
@@ -22,6 +23,9 @@ internal static class WslWire
 
     /// <summary>How many entries a listing sends in one page, so a large folder's first rows paint before it is read through.</summary>
     public const int PageSize = 256;
+
+    /// <summary>The most a <see cref="WslOp.Read"/> or <see cref="WslOp.Write"/> moves in one request — well inside a frame.</summary>
+    public const int MaxChunk = 1024 * 1024;
 
     /// <summary>Reads one frame, or null where the stream ends between frames. A stream ending inside one, or a length no
     /// frame has, is <see cref="InvalidDataException"/>.</summary>
@@ -116,9 +120,10 @@ internal sealed class WslWriter
     public WslWriter String(string? value)
     {
         if (value is null) return Int32(-1);
-        int count = Encoding.UTF8.GetByteCount(value);
+        // A name's exact bytes, whether or not they are UTF-8 (PosixNames).
+        int count = PosixNames.GetByteCount(value);
         Int32(count);
-        Encoding.UTF8.GetBytes(value, _buffer.GetSpan(count));
+        PosixNames.GetBytes(value, _buffer.GetSpan(count));
         _buffer.Advance(count);
         return this;
     }
@@ -176,7 +181,7 @@ internal sealed class WslReader(ReadOnlyMemory<byte> payload)
     public string? String()
     {
         int count = Int32();
-        return count < 0 ? null : Encoding.UTF8.GetString(Take(count));
+        return count < 0 ? null : PosixNames.FromBytes(Take(count));
     }
 
     /// <summary>A string that may not be null.</summary>
