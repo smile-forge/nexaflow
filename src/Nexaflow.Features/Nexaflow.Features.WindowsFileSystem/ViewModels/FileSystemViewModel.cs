@@ -1255,12 +1255,11 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     private void OpenInRightPane(string? folderPath)
     {
         if (string.IsNullOrEmpty(folderPath)) return;
-        var name = Path.GetFileName(folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         _shell.OpenTab("FileSystem", new()
         {
             ["mode"]  = "path",
             ["path"]  = folderPath,
-            ["label"] = string.IsNullOrEmpty(name) ? folderPath : name,
+            ["label"] = Vfs.GetDisplayName(folderPath),
         }, inRightPane: true);
     }
 

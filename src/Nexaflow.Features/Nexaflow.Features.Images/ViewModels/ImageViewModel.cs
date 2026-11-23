@@ -503,7 +503,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             {
                 Index    = i,
                 FilePath = _paths[i],
-                FileName = Path.GetFileName(_paths[i]),
+                FileName = _editing.FileSystem.GetDisplayName(_paths[i]),
                 IsSelected = i == 0,
             });
         }
@@ -593,7 +593,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (index < 0 || index >= _paths.Count) return;
 
         var path = _paths[index];
-        CurrentFileName = Path.GetFileName(path);
+        CurrentFileName = _editing.FileSystem.GetDisplayName(path);
 
         foreach (var dot in Dots)
             dot.IsCurrent = dot.Index == index;

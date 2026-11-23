@@ -19,7 +19,7 @@ public sealed class TextTabRegistration(IShellServices shell, IVirtualFileSystem
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? Str.Get("Text.Viewer.Page.Title") : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Text.Viewer.Page.Title") : vfs.GetDisplayName(path);
 
         // One VM per page (the factory runs once) so the dirty marker can ride on the tab title.
         var vm = new TextViewModel(path, shell, vfs);

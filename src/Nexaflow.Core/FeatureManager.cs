@@ -466,6 +466,11 @@ public sealed class FeatureManager
     public IReadOnlyList<IChatDropHandler> GetChatDropHandlers(WorkspaceRuntime ctx)
         => Instantiate<IChatDropHandler>(FeatureCatalog.Instance.TypesImplementing<IChatDropHandler>(), ctx);
 
+    /// <summary>The runtime's breadcrumb display filters in stacking order (<see cref="IBreadcrumbDisplayFilter.Order"/>).</summary>
+    public IReadOnlyList<IBreadcrumbDisplayFilter> GetBreadcrumbDisplayFilters(WorkspaceRuntime ctx)
+        => [.. Instantiate<IBreadcrumbDisplayFilter>(FeatureCatalog.Instance.TypesImplementing<IBreadcrumbDisplayFilter>(), ctx)
+               .OrderBy(f => f.Order)];
+
     /// <summary>Chat-bar input-preview handlers (live echo of what you're typing) for this workspace.</summary>
     public IReadOnlyList<IChatInputPreview> GetChatInputPreviews(WorkspaceRuntime ctx)
         => Instantiate<IChatInputPreview>(FeatureCatalog.Instance.TypesImplementing<IChatInputPreview>(), ctx);

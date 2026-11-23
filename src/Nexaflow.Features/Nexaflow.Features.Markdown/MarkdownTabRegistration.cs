@@ -32,7 +32,7 @@ public sealed class MarkdownTabRegistration(IShellServices shell, IAIService ai,
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var filePath = pageParams?.GetValueOrDefault("path") ?? "";
-        var title    = Path.GetFileName(filePath);
+        var title    = vfs.GetDisplayName(filePath);
         var heading  = pageParams?.GetValueOrDefault("heading") is { Length: > 0 } h
             ? h.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             : null;
@@ -57,9 +57,9 @@ public sealed class MarkdownTabRegistration(IShellServices shell, IAIService ai,
     }
 
     /// <summary>The tab is the file the document now is: named after it, reopened as it, its crumbs its folders.</summary>
-    private static void Follow(Page page, string path)
+    private void Follow(Page page, string path)
     {
-        page.Title      = Path.GetFileName(path);
+        page.Title      = vfs.GetDisplayName(path);
         page.PageParams = new Dictionary<string, string> { ["path"] = path };
         page.SetFileBreadcrumbs(path, page.Title);
     }

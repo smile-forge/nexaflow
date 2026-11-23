@@ -26,7 +26,7 @@ public sealed class Hdf5TabRegistration(IShellServices shell, IVirtualFileSystem
     {
         var (file, inner) = Hdf5Location.Split(pageParams?.GetValueOrDefault("path") ?? string.Empty, vfs);
         var node  = pageParams?.GetValueOrDefault("node") is { Length: > 0 } n ? n : inner;
-        var title = string.IsNullOrEmpty(file) ? Str.Get("Hdf5.Page.Title") : Path.GetFileName(file);
+        var title = string.IsNullOrEmpty(file) ? Str.Get("Hdf5.Page.Title") : vfs.GetDisplayName(file);
 
         var normalized = new Dictionary<string, string> { ["path"] = file };
         if (node is not null) normalized["node"] = node;

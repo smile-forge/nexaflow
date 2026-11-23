@@ -471,7 +471,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     // ── Workspaces / workspace ──────────────────────────────────────────────
-    [ObservableProperty] private WorkspaceRuntime _currentRuntime = null!;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(BreadcrumbDisplayFilters))] private WorkspaceRuntime _currentRuntime = null!;
 
     /// <summary>The saved workspaces shown in the dropdown.</summary>
     public ObservableCollection<Workspace> Workspaces => WorkspaceManager.Instance.Workspaces;
@@ -1367,6 +1367,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>The handlers the AI bar's drops are put to, for this window's runtime.</summary>
     internal IReadOnlyList<IChatDropHandler> ChatDropHandlers => FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime);
+
+    /// <summary>What restates this window's crumbs before the bar draws them — the current runtime's filters.</summary>
+    public IReadOnlyList<IBreadcrumbDisplayFilter> BreadcrumbDisplayFilters => FeatureManager.Instance.GetBreadcrumbDisplayFilters(CurrentRuntime);
 
     /// <summary>The focused pane's page view-model, made if the page has not been shown yet.</summary>
     internal IPageViewModel? ActivePageViewModel => FocusedPane.ActivePage?.GetOrCreateViewModel();

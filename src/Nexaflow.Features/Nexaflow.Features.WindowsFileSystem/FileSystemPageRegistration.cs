@@ -98,17 +98,18 @@ public sealed class FileSystemPageRegistration(
             // "label" is optional, and most openers don't supply it — a ribbon button stores only mode+path,
             // and ApplyBreadcrumbs rewrites the params to mode+path on every navigation, so a tab rebuilt
             // afterwards (options save, restored session) arrives here without one. Falling back to a literal
-            // put "Files" on the tab in all of those cases; the folder's own name is the answer everywhere.
+            // put "Files" on the tab in all of those cases; the folder's own name is the answer everywhere, as the
+            // file system names it — a drive or share root whole, a distro's folder by its Linux name.
             var label = pageParams.GetValueOrDefault("label") is { Length: > 0 } given
                 ? given
-                : FileBreadcrumbs.DirectoryLabel(path);
+                : vfs.GetDisplayName(path);
             var tab = new Page
             {
                 Title       = label,
                 Icon        = "📁",
                 PageKind    = PageKind,
                 PageParams  = pageParams,
-                Breadcrumbs = { new BreadcrumbSegment { Label = label } }
+                Breadcrumbs = { new BreadcrumbSegment { Label = label, Path = path, Content = new PlaceContent(path, PlaceNaming.OwnName) } }
             };
             tab.ViewModelFactory = () => FollowNavigation(new FileSystemViewModel(path, shell, ai, configs, vfs), tab);
             return tab;
@@ -154,9 +155,10 @@ public sealed class FileSystemPageRegistration(
             return new BreadcrumbSegment
             {
                 Label    = seg.Label,
-                // "This PC" is a place, not a path — it has nothing to copy, so the crumb offers no Copy path. A location's
-                // folder copies as its address, as the Copy path action copies it.
-                Path     = CopyPaths.AsCopied(vm.Vfs, capturedPath),
+                // "This PC" is a place, not a path — it has nothing to copy, so the crumb offers no Copy path. Every
+                // folder stands for itself by its own name, which the display filters restate as a person names it.
+                Path     = string.IsNullOrEmpty(capturedPath) ? null : capturedPath,
+                Content  = string.IsNullOrEmpty(capturedPath) ? null : new PlaceContent(capturedPath, PlaceNaming.OwnName),
                 Navigate = isLast ? null : (string.IsNullOrEmpty(capturedPath)
                     ? () => vm.GoToThisPc(rebuildTree: true)
                     : () => _ = vm.BrowseToAsync(capturedPath))

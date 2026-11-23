@@ -47,7 +47,7 @@ public sealed class FontTabRegistration(IShellServices shell, IVirtualFileSystem
         }
         else if (paths.Count == 1)
         {
-            page.Title = Path.GetFileName(paths[0]);
+            page.Title = vfs.GetDisplayName(paths[0]);
             page.SetFileBreadcrumbs(paths[0], page.Title);
         }
         else

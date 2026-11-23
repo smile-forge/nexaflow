@@ -360,7 +360,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         if (CurrentPath is not { } path) return;
 
         int token = ++_loadToken;
-        FileName = Path.GetFileName(path);
+        FileName = _vfs.GetDisplayName(path);
         Title = FileName;
         Artist = string.Empty;
         Album = string.Empty;
@@ -755,7 +755,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     {
         if (!string.IsNullOrWhiteSpace(Title)) return Title;
         if (!string.IsNullOrWhiteSpace(FileName)) return FileName;
-        return CurrentPath is null ? "(no track)" : System.IO.Path.GetFileName(CurrentPath);
+        return CurrentPath is null ? "(no track)" : _vfs.GetDisplayName(CurrentPath);
     }
 
     /// <summary>read_now_playing body — a pure read of transport state (never mutates, so never marshals).</summary>

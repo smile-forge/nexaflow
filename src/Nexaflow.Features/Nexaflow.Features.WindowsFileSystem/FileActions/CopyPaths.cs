@@ -24,7 +24,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
     /// </summary>
     public class CopyPaths(IVirtualFileSystem files) : IFileAction, IFolderAction, ICacheable
     {
-        /// <summary>What <paramref name="path"/> is copied as — by this action and by the file browser's breadcrumbs: the
+        /// <summary>What <paramref name="path"/> is copied as — by this action, as a crumb standing for it is by its display filter: the
         /// file system's display form, a location's address and any other path as it is; null for no path.</summary>
         internal static string? AsCopied(IVirtualFileSystem files, string? path)
             => string.IsNullOrEmpty(path) ? null : files.GetDisplayPath(path);

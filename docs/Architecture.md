@@ -197,7 +197,8 @@ The contract layer. Every feature depends on this; nothing else does.
 | File | Responsibility |
 |------|----------------|
 | `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ViewModelFactory` delegate, the made `ViewModel`, `Reinitialize`, `Closed` event. Holds nothing of the view |
-| `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
+| `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind`; the path it copies and the `Content` it stands for |
+| `BreadcrumbContent.cs` · `BreadcrumbDisplay.cs` · `IBreadcrumbDisplayFilter.cs` | What a crumb stands for (`PlaceContent`), how it reads (parts, separator, copy text, tooltip), and the per-runtime filters, stacked by `Order`, that restate the content each knows before the shell shortens it |
 | `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
 | `IPageViewModel.cs` | What a page is, implemented by its view-model: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`), `Reinitialize` (shown again with parameters) |
 | `PlaceholderViewModel.cs` | A page that only says why it is empty (a missing feature, nothing to open) |
@@ -342,7 +343,9 @@ BreadcrumbSegment
   ├── Children: List<string>          (drop-down picker items)
   ├── Navigate: Action?               (same-tab navigation)
   ├── TargetPageKind: string?         (cross-tab: shell opens/focuses that page kind)
-  └── TargetPageParams: Dict?
+  ├── TargetPageParams: Dict?
+  ├── Path: string?                   (what Copy path copies, unless a display filter restates it)
+  └── Content: BreadcrumbContent?     (what it stands for, read by the display filters)
 
 RibbonItem
   ├── Kind: Button | HalfGroup | Separator

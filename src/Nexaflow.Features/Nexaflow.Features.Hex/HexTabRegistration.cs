@@ -35,7 +35,7 @@ public sealed class HexTabRegistration(IShellServices shell, IVirtualFileSystem 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? Str.Get("Hex.Page.Title") : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Hex.Page.Title") : vfs.GetDisplayName(path);
 
         long offset = ParseOffset(pageParams?.GetValueOrDefault("offset"));
         long length = ParseOffset(pageParams?.GetValueOrDefault("length"));

@@ -32,7 +32,7 @@ public sealed class Model3DTabRegistration : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? Str.Get("Model3D.Page.Title") : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Model3D.Page.Title") : _vfs.GetDisplayName(path);
 
         var page = new Page
         {

@@ -72,7 +72,7 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
         _shell = shell;
         _vfs = vfs;
         _diskPath = path ?? string.Empty;
-        FileName = string.IsNullOrEmpty(_diskPath) ? Str.Get("VirtualDisk.Info.UntitledImage") : Path.GetFileName(_diskPath);
+        FileName = string.IsNullOrEmpty(_diskPath) ? Str.Get("VirtualDisk.Info.UntitledImage") : vfs.GetDisplayName(_diskPath);
         CanMount = !string.IsNullOrEmpty(_diskPath) && MountSupport.CanMount(_diskPath);
         WhenLoaded = LoadAsync();
     }
@@ -270,7 +270,7 @@ public sealed partial class VirtualDiskViewModel : ObservableObject, IPageViewMo
 
     /// <summary>The image's name as the model reads it. <see cref="FileName"/> is the person's label, which for a
     /// tab with no file is a phrase in their language.</summary>
-    private string ContextFileName => string.IsNullOrEmpty(_diskPath) ? "Disk image" : Path.GetFileName(_diskPath);
+    private string ContextFileName => string.IsNullOrEmpty(_diskPath) ? "Disk image" : _vfs.GetDisplayName(_diskPath);
 
     public string GetContext()
     {

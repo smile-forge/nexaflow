@@ -131,7 +131,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         _vfs   = vfs;
         _selectedEncoding = AvailableEncodings[0];
         FilePath = filePath;
-        FileName = Path.GetFileName(filePath);
+        FileName = vfs.GetDisplayName(filePath);
     }
 
     // ── Loading ───────────────────────────────────────────────────────────────

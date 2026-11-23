@@ -28,6 +28,7 @@
                                     Grid.Column="0"
                                     AutomationProperties.AutomationId="Chrome_BreadcrumbBar"
                                     Segments="{Binding Pane.ActivePage.Breadcrumbs, ElementName=PaneRoot}"
+                                    DisplayFilters="{Binding DataContext.BreadcrumbDisplayFilters, RelativeSource={RelativeSource AncestorType=Window}}"
                                     BorderBrush="{DynamicResource TabStrip.Border}"
                                     BorderThickness="0,0,1,0"/>
 

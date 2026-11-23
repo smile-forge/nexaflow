@@ -19,7 +19,16 @@ public class BreadcrumbSegment
     /// <summary>
     /// The location this crumb names — a folder, a file, a URL. Optional: a crumb that stands for something
     /// with no location of its own (a summary leaf such as "6 images", a synthetic root) leaves it null.
-    /// The bar offers it as <b>Copy path</b> on right-click, so setting it is how a feature opts a crumb in.
+    /// The bar offers it as <b>Copy path</b> on right-click, so setting it is how a feature opts a crumb in; a display
+    /// filter that knows the crumb's <see cref="Content"/> may restate what is copied (a distro's folder copies as its
+    /// <c>wsl://</c> address).
     /// </summary>
     public string? Path { get; set; }
+
+    /// <summary>
+    /// What the crumb stands for, read by the display filters that restate how it reads
+    /// (<see cref="IBreadcrumbDisplayFilter"/>) — a place in the file system (<see cref="PlaceContent"/>), say. Null for
+    /// a crumb that stands for nothing a filter would know: it is drawn as <see cref="Label"/> says.
+    /// </summary>
+    public BreadcrumbContent? Content { get; set; }
 }

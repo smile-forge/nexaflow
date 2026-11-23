@@ -101,7 +101,7 @@ public partial class HtmlViewModel : ObservableObject, IPageViewModel, IContextP
 
     public HtmlViewModel(string filePath, IVirtualFileSystem vfs, IShellServices shell)
     {
-        FileName = Path.GetFileName(filePath);
+        FileName = vfs.GetDisplayName(filePath);
         _vfs     = vfs;
         _shell   = shell;
         Loaded   = ResolveAsync(filePath);

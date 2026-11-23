@@ -29,7 +29,7 @@ public sealed class SvgTabRegistration : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? "SVG" : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? "SVG" : _vfs.GetDisplayName(path);
 
         var page = new Page
         {

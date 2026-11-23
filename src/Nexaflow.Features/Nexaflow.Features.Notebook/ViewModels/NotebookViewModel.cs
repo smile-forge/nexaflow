@@ -36,7 +36,7 @@ public sealed partial class NotebookViewModel : ObservableObject, IPageViewModel
     private readonly IVirtualFileSystem _vfs;
 
     public string FilePath { get; }
-    public string FileName => Path.GetFileName(FilePath);
+    public string FileName => _vfs.GetDisplayName(FilePath);
 
     public ObservableCollection<NotebookCellViewModel> Cells { get; } = [];
 

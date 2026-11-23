@@ -13,8 +13,7 @@ namespace Nexaflow.Features.Wsl.FileActions;
 public sealed class ShellHereAction(IShellServices shell, ILocationDirectory locations, IVirtualFileSystem files)
     : IFolderAction, ICacheable
 {
-    /// <summary>The kind a WSL distro's location has (<see cref="MountedLocation.Kind"/>).</summary>
-    private const string WslKind = "wsl";
+
 
     public bool     IsDestructive         => false;
     public bool     SupportsMultipleFiles => false;
@@ -29,11 +28,7 @@ public sealed class ShellHereAction(IShellServices shell, ILocationDirectory loc
     /// <summary>The folder is on a mounted WSL distro with a shell. Read from what the runtime knows, without the network.</summary>
     public bool AppliesToFolder(string folderPath)
         => (files.GetCapabilities(folderPath) & LocationCapabilities.Shell) != 0
-           && locations.Mounted.Any(l => l.Kind == WslKind && IsUnder(folderPath, l.Root));
-
-    private static bool IsUnder(string path, string root)
-        => path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
-           && (path.Length == root.Length || path[root.Length] is '\\' or '/');
+           && DistroPlaces.Holds(locations, folderPath);
 
     public Task<bool> PerformActionAsync(string folderPath, CancellationToken ct = default)
     {

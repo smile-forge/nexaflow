@@ -197,7 +197,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _selectedEncoding  = AvailableEncodings[0]; // UTF-8
         _selectedSplitMode = SplitModes[0];
         FilePath = filePath;
-        FileName = Path.GetFileName(filePath);
+        FileName = vfs.GetDisplayName(filePath);
     }
 
     partial void OnIsDirtyChanged(bool value) => DirtyChanged?.Invoke(value);
@@ -1281,7 +1281,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     public string GetContext()
     {
-        var fileName = Path.GetFileName(FilePath);
+        var fileName = _vfs.GetDisplayName(FilePath);
         var dirty    = IsDirty ? " (unsaved edits)" : IsEditing ? " (editing)" : string.Empty;
         var visible  = GetVisibleText();
         var first    = GetFirstVisibleLine();

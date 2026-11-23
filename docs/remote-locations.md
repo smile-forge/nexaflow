@@ -60,6 +60,10 @@ carry it unchanged; what changes is that a mount can be backed by a provider rat
 - **Display form.** People and the assistant see a URI: `sftp://adam@nas/home/adam/notes.md`, `wsl://Ubuntu/home/adam`,
   `smb://nas/share/docs`. `IVirtualFileSystem.GetDisplayPath` produces it, `TryParseDisplayPath` reads it back for the
   address bar, so typing or pasting one opens it, and `GetDisplayName` / `GetBreadcrumbs` label each segment by its name.
+  A viewer is titled by `GetDisplayName`. A crumb says which place it stands for (`PlaceContent`), and the shell draws it
+  through the runtime's display filters (`IBreadcrumbDisplayFilter`), each restating the places it knows: this computer's
+  in `Features.WindowsFileSystem`, a distro's in `Features.Wsl` (`wsl://Ubuntu/etc`, each name as Linux has it, copied as
+  that address). A backend with a display form of its own brings its filter with its feature.
 - **A location Windows can already reach keeps its Windows path too.** A provider that implements
   `ILocationNativePaths` names the folders its root is reachable as — `\\wsl.localhost\Ubuntu` and `\\wsl$\Ubuntu` for
   `::wsl-ubuntu`. Typed or pasted, such a path opens the location (`TryToVirtual`); a file there is fully on disk
@@ -373,7 +377,7 @@ permissions. The Recycle Bin is never offered for one, and a name Windows would 
 | Gap | Effect |
 | --- | --- |
 | A file copied from one location to another is written there new | It takes the destination's default permissions, not its own |
-| A viewer's breadcrumbs name a distro's file by the file system's path (`::wsl-ubuntu\etc`) and its name by its segment: `SetFileBreadcrumbs` has no file system to ask | A file opened from a distro is labelled and copied as no one can use |
+
 | Names that are not UTF-8 cross the helper's wire as text | Those files cannot be opened, renamed or deleted |
 
 ## Decisions

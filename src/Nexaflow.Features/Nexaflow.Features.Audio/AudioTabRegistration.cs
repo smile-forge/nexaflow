@@ -61,12 +61,10 @@ public sealed class AudioTabRegistration : IPageRegistration
         // A whole-folder queue is named for the folder — stable regardless of which track is playing; a single
         // file or an explicit multi-selection is named for the starting track (falls back to it if the folder
         // name can't be derived, e.g. a drive root).
-        var title = paths.Count > 0 ? Path.GetFileName(currentPath) : Str.Get("Audio.Page.Title");
-        if (wholeFolder && Path.GetDirectoryName(currentPath) is { Length: > 0 } dir)
-        {
-            var folderName = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            if (!string.IsNullOrEmpty(folderName)) title = folderName;
-        }
+        var title = paths.Count > 0 ? _vfs.GetDisplayName(currentPath) : Str.Get("Audio.Page.Title");
+        if (wholeFolder && Path.GetDirectoryName(currentPath) is { Length: > 0 } dir
+            && Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Length > 0)
+            title = _vfs.GetDisplayName(dir);
 
         var page = new Page
         {
