@@ -11,6 +11,7 @@ using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.Views;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
@@ -25,7 +26,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
@@ -45,8 +45,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     // ── Image collection ──────────────────────────────────────────────────
 
     private readonly List<string> _paths;
-    private readonly IShellServices? _shell;
-    private readonly DispatcherTimer _autoTimer;
+    private readonly IShellServices _shell;
+    private readonly IUiTimer _autoTimer;
     private readonly CancellationTokenSource _cts = new();
     private bool _thumbsRequested;
     private bool _collageComputed;
@@ -55,7 +55,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     private readonly ImageEditingServices _editing;
     private readonly ImageSessionCache _sessions;
-    private readonly DispatcherTimer _thumbRefresh;
+    private readonly IUiTimer _thumbRefresh;
 
     [ObservableProperty] private int _currentIndex;
 
@@ -386,8 +386,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         try
         {
             var png = await Task.Run(() => _editing.Exporter.ExportAsync(path, recipe, ImageContainer.Png, _cts.Token, made), _cts.Token);
-            PictureClipboard.CopyPng(png);
-            _shell?.ShowNotification(Str.Get("Images.Copy.Done"));
+            if (_shell.Clipboard.Write(ComposedPayload.OfImage(png))) _shell.ShowNotification(Str.Get("Images.Copy.Done"));
         }
         catch (OperationCanceledException)
         {
@@ -454,7 +453,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <param name="selection">Picture selection, where the app has it: what removes the background a photo's recipe asks to.</param>
     /// <param name="erasing">Picture erasing, where the app has it: what fills what a photo's recipe erases.</param>
     /// <param name="editing">The editing engine the registration shares across its tabs; the viewer does not own it.</param>
-    public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell, ImageViewMode initialMode, ImageEditingServices editing,
+    public ImageViewModel(IReadOnlyList<string> paths, IShellServices shell, ImageViewMode initialMode, ImageEditingServices editing,
     IAIService? ai = null, IPictureTools? pictures = null, IPictureSelection? selection = null,
     IPageReading? reading = null, IPictureErasing? erasing = null)
     {
@@ -480,12 +479,10 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
         AddPictureItems();
 
-        _autoTimer = new DispatcherTimer(DispatcherPriority.Background);
-        _autoTimer.Tick += (_, _) => Advance();
+        _autoTimer = shell.CreateUiTimer(_autoIntervals[Math.Clamp(AutoSpeed, 0, 2)], Advance);
 
         // A thumbnail follows the edits once they pause, rather than at every slider tick.
-        _thumbRefresh = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(600) };
-        _thumbRefresh.Tick += (_, _) => { _thumbRefresh.Stop(); RefreshCurrentThumbnail(); };
+        _thumbRefresh = shell.CreateUiDelay(TimeSpan.FromMilliseconds(600), RefreshCurrentThumbnail);
 
         LoadImage(0);
 
@@ -643,8 +640,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         RotateNotify();
         FollowDetails();
 
-        _thumbRefresh.Stop();
-        _thumbRefresh.Start();
+        _thumbRefresh.Restart();
     }
 
     // ── Rendering ─────────────────────────────────────────────────────────
@@ -887,8 +883,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     public void Dispose()
     {
-        _autoTimer.Stop();
-        _thumbRefresh.Stop();
+        _autoTimer.Dispose();
+        _thumbRefresh.Dispose();
         _cts.Cancel();
         Stage.Show(null);
         _sessions.Dispose();

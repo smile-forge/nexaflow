@@ -16,6 +16,7 @@ using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.IO.Common;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 
@@ -345,16 +346,10 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
         };
         if (string.IsNullOrEmpty(text)) return;
 
-        try
-        {
-            System.Windows.Clipboard.SetText(text);
+        if (_shell.Clipboard.Write(ComposedPayload.OfText(text)))
             _shell.ShowNotification(Str.Get("Executable.Inspector.Copied"));
-        }
-        catch (Exception)
-        {
-            // The clipboard is a shared OS resource and another process may hold it open.
+        else
             _shell.ShowError(Str.Get("Executable.Inspector.TheClipboardIsInUseBy"));
-        }
     }
 
     [RelayCommand]

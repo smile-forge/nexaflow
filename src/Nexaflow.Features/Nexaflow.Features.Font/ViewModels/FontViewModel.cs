@@ -14,6 +14,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Font.ClientTools;
 using Nexaflow.Features.Font.Decoding;
 using Nexaflow.Features.Font.Views;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -110,6 +111,13 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
         if (SelectedFont?.SourcePath is { } p) TrySetClipboard(p);
     }
 
+    /// <summary>Copies one cell of the selected face's glyph map; an empty cell has nothing to copy.</summary>
+    [RelayCommand]
+    private void CopyGlyph(string? glyph)
+    {
+        if (!string.IsNullOrEmpty(glyph)) TrySetClipboard(glyph);
+    }
+
     // ── Loading ──────────────────────────────────────────────────────────────
 
     /// <summary>A re-open — an "As Font" open landing on this tab — loads the fonts it routes here, so they aren't silently dropped.</summary>
@@ -178,10 +186,7 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
         return item;
     }
 
-    private static void TrySetClipboard(string text)
-    {
-        try { Clipboard.SetText(text); } catch { /* clipboard can be locked by another process */ }
-    }
+    private void TrySetClipboard(string text) => _shell.Clipboard.Write(ComposedPayload.OfText(text));
 
     // ── AI resolution ────────────────────────────────────────────────────────
 

@@ -18,6 +18,7 @@ using System.Windows;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Text.ViewModels;
 
@@ -1352,4 +1353,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _searchCts?.Cancel();
         _file?.Dispose();
     }
+
+    /// <summary>Puts the text the editor shows on the clipboard; false while another application holds it open.</summary>
+    public bool CopyVisibleText() => _shell.Clipboard.Write(ComposedPayload.OfText(GetVisibleText()));
 }

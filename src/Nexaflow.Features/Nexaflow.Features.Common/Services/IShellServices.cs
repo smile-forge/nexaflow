@@ -107,6 +107,22 @@ public interface IShellServices
     Task<T> RunOnUiAsync<T>(Func<Task<T>> action);
 
     /// <summary>
+    /// A timer that ticks <paramref name="tick"/> on this workspace's UI thread every <paramref name="interval"/>, made
+    /// stopped: for a view-model that polls, animates or debounces. Dispose it with its owner.
+    /// </summary>
+    IUiTimer CreateUiTimer(TimeSpan interval, Action tick, UiTimerPriority priority = UiTimerPriority.Background);
+
+    /// <summary>
+    /// A delay that runs <paramref name="elapsed"/> once on this workspace's UI thread, <paramref name="delay"/> after it is
+    /// started, and stops before it runs: a debounce, restarted at each change and run when they pause. Made stopped; start
+    /// it again to run it again. Dispose it with its owner.
+    /// </summary>
+    IUiTimer CreateUiDelay(TimeSpan delay, Action elapsed, UiTimerPriority priority = UiTimerPriority.Background);
+
+    /// <summary>The system clipboard: read in the kinds a drag is read in, and written as a <see cref="Nexaflow.Interaction.ComposedPayload"/>.</summary>
+    IShellClipboard Clipboard { get; }
+
+    /// <summary>
     /// Returns the first globally-open tab whose <see cref="Page.PageKind"/>
     /// matches and whose params are compatible (see param-matching rules), or null.
     /// </summary>

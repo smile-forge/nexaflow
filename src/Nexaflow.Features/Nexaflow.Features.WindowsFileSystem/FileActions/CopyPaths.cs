@@ -1,13 +1,12 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Icons;
-using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Interaction;
+using Nexaflow.IO.Common;using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
@@ -22,8 +21,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
     /// <c>wsl://Ubuntu/etc</c> rather than the file system's own <c>::wsl-ubuntu\etc</c> (<see cref="AsCopied"/>).
     /// </para>
     /// </summary>
-    public class CopyPaths(IVirtualFileSystem files) : IFileAction, IFolderAction, ICacheable
-    {
+    public class CopyPaths(IShellServices shell, IVirtualFileSystem files) : IFileAction, IFolderAction, ICacheable    {
         /// <summary>What <paramref name="path"/> is copied as — by this action, as a crumb standing for it is by its display filter: the
         /// file system's display form, a location's address and any other path as it is; null for no path.</summary>
         internal static string? AsCopied(IVirtualFileSystem files, string? path)
@@ -65,8 +63,8 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             if (ClipboardText((filePaths ?? []).Select(path => AsCopied(files, path) ?? string.Empty)) is not { } text)
                 return Task.FromResult(false);
 
-            try { Clipboard.SetText(text); return Task.FromResult(true); }
-            catch { return Task.FromResult(false); }   // another process holds the clipboard open
+            // False while another application holds the clipboard open.
+            return Task.FromResult(shell.Clipboard.Write(ComposedPayload.OfText(text)));
         }
 
         /// <summary>

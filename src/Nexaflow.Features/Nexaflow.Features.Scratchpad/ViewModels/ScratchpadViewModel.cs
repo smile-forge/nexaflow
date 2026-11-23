@@ -9,7 +9,6 @@ using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
-using System.Windows.Threading;
 
 namespace Nexaflow.Features.Scratchpad.ViewModels;
 
@@ -17,11 +16,11 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
 {
     private readonly PostItStore      _store;
     private readonly ScratchpadConfig _config;
-    private readonly IShellServices?  _shellServices;
-    private readonly DispatcherTimer  _expiryTimer;
+    private readonly IShellServices   _shellServices;
+    private readonly IUiTimer         _expiryTimer;
     private readonly Random           _rng = Random.Shared;
 
-    private readonly Dictionary<Guid, DispatcherTimer> _saveTimers = [];
+    private readonly Dictionary<Guid, IUiTimer> _saveTimers = [];
 
     public ObservableCollection<PostItViewModel> Notes           { get; } = [];
     public ObservableCollection<PostItViewModel> RecycleBinNotes { get; } = [];
@@ -32,12 +31,12 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     [ObservableProperty] private double _offsetY  = 0;
     [ObservableProperty] private string _statusText = string.Empty;
 
-    public ScratchpadViewModel(ScratchpadConfig config, IShellServices? shellServices = null)
+    public ScratchpadViewModel(ScratchpadConfig config, IShellServices shellServices)
         : this(config, new PostItStore(), shellServices)
     {
     }
 
-    public ScratchpadViewModel(ScratchpadConfig config, PostItStore store, IShellServices? shellServices = null)
+    public ScratchpadViewModel(ScratchpadConfig config, PostItStore store, IShellServices shellServices)
     {
         _config        = config;
         _shellServices = shellServices;
@@ -47,11 +46,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         PurgeRecycleBinOnStartup();
         UpdateStatus();
 
-        _expiryTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromSeconds(60)
-        };
-        _expiryTimer.Tick += (_, _) => CheckExpiry();
+        _expiryTimer = shellServices.CreateUiTimer(TimeSpan.FromSeconds(60), CheckExpiry);
         _expiryTimer.Start();
     }
 
@@ -351,28 +346,22 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         var id = vm.Note.Id;
         if (_saveTimers.TryGetValue(id, out var existing))
         {
-            existing.Stop();
-            existing.Start();
+            existing.Restart();
             return;
         }
 
-        var timer = new DispatcherTimer(DispatcherPriority.Background)
+        var timer = _shellServices.CreateUiDelay(TimeSpan.FromMilliseconds(400), () =>
         {
-            Interval = TimeSpan.FromMilliseconds(400)
-        };
-        timer.Tick += (_, _) =>
-        {
-            timer.Stop();
-            _saveTimers.Remove(id);
+            CancelSave(id);
             _store.Save(vm.Note);
-        };
+        });
         _saveTimers[id] = timer;
         timer.Start();
     }
 
     private void CancelSave(Guid id)
     {
-        if (_saveTimers.Remove(id, out var t)) t.Stop();
+        if (_saveTimers.Remove(id, out var t)) t.Dispose();
     }
 
     private void LoadRecycleBin()
@@ -390,8 +379,8 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
 
     public void Dispose()
     {
-        _expiryTimer.Stop();
-        foreach (var t in _saveTimers.Values) t.Stop();
+        _expiryTimer.Dispose();
+        foreach (var t in _saveTimers.Values) t.Dispose();
         _saveTimers.Clear();
     }
 

@@ -757,7 +757,7 @@ private void OnShellMarked(ShellMark mark)
     private void CopyEnvVar(EnvVar? env)
     {
         if (env is null) return;
-        Clipboard.SetText($"{env.Name}={env.Value}");
+        _shell.Clipboard.Write(ComposedPayload.OfText($"{env.Name}={env.Value}"));
     }
 
     /// <summary>Inserts text into the shell AI bar — backs console paste and the output drop target.</summary>
@@ -767,7 +767,7 @@ private void OnShellMarked(ShellMark mark)
     [RelayCommand]
     private void PasteToBar()
     {
-        if (Clipboard.ContainsText()) _shell.InsertChatInput(Clipboard.GetText());
+        if (_shell.Clipboard.Read().Text() is { } text) _shell.InsertChatInput(text);
     }
 
     // ── Env-var add/edit overlay (name + value + scope) ───────────────────

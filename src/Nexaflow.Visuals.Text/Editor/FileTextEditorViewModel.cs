@@ -8,7 +8,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ICSharpCode.AvalonEdit.Document;
@@ -21,6 +20,7 @@ using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Text.Editor.Commands;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Visuals.Text.Editor;
 
@@ -194,7 +194,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             ReplaceSelection = t => area.Selection.ReplaceSelectionWithText(t),
             ShowResult       = (label, value) =>
             {
-                try { Clipboard.SetText(value); } catch { /* clipboard briefly locked */ }
+                Shell.Clipboard.Write(ComposedPayload.OfText(value));
                 Shell.ShowNotification(Str.Format("Text.Editor.Copied", label, value)); // toasts via the notification service
             },
             ShowError        = Shell.ShowError,

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Icons;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
@@ -33,17 +34,19 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         /// Re-evaluated each time the action strip is rebuilt so the button
         /// disappears the moment the clipboard no longer contains files.
         /// </summary>
-        public bool CanPerformAction => NativeMethods.ClipboardHasFiles();
+        public bool CanPerformAction => shell.Clipboard.Read().Contains(DragKinds.Files);
 
         public Task<bool> PerformActionAsync(string destinationFolder, CancellationToken ct = default)
         {
-            var (paths, isCut) = NativeMethods.ClipboardReadDrop();
+            var held = shell.Clipboard.Read();
+            var paths = held.Files();
             if (paths.Count == 0) return Task.FromResult(false);
+            var isCut = held.Contains(DragKinds.FilesCut);
 
             // The clipboard is only consumed once the cut has actually landed — a failed one is left in
             // place so the cause can be fixed and the paste repeated.
             var op = Operations.FileOperationQueue.For(shell, vfs)
-                .EnqueuePaste(paths, destinationFolder, isCut, onCutSucceeded: NativeMethods.ClipboardClear);
+                .EnqueuePaste(paths, destinationFolder, isCut, onCutSucceeded: () => shell.Clipboard.Clear());
 
             return Task.FromResult(op is not null);
         }

@@ -9,6 +9,12 @@ public static class DragKinds
     /// <summary>Files and folders by path: a <c>string[]</c>.</summary>
     public const string Files = "Files";
 
+    /// <summary>
+    /// The <see cref="Files"/> were cut rather than copied, so a paste moves them: <c>true</c>, held only when they were.
+    /// It travels with <see cref="Files"/>, so it is not a kind of its own in <see cref="Shared"/>.
+    /// </summary>
+    public const string FilesCut = "FilesCut";
+
     /// <summary>Files that are only their content — a mail's attachment, a picture out of a browser, an entry in a zip
     /// Explorer shows: an <c>IReadOnlyList&lt;<see cref="CarriedFile"/>&gt;</c>.</summary>
     public const string FileContents = "FileContents";

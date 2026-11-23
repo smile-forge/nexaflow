@@ -61,8 +61,7 @@ public class CopyPathsTests
     {
         // Drives so the This PC list and the tree's drive nodes both carry it; not the open folder, whose
         // path the breadcrumb bar already offers — the action stands for the item you clicked.
-        var action = (IFolderAction)new CopyPaths(VirtualFileSystem.Instance);
-
+        var action = (IFolderAction)new CopyPaths(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
         Assert.IsTrue(action.AppliesToDrives);
         Assert.IsFalse(action.AppliesToRoot);
     }

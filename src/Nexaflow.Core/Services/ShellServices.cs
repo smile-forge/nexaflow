@@ -573,6 +573,14 @@ public sealed class ShellServices : IShellServices
     public Task<T> RunOnUiAsync<T>(Func<Task<T>> action)
         => _ui.CheckAccess() ? action() : _ui.InvokeAsync(action).Task.Unwrap();
 
+    public IUiTimer CreateUiTimer(TimeSpan interval, Action tick, UiTimerPriority priority = UiTimerPriority.Background) =>
+        new DispatcherUiTimer(_ui, interval, tick, priority, once: false);
+
+        public IUiTimer CreateUiDelay(TimeSpan delay, Action elapsed, UiTimerPriority priority = UiTimerPriority.Background) =>
+            new DispatcherUiTimer(_ui, delay, elapsed, priority, once: true);
+
+        public IShellClipboard Clipboard { get; } = new ShellClipboard();
+
     // The raw watcher event arrives on a thread-pool thread; hop to the UI thread, then fan out.
     private void OnWatchChanged(string key) => _ui.InvokeAsync(() =>
     {

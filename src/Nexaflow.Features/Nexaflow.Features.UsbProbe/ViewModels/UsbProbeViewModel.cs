@@ -10,6 +10,7 @@ using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
 using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.UsbProbe.ViewModels;
 
@@ -273,8 +274,7 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
     void ToClipboard(string? text)
     {
         if (text is null) return;
-        try { System.Windows.Clipboard.SetText(text); }
-        catch (System.Runtime.InteropServices.ExternalException) { Status = Str.Get("UsbProbe.Status.ClipboardBusy"); }
+        if (!_shell.Clipboard.Write(ComposedPayload.OfText(text))) Status = Str.Get("UsbProbe.Status.ClipboardBusy");
     }
 
     /// <summary>Copies a device's debug details — for the developers, see <see cref="UsbDebugCollector"/>; each tool the

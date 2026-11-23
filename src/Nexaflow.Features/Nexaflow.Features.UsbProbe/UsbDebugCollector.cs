@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Stores;
 using Nexaflow.IO.Usb.Binding;
@@ -33,9 +34,9 @@ sealed class UsbDebugCollector(IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>
     public async Task<string> CopyAsync(UsbDeviceNode device, IReadOnlyList<IUsbTool>? live, IReadOnlyList<string> log, CancellationToken ct)
     {
         var text = await TextAsync(device, live, log, ct);
-        try { System.Windows.Clipboard.SetText(text); }
-        catch (System.Runtime.InteropServices.ExternalException) { return Str.Get("UsbProbe.Status.ClipboardBusy"); }
-        return Str.Format("UsbProbe.Status.DebugCopied", device.DisplayName);
+        return shell.Clipboard.Write(ComposedPayload.OfText(text))
+            ? Str.Format("UsbProbe.Status.DebugCopied", device.DisplayName)
+            : Str.Get("UsbProbe.Status.ClipboardBusy");
     }
 
     /// <summary>Where to save the details, asked before they are read so the reading is not waited on for nothing.</summary>
