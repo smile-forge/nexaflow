@@ -55,7 +55,6 @@ public class FileSystemViewModelCreateTests
     private sealed class FakeOptions(string folder) : CommunityToolkit.Mvvm.ComponentModel.ObservableObject, IFileCreateOptions
     {
         public string Folder { get; } = folder;
-        public System.Windows.FrameworkElement View => throw new NotSupportedException("the view model never builds the view");
         public string? Created;
         public bool Disposed;
 
