@@ -1,22 +1,24 @@
 # Console
 
-Runs a Windows command prompt in a tab, and sends anything that isn't a command to the assistant.
+Runs the Windows command prompt in a tab. Type in the console to work in it yourself; type in the AI bar to say what you want done, or to run a command from there. A WSL distro's own shell is the [WSL shell](help:WslShell).
 
 ---
 
 ## Running commands
-- Each Console tab runs its own cmd.exe for as long as the tab is open, with its own folder, history and environment. Open as many as you need.
+- Each Console tab runs its own shell for as long as the tab is open, with its own folder, history and environment. Open as many as you need.
+- What you type in the console goes to the shell, whatever it reads like. None of it is sent to the assistant when you press Enter.
 - Arrow keys, Tab, Home, End, Page Up, Page Down and Ctrl-combinations go to the shell, so interactive programs work as they do in any terminal.
 - Ctrl+C stops a command. When a command ignores it, Ctrl+Break force-stops that command and everything it started, and leaves the shell running.
 - Ctrl+V pastes into the shell. Right-click Paste puts the clipboard in the AI bar instead, to read over before you run it.
 - Ctrl+Shift+C, or right-click and Copy, copies the whole session including the scrollback.
-- Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the [File System](help:FileSystem) page. It starts in that folder.
+- Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the [File System](help:FileSystem) page. It starts in that folder. Cmd Here is offered on this computer's folders; a WSL distro's offer Shell Here, which opens the distro's own shell.
 
 ## With the assistant
-- At a prompt, Enter runs your line if it starts with a cmd built-in, a program on your PATH or the path of a file that exists. Anything else is taken off the line and sent to the assistant, which answers in the AI bar.
-- While a program is running, Enter goes to that program, so a `y` or a password is never treated as a question.
-- The assistant knows the console's folder and that it is cmd.exe, so it uses cmd syntax rather than PowerShell.
-- What the assistant may reach is the console's folder and everything under it. That folder is where cmd really is, asked of Windows, never read off the screen, so printing a file cannot move it.
+- Say what you want done in [the AI bar](locate:AiInputBox) — `what is filling this disk?`. The assistant answers in the AI bar, as on every page.
+- The assistant reads what the commands it runs print, and can see what else is on the screen then, so a password or token shown there is seen too.
+- While a program is running, what you type goes to that program, so a `y` or a password is never treated as a question or kept in history.
+- The assistant knows the console's folder and that cmd.exe runs there, so it uses cmd's syntax.
+- What the assistant may reach is the console's folder and everything under it. That folder is where the shell really is, asked of Windows, never read off the screen, so printing a file cannot move it.
 - A shell started inside the console — PowerShell, or another cmd — keeps a folder of its own. The path bar, the Files tab and the assistant stay on the console's own cmd until you leave it.
 - With your approval it can run commands in this console, read the output and carry on. Plain output reaches it as text; a full-screen program reaches it as its screen.
 - A command the assistant ran that keeps going becomes one of its background tasks, which you can see and stop. When it finishes, or stops to wait for input, and you are still in the console, the assistant picks it up there; anywhere else, a notification tells you.
@@ -26,7 +28,11 @@ Runs a Windows command prompt in a tab, and sends anything that isn't a command 
 - Type into the console or press Ctrl+C and the background task stops watching it.
 
 ## The AI bar
-- Start a line in [the AI bar](locate:AiInputBox) with `>` to run it in the console — `>git status`. A bare line the console recognises as a command runs there too; anything else goes to the assistant.
+- A line that is clearly a command runs in the console, and no model sees it: `git status`, `./build.sh`, anything with flags such as `dir /s`.
+- A line that is clearly a request goes to the assistant: `why did that fail`, `show me the largest files`.
+- A line that could be either — `find large files`, `make install` — is put to your workspace's Disambiguation model, which may be an online one. It runs only if the model says it is a command; otherwise, or with no such model, the assistant has it.
+- Start the line with `>` to run it in the console whatever it reads like, with no model seeing it — `>git status`. Use it for an unusual command holding a secret.
+- A command from the bar or the assistant first clears anything half-typed at the prompt, so it runs exactly as written.
 - With the bar empty or starting with `>`, Up and Down walk back through your commands, most recent first.
 - Drop files onto the bar to insert their paths, quoted where they contain spaces. This works on every tab.
 
@@ -47,3 +53,4 @@ Runs a Windows command prompt in a tab, and sends anything that isn't a command 
 - [The Environment tab](locate:Console_EnvironmentTab,Console_EnvFilter,Console_AddEnvVar) lists the variables every shell you open inherits, sorted by name, with a filter that matches names and values.
 - Right-click one to copy it as `NAME=value` or to edit it. Add a new one with ＋.
 - Saving asks how far the change reaches: Session, this running shell only, gone when the tab closes; User, your Windows user environment, kept, with no elevation; or Machine, every account on the PC, which takes a Windows administrator prompt.
+

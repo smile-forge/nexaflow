@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Icons;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System;
@@ -19,13 +20,16 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 /// </summary>
 public sealed class ShellVerbAction : IFileAction
 {
+    private readonly ShellPath _paths;
     private readonly string    _verb;
     private readonly string    _command;        // raw registry command template, for reference
     private readonly string    _experienceId;
     private readonly ShellIconRef? _iconResource;
     private readonly string?   _tooltip;
 
+    /// <param name="files">The workspace's file system, which says where Windows finds the file.</param>
     public ShellVerbAction(
+        IVirtualFileSystem files,
         string verb,
         string friendlyName,
         string command,
@@ -33,6 +37,7 @@ public sealed class ShellVerbAction : IFileAction
         ShellIconRef? iconResource = null,
         string? tooltip            = null)
     {
+        _paths        = new ShellPath(files);
         _verb         = verb;
         DisplayName   = friendlyName;
         _command      = command;
@@ -62,20 +67,19 @@ public sealed class ShellVerbAction : IFileAction
     /// file's neighbours to be there too. Offered only where the whole folder really is on disk.</summary>
     public bool RequiresFullyBackedPath => true;
 
-    public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
+    public async Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
     {
         try
         {
-            var real = VirtualFileSystem.Instance.TryResolveReal(filePath) ?? filePath;
-            Process.Start(new ProcessStartInfo(real)
-            {
-                Verb            = _verb,
-                UseShellExecute = true
-            });
-            return Task.FromResult(true);
+            Process.Start(await StartInfoAsync(filePath, ct));
+            return true;
         }
-        catch { return Task.FromResult(false); }
+        catch { return false; }
     }
+
+    /// <summary>What Windows is asked to run: the verb, on the file by a path Windows can open.</summary>
+    internal async ValueTask<ProcessStartInfo> StartInfoAsync(string filePath, CancellationToken ct = default)
+        => new(await _paths.RealizeAsync(filePath, ct)) { Verb = _verb, UseShellExecute = true };
 
     public async Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
     {
@@ -99,8 +103,9 @@ public sealed class ShellVerbAction : IFileAction
         ["experienceId"] = _experienceId,
     };
 
-    public static IFileAction Rehydrate(Dictionary<string, string> p) =>
+    public static IFileAction Rehydrate(Dictionary<string, string> p, IVirtualFileSystem files) =>
         new ShellVerbAction(
+            files,
             verb:         p.GetValueOrDefault("verb",         string.Empty),
             friendlyName: p.GetValueOrDefault("friendlyName", string.Empty),
             command:      p.GetValueOrDefault("command",      string.Empty),

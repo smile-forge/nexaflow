@@ -37,7 +37,7 @@ public sealed partial class RtfViewModel : ObservableObject, IPageViewModel, IDi
     }
 
     public string FilePath { get; }
-    public string FileName => Path.GetFileName(FilePath);
+    public string FileName => _vfs.GetDisplayName(FilePath);
 
     /// <summary>The language the surface reads the document in.</summary>
     public string Language => RtfParser.Language;

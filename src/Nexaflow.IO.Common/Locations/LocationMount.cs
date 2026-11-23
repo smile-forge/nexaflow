@@ -15,4 +15,11 @@ public sealed record LocationMount(ConnectionProfile Connection, LocationCapabil
 
     /// <summary>The virtual root, <c>::{Id}</c>.</summary>
     public string Root => VirtualMount.RootFor(Connection.Id);
+
+    /// <summary>The Windows folders the location's root is reachable as — the first handed out, every one read back — or
+    /// empty when its files are reachable only through its session (<see cref="ILocationNativePaths"/>).</summary>
+    public IReadOnlyList<string> NativeRoots { get; init; } = [];
+
+    /// <summary>How names map under <see cref="NativeRoots"/>; null when there are none.</summary>
+    public ILocationNativePaths? NativePaths { get; init; }
 }

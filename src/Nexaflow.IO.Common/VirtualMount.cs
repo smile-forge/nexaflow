@@ -15,8 +15,9 @@ public enum VirtualBacking
     /// <summary>An ordinary Windows path.</summary>
     Real,
 
-    /// <summary>Under a pass-through mount: the whole subtree exists on disk at the mapped location,
-    /// so the resolved real path behaves exactly like <see cref="Real"/>.</summary>
+    /// <summary>Under a pass-through mount, or on a location this machine also reaches as a Windows folder
+    /// (<see cref="Locations.ILocationNativePaths"/>): the whole subtree exists at the mapped location, so the resolved real
+    /// path behaves exactly like <see cref="Real"/>.</summary>
     PassThrough,
 
     /// <summary>Inside an archive: only the single requested file can be produced, to a temp copy.</summary>

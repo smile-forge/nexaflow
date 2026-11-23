@@ -29,6 +29,7 @@ Lists what is inside an archive, and lets you read, test, extract, repack, encry
 - A conversion is written as a new file beside the original, at a name that is free, so the original is untouched.
 - Adding a file, or saving an edited one, is written to a temporary file and swapped in at the end, so a write that fails cannot leave you a half-finished archive.
 - On the File System page, Zip It compresses a folder, a file or a selection into one archive beside it, and Unzip here extracts into a new sibling folder with a name of its own. Both run on the file browser's operation queue with progress and a cancel, and run inline where there is no queue.
+- In a WSL distro all of this works as it does on this PC. Names Windows cannot hold, such as `at 12:30.txt`, stay as Linux has them, whether zipped or extracted, and an archive changed there keeps its permissions.
 
 ## Encrypting and signing
 - Encrypt asks for a password and writes an AES-256 encrypted zip copy beside the original. Decrypt reverses it, and tells you when the password is wrong. [Show me](locate:Compressed_Encrypt,Compressed_Decrypt)

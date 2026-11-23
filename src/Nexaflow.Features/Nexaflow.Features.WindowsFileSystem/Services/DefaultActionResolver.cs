@@ -74,9 +74,9 @@ internal static class DefaultActionResolver
 
         // ── External apps that match the extension.
         var entry = new FileSystemEntry { Name = "dummy" + ext, FullPath = @"C:\dummy" + ext, IsDirectory = false };
-        foreach (var ca in ExternalAppRegistry.Instance.Resolve([entry]))
-            if (!string.IsNullOrEmpty(ca.Definition.Id))
-                list.Add(new DefaultActionCandidate(DefaultActionKind.ExternalApp, ca.Definition.Id, ca.DisplayName,
+        foreach (var app in ExternalAppRegistry.Instance.MatchingApps([entry]))
+            if (!string.IsNullOrEmpty(app.Id))
+                list.Add(new DefaultActionCandidate(DefaultActionKind.ExternalApp, app.Id, app.DisplayName,
                                                     Str.Get("WindowsFileSystem.DefaultActions.GroupExternal")));
 
         // ── Windows shell verbs registered for the type.

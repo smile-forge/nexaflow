@@ -19,7 +19,7 @@ public class ExternalAppRegistryTests
         ExternalAppRegistry.Instance.Update(new ExternalAppsConfig { Apps = [def] });
         var selected = new List<FileSystemEntry>();
         foreach (var p in paths) selected.Add(File(p));
-        return ExternalAppRegistry.Instance.Resolve(selected).Count;
+        return ExternalAppRegistry.Instance.MatchingApps(selected).Count;
     }
 
     [TestCleanup]

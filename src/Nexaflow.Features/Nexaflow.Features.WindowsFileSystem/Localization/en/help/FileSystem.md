@@ -11,6 +11,22 @@ Browses the drives and folders on this PC and acts on the files in them.
 - Right-click a folder in the tree for Open in right pane, which puts a second folder beside this one.
 - F5 re-reads the folder. Clicking the folder or file tally under the list shows only that kind; clicking it again shows both.
 
+## Linux (WSL)
+
+- Each WSL distro installed on this PC is a row of This PC, of type Linux (WSL), with a penguin for its icon — nothing to set up. Opening it starts the distro if it is not running, and puts a small helper in your Linux account's cache folder the first time.
+- Go to a folder in one by typing `> wsl://Ubuntu/etc` or `> \\wsl.localhost\Ubuntu\etc` into the bar at the bottom.
+- A distro's folders list their Permissions, Owner and Group as `ls -l` does — a link's permissions start with `l`, its icon carries a small arrow and where it points follows its name, `→ /usr/bin/python3.12` — and names that differ only by case are different files, as they are in Linux.
+- Copy path, on a file or on the bar above the list, gives a distro's address, such as `wsl://Ubuntu/etc/hosts`, which the bar at the bottom opens again.
+- Names in a distro are Linux's: Rename and New take any name Linux does — `notes:v2`, `draft.`, `50%` — show it as it is, and give the file exactly that name.
+- A distro has no Recycle Bin: Delete there is for good, and asks first saying so. Shift+Delete does not ask. The assistant can delete there too, and asks you first in words that say it is for good.
+- A distro's file goes to other programs by its `\\wsl.localhost` path — Open With, Copy and Cut to the Windows clipboard, dragging out, Windows' own actions for the file type and your external programs — so they open it as they would any file. Renames, moves and deletes in Nexaflow still happen inside the distro.
+- Saving a distro's file keeps its permissions, owner and group, and so does copying a file over one there. A file new to the distro takes its usual defaults, so a script copied in from Windows may need `chmod +x`. Windows keeps no Linux permissions, so a file copied out to Windows has none.
+- Archives work in a distro as anywhere: walk into one, Zip It and Unzip here, and names Windows cannot hold, such as `at 12:30.txt`, stay as Linux has them going in and coming out. An archive changed there keeps its permissions. [More on archives](help:Compressed)
+- The Git and .NET panels work in a distro with the distro's own `git` and `dotnet`: the status line, Pull, switching branch and removing a worktree, and Restore, Build, Run, Test and Clean all run inside Linux, so what they write keeps Linux's names and permissions. They use the programs a login shell there finds — a distro without `dotnet` says so — and a pull signs in with the distro's own git credentials. The assistant there reads the repository's status, diffs and worktrees.
+- What changes a folder with Windows' own tools is not offered in a distro: the AI summary, mounting a disk image and Revert edits on a picture. An audio track's tags are shown there to read.
+- Shell Here opens the distro's own shell at the folder, in a [WSL shell](help:WslShell) tab. Cmd Here is not offered in a distro: the Windows command prompt runs on this computer's folders.
+- A folder that cannot be read — the distro was shut down, you may not read it — says why, with Try again. [Show me](locate:FileListRetryButton)
+
 ## Opening a file
 
 - Double-click a file, or press Shift+Enter with one row selected. It opens in whichever built-in viewer claims its type, and in the Windows default program when none does.
@@ -40,4 +56,4 @@ Browses the drives and folders on this PC and acts on the files in them.
 ## Searching and the assistant
 
 - Type `?` and a term into the bar to search the files under this folder, or across the PC from This PC. Results open in a Search tab, which also offers a manual scan when a folder is not in the Windows index.
-- The assistant acts in the folder you are looking at. It can list the files, find them by name, read one, count its lines and report its size, and — with your approval — create a file or folder, copy, move, rename, or send something to the Recycle Bin.
+- The assistant acts in the folder you are looking at. It can list the files, find them by name, read one, count its lines and report its size, and — with your approval — create a file or folder, copy, move, rename, or send something to the Recycle Bin (in a distro, which has none, delete it for good).

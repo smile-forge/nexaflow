@@ -38,7 +38,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     // ── File state ────────────────────────────────────────────────────────
 
     public string FilePath { get; private set; }
-    public string FileName => Path.GetFileName(FilePath);
+    public string FileName => _vfs.GetDisplayName(FilePath);
 
     /// <summary>
     /// Where the files the document shows or links to are read from: the file's own folder — or, for a Markdown Package, the

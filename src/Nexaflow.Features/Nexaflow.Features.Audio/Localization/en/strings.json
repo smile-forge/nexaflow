@@ -33,6 +33,7 @@
   "Audio.Tags.Field.Genre": "Genre",
   "Audio.Tags.Field.Comment": "Comment",
   "Audio.Tags.Save": "Save tags",
+  "Audio.Tags.ReadOnlyOnLocation": "This file is in a WSL distro, so its tags are shown but not changed here.",
   "Audio.Lyrics.Header": "Lyrics",
   "Audio.Lyrics.Empty": "No lyrics found.",
   "Audio.NowPlaying.Empty": "Audio player",

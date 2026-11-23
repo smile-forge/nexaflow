@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The WSL location backend: each installed distro is a location. Bytes go over \\wsl.localhost (9P); listings,
+       metadata, renames and watches go through the helper it runs inside the distro (Nexaflow.WslHelper, published for
+       every Linux a distro may be); the shell is wsl.exe in this computer's ConPTY, which is why it references
+       IO.Terminal beside IO.Common - the one other assembly the architecture rule lets a backend reach. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Terminal\Nexaflow.IO.Terminal.csproj" />
+    <!-- Build ordering and restore only: the helper is published below, never referenced as an assembly. -->
+    <ProjectReference Include="..\Nexaflow.WslHelper\Nexaflow.WslHelper.csproj" ReferenceOutputAssembly="false" Private="false"
+                      SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.IO" />
+    <!-- The shell-integration shims deployed beside the helper: they mark prompts (OSC 133) and report the working folder
+         (OSC 7) for bash and zsh, after sourcing the user's own startup file. -->
+    <EmbeddedResource Include="Shell\*" LogicalName="Shell/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- The helper, published self-contained for each Linux a distro may be - glibc and musl, x64 and arm64 - and staged in
+       this project's output under wsl-helper\<rid>\, so it flows to the app's output with the dll. Incremental: published
+       again only when its sources or the protocol change. -->
+  <PropertyGroup>
+    <_WslHelperDir>$(MSBuildThisFileDirectory)..\Nexaflow.WslHelper\</_WslHelperDir>
+    <_WslHelperStage>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)wsl-helper\</_WslHelperStage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <WslHelperRuntime Include="linux-x64;linux-arm64;linux-musl-x64;linux-musl-arm64" />
+    <_WslHelperInput Include="$(_WslHelperDir)**\*.cs;$(_WslHelperDir)Nexaflow.WslHelper.csproj;$(MSBuildThisFileDirectory)Protocol\*.cs"
+                     Exclude="$(_WslHelperDir)obj\**;$(_WslHelperDir)bin\**" />
+  </ItemGroup>
+
+  <Target Name="PublishWslHelper" Inputs="@(_WslHelperInput)"
+          Outputs="@(WslHelperRuntime->'$(_WslHelperStage)%(Identity)\nexaflow-wsl-helper')">
+    <MSBuild Projects="$(_WslHelperDir)Nexaflow.WslHelper.csproj" Targets="Publish"
+             Properties="Configuration=Release;RuntimeIdentifier=%(WslHelperRuntime.Identity);PublishDir=$(_WslHelperStage)%(WslHelperRuntime.Identity)\" />
+  </Target>
+
+  <Target Name="StageWslHelper" BeforeTargets="AssignTargetPaths" DependsOnTargets="PublishWslHelper">
+    <ItemGroup>
+      <None Include="$(_WslHelperStage)%(WslHelperRuntime.Identity)\nexaflow-wsl-helper"
+            Link="wsl-helper\%(WslHelperRuntime.Identity)\nexaflow-wsl-helper"
+            CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
+</Project>

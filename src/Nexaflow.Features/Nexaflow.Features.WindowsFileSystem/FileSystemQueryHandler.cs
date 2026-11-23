@@ -66,6 +66,7 @@ public sealed class FileSystemQueryHandler : IQueryHandler
         var expanded = Environment.ExpandEnvironmentVariables(trimmed);
 
         var target = fs.Vfs.TryParseDisplayPath(trimmed)
+                     ?? (fs.Vfs.IsOnLocation(expanded) ? fs.Vfs.TryToVirtual(expanded) : null)
                      ?? (Path.IsPathRooted(expanded) || IsFileSystemPath(expanded) ? expanded : await ResolveRelativeAsync(trimmed, fs));
         if (target is not null && await IsFolderAsync(fs, target))
         {

@@ -26,7 +26,7 @@ public sealed class TemplateCreateAction(string name, string icon, string extens
         if (string.IsNullOrWhiteSpace(folderPath) || string.IsNullOrWhiteSpace(fileName))
             return null;
 
-        var dest = Path.Combine(folderPath, fileName);
+        var dest = vfs.ChildPath(folderPath, fileName);
         if (await vfs.ExistsAsync(templatePath, ct))
             await vfs.CopyFileAsync(templatePath, dest, replace: false, ct);
         else

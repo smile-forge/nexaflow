@@ -49,11 +49,11 @@ public class TerminalScreenTests
     }
 
     [TestMethod]
-    public void PeekPromptLine_DetectsPromptOnCursorRow()
+    public void CursorRowText_IsTheRowTheCursorIsOn()
     {
         var screen = new TerminalScreen(80, 25);
-        screen.Feed("C:\\Windows>");
+        screen.Feed("Microsoft Windows\r\nC:\\Windows>");
 
-        Assert.AreEqual("C:\\Windows>", screen.PeekPromptLine());
+        Assert.AreEqual("C:\\Windows>", screen.CursorRowText);
     }
 }

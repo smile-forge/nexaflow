@@ -41,7 +41,7 @@ public sealed partial class SvgViewModel : ObservableObject, IPageViewModel, ICo
     }
 
     public string FilePath { get; }
-    public string FileName => Path.GetFileName(FilePath);
+    public string FileName => _vfs.GetDisplayName(FilePath);
 
     /// <summary>The loaded, frozen vector artwork the view binds an <c>Image</c> to. Null until loaded / on error.</summary>
     [ObservableProperty] private DrawingImage? _artifact;

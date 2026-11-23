@@ -145,7 +145,7 @@ public partial class TerminalView : UserControl, IDropTarget
 
     public void AcceptDrop(DropRequest request)
     {
-        if (TerminalDropLogic.BuildInsertText(request.Payload) is { } text)
+        if (ViewModel.FormatDroppedPaths(request.Payload) is { } text)
             ViewModel.SendText(text);
     }
 
@@ -184,7 +184,7 @@ public partial class TerminalView : UserControl, IDropTarget
 
         if ((sender as ListBox)?.SelectedItem is not TerminalFsEntry entry) return;
 
-        var data = new DataObject(DataFormats.FileDrop, new[] { entry.FullPath });
+        var data = new DataObject(DataFormats.FileDrop, new[] { ViewModel.WindowsPathOf(entry) });
         DragDrop.DoDragDrop((DependencyObject)sender, data, DragDropEffects.Copy);
     }
 

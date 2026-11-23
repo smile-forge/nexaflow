@@ -1,27 +1,18 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Console.ViewModels;
+using Nexaflow.Visuals.Terminal;
+using Nexaflow.Visuals.Terminal.ChatHandlers;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
 namespace Nexaflow.Features.Console.ChatHandlers;
 
-/// <summary>
-/// Routes a command typed in the AI bar to the active terminal instead of the AI: an explicit
-/// <c>&gt;</c> prefix (via the handler symbol) or a bare line the terminal recognises as a command.
-/// Gated on <see cref="TerminalViewModel.IsConsoleCommand"/> so natural language still reaches the
-/// agent — unlike the pre-PR#95 handler, it never claims arbitrary input while a console is active.
-/// The logic lives on <see cref="TerminalViewModel"/> so a future PowerShell feature ships the same shim.
-/// </summary>
-public sealed class ConsoleQueryHandler : IQueryHandler
+/// <summary>The AI bar's way into the Console's cmd prompt (<see cref="TerminalQueryHandler"/>).</summary>
+public sealed class ConsoleQueryHandler : TerminalQueryHandler
 {
-    public string Description => "Runs a command line in the active terminal.";
+    public override string Description =>
+        "Runs the typed text, exactly as typed, as a command line in the active Windows command prompt. Choose it only if " +
+        "that text is itself a valid cmd command. Choose 0 if it is words asking for something to be done or explained, " +
+        "even something a command could do: the assistant then does it.";
 
-    public string? Symbol => ">";
-
-    public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null)
-        => pageVm is TerminalViewModel vm && (prefixed || vm.IsConsoleCommand(input)) ? 0.95f : 0f;
-
-    public Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
-    {
-        (pageVm as TerminalViewModel)?.SendCommand(input);
-        return Task.FromResult<string?>(null);   // silent — the output is the terminal itself
-    }
+    protected override bool Serves(TerminalViewModel terminal) => terminal is CmdTerminalViewModel;
 }

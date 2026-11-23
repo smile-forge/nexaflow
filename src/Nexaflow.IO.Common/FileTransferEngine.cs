@@ -64,7 +64,7 @@ public static class FileTransferEngine
         {
             ct.ThrowIfCancellationRequested();
             if (fileSystem is null) onDisk.Add(source);
-            else if (fileSystem.ResolveOnDisk(source) is { } real) onDisk.Add(real);
+            else if (DiskEndOf(fileSystem, source) is { } real) onDisk.Add(real);
             else await MeasureThroughAsync(fileSystem, source, tally, ct);
         }
 
@@ -81,6 +81,12 @@ public static class FileTransferEngine
 
         return tally.ToScan();
     }
+
+    /// <summary>The path the disk's route may work on for one end of an item, or null where only the file system may. A
+    /// location's file never takes the disk's route, whether named by the location's path or by the Windows folder showing
+    /// it: that folder's rules for names, links and permissions are not the location's.</summary>
+    private static string? DiskEndOf(IVirtualFileSystem fileSystem, string path)
+        => fileSystem.IsOnLocation(path) ? null : fileSystem.ResolveOnDisk(path);
 
     /// <summary><see cref="Measure"/> through the file system: a link is counted as nothing and not followed, and a
     /// folder that cannot be listed makes the totals a floor.</summary>
@@ -171,7 +177,17 @@ public static class FileTransferEngine
         IProgress<TransferProgress>? progress = null,
         IFileTransferPrompt? prompt = null,
         CancellationToken ct = default)
-        => Task.Run(() => new Run(request, scan, progress, prompt, ct).ExecuteAsync(), CancellationToken.None);
+            => Task.Run(() => new Run(ByLocation(request), scan, progress, prompt, ct).ExecuteAsync(), CancellationToken.None);
+
+        /// <summary>The request with each end on a location named by the location's path, though it came by the Windows folder
+        /// showing it — a paste from Explorer, a drop — so it is read, written and copied as the location keeps it: within one
+        /// location the server copies, and a file replaced there keeps its permissions.</summary>
+        private static FileTransferRequest ByLocation(FileTransferRequest request)
+        {
+            if (request.FileSystem is not { } files) return request;
+            string Named(string path) => files.IsOnLocation(path) ? files.TryToVirtual(path) ?? path : path;
+            return request with { Items = [.. request.Items.Select(item => item with { Source = Named(item.Source), Destination = Named(item.Destination) })] };
+        }
 
     private static bool IsReparsePoint(string path)
     {
@@ -754,7 +770,7 @@ public static class FileTransferEngine
         private TransferItem? OnDisk(TransferItem item)
         {
             if (request.FileSystem is not { } fileSystem) return item;
-            return fileSystem.ResolveOnDisk(item.Source) is { } source && fileSystem.ResolveOnDisk(item.Destination) is { } destination
+            return DiskEndOf(fileSystem, item.Source) is { } source && DiskEndOf(fileSystem, item.Destination) is { } destination
                 ? item with { Source = source, Destination = destination }
                 : null;
         }
@@ -824,7 +840,7 @@ public static class FileTransferEngine
             }
 
             if (source.IsDirectory) await CopyDirectoryThroughAsync(item.Source, destination, forMove);
-            else if (await CopyFileThroughAsync(item.Source, source.Size, destination, forMove, resolved: true))
+            else if (await CopyFileThroughAsync(item.Source, source.Size, source.Mode, destination, forMove, resolved: true))
                 await CarryThroughAsync(item, destination, move: forMove);
         }
 
@@ -851,7 +867,7 @@ public static class FileTransferEngine
             foreach (var file in children.Where(c => !c.IsDirectory))
             {
                 if (Stopping) return false;
-                complete &= await CopyFileThroughAsync(Path.Combine(source, file.Name), file.Size,
+                complete &= await CopyFileThroughAsync(Path.Combine(source, file.Name), file.Size, file.Mode,
                                                        Path.Combine(destination, file.Name), forMove, resolved: false);
             }
 
@@ -881,7 +897,10 @@ public static class FileTransferEngine
             return complete;
         }
 
-        private async Task<bool> CopyFileThroughAsync(string source, long length, string destination, bool forMove, bool resolved)
+        /// <param name="permissions">The source's permission bits, which a new copy is made with; a file it replaces keeps
+        /// its own (<see cref="IVirtualFileSystem.BeginWriteAsync"/>). Null where the source keeps none.</param>
+        private async Task<bool> CopyFileThroughAsync(string source, long length, UnixFileMode? permissions, string destination,
+                                                      bool forMove, bool resolved)
         {
             if (Stopping) return false;
 
@@ -927,7 +946,7 @@ public static class FileTransferEngine
                 string? sourceHash;
                 try
                 {
-                    sourceHash = await StreamThroughAsync(source, destination, mode);
+                    sourceHash = await StreamThroughAsync(source, destination, mode, permissions);
                 }
                 catch (Exception ex) when (IsDiskFull(ex))
                 {
@@ -996,14 +1015,14 @@ public static class FileTransferEngine
 
         /// <summary>Streams one file through the file system, returning the source's SHA-256 when the run verifies. The write
         /// is invisible at <paramref name="destination"/> until it commits, so a failure or a stop leaves nothing there.</summary>
-        private async Task<string?> StreamThroughAsync(string source, string destination, WriteMode mode)
+        private async Task<string?> StreamThroughAsync(string source, string destination, WriteMode mode, UnixFileMode? permissions)
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             using var hash = request.Verify ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
             try
             {
                 await using var from  = await FileSystem.OpenReadAsync(source, ReadIntent.Sequential, ct);
-                await using var write = await FileSystem.BeginWriteAsync(destination, mode, expected: null, ct);
+                await using var write = await FileSystem.BeginWriteAsync(destination, mode, expected: null, permissions, ct);
                 while (true)
                 {
                     ct.ThrowIfCancellationRequested();

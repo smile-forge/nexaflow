@@ -289,6 +289,23 @@ public class AudioSurfaceTests
         Assert.IsFalse(editor.IsDirty, "a successful save leaves nothing outstanding");
     }
 
+    [TestMethod]
+    [CoversNode("audio-tageditor-save")]
+    public async Task ATrackWhoseTagsAreShownToRead_IsNeverWritten()
+    {
+        // A track in a WSL distro: TagLib writes with Windows' own calls, which a location's file is not changed by.
+        TrackTags? written = null;
+        var editor = new TagEditorViewModel(
+            new TrackTags { Title = "Original" }, Substitute.For<IShellServices>(), VirtualFileSystem.Instance,
+            (tags, _, _) => { written = tags; return Task.FromResult(true); }, canSave: false);
+
+        editor.Title = "Renamed";
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        Assert.IsTrue(editor.IsReadOnly, "the fields are for reading");
+        Assert.IsNull(written, "nothing reaches the file");
+    }
+
     // ── Analysers ─────────────────────────────────────────────────────────────
 
     /// <summary>A steady 440 Hz tone, so the FFT has something unambiguous to find.</summary>

@@ -101,6 +101,7 @@ public partial class FileSystemView : UserControl, IDropTarget, ISelectionProvid
         Loaded   += (_, _) => ViewModel.AttachFolderWatching();
         Unloaded += (_, _) => ViewModel.DetachFolderWatching();
         PlaceStatusColumn();
+        PlacePosixColumns();
 
         // Column-header sorting. GridViewColumnHeader is a ButtonBase that captures the
         // mouse on press, so a Button inside the header template never sees the click —
@@ -221,6 +222,10 @@ public partial class FileSystemView : UserControl, IDropTarget, ISelectionProvid
         {
             PlaceStatusColumn();
         }
+        else if (e.PropertyName == nameof(FileSystemViewModel.ShowsPosixColumns))
+        {
+            PlacePosixColumns();
+        }
     }
 
     /// <summary>
@@ -235,6 +240,20 @@ public partial class FileSystemView : UserControl, IDropTarget, ISelectionProvid
 
         if (ViewModel.ShowsCloudStatus && !placed) columns.Insert(0, status);
         else if (!ViewModel.ShowsCloudStatus && placed) columns.Remove(status);
+    }
+
+    /// <summary>Shows the permissions, owner and group columns after the others on a location that reports them, and
+    /// takes them away anywhere else.</summary>
+    private void PlacePosixColumns()
+    {
+        var columns = ((GridView)FileListView.View).Columns;
+        foreach (var key in (string[])["PermissionsColumn", "OwnerColumn", "GroupColumn"])
+        {
+            var column = (GridViewColumn)FindResource(key);
+            bool placed = columns.Contains(column);
+            if (ViewModel.ShowsPosixColumns && !placed) columns.Add(column);
+            else if (!ViewModel.ShowsPosixColumns && placed) columns.Remove(column);
+        }
     }
 
     /// <summary>Selects the name without its extension (Explorer-style), so the user types over it.</summary>
@@ -967,14 +986,30 @@ public partial class FileSystemView : UserControl, IDropTarget, ISelectionProvid
     /// </summary>
     private void BeginListDrag(bool rightButton)
     {
-        // Explorer (or whatever receives the drop) understands only real paths, so resolve a mount and
-        // materialise an in-archive entry on the way out.
-        var paths = Services.ShellPath.Realize(
+        // Explorer (or whatever receives the drop) understands only real paths, so resolve a mount or a location's
+        // Windows folder, and materialise an in-archive entry, on the way out.
+        var realizing = new Services.ShellPath(ViewModel.Vfs).RealizeAsync(
             FileListView.SelectedItems
                 .OfType<FileSystemEntry>()
                 .Where(entry => !entry.IsThisPcItem)
-                .Select(entry => entry.FullPath));
+                .Select(entry => entry.FullPath)
+                .ToList());
 
+        if (realizing.IsCompletedSuccessfully) DragOut(realizing.Result, rightButton);
+        else _ = DragOutOnceRealizedAsync(realizing, rightButton);
+    }
+
+    /// <summary>An archive entry is extracted off the UI thread first; the drag starts if the button that began it is
+    /// still down.</summary>
+    private async Task DragOutOnceRealizedAsync(ValueTask<string[]> realizing, bool rightButton)
+    {
+        var paths  = await realizing;
+        var button = rightButton ? Mouse.RightButton : Mouse.LeftButton;
+        if (button == MouseButtonState.Pressed) DragOut(paths, rightButton);
+    }
+
+    private void DragOut(string[] paths, bool rightButton)
+    {
         if (paths.Length == 0) return;
 
         // Whatever receives the drop knows nothing of companions, so they are dragged with their files.

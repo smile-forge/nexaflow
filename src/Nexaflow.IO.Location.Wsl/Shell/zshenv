@@ -1,0 +1,9 @@
+# Nexaflow's shell integration for zsh, started with ZDOTDIR pointing here.
+# Runs the user's own .zshenv, notes the folder their startup files live in, and keeps ZDOTDIR here until .zshrc.
+
+__nexaflow_shims="$ZDOTDIR"
+ZDOTDIR="$HOME"
+[[ -f "$ZDOTDIR/.zshenv" ]] && source "$ZDOTDIR/.zshenv"
+NEXAFLOW_ZDOTDIR="${ZDOTDIR:-$HOME}"
+ZDOTDIR="$__nexaflow_shims"
+unset __nexaflow_shims

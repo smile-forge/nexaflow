@@ -58,11 +58,11 @@ usually a few lines and leaves the control thinner:
   bitmap. `Visuals.Common`'s `ViewportFit` holds fit, actual-size and cursor-anchored zoom for both. Its tests
   are about the edges: fit letterboxes rather than crops, 1:1 lets oversized content overflow rather than being
   clamped, and a viewport layout has not measured yet yields the identity instead of an infinite scale.
-- **Where a typed line goes when you press Enter** — the terminal's one genuinely consequential decision. Its
-  inputs are trivial (is the cursor on a prompt, what was typed, what this shell calls a built-in), so
-  `TerminalEnterRouting.Decide` takes them directly instead of reading state only a live pseudo-console sets.
-  The third case is the one worth having a test for — mid-program there is no prompt, and the line belongs to
-  whatever is reading stdin whatever it looks like.
+- **What a typed line is** — two decisions, both pure. In the console Enter is always the shell's, so
+  `TerminalEnterRouting.Decide` takes only what was typed at a prompt, if at one, instead of reading state only a live
+  pseudo-console sets. In the AI bar `CommandClassifier.JudgeLine` takes the line and what the shell knows by name, and
+  its corpus is the test: a sentence must never come out a command, nor a command carrying a secret anything else.
+  What only a real shell proves — clearing a half-typed line, the output the assistant is given — is `LiveShellTests`.
 - **A panel's listing order** — the terminal's Files panel deliberately lists files *before* folders, the
   opposite of Explorer, because the panel exists to drag a path onto the console. That inversion is the kind
   of thing a later "fix" quietly reverts, so it is pinned in `TerminalFileList.Enumerate`.
@@ -489,7 +489,13 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
   COM interop: the interop declarations are a hand-transcribed vtable, and only a real call can prove
   the layout is right — a wrong slot is an access violation, not a failed assertion. Such a test
   asserts on the *contract* (a clause came back naming the property asked for), never on what happens
-  to be indexed, and calls `Assert.Inconclusive` when the service isn't running.
+    to be indexed, and calls `Assert.Inconclusive` when the service isn't running.
+  - **`TestCategory("Wsl")`**, always beside `Interactive` — the WSL backend against this machine's default
+    distro: the location contract (`WslLocationContractTests`, working under `/tmp/nexaflow-contract`, since the
+    contract works at the root), owners read by name, a change made inside Linux reaching a watch, a save keeping a
+    script runnable, and the shell reporting its folder (`WslDistroTests`). Starting the distro is what they cost; they
+    are `Assert.Inconclusive` where WSL has no distro. Run them alone with `--filter "TestCategory=Wsl"`. Journeys
+    cannot reach WSL — Windows Sandbox has none — so this is where a real distro is proven.
 
 ### Reference corpora and snapshots (opt-in, never in CI)
 

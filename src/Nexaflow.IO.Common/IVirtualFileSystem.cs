@@ -5,6 +5,7 @@ using System;
 using System.Threading;
 using Nexaflow.IO.Common.Locations;
 using System.Threading.Tasks;
+using Nexaflow.IO.Common.Terminal;
 
 namespace Nexaflow.IO.Common;
 
@@ -232,7 +233,11 @@ public interface IVirtualFileSystem
 
     /// <summary>Starts a write that is invisible at the path until it commits (<see cref="ILocationSession.BeginWriteAsync"/>).
     /// Inside an archive the bytes are gathered and the archive rewritten in one piece at commit.</summary>
-    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default);
+    /// <param name="permissions">The permission bits a file this write makes is given, on it before it appears; a file it
+    /// replaces keeps its own (<see cref="ILocationSession.BeginWriteAsync"/>). Null for the defaults. This disk and an
+    /// archive keep no POSIX bits, so only a location that does (<see cref="LocationCapabilities.Permissions"/>) heeds it.</param>
+    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, UnixFileMode? permissions = null,
+                                              CancellationToken ct = default);
 
     ValueTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct = default);
 
@@ -277,16 +282,58 @@ public interface IVirtualFileSystem
     /// offers an action.</summary>
     LocationCapabilities GetCapabilities(string path);
 
+    /// <summary>How names are compared under the path: ordinally on a location whose names differ by case
+    /// (<see cref="LocationCapabilities.CaseSensitive"/>) — named by its own path or by a Windows folder it is reachable as,
+    /// which Windows would otherwise read ignoring case — and ignoring case on this disk and everywhere else. What a
+    /// selection, a reload's match of old rows to new, a check for an open tab and the assistant's reach compare paths by.</summary>
+    StringComparison GetNameComparison(string path);
+
+    /// <summary>True when the path is on a location, named by the location's path or by a Windows folder the location is
+    /// reachable as. What changes a file asks this rather than its backing: a native path is for readers, and the Recycle
+    /// Bin holds nothing of a location's — Windows deletes it for good and reports success.</summary>
+    bool IsOnLocation(string path);
+
+    /// <summary>The path of the entry named <paramref name="name"/> in <paramref name="folder"/>, as this file system names
+    /// paths: on a location the name is carried as the segment that stands for exactly it (<c>a:b</c> as <c>a%3Ab</c>,
+    /// <c>%41</c> as <c>%2541</c>), and the path is the location's even when the folder is named by a Windows folder showing
+    /// it, so the entry is made there; anywhere else the name is joined as Windows joins it. Ask <see cref="CanName"/>
+    /// first: a name that cannot be one is never joined.</summary>
+    string ChildPath(string folder, string name);
+
+    /// <summary>Whether <paramref name="name"/> can name an entry in <paramref name="folder"/>: on a location any name but
+    /// <c>.</c>, <c>..</c> or one holding <c>/</c> or a NUL, as Linux takes them; anywhere else a name Windows keeps as
+    /// typed — no reserved character, no trailing dot or space, which Windows would drop.</summary>
+    bool CanName(string folder, string name);
+
+    /// <summary>A launcher for a shell on the host holding the folder, starting in the folder given as
+    /// <see cref="TerminalLaunch.WorkingDirectory"/> — a path of this file system — or null when the folder is not on a
+    /// location, and the caller starts its own shell on this computer. Fails with <see cref="LocationException"/> when the
+    /// location cannot be reached, and with <see cref="NotSupportedException"/> when it has no shell
+    /// (<see cref="LocationCapabilities.Shell"/>).</summary>
+    ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default);
+
+    /// <summary>The host that runs programs on the folder's files, for a folder on a location with a shell
+    /// (<see cref="LocationCapabilities.Shell"/>) — named by the location's path or by a Windows folder showing it, since a
+    /// program run on a folder changes it, and a change goes through the location — or null for a folder anywhere else, whose
+    /// programs the caller runs on this computer. Read without touching the network: the host connects when it runs one.</summary>
+    IProgramHost? GetProgramHost(string folderPath);
+
     /// <summary>As <see cref="DescribeArchive"/>.</summary>
     ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default);
 
     /// <summary>A path on this disk holding the file's bytes, for a reader that can only open a file by a path of its own:
-    /// a real or mounted path as it is, an archive entry extracted to a cached temp copy. A file on a remote location keeps
-    /// no copy on this disk, and is refused with <see cref="NotSupportedException"/>.</summary>
+    /// a real or mounted path as it is, an archive entry extracted to a cached temp copy, a file on a location this machine
+    /// reaches as a Windows folder (<see cref="ILocationNativePaths"/>) by that folder's path. A file on any other location
+    /// keeps no copy on this disk, and is refused with <see cref="NotSupportedException"/>.</summary>
     ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default);
 
     /// <summary>As <see cref="ExtractAll"/>.</summary>
     ValueTask ExtractAllAsync(string containerPath, string destinationDir,
+                              IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
+
+    /// <summary>Extracts every file of the archive at <paramref name="containerPath"/> where <paramref name="place"/> puts it,
+    /// one at a time and in the archive's order, reporting as <see cref="ExtractAll"/> does.</summary>
+    ValueTask ExtractAllAsync(string containerPath, ArchiveEntryPlacement place,
                               IProgress<TransferProgress>? progress = null, CancellationToken ct = default);
 
     /// <summary>As <see cref="CreateArchive(string, string, IProgress{TransferProgress}?, CancellationToken)"/>.</summary>

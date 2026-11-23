@@ -30,12 +30,15 @@ public partial class TagEditorViewModel : ObservableObject
     private bool _replaceArt;
     private bool _loading;
 
+    /// <param name="canSave">Whether the track's tags may be written: TagLib rewrites the file with Windows' own calls, which
+    /// only a file of this PC may be changed by — a location's file shows its tags, not to change.</param>
     public TagEditorViewModel(TrackTags tags, IShellServices shell, IVirtualFileSystem vfs,
-                              Func<TrackTags, byte[]?, bool, Task<bool>> saveAsync)
+                              Func<TrackTags, byte[]?, bool, Task<bool>> saveAsync, bool canSave = true)
     {
         _shell = shell;
         _vfs = vfs;
         _saveAsync = saveAsync;
+        CanSave = canSave;
         Load(tags);
     }
 
@@ -49,6 +52,12 @@ public partial class TagEditorViewModel : ObservableObject
     [ObservableProperty] private BitmapSource? _artPreview;
     [ObservableProperty] private bool _isDirty;
     [ObservableProperty] private bool _isSaving;
+
+    /// <summary>Whether the tags may be changed here; where not, they are shown to read.</summary>
+    public bool CanSave { get; }
+
+    /// <summary>The fields are for reading only, as on a location's file.</summary>
+    public bool IsReadOnly => !CanSave;
 
     private void Load(TrackTags tags)
     {
@@ -97,6 +106,7 @@ public partial class TagEditorViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveAsync()
     {
+        if (!CanSave) return;   // shown to read, as a location's track is: nothing reaches the file
         IsSaving = true;
         var tags = BuildTags();
         bool ok = await _saveAsync(tags, _newArt, _replaceArt);

@@ -45,7 +45,7 @@ public sealed partial class PhotoshopFormat
             if (!sources.ContainsKey(layer.Source.Path)) sources[layer.Source.Path] = await FileSystem.ReadAllBytesAsync(layer.Source.Path, ct);
         using var writing = new Writing(this, picture, renderer, sources, ct);
         var document = await Task.Run(writing.Document, ct);
-        await using var write = await FileSystem.BeginWriteAsync(path, WriteMode.Replace, null, ct);
+        await using var write = await FileSystem.BeginWriteAsync(path, WriteMode.Replace, null, ct: ct);
         await Task.Run(() => PhotoshopWriter.Write(write.Content, document), ct);
         await write.CommitAsync(ct);
     }

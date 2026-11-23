@@ -46,27 +46,33 @@ public sealed class ExternalAppRegistry
     }
 
     /// <summary>
-    /// Returns a fresh <see cref="CustomAction"/> for each definition whose
-    /// extension matches every file in <paramref name="selected"/> and whose
-    /// multi-file mode permits the current selection size.
+    /// Returns a fresh <see cref="CustomAction"/> for each of <see cref="MatchingApps"/>, handing its program the files
+    /// as <paramref name="files"/> says Windows finds them.
     /// Safe to call from a background thread; each action's icon is named (<see cref="ResolveIcon"/>), never loaded.
     /// </summary>
-    public IReadOnlyList<CustomAction> Resolve(IReadOnlyList<FileSystemEntry> selected)
+    public IReadOnlyList<CustomAction> Resolve(IReadOnlyList<FileSystemEntry> selected, IVirtualFileSystem files)
+        => [.. MatchingApps(selected).Select(def => new CustomAction(def, files, ResolveIcon(def)))];
+
+    /// <summary>
+    /// The definitions whose extension matches every file in <paramref name="selected"/> and whose multi-file mode
+    /// permits the current selection size.
+    /// </summary>
+    public IReadOnlyList<ExternalAppDefinition> MatchingApps(IReadOnlyList<FileSystemEntry> selected)
     {
         var apps = _config.Apps;
-        if (apps == null || apps.Count == 0 || selected.Count == 0) return Array.Empty<CustomAction>();
+        if (apps == null || apps.Count == 0 || selected.Count == 0) return Array.Empty<ExternalAppDefinition>();
 
         // Multi-file selection requires multi-file capable definitions.
         bool multi = selected.Count > 1;
 
         // All selected entries must be files (CustomAction targets files, not folders/drives).
-        if (selected.Any(e => e.IsDirectory || e.IsThisPcItem)) return Array.Empty<CustomAction>();
+        if (selected.Any(e => e.IsDirectory || e.IsThisPcItem)) return Array.Empty<ExternalAppDefinition>();
 
         var exts = selected
             .Select(e => Path.GetExtension(e.Name).TrimStart('.').ToLowerInvariant())
             .ToList();
 
-        var results = new List<CustomAction>(apps.Count);
+        var results = new List<ExternalAppDefinition>(apps.Count);
         foreach (var def in apps)
         {
             if (multi && def.MultiFile == MultiFileMode.SingleFileOnly) continue;
@@ -76,7 +82,7 @@ public sealed class ExternalAppRegistry
                 : MatchesAll(def.Extension, exts);
             if (!matches) continue;
 
-            results.Add(new CustomAction(def, ResolveIcon(def)));
+            results.Add(def);
         }
         return results;
     }

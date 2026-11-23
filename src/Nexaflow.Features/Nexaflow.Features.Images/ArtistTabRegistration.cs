@@ -89,14 +89,14 @@ public sealed class ArtistTabRegistration : IPageRegistration
     /// Titles the page and its breadcrumbs for what it edits: a picture by its name and where it lives; a draft — made for the user,
     /// kept in a temporary folder until saved — as a new picture, with no folder to point at; nothing yet, Artist.
     /// </summary>
-    private static void NameAfter(Page page, string? path, bool isDraft)
+    private void NameAfter(Page page, string? path, bool isDraft)
     {
-        page.Title = isDraft ? Str.Get("Images.Start.Title") : path is null ? Str.Get("Images.Artist.Title") : Path.GetFileName(path);
+        page.Title = isDraft ? Str.Get("Images.Start.Title") : path is null ? Str.Get("Images.Artist.Title") : _editing.FileSystem.GetDisplayName(path);
         page.SetFileBreadcrumbs(isDraft ? string.Empty : path ?? string.Empty, page.Title);
     }
 
     /// <summary>The page follows what its start screen opened: titled and found by it, and opened on it again.</summary>
-    private static void Follow(Page page, ArtistPicture shown)
+    private void Follow(Page page, ArtistPicture shown)
     {
         NameAfter(page, shown.Path, shown.IsDraft);
         var pageParams = new Dictionary<string, string> { ["path"] = shown.Path };

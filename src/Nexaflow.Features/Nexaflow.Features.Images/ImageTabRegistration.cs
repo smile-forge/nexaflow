@@ -77,7 +77,7 @@ public sealed class ImageTabRegistration : IPageRegistration
 
         var page = new Page
         {
-            Title = paths.Count == 1 ? Path.GetFileName(paths[0]) : Str.Format("Images.Page.TitleFormat", paths.Count),
+            Title = paths.Count == 1 ? _editing.FileSystem.GetDisplayName(paths[0]) : Str.Format("Images.Page.TitleFormat", paths.Count),
             Icon  = "🖼",
         };
         page.ViewModelFactory = () =>
@@ -87,7 +87,7 @@ public sealed class ImageTabRegistration : IPageRegistration
         if (paths.Count > 1)
             page.SetMultiFileBreadcrumbs(paths, wholeFolder ? Str.Get("Images.Page.AllImageFiles") : Str.Format("Images.Page.SelectionFormat", paths.Count));
         else
-            page.SetFileBreadcrumbs(paths.Count == 1 ? paths[0] : string.Empty, paths.Count == 1 ? Path.GetFileName(paths[0]) : Str.Get("Images.Page.Fallback"));
+            page.SetFileBreadcrumbs(paths.Count == 1 ? paths[0] : string.Empty, paths.Count == 1 ? page.Title : Str.Get("Images.Page.Fallback"));
         return page;
     }
 }

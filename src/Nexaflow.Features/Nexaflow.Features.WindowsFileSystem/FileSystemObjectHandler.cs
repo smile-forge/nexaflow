@@ -100,6 +100,8 @@ public sealed class FileSystemObjectHandler(
         if (obj is not string s || string.IsNullOrWhiteSpace(s)) return null;
         if (s.StartsWith("::", StringComparison.Ordinal)) return s;
         if (vfs.TryParseDisplayPath(s) is { Length: > 0 } onLocation) return onLocation;
+        // A location's Windows folder opens the location, whose names, links and delete are its own.
+        if (vfs.IsOnLocation(s) && vfs.TryToVirtual(s) is { Length: > 0 } byFolder) return byFolder;
         if (Uri.TryCreate(s, UriKind.Absolute, out var u))
             return u.IsFile ? u.LocalPath : null;   // a real URL (http, etc.) is not ours
         return Path.IsPathFullyQualified(s) ? s : null;

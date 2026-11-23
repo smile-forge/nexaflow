@@ -46,7 +46,7 @@ internal static class GitToolArgs
 }
 
 /// <summary>Branch, upstream tracking, and the per-file staged/modified/untracked lists.</summary>
-public sealed class GitStatusTool(GitService git) : IClientTool
+public sealed class GitStatusTool(IGitWorkingCopy workingCopy) : IClientTool
 {
     public string Name => "git_status";
     public string Description => "Show git status: current branch, ahead/behind vs upstream, and the staged, modified, and untracked files.";
@@ -54,9 +54,9 @@ public sealed class GitStatusTool(GitService git) : IClientTool
     public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
-    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var s  = git.GetStatus();
+        var s  = await workingCopy.GetStatusAsync(ct);
         var sb = new StringBuilder($"On branch {s.Branch}");
         if (s.Upstream is not null)
         {
@@ -84,7 +84,7 @@ public sealed class GitStatusTool(GitService git) : IClientTool
 
         var summary = $"{s.Branch}: {s.StagedCount} staged, {s.ModifiedCount} modified, {s.UntrackedCount} untracked";
         return ToolResult.Ok(summary, sb.ToString().TrimEnd());
-    }, ct);
+    }
 }
 
 /// <summary>Recent commit history.</summary>
@@ -144,7 +144,7 @@ public sealed class GitLogTool(GitService git) : IClientTool
 }
 
 /// <summary>Unified diff of uncommitted changes (working tree or staged).</summary>
-public sealed class GitDiffTool(GitService git) : IClientTool
+public sealed class GitDiffTool(IGitWorkingCopy workingCopy) : IClientTool
 {
     public string Name => "git_diff";
     public string Description =>
@@ -162,19 +162,19 @@ public sealed class GitDiffTool(GitService git) : IClientTool
     public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
-    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
         var path = ToolArgs.Str(arguments, "path");
 
         if (GitToolArgs.TryRange(arguments, out var range, out var rangeError) is false)
             return ToolResult.Error(rangeError!);
 
-        // Two revisions → the release-comparison path; otherwise the original uncommitted-changes behaviour.
+        // Two revisions → the release-comparison path; otherwise the working copy's uncommitted changes.
         if (range is not null)
         {
             var format = ParseFormat(ToolArgs.Str(arguments, "format"));
             string between;
-            try { between = git.GetDiffBetween(range.From, range.To, path, format); }
+            try { between = await workingCopy.GetDiffBetweenAsync(range.From, range.To, path, format, ct); }
             catch (ArgumentException ex) { return ToolResult.Error(ex.Message); }
 
             return string.IsNullOrWhiteSpace(between)
@@ -184,11 +184,11 @@ public sealed class GitDiffTool(GitService git) : IClientTool
         }
 
         var staged = ToolArgs.Bool(arguments, "staged");
-        var diff   = git.GetDiff(path, staged);
+        var diff   = await workingCopy.GetDiffAsync(path, staged, ct);
         if (string.IsNullOrWhiteSpace(diff))
             return ToolResult.Ok("no changes", staged ? "No staged changes." : "No uncommitted changes.");
         return ToolResult.Ok($"diff ({(staged ? "staged" : "working tree")})", GitToolArgs.Cap(diff));
-    }, ct);
+    }
 
     private static GitDiffFormat ParseFormat(string? raw) => raw?.Trim().ToLowerInvariant() switch
     {
@@ -461,7 +461,7 @@ public sealed class GitRecoveryTool(GitService git) : IClientTool
 }
 
 /// <summary>Every linked worktree, with the state that decides whether removing it would lose anything.</summary>
-public sealed class GitWorktreesTool(GitService git) : IClientTool
+public sealed class GitWorktreesTool(IGitWorkingCopy workingCopy) : IClientTool
 {
     public string Name => "git_worktrees";
     public string Description =>
@@ -472,9 +472,9 @@ public sealed class GitWorktreesTool(GitService git) : IClientTool
     public ToolSafety Safety => ToolSafety.SafeOperation;
     public bool Parallelizable => true;
 
-    public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct) => Task.Run(() =>
+    public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var worktrees = git.GetWorktrees();
+        var worktrees = await workingCopy.GetWorktreesAsync(ct);
         if (worktrees.Count == 0)
             return ToolResult.Ok("no worktrees", "This repository has no linked worktrees.");
 
@@ -494,7 +494,7 @@ public sealed class GitWorktreesTool(GitService git) : IClientTool
         }
 
         return ToolResult.Ok($"{worktrees.Count} worktree(s)", sb.ToString().TrimEnd());
-    }, ct);
+    }
 }
 
 /// <summary>Local + remote branches with tracking info.</summary>

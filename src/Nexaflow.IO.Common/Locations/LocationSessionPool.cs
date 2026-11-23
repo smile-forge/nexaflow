@@ -66,7 +66,11 @@ public sealed class LocationSessionPool : IAsyncDisposable
                     _entries[key] = entry = new PooledConnection(connection, provider, _credentials, _idleTime, _time);
                 entry.Holders++;
                 held.Add(key);
-                mounts.Add(new LocationMount(connection, provider.Capabilities, entry));
+                mounts.Add(new LocationMount(connection, provider.Capabilities, entry)
+                {
+                    NativeRoots = entry.NativeRoots,
+                    NativePaths = entry.NativeRoots.Count > 0 ? provider as ILocationNativePaths : null,
+                });
             }
         }
         return new LocationSet(mounts, unreachable, held);
@@ -255,6 +259,10 @@ internal sealed class PooledConnection(ConnectionProfile connection, ILocationPr
 
     private LocationException Gone()
         => new(LocationError.Disconnected, null, $"The connection to '{connection.Label}' is no longer held by this window.");
+
+    /// <summary>The Windows folders the connection is reachable as, asked of its provider once.</summary>
+    public IReadOnlyList<string> NativeRoots { get; } =
+        provider is ILocationNativePaths native ? [.. native.GetNativeRoots(connection)] : [];
 }
 
 /// <summary>
@@ -330,9 +338,10 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
         return new HeldStream(stream, owner);
     }
 
-    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, CancellationToken ct)
+    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, UnixFileMode? permissions,
+                                                           CancellationToken ct)
     {
-        var write = await Run(() => inner.BeginWriteAsync(path, mode, expected, ct)).ConfigureAwait(false);
+        var write = await Run(() => inner.BeginWriteAsync(path, mode, expected, permissions, ct)).ConfigureAwait(false);
         owner.Enter();
         return new HeldWrite(write, this, owner);
     }
@@ -366,6 +375,10 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
 
     internal ValueTask<ITerminalTransport> OpenShellAsync(ILocationShell shell, TerminalLaunch launch, CancellationToken ct)
         => Run(() => shell.LaunchAsync(launch, ct));
+
+        /// <summary>A program run on the host, counted as use until it ends.</summary>
+        internal ValueTask<ProgramExit> RunProgramAsync(ILocationShell shell, ProgramRun run, IProgress<string>? lines, CancellationToken ct)
+            => Run(() => shell.RunProgramAsync(run, lines, ct));
 
     /// <summary>A stream the session opened, counted as use until it is closed.</summary>
     private sealed class HeldStream(Stream inner, PooledConnection owner) : Stream
@@ -454,6 +467,11 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
             owner.Enter();
             return new HeldTerminal(transport, owner);
         }
+
+        public ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct) => inner.ListCommandsAsync(ct);
+
+        public ValueTask<ProgramExit> RunProgramAsync(ProgramRun run, IProgress<string>? lines, CancellationToken ct)
+            => session.RunProgramAsync(inner, run, lines, ct);
     }
 
     /// <summary>A terminal on the location, counted as use until it is closed.</summary>
@@ -471,6 +489,8 @@ internal sealed class PooledLocationSession(ILocationSession inner, PooledConnec
         public void Interrupt() => inner.Interrupt();
         public void TerminateForeground() => inner.TerminateForeground();
         public ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken ct) => inner.GetWorkingDirectoryAsync(ct);
+
+        public IShellEnvironment? ShellEnvironment => inner.ShellEnvironment;
 
         public void Dispose()
         {

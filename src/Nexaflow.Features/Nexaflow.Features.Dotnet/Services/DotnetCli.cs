@@ -6,13 +6,15 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Dotnet.Models;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.Dotnet.Services;
 
 /// <summary>
-/// Runs a one-shot <c>dotnet</c> command against a <see cref="DotnetTarget"/> and captures its
-/// combined stdout/stderr. Fire-and-forget — interactive output belongs in the Console feature,
-/// not here.
+/// Runs a one-shot <c>dotnet</c> command against a <see cref="DotnetTarget"/> and captures its combined stdout/stderr, in
+/// the order it was written. A folder on this PC runs this PC's <c>dotnet</c>; a folder on a location runs the
+/// location host's own (<see cref="IProgramHost"/>), handed the host's paths, so what a build writes keeps the names and
+/// permissions the host gives it. Fire-and-forget — interactive output belongs in the Console feature, not here.
 /// </summary>
 public static class DotnetCli
 {
@@ -53,49 +55,63 @@ public static class DotnetCli
     /// <summary>Runs <c>dotnet &lt;verb&gt;</c> for a build/restore/run/test/clean against the target.</summary>
     /// <param name="target">For <c>run</c> this must be a <em>project</em> — the CLI cannot run a solution.
     /// The caller resolves a solution to its startup project first.</param>
+    /// <param name="workingDir">The folder the command runs in, as the file system names it.</param>
+    /// <param name="host">The location's host the folder is on, which runs its own <c>dotnet</c>; null for a folder of
+    /// this PC.</param>
     /// <param name="onLine">Receives each non-empty output line as it arrives (for live progress).</param>
     public static Task<Result> RunAsync(
-        string verb, DotnetTarget target, string workingDir,
+        string verb, DotnetTarget target, string workingDir, IProgramHost? host,
         IProgress<string>? onLine = null, CancellationToken ct = default)
     {
-        var args = new List<string> { verb };
+        if (verb == "run" && target.IsSolution)
+            return Task.FromResult(new Result(-1, $"'{target.DisplayName}' is a solution; dotnet run needs a project."));
+        if (TargetPath(target, host) is not { } path)
+            return Task.FromResult(new Result(-1, string.Empty) { StartError = $"'{target.Path}' is not on {host!.Label}." });
 
-        if (verb == "run")
-        {
-            if (target.IsSolution)
-                return Task.FromResult(new Result(-1, $"'{target.DisplayName}' is a solution; dotnet run needs a project."));
-
-            args.Add("--project");
-            args.Add(target.Path);
-
-            // A launched GUI app writes nothing to stdout, so the watchdog would kill it — and the user's
-            // app with it — a minute after a perfectly good launch. Stopping a run is the caller's job
-            // (cancel the token); the process tree is killed then.
-            return RunRawAsync(args, workingDir, onLine, ct, inactivityTimeoutMs: NoInactivityTimeout);
-        }
-
-        args.Add(target.Path);
-        return RunRawAsync(args, workingDir, onLine, ct);
+        // A launched GUI app writes nothing to stdout, so the watchdog would kill it — and the user's app with it — a
+        // minute after a perfectly good launch. Stopping a run is the caller's job (cancel the token); the process tree is
+        // killed then.
+        return verb == "run"
+            ? Run(["run", "--project", path], workingDir, host, onLine, ct, inactivityTimeoutMs: NoInactivityTimeout)
+            : Run([verb, path], workingDir, host, onLine, ct);
     }
 
-    /// <summary>Runs <c>dotnet list &lt;target&gt; package --outdated</c> against the target's absolute path.
+    /// <summary>Runs <c>dotnet list &lt;target&gt; package --outdated</c> against the target.
     /// <para>
-    /// Runs from a <b>neutral working directory</b>, not the project's folder: the <c>dotnet</c> host and the
-    /// MSBuild/compiler nodes it spawns inherit their CWD, and a process's CWD locks that directory against
-    /// rename/delete on Windows — pointing them at a temp dir instead means this passive check never holds
-    /// the folder hostage (so it can just be cancelled, never force-killed). The check is read-only and short,
-    /// so on cancellation the process is abandoned (left to exit on its own).
+    /// On this PC it runs from a <b>neutral working directory</b>, not the project's folder: the <c>dotnet</c> host and the
+    /// MSBuild/compiler nodes it spawns inherit their CWD, and a process's CWD locks that directory against rename/delete
+    /// on Windows — pointing them at a temp dir instead means this passive check never holds the folder hostage (so it can
+    /// just be cancelled, never force-killed). The check is read-only and short, so on cancellation the process is
+    /// abandoned (left to exit on its own). On a location's host nothing is locked so, and it runs in the target's folder.
     /// </para></summary>
-    public static Task<Result> RunListOutdatedAsync(DotnetTarget target, CancellationToken ct = default)
-        => RunRawAsync(["list", target.Path, "package", "--outdated"], Path.GetTempPath(), onLine: null, ct,
-                       killTreeOnCancel: false);
+    public static Task<Result> RunListOutdatedAsync(DotnetTarget target, IProgramHost? host, CancellationToken ct = default)
+    {
+        if (host is null)
+            return RunHereAsync(["list", target.Path, "package", "--outdated"], Path.GetTempPath(), onLine: null, ct,
+                                killTreeOnCancel: false);
+        if (TargetPath(target, host) is not { } path || Path.GetDirectoryName(target.Path) is not { } folder)
+            return Task.FromResult(new Result(-1, string.Empty) { StartError = $"'{target.Path}' is not on {host.Label}." });
+        return RunOnHostAsync(host, ["list", path, "package", "--outdated"], folder, onLine: null, ct, InactivityTimeoutMs);
+    }
+
+    /// <summary>The target as the <c>dotnet</c> that runs it names it: its path here, the host's own path on a location;
+    /// null for a target that is not on the host.</summary>
+    private static string? TargetPath(DotnetTarget target, IProgramHost? host)
+        => host is null ? target.Path : host.HostPathOf(target.Path);
+
+    private static Task<Result> Run(
+        IReadOnlyList<string> args, string workingDir, IProgramHost? host, IProgress<string>? onLine, CancellationToken ct,
+        int inactivityTimeoutMs = InactivityTimeoutMs)
+        => host is null
+            ? RunHereAsync(args, workingDir, onLine, ct, inactivityTimeoutMs: inactivityTimeoutMs)
+            : RunOnHostAsync(host, args, workingDir, onLine, ct, inactivityTimeoutMs);
 
     /// <param name="killTreeOnCancel">When true (build/run/test/clean), cancelling <paramref name="ct"/>
     /// force-kills the process tree. When false, cancellation just stops waiting and the process is left
     /// to exit naturally — see <see cref="RunListOutdatedAsync"/>.</param>
     /// <param name="inactivityTimeoutMs">Kill the process after this long with no output.
     /// <see cref="NoInactivityTimeout"/> runs no watchdog at all.</param>
-    private static async Task<Result> RunRawAsync(
+    private static async Task<Result> RunHereAsync(
         IReadOnlyList<string> args, string workingDir, IProgress<string>? onLine, CancellationToken ct,
         bool killTreeOnCancel = true, int inactivityTimeoutMs = InactivityTimeoutMs)
     {
@@ -110,20 +126,11 @@ public static class DotnetCli
         foreach (var a in args)
             psi.ArgumentList.Add(a);
 
-        var output = new StringBuilder();
-        long lastTick = Environment.TickCount64;
-
-        void OnData(DataReceivedEventArgs e)
-        {
-            if (e.Data is null) return;
-            Interlocked.Exchange(ref lastTick, Environment.TickCount64);
-            lock (output) output.AppendLine(e.Data);
-            if (e.Data.Length > 0) onLine?.Report(e.Data);
-        }
+        var output = new Transcript(onLine);
 
         using var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        proc.OutputDataReceived += (_, e) => OnData(e);
-        proc.ErrorDataReceived  += (_, e) => OnData(e);
+        proc.OutputDataReceived += (_, e) => { if (e.Data is not null) output.Add(e.Data); };
+        proc.ErrorDataReceived  += (_, e) => { if (e.Data is not null) output.Add(e.Data); };
 
         try
         {
@@ -141,47 +148,116 @@ public static class DotnetCli
         // the read-only outdated check we register nothing — the process is abandoned, not killed, so
         // Cancel() can't block the UI thread inside a tree-kill.
         using var killReg = killTreeOnCancel
-            ? ct.Register(() => { try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ } })
+            ? ct.Register(() => Kill(proc))
             : default;
 
-        // Watchdog: kill the process if it goes silent for inactivityTimeoutMs. Skipped entirely for a verb
-        // whose silence is expected (run) — there, only cancellation ends the process.
-        var timedOut = false;
-        using var watchdogCts = new CancellationTokenSource();
-        var watchdog = inactivityTimeoutMs <= NoInactivityTimeout ? Task.CompletedTask : Task.Run(async () =>
-        {
-            try
-            {
-                while (true)
-                {
-                    await Task.Delay(1_000, watchdogCts.Token);
-                    if (Environment.TickCount64 - Interlocked.Read(ref lastTick) > inactivityTimeoutMs)
-                    {
-                        timedOut = true;
-                        try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ }
-                        return;
-                    }
-                }
-            }
-            catch (OperationCanceledException) { /* completed normally */ }
-        }, watchdogCts.Token);
-
+        // Skipped entirely for a verb whose silence is expected (run) — there, only cancellation ends the process.
+        using var watchdog = new SilenceWatchdog(output, inactivityTimeoutMs, () => Kill(proc));
         try
         {
             await proc.WaitForExitAsync(ct);
         }
         finally
         {
-            watchdogCts.Cancel();
-            try { await watchdog; } catch { /* ignore */ }
+            await watchdog.StopAsync();
         }
 
-        string text;
-        lock (output) text = output.ToString();
-
-        return new Result(timedOut ? -1 : proc.ExitCode, text)
+        return new Result(watchdog.Fired ? -1 : proc.ExitCode, output.Text)
         {
-            SilenceTimeoutSeconds = timedOut ? inactivityTimeoutMs / 1000 : null,
+            SilenceTimeoutSeconds = watchdog.Fired ? inactivityTimeoutMs / 1000 : null,
         };
+
+        static void Kill(Process proc)
+        {
+            try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ }
+        }
+    }
+
+    /// <summary>Runs <c>dotnet</c> on a location's host in the folder given, its output read line by line as the host
+    /// streams it, under the same watchdog as a run here. A <c>dotnet</c> the host does not have is a start error.</summary>
+    private static async Task<Result> RunOnHostAsync(
+        IProgramHost host, IReadOnlyList<string> args, string workingDir, IProgress<string>? onLine, CancellationToken ct,
+        int inactivityTimeoutMs)
+    {
+        var output = new Transcript(onLine);
+        using var stopping = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var watchdog = new SilenceWatchdog(output, inactivityTimeoutMs, stopping.Cancel);
+        try
+        {
+            var exit = await host.RunProgramAsync(new ProgramRun("dotnet", args, workingDir), output, stopping.Token);
+            return new Result(exit.ExitCode, output.Text);
+        }
+        catch (OperationCanceledException) when (watchdog.Fired && !ct.IsCancellationRequested)
+        {
+            return new Result(-1, output.Text) { SilenceTimeoutSeconds = inactivityTimeoutMs / 1000 };
+        }
+        catch (LocationException ex)
+        {
+            return new Result(-1, string.Empty) { StartError = ex.Message };
+        }
+        finally
+        {
+            await watchdog.StopAsync();
+        }
+    }
+
+    /// <summary>The command's output in the order it was written, stdout and stderr together, and when it last wrote; each
+    /// non-empty line is passed on for live progress. Taken in from any thread.</summary>
+    private sealed class Transcript(IProgress<string>? onLine) : IProgress<string>
+    {
+        private readonly StringBuilder _text = new();
+        private long _lastTick = Environment.TickCount64;
+
+        public string Text { get { lock (_text) return _text.ToString(); } }
+
+        public long LastTick => Interlocked.Read(ref _lastTick);
+
+        public void Add(string line)
+        {
+            Interlocked.Exchange(ref _lastTick, Environment.TickCount64);
+            lock (_text) _text.AppendLine(line);
+            if (line.Length > 0) onLine?.Report(line);
+        }
+
+        void IProgress<string>.Report(string value) => Add(value);
+    }
+
+    /// <summary>Ends a command that has written nothing for the timeout — a hung process — by calling the end given once;
+    /// a timeout of <see cref="NoInactivityTimeout"/> watches nothing.</summary>
+    private sealed class SilenceWatchdog : IDisposable
+    {
+        private readonly CancellationTokenSource _stop = new();
+        private readonly Task _watching;
+        private volatile bool _fired;
+
+        public SilenceWatchdog(Transcript output, int timeoutMs, Action end)
+        {
+            _watching = timeoutMs <= NoInactivityTimeout ? Task.CompletedTask : Task.Run(async () =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        await Task.Delay(1_000, _stop.Token);
+                        if (Environment.TickCount64 - output.LastTick <= timeoutMs) continue;
+                        _fired = true;
+                        end();
+                        return;
+                    }
+                }
+                catch (OperationCanceledException) { /* the command ended first */ }
+            });
+        }
+
+        /// <summary>True once the watchdog has ended the command.</summary>
+        public bool Fired => _fired;
+
+        public async Task StopAsync()
+        {
+            await _stop.CancelAsync();
+            try { await _watching; } catch { /* ignore */ }
+        }
+
+        public void Dispose() => _stop.Dispose();
     }
 }

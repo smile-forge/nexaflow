@@ -23,6 +23,10 @@
     <SolidColorBrush x:Key="Drive.Network" Color="#00AA44"/>
     <SolidColorBrush x:Key="Drive.Cloud"   Color="#0A84C1"/>
 
+
+    <!-- A Linux installed beside Windows — a WSL distro. Its penguin silhouette is its own, so the tint is on its stroke. -->
+    <SolidColorBrush x:Key="Drive.Linux"   Color="#D9A520"/>
+
     <!-- Removable, optical, and anything an IThisPcItemProvider hasn't classified. -->
     <SolidColorBrush x:Key="Drive.Unknown" Color="#888888"/>
 

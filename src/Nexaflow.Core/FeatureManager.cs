@@ -365,6 +365,11 @@ public sealed class FeatureManager
                 // what it publishes is reached by every page of the runtime.
                 args[i] = workspace.Vfs;
             }
+            else if (pt == typeof(ILocationDirectory))
+            {
+                // The locations this runtime has mounted, as a page lists them — the same runtime file system.
+                args[i] = workspace.Vfs;
+            }
             else if (_tools.TryGetValue(pt, out var tool))
             {
                 args[i] = tool;
@@ -460,6 +465,11 @@ public sealed class FeatureManager
     /// <summary>Chat-bar drop handlers (drag a file → insert its path) for this workspace.</summary>
     public IReadOnlyList<IChatDropHandler> GetChatDropHandlers(WorkspaceRuntime ctx)
         => Instantiate<IChatDropHandler>(FeatureCatalog.Instance.TypesImplementing<IChatDropHandler>(), ctx);
+
+    /// <summary>The runtime's breadcrumb display filters in stacking order (<see cref="IBreadcrumbDisplayFilter.Order"/>).</summary>
+    public IReadOnlyList<IBreadcrumbDisplayFilter> GetBreadcrumbDisplayFilters(WorkspaceRuntime ctx)
+        => [.. Instantiate<IBreadcrumbDisplayFilter>(FeatureCatalog.Instance.TypesImplementing<IBreadcrumbDisplayFilter>(), ctx)
+               .OrderBy(f => f.Order)];
 
     /// <summary>Chat-bar input-preview handlers (live echo of what you're typing) for this workspace.</summary>
     public IReadOnlyList<IChatInputPreview> GetChatInputPreviews(WorkspaceRuntime ctx)

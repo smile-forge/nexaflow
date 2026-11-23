@@ -16,11 +16,14 @@ namespace Nexaflow.Tests.IO.Common;
 /// the mount rules it exercises (split point, backing, resolution) are format-agnostic.
 /// </para>
 /// </summary>
-internal sealed class ZipTestHandler : IArchiveHandler
+/// <param name="modifiable">Whether the VFS may change an archive in place — rewriting it whole through
+/// <see cref="Write"/> — for a test about where such a change lands.</param>
+internal sealed class ZipTestHandler(bool modifiable = false) : IArchiveHandler
 {
     public string Name => "Zip (test)";
     public ArchiveCapabilities Capabilities =>
-        ArchiveCapabilities.List | ArchiveCapabilities.Extract | ArchiveCapabilities.Create;
+        ArchiveCapabilities.List | ArchiveCapabilities.Extract | ArchiveCapabilities.Create
+        | (modifiable ? ArchiveCapabilities.Modify : ArchiveCapabilities.None);
 
     public bool CanHandle(string fileName)
         => fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);

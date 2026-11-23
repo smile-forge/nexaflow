@@ -85,13 +85,13 @@ public sealed class DicomTabRegistration : IPageRegistration
 
     /// <summary>A tab's title, from the path alone so defining the tab waits on nothing: a folder or a file by its name, a
     /// DICOMDIR by the folder it indexes.</summary>
-    private static string DisplayName(string path)
+    private string DisplayName(string path)
     {
         if (string.Equals(Path.GetFileName(path), "DICOMDIR", StringComparison.OrdinalIgnoreCase))
         {
             var dir = Path.GetDirectoryName(path);
-            return string.IsNullOrEmpty(dir) ? "DICOMDIR" : Path.GetFileName(dir.TrimEnd('/', '\\'));
+            return string.IsNullOrEmpty(dir) ? "DICOMDIR" : _vfs.GetDisplayName(dir);
         }
-        return Path.GetFileName(path.TrimEnd('/', '\\')) is { Length: > 0 } name ? name : path;
+        return _vfs.GetDisplayName(path);
     }
 }

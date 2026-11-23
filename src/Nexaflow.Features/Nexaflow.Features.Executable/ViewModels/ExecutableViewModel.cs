@@ -63,7 +63,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
         _shell   = shell;
         _vfs     = vfs;
         FilePath = filePath;
-        FileName = string.IsNullOrEmpty(filePath) ? Str.Get("Executable.Page.Title") : Path.GetFileName(filePath);
+        FileName = string.IsNullOrEmpty(filePath) ? Str.Get("Executable.Page.Title") : vfs.GetDisplayName(filePath);
 
         Loaded = BeginLoadAsync();
     }

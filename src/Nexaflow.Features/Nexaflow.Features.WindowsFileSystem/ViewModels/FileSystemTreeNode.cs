@@ -10,7 +10,7 @@ public enum DriveStatus   { Ready, Loading, Unavailable }
 
 /// <summary>Which icon a This PC row draws. <c>Cloud</c> is for rows contributed by an
 /// <c>IThisPcItemProvider</c>; the rest map from <see cref="System.IO.DriveType"/>.</summary>
-public enum DriveIconType { HDD, SSD, Network, Removable, CDDVD, Cloud }
+public enum DriveIconType { HDD, SSD, Network, Removable, CDDVD, Cloud, Linux }
 
 // ── Tree node ─────────────────────────────────────────────────────────────────
 public enum TreeNodeKind { Folder, Drive, ThisPc }
@@ -167,7 +167,11 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         // surfaces the real location the mount maps onto.
         var made = new List<FileSystemTreeNode>(names.Count);
         foreach (var name in names)
-            made.Add(new FileSystemTreeNode(name, Path.Combine(FullPath, name), _vfs));
+        {
+            // A location lists a folder by the segment its path holds; the tree shows the name its parent has for it.
+            var path = Path.Combine(FullPath, name);
+            made.Add(new FileSystemTreeNode(_vfs!.IsOnLocation(path) ? _vfs.GetDisplayName(path) : name, path, _vfs));
+        }
 
         // One notification for the lot: an Add per child is one per folder, and a folder can hold tens of thousands.
         Children.ReplaceAll(made);

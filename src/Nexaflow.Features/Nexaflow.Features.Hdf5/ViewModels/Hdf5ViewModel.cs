@@ -46,7 +46,7 @@ public sealed partial class Hdf5ViewModel : ObservableObject, IPageViewModel, ID
     }
 
     public string FilePath { get; }
-    public string FileName => Path.GetFileName(FilePath);
+    public string FileName => _vfs.GetDisplayName(FilePath);
 
     /// <summary>Completes once the file is open and the first selection shows, or opening has failed.</summary>
     public Task Loaded { get; }

@@ -30,15 +30,18 @@ public sealed class ConsoleConfig : IFeatureConfig
         => Environments.FirstOrDefault(e =>
                string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    public string? FindBoundEnvName(string folderPath)
+    /// <summary>The environment pinned to <paramref name="folderPath"/>, its path compared by <paramref name="comparison"/> —
+    /// the file system's for that folder (<see cref="Nexaflow.IO.Common.IVirtualFileSystem.GetNameComparison"/>).</summary>
+    public string? FindBoundEnvName(string folderPath, StringComparison comparison)
         => FolderBindings
-            .FirstOrDefault(b => string.Equals(b.FolderPath, folderPath, StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault(b => string.Equals(b.FolderPath, folderPath, comparison))
             ?.EnvName;
 
-    public void BindFolder(string folderPath, string envName)
+    /// <summary>Pins <paramref name="envName"/> to <paramref name="folderPath"/>, replacing the pin of any path that is the
+    /// same folder by <paramref name="comparison"/>.</summary>
+    public void BindFolder(string folderPath, string envName, StringComparison comparison)
     {
-        FolderBindings.RemoveAll(b =>
-            string.Equals(b.FolderPath, folderPath, StringComparison.OrdinalIgnoreCase));
+        FolderBindings.RemoveAll(b => string.Equals(b.FolderPath, folderPath, comparison));
         FolderBindings.Add(new TerminalEnvBinding { FolderPath = folderPath, EnvName = envName });
     }
 

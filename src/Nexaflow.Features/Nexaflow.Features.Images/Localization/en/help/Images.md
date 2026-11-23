@@ -56,6 +56,7 @@ When a tab holds more than one image, pick a view from the switch at the top lef
 - Edits never touch the file until it is saved. They are kept beside the picture in a hidden file named after it, and every view here shows the picture with them applied — the carousel, the thumbnails, full screen, and what the assistant is shown. A picture with edits is marked *edited* beside its name.
 - In the File System page a picture's edits go wherever it goes: copying, moving, renaming and deleting it take them along, a copy that is renamed to avoid a clash keeps its own, and dragging it to another program brings them too. **Revert edits** appears among the actions of an edited picture.
 - If a picture is changed by another program after it was edited, the viewer asks whether to keep the edits on the new picture or discard them.
+- A picture in a WSL distro has no hidden edits file, so its edits last while it is open, and the editor says so: Save writes them into the picture, and Revert edits is not offered there.
 
 ## Printing
 
@@ -71,7 +72,7 @@ When a tab holds more than one image, pick a view from the switch at the top lef
 
 ## Deleting and the assistant
 
-- Delete a picture: right-click it or its thumbnail and choose Delete. It asks first, sends the file and its edits to the Recycle Bin and removes it from every view; the selection moves to what is left, and a tab whose last picture goes says so.
+- Delete a picture: right-click it or its thumbnail and choose Delete. It asks first, sends the file and its edits to the Recycle Bin — in a WSL distro, which has none, deletes them for good, and the question says so — and removes it from every view; the selection moves to what is left, and a tab whose last picture goes says so.
 - The assistant can look at the picture you are on, as edited, and answer questions about what is in it. It can report the format, dimensions and file size, and step to the next or previous picture.
 - The assistant works on the picture you are on, and nothing else: a picture is its to see or change only once you have it open.
 - Changing a picture with the assistant — picking things out, cutting them out, cleaning it up, erasing from it — happens in [Artist](help:Artist): open the picture there with **Edit**.

@@ -134,8 +134,7 @@ public interface IShellServices
 
     /// <summary>
     /// Runs <paramref name="query"/> through the AI pipeline as if it had been submitted in the input bar,
-    /// in the context of the active page. Used by the terminal's command/query routing: a line that isn't a
-    /// shell command is handed to the model (which can then run commands via the page's tools).
+    /// in the context of the active page, and routed as a line typed there is.
     /// </summary>
     void SubmitAiQuery(string query);
 

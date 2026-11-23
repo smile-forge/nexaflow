@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Nexaflow.IO.Common.Terminal;
 
 namespace Nexaflow.IO.Common.Locations;
 
@@ -11,17 +12,19 @@ namespace Nexaflow.IO.Common.Locations;
 /// <para>
 /// Sessions are per runtime, so this — not the process-wide instance — is what a feature is given. The sync IO
 /// members serve local paths only and throw <see cref="LocationRequiresAsyncException"/> on a remote one; the async
-/// members serve both. A remote file is not browsable as an archive: archive work runs over local bytes, so the
-/// archive members refuse a remote path with <see cref="NotSupportedException"/> and
+/// members serve both. Archive work runs over local bytes: on a location this machine reaches as a Windows folder an
+/// archive is read there and changed over a local copy (the archive members, in their own part of this class); on any
+/// other location the archive members refuse a remote path with <see cref="NotSupportedException"/> and
 /// <see cref="IsContainerAsync"/> answers false for one. Thread-safe.
 /// </para>
 /// </summary>
-public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
+public sealed partial class LocationFileSystem : IVirtualFileSystem, ILocationPublisher, ILocationDirectory
 {
     private readonly IVirtualFileSystem _shared;
 
     // Swapped wholesale, as the shared mount table is: every call reads it and connections change rarely.
     private LocationMount[] _locations = [];
+    private IReadOnlyList<UnreachableLocation> _unreachable = [];
 
     public LocationFileSystem(IVirtualFileSystem shared) => _shared = shared;
 
@@ -32,6 +35,25 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
 
     /// <summary>Raised when a location is connected or let go. May fire on any thread.</summary>
     public event Action? LocationsChanged;
+
+    public IReadOnlyList<MountedLocation> Mounted
+        => [.. Volatile.Read(ref _locations).Select(l => new MountedLocation(
+                l.Id, l.Label, l.Connection.Kind, l.Root, l.Capabilities, GetDisplayPath(l.Root)))];
+
+    public IReadOnlyList<UnreachableLocation> Unreachable => Volatile.Read(ref _unreachable);
+
+    event Action? ILocationDirectory.Changed
+    {
+        add    => LocationsChanged += value;
+        remove => LocationsChanged -= value;
+    }
+
+    /// <summary>Sets the connections the runtime could not mount, with why, for <see cref="Unreachable"/>.</summary>
+    public void ReportUnreachable(IReadOnlyList<UnreachableLocation> unreachable)
+    {
+        var previous = Interlocked.Exchange(ref _unreachable, unreachable);
+        if (!previous.SequenceEqual(unreachable)) LocationsChanged?.Invoke();
+    }
 
     /// <summary>Routes <c>::{id}</c> to the location, replacing one with the same id. Idempotent. Throws
     /// <see cref="ArgumentException"/> if the id is not path-segment-safe or already names a shared mount.</summary>
@@ -138,15 +160,20 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
         return false;
     }
 
+    /// <summary>
+    /// <see cref="TryRoute"/> for a change — a write, a move, a copy on the server, a delete, a new folder — which goes through
+    /// the location however the path names it: by the location's own path, or by a Windows folder showing the location. That
+    /// folder cannot keep what the location keeps: Windows replaces no file there, and a file moved over another takes none of
+    /// its permissions.
+    /// </summary>
+    private bool TryRouteChange(string path, [NotNullWhen(true)] out LocationMount? location, out string remainder)
+        => TryRoute(path, out location, out remainder) || (FromNative(path) is { } named && TryRoute(named, out location, out remainder));
+
     /// <summary>The path, for a sync member — which may not wait on the network, so a remote path is refused.</summary>
     private string Local(string path, [CallerMemberName] string member = "")
         => TryRoute(path, out _, out _) ? throw new LocationRequiresAsyncException(path, member) : path;
 
-    /// <summary>The path, for archive work — which runs over local bytes, so a remote path is refused.</summary>
-    private string ArchiveLocal(string path, [CallerMemberName] string member = "")
-        => TryRoute(path, out _, out _)
-            ? throw new NotSupportedException($"{member} works on local bytes; '{path}' is on a remote location.")
-            : path;
+
 
     private static string VirtualPathOf(LocationMount location, string providerPath)
     {
@@ -159,6 +186,44 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
     {
         var segment = LocationPath.EncodeSegment(entry.Name);
         return ReferenceEquals(segment, entry.Name) ? entry : entry with { Name = segment };
+    }
+
+    /// <summary>Where the path is on this disk, when its location is reachable as a Windows folder; null otherwise — and
+    /// null where a name on the way ends in a dot or a space, which Windows trims and so reads as its neighbour
+    /// (<c>notes.</c> as <c>notes</c>), or that is no UTF-8, which Windows cannot name: such a file is reached only through
+    /// the location.</summary>
+    private static string? NativePathOf(LocationMount location, string remainder)
+    {
+        if (location is not { NativePaths: { } native, NativeRoots: [var root, ..] }) return null;
+        root = root.TrimEnd('\\', '/');
+
+        // A name that is no UTF-8 has no Windows name at all: WSL's file server shows its stray bytes as U+FFFD.
+        var providerPath = LocationPath.ToProviderPath(remainder);
+        if (PosixNames.HoldsStrayBytes(providerPath)) return null;
+        var names = providerPath.Split('/', StringSplitOptions.RemoveEmptyEntries)
+                                .Select(native.ToNativeName).ToList();
+        if (names.Any(name => name.EndsWith('.') || name.EndsWith(' '))) return null;
+        return names.Count == 0 ? root : root + "\\" + string.Join('\\', names);
+    }
+
+    /// <summary>The location path for a Windows path under one of a location's native roots, or null when it is under none.</summary>
+    private string? FromNative(string realPath)
+    {
+        foreach (var location in Volatile.Read(ref _locations))
+        {
+            if (location.NativePaths is not { } native) continue;
+            foreach (var root in location.NativeRoots)
+            {
+                var trimmed = root.TrimEnd('\\', '/');
+                if (!realPath.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase)) continue;
+                if (realPath.Length > trimmed.Length && realPath[trimmed.Length] is not ('\\' or '/')) continue;
+
+                var names = realPath[trimmed.Length..].Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+                var providerPath = names.Length == 0 ? "/" : "/" + string.Join('/', names.Select(native.FromNativeName));
+                return VirtualPathOf(location, providerPath);
+            }
+        }
+        return null;
     }
 
     // ── Sync: local paths only ──────────────────────────────────────────────
@@ -255,11 +320,16 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
     // ── Paths ───────────────────────────────────────────────────────────────
 
     public VirtualBacking GetBacking(string path)
-        => TryRoute(path, out _, out _) ? VirtualBacking.Remote : _shared.GetBacking(path);
+        => ArchiveOf(path) is { IsEntry: true } ? VirtualBacking.Materialized   // one entry of an archive, as anywhere
+         : TryRoute(path, out var location, out var remainder)
+            ? NativePathOf(location, remainder) is not null ? VirtualBacking.PassThrough : VirtualBacking.Remote
+            : _shared.GetBacking(path);
 
-    public string? TryResolveReal(string path) => TryRoute(path, out _, out _) ? null : _shared.TryResolveReal(path);
+    public string? TryResolveReal(string path)
+        => ArchiveOf(path) is { IsEntry: true } ? null   // an entry has no file of its own
+         : TryRoute(path, out var location, out var remainder) ? NativePathOf(location, remainder) : _shared.TryResolveReal(path);
 
-    public string? TryToVirtual(string realPath) => _shared.TryToVirtual(realPath);
+    public string? TryToVirtual(string realPath) => FromNative(realPath) ?? _shared.TryToVirtual(realPath);
 
     // A ::{id}\… parent is found by its string alone, which the shared rule already does for any id.
     public string? GetParentPath(string path) => _shared.GetParentPath(path);
@@ -269,7 +339,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
         if (!TryRoute(path, out var location, out var remainder)) return _shared.GetDisplayName(path);
         if (remainder.Length == 0) return location.Label;
         int sep = remainder.LastIndexOfAny(['\\', '/']);
-        return LocationPath.DecodeSegment(sep < 0 ? remainder : remainder[(sep + 1)..]);
+        // A byte that is no part of a character reads as \xHH, as ls -b shows it.
+        return PosixNames.Shown(LocationPath.DecodeSegment(sep < 0 ? remainder : remainder[(sep + 1)..]));
     }
 
     public IReadOnlyList<(string Label, string Path)> GetBreadcrumbs(string path)
@@ -280,7 +351,7 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
         foreach (var segment in remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))
         {
             built += "\\" + segment;
-            crumbs.Add((LocationPath.DecodeSegment(segment), built));
+            crumbs.Add((PosixNames.Shown(LocationPath.DecodeSegment(segment)), built));
         }
         return crumbs;
     }
@@ -302,20 +373,25 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
     // ── Async ───────────────────────────────────────────────────────────────
 
     public async ValueTask<bool> ExistsAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { IsEntry: true } archive ? await _shared.ExistsAsync(archive.ReadPath, ct).ConfigureAwait(false)
+         : TryRoute(path, out var location, out var remainder)
             ? await RemoteEntryAsync(location, remainder, ct).ConfigureAwait(false) is not null
             : await _shared.ExistsAsync(path, ct).ConfigureAwait(false);
 
     public async ValueTask<bool> IsDirectoryAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { IsEntry: true } archive ? await _shared.IsDirectoryAsync(archive.ReadPath, ct).ConfigureAwait(false)
+         : TryRoute(path, out var location, out var remainder)
             ? (await RemoteEntryAsync(location, remainder, ct).ConfigureAwait(false))?.IsDirectory == true
             : await _shared.IsDirectoryAsync(path, ct).ConfigureAwait(false);
 
     public ValueTask<bool> IsContainerAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out _, out _) ? ValueTask.FromResult(false) : _shared.IsContainerAsync(path, ct);
+        => ArchiveOf(path) is { } archive ? _shared.IsContainerAsync(archive.ReadPath, ct)
+         : TryRoute(path, out _, out _)   ? ValueTask.FromResult(false)   // a remote file keeps no bytes here to open
+         : _shared.IsContainerAsync(path, ct);
 
     public ValueTask<LocationEntry?> GetEntryAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { IsEntry: true } archive ? _shared.GetEntryAsync(archive.ReadPath, ct)
+         : TryRoute(path, out var location, out var remainder)
             ? RemoteEntryAsync(location, remainder, ct)
             : _shared.GetEntryAsync(path, ct);
 
@@ -327,7 +403,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
     }
 
     public IAsyncEnumerable<LocationEntry> EnumerateAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out var location, out var remainder)
+        => ArchiveOf(path) is { } archive ? _shared.EnumerateAsync(archive.ReadPath, ct)   // the archive, or a folder in it
+         : TryRoute(path, out var location, out var remainder)
             ? EnumerateRemoteAsync(location, remainder, ct)
             : _shared.EnumerateAsync(path, ct);
 
@@ -341,18 +418,23 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
 
     public async ValueTask<Stream> OpenReadAsync(string path, ReadIntent intent, CancellationToken ct = default)
     {
+        if (ArchiveOf(path) is { IsEntry: true } archive)
+            return await _shared.OpenReadAsync(archive.ReadPath, intent, ct).ConfigureAwait(false);
         if (!TryRoute(path, out var location, out var remainder))
             return await _shared.OpenReadAsync(path, intent, ct).ConfigureAwait(false);
         var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
         return await session.OpenReadAsync(LocationPath.ToProviderPath(remainder), intent, ct).ConfigureAwait(false);
     }
 
-    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default)
+    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null,
+                                                           UnixFileMode? permissions = null, CancellationToken ct = default)
     {
-        if (!TryRoute(path, out var location, out var remainder))
-            return await _shared.BeginWriteAsync(path, mode, expected, ct).ConfigureAwait(false);
+        if (ArchiveOf(path) is { IsEntry: true } archive)
+            return await BeginArchiveEntryWriteAsync(archive, mode, expected, ct).ConfigureAwait(false);
+        if (!TryRouteChange(path, out var location, out var remainder))
+            return await _shared.BeginWriteAsync(path, mode, expected, permissions, ct).ConfigureAwait(false);
         var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
-        return await session.BeginWriteAsync(LocationPath.ToProviderPath(remainder), mode, expected, ct).ConfigureAwait(false);
+        return await session.BeginWriteAsync(LocationPath.ToProviderPath(remainder), mode, expected, permissions, ct).ConfigureAwait(false);
     }
 
     public async ValueTask<byte[]> ReadAllBytesAsync(string path, CancellationToken ct = default)
@@ -374,28 +456,31 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
     }
 
     public ValueTask WriteAllBytesAsync(string path, byte[] bytes, CancellationToken ct = default)
-        => TryRoute(path, out _, out _) ? WriteWholeAsync(path, bytes, ct) : _shared.WriteAllBytesAsync(path, bytes, ct);
+        => TryRouteChange(path, out _, out _) ? WriteWholeAsync(path, bytes, ct) : _shared.WriteAllBytesAsync(path, bytes, ct);
 
     public ValueTask WriteAllTextAsync(string path, string contents, Encoding? encoding = null, CancellationToken ct = default)
-        => TryRoute(path, out _, out _)
+        => TryRouteChange(path, out _, out _)
             ? WriteWholeAsync(path, VirtualFileSystem.EncodeText(contents, encoding), ct)
             : _shared.WriteAllTextAsync(path, contents, encoding, ct);
 
     public ValueTask ReplaceAsync(string path, byte[] newContent, CancellationToken ct = default)
-        => TryRoute(path, out _, out _) ? WriteWholeAsync(path, newContent, ct) : _shared.ReplaceAsync(path, newContent, ct);
+        => TryRouteChange(path, out _, out _) ? WriteWholeAsync(path, newContent, ct) : _shared.ReplaceAsync(path, newContent, ct);
 
     /// <summary>A whole-content write to a remote file: atomic where the location renames, one upload where not.</summary>
     private async ValueTask WriteWholeAsync(string path, byte[] bytes, CancellationToken ct)
     {
-        await using var write = await BeginWriteAsync(path, WriteMode.Replace, null, ct).ConfigureAwait(false);
+        await using var write = await BeginWriteAsync(path, WriteMode.Replace, null, ct: ct).ConfigureAwait(false);
         await write.Content.WriteAsync(bytes, ct).ConfigureAwait(false);
         await write.CommitAsync(ct).ConfigureAwait(false);
     }
 
     public async ValueTask MoveAsync(string from, string to, bool replace, CancellationToken ct = default)
     {
-        bool fromRemote = TryRoute(from, out var source, out var sourceRest);
-        bool toRemote   = TryRoute(to, out var target, out var targetRest);
+        if (ArchiveOf(from) is { IsEntry: true }) throw ChangedInsideArchive(from, nameof(MoveAsync));
+        if (ArchiveOf(to) is { IsEntry: true })   throw ChangedInsideArchive(to, nameof(MoveAsync));
+
+        bool fromRemote = TryRouteChange(from, out var source, out var sourceRest);
+        bool toRemote   = TryRouteChange(to, out var target, out var targetRest);
         if (!fromRemote && !toRemote)
         {
             await _shared.MoveAsync(from, to, replace, ct).ConfigureAwait(false);
@@ -412,8 +497,11 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
 
     public async ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct = default)
     {
-        bool fromRemote = TryRoute(from, out var source, out var sourceRest);
-        bool toRemote   = TryRoute(to, out var target, out var targetRest);
+        if (ArchiveOf(from) is { IsEntry: true } || ArchiveOf(to) is { IsEntry: true })
+            throw new NotSupportedException($"'{from}' or '{to}' is inside an archive, which a server cannot copy within.");
+
+        bool fromRemote = TryRouteChange(from, out var source, out var sourceRest);
+        bool toRemote   = TryRouteChange(to, out var target, out var targetRest);
         if (!fromRemote || !toRemote || !IdEquals(source!.Id, target!.Id)
             || !source.Capabilities.HasFlag(LocationCapabilities.ServerSideCopy))
             throw new NotSupportedException($"'{from}' and '{to}' are not on one location that copies on its server.");
@@ -425,7 +513,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
 
     public async ValueTask DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
-        if (!TryRoute(path, out var location, out var remainder))
+        if (ArchiveOf(path) is { IsEntry: true }) throw ChangedInsideArchive(path, nameof(DeleteAsync));
+        if (!TryRouteChange(path, out var location, out var remainder))
         {
             await _shared.DeleteAsync(path, recursive, ct).ConfigureAwait(false);
             return;
@@ -436,7 +525,8 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
 
     public async ValueTask CreateDirectoryAsync(string path, CancellationToken ct = default)
     {
-        if (!TryRoute(path, out var location, out var remainder))
+        if (ArchiveOf(path) is { IsEntry: true }) throw ChangedInsideArchive(path, nameof(CreateDirectoryAsync));
+        if (!TryRouteChange(path, out var location, out var remainder))
         {
             await _shared.CreateDirectoryAsync(path, ct).ConfigureAwait(false);
             return;
@@ -460,41 +550,88 @@ public sealed class LocationFileSystem : IVirtualFileSystem, ILocationPublisher
     public LocationCapabilities GetCapabilities(string path)
         => TryRoute(path, out var location, out _) ? location.Capabilities : _shared.GetCapabilities(path);
 
-    public ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default)
-        => TryRoute(containerPath, out _, out _)
-            ? ValueTask.FromResult<ArchiveSummary?>(null)   // a remote file is never a container
-            : _shared.DescribeArchiveAsync(containerPath, ct);
+    public StringComparison GetNameComparison(string path)
+        => TryRoute(path, out var location, out _) || (FromNative(path) is { } named && TryRoute(named, out location, out _))
+            ? LocationPath.Comparison(location.Capabilities)
+            : _shared.GetNameComparison(path);
+
+    public bool IsOnLocation(string path) => TryRoute(path, out _, out _) || FromNative(path) is not null;
+
+    public string ChildPath(string folder, string name)
+        => OnLocation(folder) is { } located
+            ? located.TrimEnd('\\', '/') + "\\" + LocationPath.EncodeSegment(name)
+            : _shared.ChildPath(folder, name);
+
+    public bool CanName(string folder, string name)
+        => OnLocation(folder) is null
+            ? _shared.CanName(folder, name)
+            : name.Length > 0 && name is not ("." or "..") && name.IndexOfAny(['/', '\0']) < 0;
+
+    /// <summary>The location's path of <paramref name="path"/>, named by it or by a Windows folder showing the location; null
+    /// off every location.</summary>
+    private string? OnLocation(string path) => TryRoute(path, out _, out _) ? path : FromNative(path);
+
+    public async ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
+    {
+        if (!TryRoute(path, out var location, out _))
+            return await _shared.GetTerminalLauncherAsync(path, ct).ConfigureAwait(false);
+        if ((location.Capabilities & LocationCapabilities.Shell) == 0)
+            throw new NotSupportedException($"'{location.Label}' has no shell.");
+
+        var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
+        var shell   = session.Shell ?? throw new NotSupportedException($"'{location.Label}' offers no shell now.");
+        return new RoutedShell(this, location, shell);
+    }
+
+    /// <summary>A location's shell taking this file system's paths: a working folder on the same location is handed to the
+    /// shell as its provider path, and anything else starts the shell in its own home.</summary>
+    private sealed class RoutedShell(LocationFileSystem files, LocationMount location, ILocationShell shell) : ITerminalLauncher
+    {
+        public ValueTask<ITerminalTransport> LaunchAsync(TerminalLaunch launch, CancellationToken ct)
+        {
+            string? folder = launch.WorkingDirectory is { } path
+                             && files.TryRoute(path, out var on, out var remainder) && IdEquals(on.Id, location.Id)
+                ? LocationPath.ToProviderPath(remainder)
+                : null;
+            return shell.LaunchAsync(launch with { WorkingDirectory = folder }, ct);
+        }
+
+        public ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct) => shell.ListCommandsAsync(ct);
+    }
+
+    public IProgramHost? GetProgramHost(string folderPath)
+        => TryRouteChange(folderPath, out var location, out _)
+            ? (location.Capabilities & LocationCapabilities.Shell) != 0 ? new LocationProgramHost(this, location) : null
+            : _shared.GetProgramHost(folderPath);
+
+    /// <summary>A location's host running programs on this file system's paths: each run asks the pool for the session, so a
+    /// host kept while the link drops and comes back runs on the session that replaced it.</summary>
+    private sealed class LocationProgramHost(LocationFileSystem files, LocationMount location) : IProgramHost
+    {
+        public string Label => location.Label;
+
+        public string? HostPathOf(string path)
+            => files.TryRouteChange(path, out var on, out var remainder) && IdEquals(on.Id, location.Id)
+                ? LocationPath.ToProviderPath(remainder)
+            : null;
+
+                public string PathOnLocation(string hostPath) => VirtualPathOf(location, hostPath);
+
+        public async ValueTask<ProgramExit> RunProgramAsync(ProgramRun run, IProgress<string>? lines, CancellationToken ct)
+        {
+            var folder  = HostPathOf(run.WorkingDirectory)
+                          ?? throw new ArgumentException($"'{run.WorkingDirectory}' is not on '{location.Label}'.", nameof(run));
+            var session = await location.Sessions.GetSessionAsync(ct).ConfigureAwait(false);
+            var shell   = session.Shell ?? throw new NotSupportedException($"'{location.Label}' offers no shell now.");
+            return await shell.RunProgramAsync(run with { WorkingDirectory = folder }, lines, ct).ConfigureAwait(false);
+        }
+    }
 
     public ValueTask<string> MaterializeFileAsync(string path, CancellationToken ct = default)
-        => TryRoute(path, out _, out _)
-            ? ValueTask.FromException<string>(new NotSupportedException($"'{path}' is on a remote location, which keeps no copy of it on this disk."))
-            : _shared.MaterializeFileAsync(path, ct);
-
-    public ValueTask ExtractAllAsync(string containerPath, string destinationDir,
-                                     IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
-        => _shared.ExtractAllAsync(ArchiveLocal(containerPath), ArchiveLocal(destinationDir), progress, ct);
-
-    public ValueTask CreateArchiveAsync(string archivePath, string sourceDir,
-                                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
-        => _shared.CreateArchiveAsync(ArchiveLocal(archivePath), ArchiveLocal(sourceDir), progress, ct);
-
-    public ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<string> sourcePaths,
-                                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
-    {
-        foreach (var source in sourcePaths) ArchiveLocal(source);
-        return _shared.CreateArchiveAsync(ArchiveLocal(archivePath), sourcePaths, progress, ct);
-    }
-
-    public ValueTask CreateArchiveAsync(string archivePath, IReadOnlyList<ArchiveWriteEntry> entries,
-                                        IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
-        => _shared.CreateArchiveAsync(ArchiveLocal(archivePath), entries, progress, ct);
-
-    public ValueTask RepackageAsync(string sourcePath, string targetPath, ArchiveWriteOptions? options = null, CancellationToken ct = default)
-        => _shared.RepackageAsync(ArchiveLocal(sourcePath), ArchiveLocal(targetPath), options, ct);
-
-    public ValueTask AddFilesAsync(string containerPath, IReadOnlyList<(string SourcePath, string EntryName)> files, CancellationToken ct = default)
-    {
-        foreach (var (source, _) in files) ArchiveLocal(source);
-        return _shared.AddFilesAsync(ArchiveLocal(containerPath), files, ct);
-    }
+        => ArchiveOf(path) is { IsEntry: true } archive ? _shared.MaterializeFileAsync(archive.ReadPath, ct)
+         : !TryRoute(path, out var location, out var remainder)
+            ? _shared.MaterializeFileAsync(path, ct)
+            : NativePathOf(location, remainder) is { } native
+                ? ValueTask.FromResult(native)
+                : ValueTask.FromException<string>(new NotSupportedException($"'{path}' is on a remote location, which keeps no copy of it on this disk."));
 }

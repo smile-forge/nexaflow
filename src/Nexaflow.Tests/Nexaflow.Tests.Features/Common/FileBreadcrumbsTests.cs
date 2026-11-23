@@ -25,7 +25,7 @@ public class FileBreadcrumbsTests
         Assert.IsNotNull(parent.TargetPageParams);
         Assert.AreEqual("path", parent.TargetPageParams!["mode"]);
         Assert.AreEqual(@"D:\temp", parent.TargetPageParams["path"]);
-        Assert.AreEqual("temp", parent.TargetPageParams["label"]);
+        Assert.IsFalse(parent.TargetPageParams.ContainsKey("label"), "the opened tab names the folder as its file system does");
 
         var leaf = page.Breadcrumbs[1];
         Assert.AreEqual("photo.jpg", leaf.Label);
@@ -148,5 +148,23 @@ public class FileBreadcrumbsTests
 
         Assert.AreEqual(@"D:\pics", page.Breadcrumbs[0].Path);
         Assert.IsNull(page.Breadcrumbs[1].Path, "'2 images' is a count, not a path — the bar falls back to the folder");
+    }
+
+    [TestMethod]
+    [CoversNode("chrome-breadcrumb-display")]
+    public void EachCrumbSaysWhatPlaceItStandsFor_AndHowThePageNamedIt()
+    {
+        var page = new Page();
+        page.SetFileBreadcrumbs(@"D:\temp\cat.jpg");
+
+        Assert.AreEqual(new PlaceContent(@"D:\temp", PlaceNaming.WholePath), page.Breadcrumbs[0].Content);
+        Assert.AreEqual(new PlaceContent(@"D:\temp\cat.jpg", PlaceNaming.OwnName), page.Breadcrumbs[1].Content);
+
+        page.SetFileBreadcrumbs(@"D:\temp\cat.jpg", "Cat");
+        Assert.AreEqual(new PlaceContent(@"D:\temp\cat.jpg", PlaceNaming.PageLabel), page.Breadcrumbs[1].Content,
+                        "a leaf the page named keeps its name");
+
+        page.SetMultiFileBreadcrumbs([@"D:\temp\a.jpg", @"D:\temp\b.jpg"], "2 images");
+        Assert.IsNull(page.Breadcrumbs[1].Content, "a summary stands for no one place");
     }
 }

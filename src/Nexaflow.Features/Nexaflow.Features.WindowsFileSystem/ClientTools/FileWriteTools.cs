@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
@@ -195,10 +197,11 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
         var newName = ToolArgs.Str(arguments, "new_name", "newName", "to");
         if (string.IsNullOrWhiteSpace(newName))
             return ToolResult.Error("No new name was provided.");
-        if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            return ToolResult.Error($"'{newName}' is not a valid file name.");
+        var folder = vm.Vfs.GetParentPath(src) ?? Path.GetDirectoryName(src)!;
+        if (!vm.Vfs.CanName(folder, newName))
+            return ToolResult.Error($"'{newName}' cannot name a file here.");
 
-        var dst = Path.Combine(Path.GetDirectoryName(src)!, newName);
+        var dst = vm.Vfs.ChildPath(folder, newName);
         try
         {
             if (await vm.Vfs.GetEntryAsync(src, ct) is not { } source) return ToolResult.Error($"Not found: {src}");
@@ -213,7 +216,7 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
         }
 
         vm.Refresh();
-        return ToolResult.Ok($"renamed to {newName}", $"Renamed '{Path.GetFileName(src)}' to '{newName}'.")
+        return ToolResult.Ok($"renamed to {newName}", $"Renamed '{vm.Vfs.GetDisplayName(src)}' to '{newName}'.")
             with { Attachments = [dst] };
     }
 }
@@ -222,29 +225,48 @@ public sealed class RenameTool(FileSystemViewModel vm) : IClientTool
 public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
 {
     public string Name => "delete_file";
-    public string Description => "Send a file or folder to the Recycle Bin.";
+    public string Description => "Delete a file or folder. On this PC it goes to the Recycle Bin. On a location (a WSL distro, a " +
+                                 "server), which has no Recycle Bin, it is deleted for good — the user is asked in those words first.";
     public IReadOnlyList<ClientToolParameter> Parameters =>
     [
-        new("name", "File or folder to delete (it goes to the Recycle Bin, not permanently)."),
+        new("name", "File or folder to delete."),
     ];
     public ToolSafety Safety => ToolSafety.RequiresApproval;
     public bool Parallelizable => true;
 
-    /// <summary>The words the approval shows. Asked before anything runs, so it is answered at once: the tab's security
-    /// context resolves every name to this disk, where telling a folder from a file is a local question.</summary>
-    [LocalDiskOnly("a path the tab's security context resolved, which is always on this disk")]
+    /// <summary>The words the approval shows: "delete file a.txt", and "delete file a.txt for good" on a location, which has no
+    /// Recycle Bin. Asked before anything runs, so it is answered at once.</summary>
     public ToolCallAnnouncement? Announce(JsonObject arguments)
     {
         string name = Path.GetFileName(ToolArgs.Str(arguments, "name", "path", "file") ?? "");
         if (name.Length == 0) return null;
-        bool folder = FsTool.TryResolve(vm, name, out var full, out _) && Directory.Exists(full);
+        bool resolved  = FsTool.TryResolve(vm, name, out var full, out _);
+        bool forGood   = resolved && vm.Vfs.IsOnLocation(full);
+        bool folder    = resolved && IsFolder(full);
+        string target  = (folder, forGood) switch
+        {
+            (true, true)   => "WindowsFileSystem.Announce.FolderForGoodFormat",
+            (true, false)  => "WindowsFileSystem.Announce.FolderFormat",
+            (false, true)  => "WindowsFileSystem.Announce.FileForGoodFormat",
+            (false, false) => "WindowsFileSystem.Announce.FileFormat",
+        };
         return folder
-            ? new(Str.Get("WindowsFileSystem.Announce.Delete"), Str.Format("WindowsFileSystem.Announce.FolderFormat", name),
+            ? new(Str.Get("WindowsFileSystem.Announce.Delete"), Str.Format(target, name),
                   Str.Format("WindowsFileSystem.Announce.DeletingFolderFormat", name),
                   Str.Get("WindowsFileSystem.Announce.FolderDeleted"), Str.Get("WindowsFileSystem.Announce.FolderUnchanged"))
-            : new(Str.Get("WindowsFileSystem.Announce.Delete"), Str.Format("WindowsFileSystem.Announce.FileFormat", name),
+            : new(Str.Get("WindowsFileSystem.Announce.Delete"), Str.Format(target, name),
                   Str.Format("WindowsFileSystem.Announce.DeletingFileFormat", name),
                   Str.Get("WindowsFileSystem.Announce.FileDeleted"), Str.Get("WindowsFileSystem.Announce.FileUnchanged"));
+    }
+
+    /// <summary>Whether <paramref name="full"/> is a folder, said at once: as the tab lists it, or as this disk has it. A
+    /// location is asked nothing on the caller's thread, so an entry the tab does not list there reads as a file.</summary>
+    [LocalDiskOnly("a path off a location, which the tab's security context resolved to this disk")]
+    private bool IsFolder(string full)
+    {
+        var comparison = vm.Vfs.GetNameComparison(full);
+        if (vm.Entries.FirstOrDefault(entry => string.Equals(entry.FullPath, full, comparison)) is { } listed) return listed.IsDirectory;
+        return !vm.Vfs.IsOnLocation(full) && Directory.Exists(full);
     }
 
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
@@ -252,11 +274,13 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
         if (!FsTool.TryResolve(vm, ToolArgs.Str(arguments, "name", "path", "file"), out var full, out var error))
             return ToolResult.Error(error);
 
+        if (vm.Vfs.IsOnLocation(full)) return await DeleteForGoodAsync(full, ct);
+
         bool ok;
         try
         {
             if (!await vm.Vfs.ExistsAsync(full, ct)) return ToolResult.Error($"Not found: {full}");
-            // The Recycle Bin is this machine's, and so is everything the tab's security context resolves to.
+            // The Recycle Bin is this machine's, and so is everything left that the tab's security context resolves to.
             ok = await Task.Run(() => NativeMethods.RecycleFiles(vm.Companions.WithCompanions([full])), ct);
         }
         catch (Exception ex)
@@ -269,5 +293,29 @@ public sealed class DeleteTool(FileSystemViewModel vm) : IClientTool
         vm.Refresh();
         return ToolResult.Ok($"recycled {Path.GetFileName(full)}",
             $"Sent '{Path.GetFileName(full)}' to the Recycle Bin.");
+    }
+
+    /// <summary>A delete on a location, which has no Recycle Bin — approved as for good (<see cref="Announce"/>) — made as the
+    /// person's own Delete makes it there: through the location, its companions with it, a row in the operations panel.</summary>
+    private async Task<ToolResult> DeleteForGoodAsync(string full, CancellationToken ct)
+    {
+        string name = vm.Vfs.GetDisplayName(full);
+        try
+        {
+            if (!await vm.Vfs.ExistsAsync(full, ct)) return ToolResult.Error($"Not found: {full}");
+        }
+        catch (Exception ex)
+        {
+            return ToolResult.Error($"Delete failed: {ex.Message}");
+        }
+
+        if (vm.Operations.EnqueueDelete([full], permanent: true) is not { } operation)
+            return ToolResult.Error($"Could not delete '{name}'.");
+        await operation.Completion.WaitAsync(ct);
+
+        vm.Refresh();
+        return operation.State == FileOperationState.Completed
+            ? ToolResult.Ok($"deleted {name} for good", $"Deleted '{name}' for good: a location has no Recycle Bin.")
+            : ToolResult.Error($"Could not delete '{name}': {string.Join(" ", operation.Problems.DefaultIfEmpty(operation.Detail))}");
     }
 }

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Icons;
+using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Threading;
@@ -10,8 +11,13 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
     public class CutFiles : IFileAction, IFolderAction, ICacheable
     {
         private readonly IShellServices _shell;
+        private readonly Services.ShellPath _paths;
 
-        public CutFiles(IShellServices shell) => _shell = shell;
+        public CutFiles(IShellServices shell, IVirtualFileSystem files)
+        {
+            _shell = shell;
+            _paths = new Services.ShellPath(files);
+        }
         // ── IFileAction ───────────────────────────────────────────────────────
 
         public bool   IsDestructive          => false;
@@ -37,22 +43,18 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         // ── Actions ───────────────────────────────────────────────────────────
 
-        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default)
-        {
-            // Companions ride along, so a paste anywhere — here or in Explorer — moves them too.
-            NativeMethods.ClipboardCutFiles(Services.FileCompanions.For(_shell).WithCompanions(Services.ShellPath.Realize([filePath])));
-            return Task.FromResult(true);
-        }
+        public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => PerformActionAsync([filePath], ct);
 
-        public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
+        public async Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         {
             // See CopyFiles: an empty file-drop list replaces the user's clipboard, so an empty selection
             // must stop before the clipboard rather than clearing it and reporting success.
-            var paths = Services.ShellPath.Realize(filePaths).ToList();
-            if (paths.Count == 0) return Task.FromResult(false);
+            var paths = await _paths.RealizeAsync(filePaths, ct);
+            if (paths.Length == 0) return false;
 
+            // Companions ride along, so a paste anywhere — here or in Explorer — moves them too.
             NativeMethods.ClipboardCutFiles(Services.FileCompanions.For(_shell).WithCompanions(paths));
-            return Task.FromResult(true);
+            return true;
         }
     }
 }

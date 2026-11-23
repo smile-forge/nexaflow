@@ -83,7 +83,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         _evaluator     = evaluator;
         _shellServices = shellServices;
         FilePath       = filePath;
-        FileName       = Path.GetFileName(filePath);
+        FileName       = vfs.GetDisplayName(filePath);
     }
 
     // ── File state ───────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
     [ObservableProperty] private JsonNodeModel? _root;
     [ObservableProperty] private string?        _errorMessage;
 
-    partial void OnFilePathChanged(string value) => FileName = Path.GetFileName(value);
+    partial void OnFilePathChanged(string value) => FileName = _vfs.GetDisplayName(value);
 
     // ── Display list ─────────────────────────────────────────────────────────
 

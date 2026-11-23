@@ -22,7 +22,7 @@ public sealed class VirtualDiskTabRegistration(IShellServices shell, IVirtualFil
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? Str.Get("VirtualDisk.Page.Title") : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("VirtualDisk.Page.Title") : vfs.GetDisplayName(path);
 
         var page = new Page
         {

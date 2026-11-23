@@ -7,6 +7,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common.Listing;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.IO.Common.Terminal;
 
 namespace Nexaflow.IO.Common;
 
@@ -107,7 +108,9 @@ public sealed partial class VirtualFileSystem
         return File.Exists(real) ? real : MaterializeFile(real);
     }
 
-    public ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null, CancellationToken ct = default)
+    /// <remarks>This disk keeps no POSIX bits, so <paramref name="permissions"/> asks nothing of it.</remarks>
+    public ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected = null,
+                                                     UnixFileMode? permissions = null, CancellationToken ct = default)
         => OffThread<ILocationWrite>(() =>
         {
             var real = ToReal(path);
@@ -164,7 +167,7 @@ public sealed partial class VirtualFileSystem
 
     public async ValueTask ReplaceAsync(string path, byte[] newContent, CancellationToken ct = default)
     {
-        await using var write = await BeginWriteAsync(path, WriteMode.Replace, null, ct).ConfigureAwait(false);
+        await using var write = await BeginWriteAsync(path, WriteMode.Replace, null, ct: ct).ConfigureAwait(false);
         await write.Content.WriteAsync(newContent, ct).ConfigureAwait(false);
         await write.CommitAsync(ct).ConfigureAwait(false);
     }
@@ -228,6 +231,26 @@ public sealed partial class VirtualFileSystem
     public LocationCapabilities GetCapabilities(string path)
         => GetBacking(path) == VirtualBacking.Materialized ? LocationCapabilities.RandomRead : LocalCapabilities;
 
+    // This disk, its mounts and its archives name files as Windows does.
+    public StringComparison GetNameComparison(string path) => StringComparison.OrdinalIgnoreCase;
+
+    // Locations are a runtime's: this disk, its mounts and its archives hold none.
+    public bool IsOnLocation(string path) => false;
+
+    public string ChildPath(string folder, string name) => Path.Combine(folder, name);
+
+    public bool CanName(string folder, string name)
+        => name.Length > 0 && name is not ("." or "..")
+           && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
+           && name[^1] is not ('.' or ' ');
+
+    // Nothing here is on a location: the caller's own shell runs on this computer.
+    public ValueTask<ITerminalLauncher?> GetTerminalLauncherAsync(string path, CancellationToken ct = default)
+        => ValueTask.FromResult<ITerminalLauncher?>(null);
+
+    // Nothing here is on a location: the caller runs its programs on this computer.
+    public IProgramHost? GetProgramHost(string folderPath) => null;
+
     public ValueTask<ArchiveSummary?> DescribeArchiveAsync(string containerPath, CancellationToken ct = default)
         => OffThread(() => DescribeArchive(containerPath), containerPath, ct);
 
@@ -237,6 +260,46 @@ public sealed partial class VirtualFileSystem
     public ValueTask ExtractAllAsync(string containerPath, string destinationDir,
                                      System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
         => OffThread(() => ExtractAll(containerPath, destinationDir, progress, ct), containerPath, ct);
+
+    public ValueTask ExtractAllAsync(string containerPath, ArchiveEntryPlacement place,
+                                     System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
+        => new(Task.Run(() => ExtractEachAsync(containerPath, place, progress, ct).AsTask(), ct));
+
+    /// <summary>The archive opened once and each file streamed into the write its placement begins — off the caller's thread,
+    /// as the handler reads synchronously.</summary>
+    private async ValueTask ExtractEachAsync(string containerPath, ArchiveEntryPlacement place,
+                                             System.IProgress<TransferProgress>? progress, CancellationToken ct)
+    {
+        var real     = ToReal(containerPath);
+        var reporter = new ArchiveProgressReporter(progress, ct);
+        reporter.Scanning();
+
+        var summary = DescribeArchive(real) ?? throw new System.NotSupportedException("Not a recognised archive.");
+        var handler = HandlerFor(Path.GetFileName(real))!;
+        var files   = summary.Entries.Where(e => !e.IsDirectory).ToList();
+        reporter.Measured(files.Sum(e => e.Size), files.Count);
+
+        using var session = handler.Open(new FileStream(real, FileMode.Open, FileAccess.Read, FileShare.Read), Path.GetFileName(real));
+        var buffer = new byte[81920];
+        foreach (var e in files)
+        {
+            ct.ThrowIfCancellationRequested();
+            await using var write = await place(e.Name, ct).ConfigureAwait(false);
+            if (write is null) continue;
+
+            reporter.ItemStarted(e.Name);
+            long done = 0;
+            using (var src = session.OpenEntry(e.Name))
+                for (int read; (read = await src.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0;)
+                {
+                    await write.Content.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                    reporter.Advanced(done += read);
+                }
+            await write.CommitAsync(ct).ConfigureAwait(false);
+            reporter.ItemFinished(e.Name, e.Size, e.Size);
+        }
+        reporter.Finished();
+    }
 
     public ValueTask CreateArchiveAsync(string archivePath, string sourceDir,
                                         System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)

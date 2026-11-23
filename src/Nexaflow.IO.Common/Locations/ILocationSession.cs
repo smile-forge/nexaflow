@@ -33,7 +33,12 @@ public interface ILocationSession : IAsyncDisposable
     /// <param name="expected">The entry as the writer last read it, or null. When given, the commit re-reads the
     /// target and fails with <see cref="LocationError.Conflict"/> if it is no longer that version
     /// (<see cref="LocationEntry.IsSameVersion"/>).</param>
-    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, CancellationToken ct);
+    /// <param name="permissions">The permission bits a file this write makes is given — as a copy carries its source's — on
+    /// it before it appears, and never wider while it is written. A file the write replaces keeps its own, as a save over
+    /// it does. Null for the location's defaults; a location that keeps no POSIX bits
+    /// (<see cref="LocationCapabilities.Permissions"/>) ignores it.</param>
+    ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, UnixFileMode? permissions,
+                                              CancellationToken ct);
 
     /// <summary>Renames or moves within this session. <see cref="LocationError.Conflict"/> when the target exists and
     /// <paramref name="replace"/> is false — and always for a folder, which never replaces anything.
@@ -44,6 +49,7 @@ public interface ILocationSession : IAsyncDisposable
     /// Copies a file on the server, without its bytes crossing the connection. Asked only of a session whose provider
     /// declares <see cref="LocationCapabilities.ServerSideCopy"/>; one that does not keeps this default, which says it
     /// cannot. <see cref="LocationError.Conflict"/> when <paramref name="to"/> exists and <paramref name="replace"/> is false.
+    /// A new copy has its source's permission bits; one over a file keeps that file's, as a write does.
     /// </summary>
     ValueTask CopyWithinAsync(string from, string to, bool replace, CancellationToken ct)
         => ValueTask.FromException(new NotSupportedException("This location cannot copy on its server."));
@@ -84,8 +90,18 @@ public interface ILocationWatch : IDisposable
     event Action<string>? Changed;
 }
 
-/// <summary>A shell on a location's host. Its <see cref="TerminalLaunch.WorkingDirectory"/> is a provider path.</summary>
-public interface ILocationShell : ITerminalLauncher { }
+/// <summary>A shell on a location's host, and the programs run there. Its <see cref="TerminalLaunch.WorkingDirectory"/> and
+/// its <see cref="ProgramRun.WorkingDirectory"/> are provider paths.</summary>
+public interface ILocationShell : ITerminalLauncher
+{
+    /// <summary>
+    /// Runs one program on the host to its end, without a terminal, as <see cref="ProgramRun"/> describes. Each line it
+    /// writes, to stdout or stderr, reaches <paramref name="lines"/> as it is written. Cancelling ends the program and what
+    /// it started. Fails with <see cref="LocationError.NotFound"/> when the program is not on the host's login
+    /// <c>PATH</c> or the folder is not there.
+    /// </summary>
+    ValueTask<ProgramExit> RunProgramAsync(ProgramRun run, IProgress<string>? lines, CancellationToken ct);
+}
 
 /// <summary>
 /// The live session behind one connected location. The session pool implements it per connection, sharing one

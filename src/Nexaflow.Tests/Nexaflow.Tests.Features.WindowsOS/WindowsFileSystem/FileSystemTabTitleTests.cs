@@ -145,13 +145,14 @@ public class FileSystemTabTitleTests
     [TestMethod]
     public void ViewerBreadcrumbAndTabTitle_AgreeOnTheFolderName()
     {
-        // FileBreadcrumbs.ForDirectory supplies the label explicitly; CreatePageDefinition derives it when
-        // absent. Both go through DirectoryLabel, so a folder is named the same however the tab was opened.
+        // FileBreadcrumbs.ForDirectory names no label, so the tab it opens names the folder as one a ribbon button
+        // opens does: from the file system, the same however the tab was opened.
         const string dir = @"C:\Users\sam\Documents";
 
-        var fromViewer = FileBreadcrumbs.ForDirectory(dir).TargetPageParams!["label"];
+        var fromViewer = Registration().CreatePageDefinition(FileBreadcrumbs.ForDirectory(dir).TargetPageParams).Title;
         var fromRibbon = Registration().CreatePageDefinition(PathParams(dir)).Title;
 
+        Assert.AreEqual("Documents", fromViewer);
         Assert.AreEqual(fromViewer, fromRibbon);
     }
 
@@ -160,14 +161,14 @@ public class FileSystemTabTitleTests
     [DataRow(@"\\server\share\Docs", "Docs")]
     [DataRow(@"C:\", @"C:\")]
     [DataRow("", "")]
-    public void DirectoryLabel_NamesAFolderByItsOwnName(string path, string expected)
-        => Assert.AreEqual(expected, FileBreadcrumbs.DirectoryLabel(path));
+    public void PathTab_NamesAFolderByItsOwnName(string path, string expected)
+        => Assert.AreEqual(expected, Registration().CreatePageDefinition(PathParams(path)).Title);
 
     [TestMethod]
-    public void DirectoryLabel_TreatsAUncShareRootLikeADriveRoot()
+    public void PathTab_NamesAUncShareRootWhole_LikeADriveRoot()
     {
-        // \\server\share is a root, not a folder inside one — Path.GetFileName finds no leaf, and showing the
-        // whole path beats showing nothing.
-        Assert.AreEqual(@"\\server\share", FileBreadcrumbs.DirectoryLabel(@"\\server\share"));
+        // \\server\share is a root, not a folder inside one — it has no name of its own, and showing the whole path
+        // beats showing nothing.
+        Assert.AreEqual(@"\\server\share", Registration().CreatePageDefinition(PathParams(@"\\server\share")).Title);
     }
 }

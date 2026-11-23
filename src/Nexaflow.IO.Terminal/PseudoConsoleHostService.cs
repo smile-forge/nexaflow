@@ -19,8 +19,8 @@ namespace Nexaflow.IO.Terminal;
 ///   interpretation being the consumer's, and what the shell writes before
 ///   anyone listens is held for the first listener.
 ///
-/// • Designed to be configured: override
-///   <see cref="ShellExecutable"/>/<see cref="ShellArguments"/> for PowerShell.
+/// • Runs cmd.exe unless <see cref="ShellExecutable"/>/<see cref="ShellArguments"/>
+///   name another program — PowerShell, or <c>wsl.exe</c> for a distro's shell.
 ///
 /// • Lifetime: every child shell is assigned to a kill-on-close job object
 ///   (<see cref="KillOnCloseJob"/>) so it dies with this process even on a
@@ -28,9 +28,10 @@ namespace Nexaflow.IO.Terminal;
 /// </summary>
 public class PseudoConsoleHostService : ITerminalTransport
 {
-    // ── Configurable ─────────────────────────────────────────────────────
-    public virtual string ShellExecutable => "cmd.exe";
-    public virtual string ShellArguments  => string.Empty;
+    /// <summary>The program the pseudo-console runs. Set before <see cref="Start"/>.</summary>
+    public string ShellExecutable { get; init; } = "cmd.exe";
+    /// <summary>Its arguments, quoted as the program reads its command line. Set before <see cref="Start"/>.</summary>
+    public string ShellArguments { get; init; } = string.Empty;
 
     /// <summary>
     /// Working directory the shell starts in (passed as <c>lpCurrentDirectory</c>). Null = inherit
@@ -119,9 +120,10 @@ public class PseudoConsoleHostService : ITerminalTransport
         _startupInfoBuffer = BuildStartupInfoEx(_hPseudoConsole, out var startupInfoEx);
 
         // ── 5. Spawn shell ────────────────────────────────────────────────
+        var program = ShellExecutable.Contains(' ') && !ShellExecutable.StartsWith('"') ? $"\"{ShellExecutable}\"" : ShellExecutable;
         var cmdLine = string.IsNullOrEmpty(ShellArguments)
-            ? ShellExecutable
-            : $"{ShellExecutable} {ShellArguments}";
+            ? program
+            : $"{program} {ShellArguments}";
 
         // Optional per-environment overrides: build a Unicode environment block once; null otherwise.
         uint creationFlags = NativeMethods.EXTENDED_STARTUPINFO_PRESENT | NativeMethods.CREATE_SUSPENDED;

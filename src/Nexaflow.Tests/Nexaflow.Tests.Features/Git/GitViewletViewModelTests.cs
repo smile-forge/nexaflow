@@ -6,6 +6,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Git;
 using Nexaflow.Features.Git.Services;
 using Nexaflow.Features.Git.ViewModels;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Git;
@@ -32,7 +33,7 @@ public class GitViewletViewModelTests
 
     private GitViewletViewModel Vm(string? dir = null, string gitManagerPath = "")
         => new(new GitOptions { GitManagerPath = gitManagerPath },
-               Substitute.For<IShellServices>(), dir ?? InitRepo());
+               Substitute.For<IShellServices>(), VirtualFileSystem.Instance, dir ?? InitRepo());
 
     [TestCleanup]
     public void Cleanup()
@@ -189,10 +190,10 @@ public class GitViewletViewModelTests
     [CoversNode("git-pull")]
     public void IsAuthFailure_RecognisesTheFailuresWorthRetryingWithAToken()
     {
-        Assert.IsTrue(GitViewletViewModel.IsAuthFailure(new Exception("too many redirects or authentication replays")));
-        Assert.IsTrue(GitViewletViewModel.IsAuthFailure(new Exception("request failed with status code: 401")));
-        Assert.IsTrue(GitViewletViewModel.IsAuthFailure(new Exception("no credential store")));
-        Assert.IsFalse(GitViewletViewModel.IsAuthFailure(new Exception("cannot fast-forward, branch has diverged")));
+        Assert.IsTrue(LocalGitWorkingCopy.IsAuthFailure(new Exception("too many redirects or authentication replays")));
+        Assert.IsTrue(LocalGitWorkingCopy.IsAuthFailure(new Exception("request failed with status code: 401")));
+        Assert.IsTrue(LocalGitWorkingCopy.IsAuthFailure(new Exception("no credential store")));
+        Assert.IsFalse(LocalGitWorkingCopy.IsAuthFailure(new Exception("cannot fast-forward, branch has diverged")));
     }
 
     // ── Pull Result line (git-pull-result) ────────────────────────────────────

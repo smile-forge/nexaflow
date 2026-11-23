@@ -1,24 +1,33 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.ViewModels;
+using Nexaflow.IO.Common;
+using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Models;
+using Nexaflow.Visuals.Terminal.Shells;
+
 
 namespace Nexaflow.Features.Console;
 
 /// <summary>
-/// Registers the cmd terminal page with the feature manager.
+/// Registers the Console page with the feature manager: the Windows command prompt, cmd.exe on this computer, started where
+/// this disk holds the folder it is opened on (<see cref="TerminalShellRoute.ForThisComputer"/>). A location's own shell is
+/// another feature's page.
 /// </summary>
 public sealed class ConsoleTabRegistration : IPageRegistration
 {
-    private readonly ConsoleConfig  _config;
-    private readonly IShellServices _shellServices;
-    private readonly IAIService     _aiService;
+    private readonly ConsoleConfig      _config;
+    private readonly IShellServices     _shellServices;
+    private readonly IAIService         _aiService;
+    private readonly IVirtualFileSystem _files;
 
-    public ConsoleTabRegistration(ConsoleConfig config, IShellServices shellServices, IAIService aiService)
+    public ConsoleTabRegistration(ConsoleConfig config, IShellServices shellServices, IAIService aiService,
+                                  IVirtualFileSystem files)
     {
         _config        = config;
         _shellServices = shellServices;
         _aiService     = aiService;
+        _files         = files;
     }
 
     public static string StaticPageKind => "Console";
@@ -26,7 +35,7 @@ public sealed class ConsoleTabRegistration : IPageRegistration
 
     public IReadOnlyList<PageParameter> Parameters =>
     [
-        new("path", "Working directory to start the terminal in.", Required: false, OnDisk: true),
+        new("path", "Full path of the folder on this computer to start the command prompt in.", Required: false, OnDisk: true),
         new("env",  "Name of a configured console environment to use.", Required: false),
     ];
 
@@ -44,15 +53,17 @@ public sealed class ConsoleTabRegistration : IPageRegistration
 
         if (envName is not null)
             env = _config.FindEnvByName(envName) ?? _config.Environments.FirstOrDefault();
-        else if (initialPath is not null && _config.FindBoundEnvName(initialPath) is { } boundName)
+        else if (initialPath is not null
+                 && _config.FindBoundEnvName(initialPath, _files.GetNameComparison(initialPath)) is { } boundName)
             env = _config.FindEnvByName(boundName) ?? _config.Environments.FirstOrDefault();
         else if (initialPath is not null && _config.Environments.Count > 1)
             { env = null; pickerPending = true; }
         else
             env = _config.Environments.FirstOrDefault();
 
+        var route = TerminalShellRoute.ForThisComputer(_files, initialPath, new PseudoConsoleLauncher(), new CmdShellDialect(_files));
         var title = env?.TabTitle is { Length: > 0 } t ? t : Str.Get("Console.Page.Title");
-        var vm    = new CmdTerminalViewModel(_config, _shellServices, _aiService, initialPath, env, pickerPending);
+        var vm    = new CmdTerminalViewModel(_config, route, _files, _shellServices, _aiService, env, pickerPending);
 
         var tab = new Page
         {

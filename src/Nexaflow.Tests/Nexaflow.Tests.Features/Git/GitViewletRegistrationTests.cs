@@ -3,6 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Git;
 using Nexaflow.Features.Git.Viewlets;
+using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.Git;
@@ -19,8 +20,18 @@ public class GitViewletRegistrationTests
 {
     // The globs are interface members with defaults, so the match rules are read through IFolderViewlet —
     // exactly how the registry sees them.
-    private static IFolderViewlet MainCheckout()     => new GitViewlet(new GitOptions(), Substitute.For<IShellServices>());
-    private static IFolderViewlet Worktree() => new GitWorktreeViewlet(new GitOptions(), Substitute.For<IShellServices>());
+    private static IFolderViewlet MainCheckout()     => new GitViewlet(new GitOptions(), Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+    private static IFolderViewlet Worktree() => new GitWorktreeViewlet(new GitOptions(), Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+
+    [TestMethod]
+    public void BothGitViewletsRunGitOnALocationsHost_SoAreOfferedWhereItRunsPrograms()
+    {
+        foreach (var viewlet in new[] { MainCheckout(), Worktree() })
+        {
+            Assert.IsTrue(viewlet.RunsOnLocationHost, "pull, switch and worktree removal run on the location's own git");
+            Assert.IsFalse(viewlet.RequiresLocalFolder, "nothing is changed with Windows' own git on a location");
+        }
+    }
 
     [TestMethod]
     public void MainCheckout_MatchesTheGitFolder_NotTheGitFile()

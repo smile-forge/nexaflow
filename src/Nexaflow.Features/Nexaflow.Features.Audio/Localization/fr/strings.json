@@ -33,6 +33,7 @@
   "Audio.Tags.Field.Genre": "Genre",
   "Audio.Tags.Field.Comment": "Commentaire",
   "Audio.Tags.Save": "Enregistrer les balises",
+  "Audio.Tags.ReadOnlyOnLocation": "Ce fichier est dans une distribution WSL : ses balises sont affichées mais ne peuvent pas être modifiées ici.",
   "Audio.Lyrics.Header": "Paroles",
   "Audio.Lyrics.Empty": "Paroles introuvables.",
   "Audio.NowPlaying.Empty": "Lecteur audio",

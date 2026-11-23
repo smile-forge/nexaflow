@@ -198,8 +198,15 @@ directly. The full, documented surface is in `Services/IShellServices.cs`.
 - **Viewer breadcrumbs:** a file/media viewer must **not** hand-roll its trail. Call
   `page.SetFileBreadcrumbs(path, title)` (→ `D:\temp › report.csv`) or
   `page.SetMultiFileBreadcrumbs(paths, summary)` (→ `D:\temp › 6 images`; the parent crumb shows only when all
-  paths share a folder). Both clear-then-rebuild, so they're safe to re-call from `Reinitialize`. The parent
-  crumb opens a file-explorer tab at that folder. See `FileBreadcrumbs.cs`.
+    paths share a folder). Both clear-then-rebuild, so they're safe to re-call from `Reinitialize`. The parent
+    crumb opens a file-explorer tab at that folder. See `FileBreadcrumbs.cs`.
+  - **Viewer titles:** name the file as the runtime's file system shows it, `vfs.GetDisplayName(path)` — never
+    `Path.GetFileName`, which gives a location's file by its encoded segment (`at 12%3A30.txt`).
+  - **How a crumb reads:** a crumb says what it stands for in `BreadcrumbSegment.Content` (`PlaceContent` for a folder or
+    file, with how the page named it), and the bar draws it through the runtime's `IBreadcrumbDisplayFilter`s, stacked by
+    `Order`, then shortens it to fit. A feature that knows how some content should read — its own places, its own kind of
+    crumb — ships a filter for it, discovered and built per runtime like the AI-bar handlers; it restates only what it
+    knows and leaves the rest.
 
 ---
 
@@ -320,6 +327,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Executable | `path` (a Portable Executable — exe/dll/sys — opened via "Inspect") |
 | Hex | `path`, `offset` (optional, decimal or `0x` hex), `length` (optional — bytes to select) |
 | Pdf | `path`, `page` (optional, 1-based — opens at, or jumps to, that page) |
+| WslShell | `path` (required — a folder of a WSL distro as the file system names it, `::wsl-<distro>\…`; the distro's own shell starts there) |
 | Help (Core) | `topic` (optional — the page kind whose help to show; omit for the list of every help page), `query` (optional — searched as it opens). Both are location, not identity: a window keeps one Help tab and an open re-points it |
 
 ---

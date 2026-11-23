@@ -88,7 +88,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     }
 
     public string FilePath => _path;
-    public string FileName => Path.GetFileName(_path);
+    public string FileName => _vfs.GetDisplayName(_path);
 
     // LibVLC needs a real on-disk path; a video inside a disk image / archive is materialised to a temp copy
     // once (real files pass through). Cached so the keyframe/caption probes reuse the same extraction. First

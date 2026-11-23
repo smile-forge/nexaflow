@@ -146,7 +146,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private string? _currentPath;
 
     /// <summary>The picture's file name; empty on the start screen.</summary>
-    public string CurrentFileName => CurrentPath is { } path ? Path.GetFileName(path) : string.Empty;
+    public string CurrentFileName => CurrentPath is { } path ? _editing.FileSystem.GetDisplayName(path) : string.Empty;
 
     /// <summary>The tab holds no picture: the start screen shows.</summary>
     public bool IsStarting => CurrentPath is null;

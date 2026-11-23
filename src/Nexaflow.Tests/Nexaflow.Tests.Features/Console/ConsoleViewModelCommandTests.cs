@@ -33,7 +33,7 @@ public class ConsoleViewModelCommandTests
         private readonly string? _configSection;
 
         public TestTerminal(IReadOnlyList<TerminalEnvironment>? envs = null, string? configSection = null)
-            : base(new FakeTerminal(), Substitute.For<IShellServices>(), Substitute.For<IAIService>())
+            : base(new FakeTerminal().AsCmd(), Substitute.For<IShellServices>(), Substitute.For<IAIService>())
         {
             _envs          = envs ?? [];
             _configSection = configSection;
@@ -166,10 +166,10 @@ public class ConsoleViewModelCommandTests
 
     // ── AI-bar command gate ──────────────────────────────────────────────────
     // (The recognised-command / natural-language routing is covered by ConsoleQueryHandlerTests via
-    //  CanProcess; only the VM-level blank-input contract — which differs from the raw classifier — is new.)
+    //  CanProcess; here only that a blank bar sends the shell nothing.)
 
     [TestMethod]
-    public void IsConsoleCommand_BlankInput_IsNotACommand()
-        => Assert.IsFalse(new TestTerminal().IsConsoleCommand("   "),
-            "blank input is not routed to the shell (unlike the raw classifier, which treats it as an empty Enter)");
+    public void ABlankBar_IsNoCommand()
+        => Assert.AreEqual(Nexaflow.Visuals.Terminal.ConsoleLineVerdict.Request, new TestTerminal().JudgeConsoleLine("   "),
+            "nothing typed in the bar is never an Enter in the shell");
 }

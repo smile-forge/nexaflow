@@ -86,14 +86,14 @@ public class WorkspaceConfigScopingTests
         try
         {
             var saved = new ConsoleConfig();
-            saved.BindFolder(@"C:\proj", "Command Prompt");
+            saved.BindFolder(@"C:\proj", "Command Prompt", StringComparison.OrdinalIgnoreCase);
             ConfigManager.Instance.SaveTo(dir, saved, saved.ConfigName);
 
             Assert.IsTrue(Directory.Exists(Path.Combine(dir, saved.ConfigName)));
 
             var loaded = new ConsoleConfig();
             ConfigManager.Instance.LoadFrom(dir, loaded, loaded.ConfigName);
-            Assert.AreEqual("Command Prompt", loaded.FindBoundEnvName(@"C:\proj"));
+            Assert.AreEqual("Command Prompt", loaded.FindBoundEnvName(@"C:\proj", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {

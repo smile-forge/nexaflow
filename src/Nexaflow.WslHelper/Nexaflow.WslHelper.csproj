@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The helper the WSL backend (Nexaflow.IO.Location.Wsl) runs inside a distro, as wsl.exe -d <distro> -e <helper>,
+       answering the backend's framed requests on stdin and stdout. It exists because \\wsl.localhost (9P) lists slowly,
+       carries no POSIX owner, group or mode, and sees no change made inside Linux: the helper lists with statx, names
+       owners from the distro's own account database, and watches with inotify. Published self-contained, single-file and
+       trimmed for each Linux a distro may be, so the distro needs nothing installed. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>nexaflow-wsl-helper</AssemblyName>
+    <RootNamespace>Nexaflow.WslHelper</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsPackable>false</IsPackable>
+    <!-- Directory.Build.props makes x64 the platform, which places the output; the IL stays AnyCPU so arm64 runs it. -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- Every Linux it is published for, so a plain restore of the solution brings each runtime pack. -->
+    <RuntimeIdentifiers>linux-x64;linux-arm64;linux-musl-x64;linux-musl-arm64</RuntimeIdentifiers>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+  </PropertyGroup>
+
+  <!-- A publish for one Linux: one self-contained file, nexaflow-wsl-helper. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <UseAppHost>true</UseAppHost>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- It runs only on Linux, which is what lets it call the Unix-only file APIs. -->
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
+      <_Parameter1>linux</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The wire, compiled from the backend's own sources so the two sides never disagree. -->
+    <Compile Include="..\Nexaflow.IO.Location.Wsl\Protocol\*.cs" Link="Protocol\%(Filename)%(Extension)" />
+    <!-- How a name's bytes, UTF-8 or not, are held as text: the wire carries names this way. -->
+    <Compile Include="..\Nexaflow.IO.Common\Locations\PosixNames.cs" Link="Protocol\PosixNames.cs" />
+  </ItemGroup>
+
+</Project>

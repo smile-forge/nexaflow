@@ -28,7 +28,7 @@ public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, I
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = Path.GetFileName(path);
+        var title = vfs.GetDisplayName(path);
 
         var page = new Page
         {
@@ -54,9 +54,9 @@ public sealed class PdfTabRegistration(IShellServices shell, PdfConfig config, I
         return page;
     }
 
-    private static void Follow(Page page, string path)
+    private void Follow(Page page, string path)
     {
-        page.Title      = Path.GetFileName(path);
+        page.Title      = vfs.GetDisplayName(path);
         page.PageParams = new Dictionary<string, string> { ["path"] = path };
         page.SetFileBreadcrumbs(path, page.Title);
     }

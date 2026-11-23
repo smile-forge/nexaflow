@@ -50,6 +50,7 @@ public class ThisPcProviderRulesTests
            || typeof(IAIService).IsAssignableFrom(p.ParameterType)
            || p.ParameterType == typeof(IReadOnlyDictionary<Type, IFeatureConfig>)
            || p.ParameterType == typeof(Nexaflow.IO.Common.IVirtualFileSystem)
+           || p.ParameterType == typeof(Nexaflow.IO.Common.Locations.ILocationDirectory)
            || p.ParameterType.Name == "WorkspaceRuntime";
 
     [TestMethod]
@@ -72,7 +73,8 @@ public class ThisPcProviderRulesTests
         {
             var ctor = type.GetConstructors()
                            .Where(c => c.GetParameters().All(p => p.IsOptional || typeof(IFeatureConfig).IsAssignableFrom(p.ParameterType)
-                                                                  || p.ParameterType == typeof(Nexaflow.IO.Common.IVirtualFileSystem)))
+                                                                  || p.ParameterType == typeof(Nexaflow.IO.Common.IVirtualFileSystem)
+                                                                  || p.ParameterType == typeof(Nexaflow.IO.Common.Locations.ILocationDirectory)))
                            .OrderBy(c => c.GetParameters().Length)
                            .FirstOrDefault();
             if (ctor is null) continue;   // needs a shell; covered by the constructor rule above
@@ -80,6 +82,8 @@ public class ThisPcProviderRulesTests
             object?[] args = [.. ctor.GetParameters().Select(p =>
                 p.IsOptional ? Type.Missing
                 : p.ParameterType == typeof(Nexaflow.IO.Common.IVirtualFileSystem) ? Nexaflow.IO.Common.VirtualFileSystem.Instance
+                : p.ParameterType == typeof(Nexaflow.IO.Common.Locations.ILocationDirectory)
+                    ? new Nexaflow.IO.Common.Locations.LocationFileSystem(Nexaflow.IO.Common.VirtualFileSystem.Instance)
                 : Activator.CreateInstance(p.ParameterType))];
 
             object instance;

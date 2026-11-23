@@ -266,7 +266,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _vfs     = vfs;
         _config  = config;
         _publisher = publisher;
-        FileName = Path.GetFileName(path);
+        FileName = vfs.GetDisplayName(path);
         Conversion = new PageConversion(reading, ai, shell);
         Conversion.TextRead += () => _readPages = _askedPages;
         Conversion.PropertyChanged += (_, e) =>
@@ -569,7 +569,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private void OnMoved(string path)
     {
         _path    = path;
-        FileName = Path.GetFileName(path);
+        FileName = _vfs.GetDisplayName(path);
         _ = DescribeFileAsync();
         OnPropertyChanged(nameof(FileName));
         Moved?.Invoke(path);

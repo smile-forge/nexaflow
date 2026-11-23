@@ -10,7 +10,8 @@ namespace Nexaflow.IO.Common.Locations;
 /// POSIX name may hold characters no Windows path segment can (<c>\ : * ? " &lt; &gt; |</c>, control characters) or end
 /// in a dot or a space; those are percent-encoded in the segment and decoded at the provider boundary. <c>%</c> is
 /// encoded too, so decoding is never ambiguous and the round trip is lossless. A name with none of them is its own
-/// segment.
+/// segment. A byte that is no part of a character — held as a lone surrogate (<see cref="PosixNames"/>) — is encoded as
+/// <c>%uXXXX</c>, so a path holding one is plain text that any store keeps, JSON included.
 /// </para>
 /// </summary>
 public static class LocationPath
@@ -31,16 +32,22 @@ public static class LocationPath
         for (int i = 0; i < name.Length; i++)
         {
             char c = name[i];
-            bool encode = c < ' ' || Reserved.IndexOf(c) >= 0 || (i == last && (c == '.' || c == ' '));
+            bool lone = char.IsSurrogate(c) && !(char.IsHighSurrogate(c) && i < last && char.IsLowSurrogate(name[i + 1]))
+                                            && !(char.IsLowSurrogate(c) && i > 0 && char.IsHighSurrogate(name[i - 1]));
+            bool encode = lone || c < ' ' || Reserved.IndexOf(c) >= 0 || (i == last && (c == '.' || c == ' '));
             if (!encode) { sb?.Append(c); continue; }
             sb ??= new StringBuilder(name.Length + 8).Append(name, 0, i);
-            sb.Append(Escape).Append(((int)c).ToString("X2", CultureInfo.InvariantCulture));
+            sb.Append(Escape);
+            if (lone) sb.Append('u').Append(((int)c).ToString("X4", CultureInfo.InvariantCulture));
+            else sb.Append(((int)c).ToString("X2", CultureInfo.InvariantCulture));
         }
         return sb?.ToString() ?? name;
     }
 
     /// <summary>The remote name a segment stands for — the inverse of <see cref="EncodeSegment"/>. A <c>%</c> not
-    /// followed by two hex digits is kept as it is, so a hand-typed segment decodes to what was typed.</summary>
+    /// followed by two hex digits is kept as it is, so a hand-typed segment decodes to what was typed — and so is a segment
+    /// that would decode to what no name can be (<c>.</c>, <c>..</c>, anything holding <c>/</c> or a NUL): a segment is
+    /// always one name, never a step in the path, so nothing escaped climbs out of a folder the assistant was given.</summary>
     public static string DecodeSegment(string segment)
     {
         int at = segment.IndexOf(Escape);
@@ -49,7 +56,14 @@ public static class LocationPath
         var sb = new StringBuilder(segment.Length).Append(segment, 0, at);
         for (int i = at; i < segment.Length; i++)
         {
-            if (segment[i] == Escape && i + 2 < segment.Length
+            if (segment[i] == Escape && i + 5 < segment.Length && segment[i + 1] == 'u'
+                && int.TryParse(segment.AsSpan(i + 2, 4), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int unit)
+                && char.IsSurrogate((char)unit))
+            {
+                sb.Append((char)unit);
+                i += 5;
+            }
+            else if (segment[i] == Escape && i + 2 < segment.Length
                 && int.TryParse(segment.AsSpan(i + 1, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int code))
             {
                 sb.Append((char)code);
@@ -57,18 +71,27 @@ public static class LocationPath
             }
             else sb.Append(segment[i]);
         }
-        return sb.ToString();
+        var name = sb.ToString();
+        return name is "." or ".." || name.AsSpan().IndexOfAny('/', '\0') >= 0 ? segment : name;
     }
 
     /// <summary>The provider path for what follows <c>::{id}\</c> — <c>home\adam\a%3Ab.md</c> becomes
-    /// <c>/home/adam/a:b.md</c>; empty is the root, <c>/</c>.</summary>
+    /// <c>/home/adam/a:b.md</c>; empty is the root, <c>/</c>. A written <c>.</c> or <c>..</c> is worked out here, as Windows
+    /// works one out and never above the root, so the host never resolves one through a link.</summary>
     public static string ToProviderPath(string remainder)
     {
-        var segments = remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length == 0) return "/";
-        var sb = new StringBuilder(remainder.Length + 1);
-        foreach (var s in segments) sb.Append('/').Append(DecodeSegment(s));
-        return sb.ToString();
+        var names = new List<string>();
+        foreach (var segment in remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment == ".") continue;
+            if (segment == "..")
+            {
+                if (names.Count > 0) names.RemoveAt(names.Count - 1);
+                continue;
+            }
+            names.Add(DecodeSegment(segment));
+        }
+        return "/" + string.Join('/', names);
     }
 
     /// <summary>The inverse of <see cref="ToProviderPath"/>: what follows <c>::{id}\</c> for a provider path, with
@@ -95,7 +118,9 @@ public static class LocationPath
     /// <summary>
     /// The display form of a provider path on a connection — <c>sftp://adam@nas/home/adam/notes.md</c>,
     /// <c>wsl://Ubuntu/home/adam</c> — as the address bar shows it and <see cref="TryParseDisplayForm"/> reads it back.
-    /// Names are shown as the server holds them: the display form is for people, not for a URI parser.
+    /// Names are shown as the server holds them: the display form is for people, not for a URI parser — but for a byte that
+    /// is no part of a character, shown as <c>\xHH</c>, and a backslash in a name, shown as <c>\\</c>, so the form reads back
+    /// exactly (<see cref="PosixNames.Addressed"/>).
     /// </summary>
     public static string ToDisplayForm(ConnectionProfile connection, string providerPath)
     {
@@ -104,7 +129,7 @@ public static class LocationPath
         if (!string.IsNullOrEmpty(connection.User)) sb.Append(connection.User).Append('@');
         sb.Append(connection.Host);
         if (connection.Port is { } port) sb.Append(':').Append(port.ToString(CultureInfo.InvariantCulture));
-        sb.Append(providerPath.Length == 0 ? "/" : providerPath);
+        sb.Append(providerPath.Length == 0 ? "/" : PosixNames.Addressed(providerPath));
         return sb.ToString();
     }
 
@@ -127,7 +152,7 @@ public static class LocationPath
         var rest  = text[(scheme + 3)..];
         int slash = rest.IndexOf('/');
         var authority = slash < 0 ? rest : rest[..slash];
-        var path      = slash < 0 ? "/" : rest[slash..];
+        var path      = slash < 0 ? "/" : PosixNames.FromAddressed(rest[slash..]);
 
         int at = authority.LastIndexOf('@');
         var user     = at < 0 ? null : authority[..at];

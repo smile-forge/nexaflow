@@ -91,7 +91,7 @@ public sealed partial class CompressedViewModel : ObservableObject, IPageViewMod
             .Select(t => { try { return Activator.CreateInstance(t) as IArchiveEncryptor; } catch { return null; } })
             .FirstOrDefault(e => e is not null);
         ArchivePath = path;
-        FileName = string.IsNullOrEmpty(path) ? Str.Get("Compressed.Page.Title") : Path.GetFileName(path);
+        FileName = string.IsNullOrEmpty(path) ? Str.Get("Compressed.Page.Title") : vfs.GetDisplayName(path);
         Loaded = LoadAsync();
     }
 

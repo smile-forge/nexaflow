@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.IO.Compression;
 using System.Text;
 using Nexaflow.Features.Common;
@@ -7,6 +10,7 @@ using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
@@ -17,7 +21,9 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// An action that hands the file to another program can need the file's NEIGHBOURS — a dependency, a
 /// sidecar, an installer's payload. Materialising one archive entry gives that program a lone file in a
 /// temp folder, so the honest answer is to withhold the action rather than offer one that fails oddly.
-/// Under a mount the whole folder really is on disk, so the same action is fine once the path resolves.
+/// Under a mount the whole folder really is on disk, so the same action is fine once the path resolves. So it is on a
+/// location Windows also reaches as a folder, where Windows is handed that folder's path — and a change is not: it stays
+/// on the location's path, so it goes through the location.
 /// </para>
 /// <para>
 /// These cover the two halves the rule is built from: the declaration on each shipped action, and the
@@ -67,9 +73,9 @@ public class VirtualBackingActionTests
                       "Run needs the exe's dependencies");
         Assert.IsTrue(((IFileAction)new InstallPackage(VirtualFileSystem.Instance)).RequiresFullyBackedPath,
                       "Install needs the package's payload");
-        Assert.IsTrue(((IFileAction)new CustomAction(new ExternalAppDefinition())).RequiresFullyBackedPath,
+        Assert.IsTrue(((IFileAction)new CustomAction(new ExternalAppDefinition(), VirtualFileSystem.Instance)).RequiresFullyBackedPath,
                       "a user-configured program is opaque — assume it looks around the file");
-        Assert.IsTrue(((IFileAction)new ShellVerbAction("open", "Open", "cmd.exe", "/any")).RequiresFullyBackedPath,
+        Assert.IsTrue(((IFileAction)new ShellVerbAction(VirtualFileSystem.Instance, "open", "Open", "cmd.exe", "/any")).RequiresFullyBackedPath,
                       "a registered verb hands off to whatever program claims the type");
     }
 
@@ -109,22 +115,22 @@ public class VirtualBackingActionTests
     // ── What the OS actually receives ────────────────────────────────────────
 
     [TestMethod]
-    public void AMountedPathIsHandedToWindowsAsItsRealPathWithNoCopy()
+    public async Task AMountedPathIsHandedToWindowsAsItsRealPathWithNoCopy()
     {
         const string id = "backingreal";
         VirtualFileSystem.Instance.RegisterMount(new VirtualMount(id, "Backing Real", _dir));
         try
         {
             Assert.AreEqual(Path.Combine(_dir, "tool.exe"),
-                            ShellPath.Realize($@"{VirtualMount.RootFor(id)}\tool.exe"));
+                            await new ShellPath(VirtualFileSystem.Instance).RealizeAsync($@"{VirtualMount.RootFor(id)}\tool.exe"));
         }
         finally { VirtualFileSystem.Instance.UnregisterMount(id); }
     }
 
     [TestMethod]
-    public void AnInArchivePathIsHandedToWindowsAsATempCopySoClipboardAndDragStillWork()
+    public async Task AnInArchivePathIsHandedToWindowsAsATempCopySoClipboardAndDragStillWork()
     {
-        var real = ShellPath.Realize(Path.Combine(_zip, "tool.exe"));
+        var real = await new ShellPath(VirtualFileSystem.Instance).RealizeAsync(Path.Combine(_zip, "tool.exe"));
 
         Assert.AreNotEqual(Path.Combine(_zip, "tool.exe"), real);
         Assert.IsTrue(File.Exists(real), "the copy is real enough for Explorer to accept on a drop");
@@ -137,13 +143,94 @@ public class VirtualBackingActionTests
         VirtualFileSystem.Instance.RegisterMount(new VirtualMount(id, "Backing Mut", _dir));
         try
         {
+            var paths = new ShellPath(VirtualFileSystem.Instance);
             Assert.AreEqual(Path.Combine(_dir, "tool.exe"),
-                            ShellPath.RealForMutation($@"{VirtualMount.RootFor(id)}\tool.exe"));
+                            paths.RealForMutation($@"{VirtualMount.RootFor(id)}\tool.exe"));
 
             // Renaming or deleting a temp copy would report success and leave the original untouched.
             var inZip = Path.Combine(_zip, "tool.exe");
-            Assert.AreEqual(inZip, ShellPath.RealForMutation(inZip));
+            Assert.AreEqual(inZip, paths.RealForMutation(inZip));
         }
         finally { VirtualFileSystem.Instance.UnregisterMount(id); }
+    }
+
+    // ── A location Windows also reaches as a folder (a WSL distro) ───────────
+
+    private const string Probe = "::wsl-shellpath-probe";
+
+    private sealed class SameNames : ILocationNativePaths
+    {
+        public IReadOnlyList<string> GetNativeRoots(ConnectionProfile connection) => [];
+        public string ToNativeName(string name) => name;
+        public string FromNativeName(string nativeName) => nativeName;
+    }
+
+    private sealed class NoSession : ILocationSessionSource
+    {
+        public ValueTask<ILocationSession> GetSessionAsync(CancellationToken ct)
+            => throw new InvalidOperationException("a path for Windows is named without the location");
+    }
+
+    /// <summary>The workspace's file system, holding a location whose Windows folder is the test's own.</summary>
+    private LocationFileSystem Workspace()
+    {
+        var vfs = new LocationFileSystem(VirtualFileSystem.Instance);
+        vfs.RegisterLocation(new LocationMount(new ConnectionProfile("wsl-shellpath-probe", "wsl", "Probe", "Probe"),
+                                               LocationCapabilities.SameMachine, new NoSession())
+        {
+            NativeRoots = [_dir],
+            NativePaths = new SameNames(),
+        });
+        return vfs;
+    }
+
+    [TestMethod]
+    public async Task ALocationsFileIsHandedToWindowsByTheFolderWindowsKnowsItAs()
+    {
+        var paths = await new ShellPath(Workspace()).RealizeAsync([$@"{Probe}\tool.exe", $@"{Probe}\bundle.zip"]);
+
+        CollectionAssert.AreEqual(new[] { Path.Combine(_dir, "tool.exe"), Path.Combine(_dir, "bundle.zip") }, paths);
+    }
+
+    [TestMethod]
+    public void AChangeToALocationsFile_StaysOnTheLocationsPath_SoItGoesThroughTheLocation()
+    {
+        var paths = new ShellPath(Workspace());
+
+        Assert.AreEqual($@"{Probe}\tool.exe", paths.RealForMutation($@"{Probe}\tool.exe"));
+        Assert.AreEqual($@"{Probe}\tool.exe", paths.RealForMutation(Path.Combine(_dir, "tool.exe")),
+                        "named by the Windows folder showing it — a paste from Explorer, a cut from here — it is the location's too");
+    }
+
+    [TestMethod]
+    public async Task AShellVerbAndAnExternalProgram_AreHandedALocationsFileByItsWindowsFolder()
+    {
+        var vfs  = Workspace();
+        var file = $@"{Probe}\tool.exe";
+        var app  = new CustomAction(new ExternalAppDefinition { DisplayName = "Probe", ApplicationPath = "probe.exe", Arguments = "#filepath" }, vfs);
+
+        var verb    = await new ShellVerbAction(vfs, "open", "Open", "probe.exe \"%1\"", "/").StartInfoAsync(file);
+        var program = await app.StartInfoAsync([file]);
+
+        Assert.AreEqual(Path.Combine(_dir, "tool.exe"), verb.FileName);
+        Assert.AreEqual(Path.Combine(_dir, "tool.exe"), program!.Arguments.Trim('"'));
+        Assert.AreEqual(_dir, program.WorkingDirectory, "it runs in the file's own folder, as Windows names it");
+    }
+
+    [TestMethod]
+    public async Task APinnedVerbOrProgram_IsRebuiltWithTheWorkspacesFileSystem()
+    {
+        var vfs      = Workspace();
+        var registry = FileSystemFeatureRegistry.For(NSubstitute.Substitute.For<IShellServices>(), NSubstitute.Substitute.For<IAIService>(),
+                                                     new Dictionary<Type, IFeatureConfig>(), vfs);
+        var pinnedVerb = new ShellVerbAction(VirtualFileSystem.Instance, "open", "Open", "probe.exe \"%1\"", "/");
+        var pinnedApp  = new CustomAction(new ExternalAppDefinition { DisplayName = "Probe", ApplicationPath = "probe.exe", Arguments = "#filepath" },
+                                          VirtualFileSystem.Instance);
+
+        var verb = (ShellVerbAction)registry.FindFileAction(typeof(ShellVerbAction).FullName!, ((IFileAction)pinnedVerb).GetReinitParams())!;
+        var app  = (CustomAction)registry.FindFileAction(typeof(CustomAction).FullName!, ((IFileAction)pinnedApp).GetReinitParams())!;
+
+        Assert.AreEqual(Path.Combine(_dir, "tool.exe"), (await verb.StartInfoAsync($@"{Probe}\tool.exe")).FileName);
+        Assert.AreEqual(Path.Combine(_dir, "tool.exe"), (await app.StartInfoAsync([$@"{Probe}\tool.exe"]))!.Arguments.Trim('"'));
     }
 }

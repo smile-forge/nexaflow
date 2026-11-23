@@ -14,7 +14,7 @@ namespace Nexaflow.Features.Dotnet.Services;
 /// launch. Needed because <c>dotnet run</c> takes a project, never a solution — with a solution
 /// selected the viewlet has to name a startup project itself.
 /// </summary>
-[LocalDiskOnly("a solution in a folder the .NET viewlet is shown in, which a viewlet is only offered for on this disk")]
+[LocalDiskOnly("a solution in a folder the .NET viewlet is shown in, as the file system resolved it to this disk — a location's by the Windows folder showing it, read and never changed")]
 public static partial class SolutionReader
 {
     private static readonly string[] ProjectExtensions = [".csproj", ".fsproj", ".vbproj"];
