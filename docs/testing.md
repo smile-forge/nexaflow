@@ -819,6 +819,29 @@ Two gates, at opposite ends of the same rule:
 An id whose value is a markup extension (`{Binding AutomationId}`) is skipped by both: the real id is computed
 at run time, so there is no literal for a journey to name.
 
+### Binding errors (`BindingErrorLog` / `known-binding-errors.txt`)
+
+WPF reports a binding it cannot resolve — a member the bound object does not have, an ancestor that is not
+there — only to a debugger, and leaves the target at its default: a card that should show options is simply
+empty, and every check that does not look inside it passes. Under `--uiTest` the app writes each such error
+once, as a signature without WPF's per-object hash codes, to `binding-errors.log` in its config root
+(`Core/Services/BindingErrorLog.cs`). `UITestBase`'s teardown fails the journey on any signature
+`Tests.UIJourneys/Infrastructure/known-binding-errors.txt` does not list, prints the signatures, and keeps the
+log with the journey's other logs. The sandbox's `close` reports them too.
+
+The baseline is a **ratchet** in the same spirit as the one above: each entry says why it stays, a fixed one is
+a deleted line, and a new error fails the journey that made it. A signature is copied from the failure exactly.
+
+### View-models that name WPF (`ViewModelWpfRatchetTests`)
+
+A view-model that names WPF has to be rewritten, not reused, when the views move to another UI toolkit.
+`ViewModelWpfRatchetTests` (in `Tests.Features.Architecture`) counts them: any C# file under
+`src/Nexaflow.Features` or a `src/Nexaflow.Visuals.*` library that sits in a `ViewModels` folder or whose name
+says `ViewModel`, and mentions `System.Windows` in its code — a `using` or a type written out in full; comments
+and string literals are not code. The ones that still do are listed in `Architecture/view-models-on-wpf.txt`:
+a new one fails, and a listed one that no longer names WPF fails until its line is deleted, so the count is the
+work left and only goes down. The UI thread, timers and the clipboard are reached through `IShellServices`.
+
 ## Conformance suites — one contract, every implementor
 
 Two contracts are written once in `Nexaflow.Tests.Features.Common` and inherited per implementor, rather

@@ -20,7 +20,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
