@@ -1,0 +1,20 @@
+# Files under src/Nexaflow.Core and src/Nexaflow.IO.* that declare a static Instance — services the session has still to make
+# itself and hand over (CoreSingletonRatchetTests). Only shrinks: delete a line when its singleton is gone.
+src/Nexaflow.Core/ConfigManager.cs
+src/Nexaflow.Core/FeatureManager.cs
+src/Nexaflow.Core/Localization/LanguageManager.cs
+src/Nexaflow.Core/ProviderManager.cs
+src/Nexaflow.Core/Services/CrashLog.cs
+src/Nexaflow.Core/Services/ExternalDependencyRegistry.cs
+src/Nexaflow.Core/Services/FeatureCatalog.cs
+src/Nexaflow.Core/Services/MessageCenter.cs
+src/Nexaflow.Core/Services/PageViews.cs
+src/Nexaflow.Core/Services/ShellSafetyLog.cs
+src/Nexaflow.Core/Services/SubfeatureCatalog.cs
+src/Nexaflow.Core/Services/WorkspaceManager.cs
+src/Nexaflow.IO.Common/Locations/DiscoveredLocations.cs
+src/Nexaflow.IO.Common/Locations/LocationProviderRegistry.cs
+src/Nexaflow.IO.Common/VirtualFileSystem.cs
+# Immutable values, not services: one empty block and one null value shared by every reader.
+src/Nexaflow.IO.Hdf5/BlockData.cs
+src/Nexaflow.IO.Protocol/Values/ProtoValue.cs

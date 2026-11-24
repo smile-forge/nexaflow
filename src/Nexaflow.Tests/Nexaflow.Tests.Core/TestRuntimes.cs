@@ -1,6 +1,9 @@
+using System.Threading.Tasks;
+using System.Windows.Threading;
 using Nexaflow.Core;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.Elevation;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using NSubstitute;
@@ -15,20 +18,23 @@ namespace Nexaflow.Tests.Core;
 /// </summary>
 internal static class TestRuntimes
 {
-    /// <summary>The factory every runtime here comes from. Nobody holds a secret for its connections, and none are made.</summary>
-    public static WorkspaceRuntimeFactory Factory { get; } = FactoryWith(tasks: null, notify: _ => { });
-
     /// <summary>A factory whose runtimes run their assistant's slow work on <paramref name="tasks"/>, telling
-    /// <paramref name="notify"/> as each piece ends.</summary>
-    public static WorkspaceRuntimeFactory FactoryWith(BackgroundActivityManager? tasks, Action<NotificationItem> notify) => new(
-        ProviderManager.Instance, tasks, notify, VirtualFileSystem.Instance, LocationProviderRegistry.Instance,
-        DiscoveredLocations.Instance, Substitute.For<ICredentialSource>(), ensureLocationProviders: () => { });
+    /// <paramref name="notify"/> as each piece ends — their UI thread the calling thread. Nobody holds a secret for their
+    /// connections, and none are made.</summary>
+    public static WorkspaceRuntimeFactory FactoryWith(BackgroundActivityManager? tasks, Action<NotificationItem> notify)
+    {
+        var ui = new WpfUiThread(Dispatcher.CurrentDispatcher);
+        return new WorkspaceRuntimeFactory(new RuntimeSessionServices(
+            ProviderManager.Instance, tasks, notify, VirtualFileSystem.Instance, LocationProviderRegistry.Instance,
+            DiscoveredLocations.Instance, Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
+            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard()));
+    }
 
     /// <summary>A wired, unstarted runtime for <paramref name="workspace"/> (a fresh default one when none is given), standing ready
     /// for a launch that has not come yet when <paramref name="standby"/>.</summary>
     public static WorkspaceRuntime Unstarted(Workspace? workspace = null, bool standby = false)
     {
-        var runtime = Factory.CreateUnstarted(workspace ?? new Workspace());
+        var runtime = FactoryWith(tasks: null, notify: _ => { }).CreateUnstarted(workspace ?? new Workspace());
         runtime.IsStandby = standby;
         return runtime;
     }

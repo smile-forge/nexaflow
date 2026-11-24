@@ -70,11 +70,11 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         Workspace     = workspace;
         _session      = session;
         IsStandby     = standby;
-        Vfs           = new LocationFileSystem(session.FileSystem);
-        Locations     = new RuntimeLocations(Vfs, session.NewLocationSessions(), session.Discovered);
+        Vfs           = new LocationFileSystem(session.Session.FileSystem);
+        Locations     = new RuntimeLocations(Vfs, session.NewLocationSessions(), session.Session.Discovered);
         Features      = new FeatureScope(workspace.Name);
         AiService     = session.NewAiService(this);
-        ShellServices = new ShellServices(this, session.Activities);
+        ShellServices = new ShellServices(this, session.Session);
     }
 
     /// <summary>Acquires the workspace's providers and mounts its connections: the runtime is ready for its first window.</summary>
@@ -150,11 +150,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     /// Ends the runtime, letting go of what it holds in the order nothing still running can reach what is gone: its
     /// background jobs stop, its feature instances go, its assistant lets go of the providers it listened to, its provider
     /// set returns to the pool (cooling any model nothing else uses), its file watches close, and its locations unmount and
-    /// close their sessions. Ending it again does nothing.
+    /// close their sessions. All but the last happens before this returns, on the calling thread — the UI thread, where the
+    /// watches are; the task ends when the sessions have closed, and needs no thread of the caller's for it. Ending it again
+    /// does nothing.
     /// </summary>
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_ended) return;
+        if (_ended) return ValueTask.CompletedTask;
         _ended = true;
 
         _session.StopJobsOf(this);
@@ -163,7 +165,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         _session.Providers.ReleaseProviderSet(Providers);
         Providers = null;
         ShellServices.Dispose();
-        await Locations.DisposeAsync().ConfigureAwait(false);
+        _session.Ended(this);
+        return Locations.DisposeAsync();
     }
 
     /// <summary>

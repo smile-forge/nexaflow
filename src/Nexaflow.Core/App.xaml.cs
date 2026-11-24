@@ -161,15 +161,19 @@ public partial class App : Application
 
         IsResident = prestart;
 
-        var activityManager = new BackgroundActivityManager();
+        // A later launch hands this one what it asked for. Listening starts first, so a launch never waits behind the start-up below;
+        // what it asks is acted on once the UI thread is free of it, when the session is open.
+        var ui = new WpfUiThread(Dispatcher);
+        _singleInstance.StartListening(ui, launch => { if (_host is { } host) OpenForwardedLaunch(host.Activities, launch); });
 
-        // ── Initialisation + first window — a throw from this sequence ends the launch ──
+        // ── The session + first window — a throw from this sequence ends the launch ──
         // Left to OnDispatcherUnhandledException it would be handled, and the launch would carry on with no window while
         // holding the single-instance guard. A fault raised inside the setup wizard's own message loop still goes there
         // and stays survivable; only what this sequence itself throws is terminal.
         try
         {
-            InitializeApp(activityManager);
+            var host = OpenSession(ui);
+            var activityManager = host.Activities;
             StartupTimings.Mark("InitializeApp");
 
             // ── Main window — skipped in --prestart mode (windowless login daemon) ──
@@ -198,16 +202,13 @@ public partial class App : Application
         // finished, so it is built with every feature's theme and configs in place, then one each time the last window closes.
         if (prestart)
         {
-            var standby = new StandbyWindow(StandbyTarget, ws => BuildFirstWindow(activityManager, ws, openPath: null));
+            var standby = new StandbyWindow(StandbyTarget, ws => BuildFirstWindow(_host!.Activities, ws, openPath: null));
             WorkspaceManager.Instance.LastWindowClosed += (_, _) => standby.Schedule(StandbyWindow.AfterLastWindow);
             _standby = standby;
         }
 
-        // Feature warm-up — load + activate the remaining feature assemblies off the UI thread now that the
-        // first window is up, so deferred features (and their archive handlers / theme / configs) are ready
-        // within a second or two without ever blocking first paint. Archive backends go first so browsing
-        // into an archive works as early as possible.
-        var warmUp = Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
+        // Feature warm-up — the remaining feature assemblies load and activate off the UI thread now that the first window is up.
+        var warmUp = _host!.StartBackground();
         if (_standby is { } ready)
             warmUp.ContinueWith(_ => ready.Schedule(TimeSpan.Zero), TaskScheduler.FromCurrentSynchronizationContext());
 
@@ -241,287 +242,40 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Runs all app-level initialisation shared by both the normal and <c>--prestart</c> launch paths:
-    /// config registration, providers, workspaces, file map, features, the torn-off window factory,
-    /// the taskbar JumpList and the single-instance IPC listener.
+    /// Opens the session (<see cref="ShellHost"/>) on WPF — the clipboard, the folder watcher's window and the theme are WPF's — and
+    /// wires what the session cannot name: the window a workspace rebuild opens, and the taskbar JumpList.
     /// </summary>
-    private void InitializeApp(BackgroundActivityManager activityManager)
+    private ShellHost OpenSession(WpfUiThread ui)
     {
-        // ── 0. Base path — single source of truth for all app-data paths ─────
-        // NEXAFLOW_CONFIG_DIR overrides the default (used by UI tests for an isolated, fresh config
-        // root, and handy for portable installs); otherwise %AppData%\Smile\nexaflow.
-        var baseDir = Environment.GetEnvironmentVariable("NEXAFLOW_CONFIG_DIR");
-        if (string.IsNullOrWhiteSpace(baseDir))
-            baseDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Smile", "nexaflow");
-
-        // "Reset Config" relaunch: wipe the directory now, in the fresh process, so no handle from the
-        // old (exiting) instance is held. The empty dir then drives a clean first-run.
-        if (_resetRequested)
-            DeleteDirectoryWithRetry(baseDir);
-
-        // What is kept on this machine alone — caches too large to roam with the settings — under %LocalAppData%, unless the base
-        // was set apart, when it is kept beside it so a UI test's root holds everything the run wrote.
-        var localDir = string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("NEXAFLOW_CONFIG_DIR"))
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Smile", "nexaflow")
-            : Path.Combine(baseDir, "local");
-
-        ConfigManager.Instance.Initialize(baseDir, localDir);
-        StartupTimings.Mark("Init.ConfigManager");
-
-        // ── 1. Shell config ──────────────────────────────────────────────────
-        var shellConfig = new ShellConfig();
-        ConfigManager.Instance.Register(shellConfig, shellConfig.ConfigName);
-
-        // From here this session knows whether it keeps a safety log: what startup held so far is written out or dropped.
-        ShellSafetyLog.Instance.Apply(shellConfig.SafetyLogging);
-        ThemeManager.Apply(shellConfig.Theme);
-
-        // Gate the theme's animated backdrop on the power state, before the first window is built - a
-        // scene that is going to be suppressed is then never realised, rather than started and torn down.
-        BatteryAnimationGuard.SetDisableOnBattery(shellConfig.DisableAnimationsOnBattery);
-
-        // Same shape as the line above: a shell setting pushed onto the shared policy the surfaces read, so
-        // no feature has to know Core holds it. Before the first window, so a text tab restored from the last
-        // session paints at the saved size rather than at 13 and then jumping.
-        TextTypography.BaseFontSize = shellConfig.TextFontSize;
-        StartupTimings.Mark("Init.Theme");
-
-        // The UI language: records the choice and points Str at it. Loads nothing - the first string or help page
-        // asked for reads the pack (one resource-only assembly, once).
-        LanguageManager.Initialize(Path.Combine(AppContext.BaseDirectory, "Languages"), shellConfig.Language);
-        StartupTimings.Mark("Init.Language");
-
-        var securityConfig = new SecurityConfig();
-        ConfigManager.Instance.Register(securityConfig, securityConfig.ConfigName);
-
-        // ── 2. Workspaces config (workspaces) — must come before providers so we know
-        //       which provider assemblies each workspace needs ───────────────────
-        var wcConfig = new WorkspacesConfig();
-        ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
-
-        // A workcontexts.json that could not be read leaves the list defaulted to a single workspace,
-        // which would strand every existing workspace's data — AI and provider config, ribbon, scratchpad
-        // notes, conversations — in a folder nothing references any more. Rebuild the list from those
-        // folders before the provider scan below, so the recovered workspaces' providers load too.
-        var listUnreadable = ConfigManager.Instance.GetUnreadableConfigs()
-            .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
-        var recoveredWorkspaces = listUnreadable
-            ? WorkspaceManager.RecoverWorkspacesFromDataFolders(wcConfig)
-            : [];
-
-        // ── 3. Providers — union of all assembly file names across workspaces ──
-        // Model files live outside the roaming profile; the folder voice models were once kept in is adopted from.
-        // A UI journey fetches nothing: a download is minutes of network the run cannot wait on or count on.
-        // The AI host — the process models Nexaflow runs itself are loaded in — starts on the first request for one.
-        // Where the host's models run is planned once for the machine, across every workspace's models.
-        // Models on this machine are downloaded once each, app-wide, whichever workspace asks.
-        // Which models are loaded ahead, and what they may hold, is this machine's to weigh: what it runs, what was used on it this week.
-        var preloadConfig = (ModelPreloadConfig)ConfigManager.Instance.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
-        var aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent);
-        // Joined to the machine's AI host service, the share of memory its models may hold is the service's, and Settings shows it so.
-        ConfigManager.Instance.AddRulings(new AiHostSettingRulings(() => aiHost.ServiceMemory));
-        // The model store is the AI host's: it alone reads and fetches the files, and the app sees the store as the host describes it,
-        // read here in the background — each file found there is told of as it is read, as each that arrives later is.
-        var assets = new AiHostModelStore(aiHost);
-        _ = ReadModelStoreAsync(assets);
-        // The picture tools run in the same host, on the same plan of its GPUs, from the same store, as the owned models.
-        var holds = new HostHolds(aiHost);
-        _residency = new ModelResidency(preloadConfig, new ModelUseHistory(Path.Combine(LocalAiFolder.Root(), "model-use.json")));
-        // A host with nothing held in it closes after the same idle time a model is let go after.
-        if (preloadConfig.IdleRelease is { } idle) aiHost.RetireWhenIdle(idle, () => holds.HoldsModels);
-        StartupTimings.Mark("Init.ModelStore");
-        var hardware = MachineCards.Probe();
-        StartupTimings.Mark("Init.HardwareProbe");
-        // A machine that had the CUDA pack gets this version's in place of it, in the background, without being asked again.
-        var cudaPack = new CudaPackDownload(assets, () => assets.HadEarlierRuntimePack, hardware, activityManager);
-        _cudaPack = cudaPack;
-        var pictureTools = new PictureTools(new OwnedPictureTools(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
-        var pictureSelection = new PictureSelection(new OwnedPictureSelection(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
-        var pageReading = new PageReading(new OwnedPageReading(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
-        var pictureErasing = new PictureErasing(new OwnedPictureErasing(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
-        var sceneDepth = new SceneDepthEstimation(new OwnedSceneDepth(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
-        // Not a feature's tool: the check Enhanced AI Protection Mode holds every picture made to, which Core runs itself.
-        var pictureChecking = new PictureChecking(new OwnedPictureChecking(activityManager, assets, aiHost, holds, hardware), assets, activityManager);
-        ProviderManager.Instance.Initialize(activityManager, assets, _residency,
-            aiHost, holds, hardware,
-            new LocalModelDownloads(assets, activityManager, WorkspaceManager.Instance.UseLocalModel), cudaPack, pictureTools, pictureSelection, pageReading,
-            pictureErasing, sceneDepth, pictureChecking);
-        FeatureManager.Instance.ProvideTool<IPictureTools>(pictureTools);
-        FeatureManager.Instance.ProvideTool<IPictureSelection>(pictureSelection);
-        FeatureManager.Instance.ProvideTool<IPageReading>(pageReading);
-        FeatureManager.Instance.ProvideTool<IPictureErasing>(pictureErasing);
-        FeatureManager.Instance.ProvideTool<ISceneDepth>(sceneDepth);
-        StartupTimings.Mark("Init.LocalTools");
-
-        // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
-        // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a
-        // temporary AiConfig per entry.
-        var allProviderFiles = wcConfig.Contexts
-            .SelectMany(workspace =>
-            {
-                var ai = new AiConfig();
-                ConfigManager.Instance.LoadFrom(WorkspaceManager.WorkspaceDir(workspace.Name), ai, ai.ConfigName);
-                ai.BringUpToDate();   // the workspace saves it
-                return ai.Columns.Select(p => p.AssemblyFileName);
-            })
-            .Concat(LocalColumns.Assemblies)   // every workspace has the Local column
-            .Distinct();
-        ProviderManager.Instance.LoadConfigured(allProviderFiles);
-        StartupTimings.Mark("Init.Providers");
-
-        // ── 4. WorkspaceManager — loads the workspace list (no runtime workspaces yet) ──
-        WorkspaceManager.Instance.Initialize(wcConfig);
-
-        // Quarantine workspace data folders orphaned by an older build's version-bump config reset (before
-        // forward-migration existed): the list is authoritative only when workcontexts.json actually
-        // loaded — a defaulted (missing/unreadable) list would make every folder look orphaned, so gate on it.
-        var listIsAuthoritative = !ConfigManager.Instance.GetDefaultedConfigs()
-            .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
-        WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative);
-
-        // Persist the rebuilt list at once, so the recovery holds even if this session ends badly.
-        if (listUnreadable) WorkspaceManager.Instance.SaveWorkspaces();
+        var host = new ShellHost(new ShellHostOptions(_resetRequested, UiTest),
+                                 new ShellPlatform(ui, new ShellClipboard(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance));
+        _host = host;
 
         // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
         // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
-        WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(activityManager, ws);
-        WorkspaceManager.Instance.RuntimeFactory    = new WorkspaceRuntimeFactory(
-            ProviderManager.Instance, activityManager, MessageCenter.Instance.Post, VirtualFileSystem.Instance,
-            LocationProviderRegistry.Instance, DiscoveredLocations.Instance,
-            new StoredCredentialSource(CredentialManagerStore.Default), FeatureManager.Instance.EnsureLocationProviders);
-        StartupTimings.Mark("Init.Workspaces");
+        WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(host.Activities, ws);
 
-        // ── 5. File map + external apps ──────────────────────────────────────
-        var fileMapConfig = new FileMapConfig();
-        ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
-
-        var externalAppsConfig = (ExternalAppsConfig)ConfigManager.Instance.Register(
-            new ExternalAppsConfig(), new ExternalAppsConfig().ConfigName);
-        ExternalAppRegistry.Instance.Initialize(externalAppsConfig);
-
-        // Give pre-Id apps a stable identity (referenced by Default Action overrides); persist once.
-        if (ExternalAppRegistry.Instance.BackfillIds())
-            ConfigManager.Instance.Save(externalAppsConfig, externalAppsConfig.ConfigName);
-
-        FileMapManager.Instance.Initialize(ConfigManager.Instance.BaseDir);
-
-        // Per-extension double-click overrides (Options → Default Actions), consulted by DefaultFileOpener.
-        var defaultActionsConfig = (DefaultActionsConfig)ConfigManager.Instance.Register(
-            new DefaultActionsConfig(), new DefaultActionsConfig().ConfigName);
-        DefaultActionRegistry.Instance.Initialize(defaultActionsConfig);
-
-        // ShellNew create-file entries from HKCR — gated on the registry-handlers toggle.
-        ShellNewRegistry.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
-
-        // Templated-create (user templates) — global config + its appdata template store.
-        var templatedCreateConfig = new TemplatedCreateConfig();
-        ConfigManager.Instance.Register(templatedCreateConfig, templatedCreateConfig.ConfigName);
-        TemplatedCreateRegistry.Instance.Initialize(templatedCreateConfig, ConfigManager.Instance.BaseDir);
-        StartupTimings.Mark("Init.FileMap");
-
-        // ── 6. Feature system ────────────────────────────────────────────────
-        // Builds the (cached) discovery index — on a normal launch this loads NO feature assemblies.
-        // Each assembly is loaded + activated lazily (first page, handler query, or the post-paint warm-up
-        // kicked in OnStartup); activation registers that assembly's global configs, archive handlers /
-        // codecs (into the VFS) and theme contributions (folded below the active theme applied in step 1).
-        FeatureManager.Instance.RegisterFeatures();
-
-        // UI-test automation (--uiTest) drives the app far faster than a human and would outrun the
-        // post-paint background warm-up, racing features that haven't loaded yet. Force every feature
-        // assembly to load + activate synchronously now so the whole app is ready before automation starts.
-        if (UiTest) FeatureCatalog.Instance.EnsureAllActivated();
-        StartupTimings.Mark("Init.Features");
-
-        // ── 6a. The app-global inbox ─────────────────────────────────────────
-        // Force it into existence here, on the UI thread, so it captures the app dispatcher even in the windowless
-        // --prestart daemon (which never builds a ShellViewModel — its first Post would otherwise come from the
-        // background update-check thread).
-        _ = MessageCenter.Instance;
-
-        // ── 6b. Damaged config: say so, say what came back ───────────────────
-        // Settings that could not be read are already on defaults and on record in the crash log; this is
-        // what tells the user, rather than leaving them to notice. The setup wizard opens for the same
-        // reason (SetupWizardViewModel.Build re-asks on an unreadable config), so this is the account of
-        // what happened and the wizard is the re-verification.
-        ReportUnreadableConfigs(recoveredWorkspaces);
-
-        // ── 7. About — read-only Options section (registered last so it sorts to the bottom) ──
-        var aboutConfig = new AboutConfig();
-        ConfigManager.Instance.Register(aboutConfig, aboutConfig.ConfigName);
-
-        // ── 8. Taskbar JumpList — one entry per Workspace ───────────────────
+        // Taskbar JumpList — one entry per Workspace.
         JumpListService.Initialize();
-
-        // ── 9. Single-instance IPC listener — a later launch hands us what it asked for ──
-        _singleInstance.StartListening(launch => OpenForwardedLaunch(activityManager, launch));
-        StartupTimings.Mark("Init.JumpListAndIpc");
-    }
-
-    private static AiHostClient? _aiHost;
-    private static ModelResidency? _residency;
-
-    private static CudaPackDownload? _cudaPack;
-
-    /// <summary>
-    /// The app's AI host client. Its store is the machine's own (<c>%ProgramData%\Smile-Forge\Models</c>), into which the host moves the
-    /// files Nexaflow kept in its own folder before the host kept them — or, where <c>NEXAFLOW_AI_DIR</c> names a folder, that folder:
-    /// a test's. A UI test's host downloads nothing.
-    /// </summary>
-    private static AiHostClient StartAiHost(int memoryShare)
-    {
-        string? testStore = LocalAiFolder.Configured();
-        var launcher = new ProcessAiHostLauncher(AiHostInstall.ExecutablePath,
-                                                 store: testStore,
-                                                 adoptFrom: testStore is null ? [LocalAiFolder.Root()] : [],
-                                                 memoryShare: memoryShare,
-                                                 logDirectory: () => ShellSafetyLog.Instance.Folder,
-                                                 downloads: !UiTest);
-        // A run on a store of its own, or under a UI test, keeps to a host of its own: the service's store is the machine's. A journey of
-        // the service itself joins it as the app does.
-        bool joins = testStore is null && !UiTest || Environment.GetEnvironmentVariable("NEXAFLOW_TEST_JOIN_SERVICE") == "1";
-        _aiHost = new AiHostClient(launcher, app: "Nexaflow", service: joins ? AiHostService.Machine : null);
-        // A host's end is recorded only while the user keeps logs; the request it took down fails on its own.
-        _aiHost.HostExited += (_, e) => ShellSafetyLog.Instance.AiHostEnded(e);
-        return _aiHost;
-    }
-
-    /// <summary>Reads the host's model store, starting the host; then a machine that had the CUDA pack gets this version's in place of
-    /// it, without being asked again. A host that cannot start leaves the store unread: every model shows as not here, and a download
-    /// says why.</summary>
-    private static async Task ReadModelStoreAsync(AiHostModelStore store)
-    {
-        _ = Task.Run(LocalAiFolder.RetireWhisperCpp);
-        try { await store.RefreshAsync(); }
-        catch (AiHostException) { return; }
-        if (!UiTest && _cudaPack is { } pack) await pack.ReplaceEarlierAsync();
+        StartupTimings.Mark("Init.JumpList");
+        return host;
     }
 
     /// <summary>
-    /// Posts one message naming the settings that could not be read this launch and the workspaces
-    /// recovered from their data folders. Persistent (not a passing toast): it is the record of settings
-    /// the user is expected to check, and the wizard that opens beside it covers the re-verification.
+    /// The shell settings that decide how windows look, applied before the first window is built: the theme; whether the theme's
+    /// backdrop animates on battery, so a scene that is going to be suppressed is never realised rather than started and torn
+    /// down; and the text size — a shell setting pushed onto the shared policy the surfaces read, so no feature has to know Core
+    /// holds it, and a text tab restored from the last session paints at the saved size rather than at 13 and then jumping.
     /// </summary>
-    private static void ReportUnreadableConfigs(IReadOnlyList<string> recoveredWorkspaces)
+    private static void ApplyAppearance(ShellConfig shell)
     {
-        var unreadable = ConfigManager.Instance.GetUnreadableConfigs();
-        if (unreadable.Count == 0) return;
-
-        var body = Str.Format("Shell.Notifications.UnreadableFormat", string.Join(", ", unreadable), CrashLog.Instance.CurrentPath);
-
-        if (recoveredWorkspaces.Count > 0)
-        body += " " + Str.Format("Shell.Notifications.RecoveredFormat", recoveredWorkspaces.Count, string.Join(", ", recoveredWorkspaces));
-
-        MessageCenter.Instance.Post(new NotificationItem
-        {
-            Title     = Str.Get("Shell.Notifications.UnreadableTitle"),
-            Body      = body,
-            Severity  = MessageSeverity.Warning,
-            ShowToast = true,
-        });
+        ThemeManager.Apply(shell.Theme);
+        BatteryAnimationGuard.SetDisableOnBattery(shell.DisableAnimationsOnBattery);
+        TextTypography.BaseFontSize = shell.TextFontSize;
     }
 
+    /// <summary>The session this process runs: open from the start-up on, ended in <see cref="OnExit"/>.</summary>
+    private static ShellHost? _host;
     /// <summary>The app's sweep of its own drafts, at start and daily while it runs.</summary>
     private DraftSweeping? _draftSweeping;
 
@@ -531,11 +285,8 @@ public partial class App : Application
         _draftSweeping?.Dispose();
         CrashLog.Instance.Flush();   // a burst still collapsing at shutdown would otherwise go unrecorded
 
-        if (_residency is not null && !_residency.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)))
-            ShellSafetyLog.Instance.Step("shutdown: model residency did not finish within 2 s");
-        // Closing the pipe ends the host; it is killed if it lingers. The job object is the backstop for a crash.
-        if (_aiHost is not null && !_aiHost.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(6)))
-            ShellSafetyLog.Instance.Step("shutdown: the AI host did not close within 6 s");
+        // The session ends: every workspace still running, the watches, the models held ahead, the AI host — each wait bounded.
+        _host?.DisposeAsync().AsTask().Wait();
         _singleInstance.Dispose();
 
         ShellSafetyLog.Instance.Close();
@@ -726,7 +477,7 @@ public partial class App : Application
     {
         static void Drawn()
         {
-            _residency?.Open();
+            _host?.FirstWindowDrawn();
             if (!StartupTimings.Enabled) return;
             // Startup profiling: the first window's first render is "time to first window"; a harness cold-starts again.
             StartupTimings.Report();
@@ -814,24 +565,6 @@ public partial class App : Application
             Process.Start(new ProcessStartInfo(exe, "--reset") { UseShellExecute = false });
 
         Current.Shutdown();
-    }
-
-    /// <summary>
-    /// Recursively deletes <paramref name="dir"/>, retrying briefly to wait out any handle the exiting
-    /// previous instance still holds. Best-effort: gives up quietly after the retry budget.
-    /// </summary>
-    private static void DeleteDirectoryWithRetry(string dir)
-    {
-        for (int attempt = 0; attempt < 20; attempt++)
-        {
-            try
-            {
-                if (!Directory.Exists(dir)) return;
-                Directory.Delete(dir, recursive: true);
-                return;
-            }
-            catch { System.Threading.Thread.Sleep(100); }
-        }
     }
 
     /// <summary>Records the current version so the next launch can detect an update (drives What's New).</summary>

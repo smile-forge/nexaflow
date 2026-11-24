@@ -27,7 +27,7 @@ namespace Nexaflow.Tests.Core.Unit;
 public class FeatureDiFailureTests
 {
     [ClassInitialize]
-    public static void Init(TestContext _) => FeatureManager.Instance.RegisterFeatures();
+    public static void Init(TestContext _) => FeatureManager.Instance.RegisterFeatures(new WpfUiThread(System.Windows.Threading.Dispatcher.CurrentDispatcher));
 
     // ── Defects are loud ──────────────────────────────────────────────────────
 

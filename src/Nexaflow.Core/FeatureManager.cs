@@ -66,7 +66,7 @@ public sealed class FeatureManager
     // Theme resource dictionaries contributed by features, accumulated as assemblies activate.
     private readonly HashSet<Uri> _themeContributionUris = [];
     private readonly object _themeLock = new();
-    private Dispatcher? _ui;
+    private IUiThread? _ui;
     private volatile bool _themeRefreshQueued;
     private int _themeGen;        // bumped when new contribution URIs are added
     private int _themeApplied;    // last generation merged into Application.Resources
@@ -76,10 +76,11 @@ public sealed class FeatureManager
     public IReadOnlyList<Uri> ThemeContributionUris { get { lock (_themeLock) return _themeContributionUris.ToList(); } }
     // ── Registration ──────────────────────────────────────────────────────
 
-    /// <summary>Builds the (cached) discovery index. No feature assemblies are loaded on the cache-hit path.</summary>
-    public void RegisterFeatures()
+    /// <summary>Builds the (cached) discovery index. No feature assemblies are loaded on the cache-hit path. A feature's theme is
+    /// folded in on <paramref name="ui"/>, however its assembly came to load.</summary>
+    public void RegisterFeatures(IUiThread ui)
     {
-        _ui = Dispatcher.CurrentDispatcher;   // captured on the UI thread for theme marshaling
+        _ui = ui;
         FeatureCatalog.Instance.Initialize(OnAssemblyActivated);
     }
 
@@ -181,7 +182,7 @@ public sealed class FeatureManager
     /// queued (async) theme refresh hasn't run yet.</summary>
     private void EnsureThemeApplied()
     {
-        if (_ui?.CheckAccess() == true) ApplyThemeNow();
+        if (_ui?.IsCurrent == true) ApplyThemeNow();
     }
 
     // Re-merges the accumulated feature theme contributions below the active theme. On the UI thread this
@@ -192,10 +193,10 @@ public sealed class FeatureManager
     {
         var ui = _ui;
         if (ui is null) return;
-        if (ui.CheckAccess()) { ApplyThemeNow(); return; }
+        if (ui.IsCurrent) { ApplyThemeNow(); return; }
         if (_themeRefreshQueued) return;
         _themeRefreshQueued = true;
-        ui.BeginInvoke(DispatcherPriority.Background, () => { _themeRefreshQueued = false; ApplyThemeNow(); });
+        ui.PostInBackground(() => { _themeRefreshQueued = false; ApplyThemeNow(); });
     }
 
     private void ApplyThemeNow()
