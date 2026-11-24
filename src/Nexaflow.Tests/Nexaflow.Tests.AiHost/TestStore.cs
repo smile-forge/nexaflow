@@ -60,6 +60,14 @@ internal static class TestStore
     public static string Missing(bool gpu = true)
         => gpu ? $"{Variable} names no model store holding the CUDA pack this machine runs." : $"{Variable} names no model store.";
 
+    /// <summary>Whether the test store holds every file of <paramref name="model"/>'s CPU build — what a suite on that model needs
+    /// before it starts a host on it.</summary>
+    public static bool HoldsCpuBuildOf(string model) => HoldsAll(HostCatalog.Models.Single(m => m.Id == model).FilesFor(HostCatalog.Cpu));
+
+    /// <summary>Why a suite on <paramref name="model"/>'s CPU build is inconclusive.</summary>
+    public static string MissingModel(string model)
+        => $"{Variable} names no model store holding {HostCatalog.Models.Single(m => m.Id == model).DisplayName}.";
+
     /// <summary>The parts of <paramref name="model"/> an app holds with it — all but those loaded on demand — as a hold names them, on the
     /// runtime of a host on the CUDA pack where <paramref name="cuda"/>, on the CPU otherwise.</summary>
     public static IReadOnlyList<ModelRef> HeldPartsOf(string model, bool cuda)

@@ -27,6 +27,7 @@ public class CutBackModelTests
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
+        if (!TestStore.HoldsCpuBuildOf(Chat.Model)) return;
         _client = await TestStore.HostAsync(gpu: false);
         if (_client is null) return;
         // A model holding recurrent state is held with saves of it, which is what a conversation is cut back to.
@@ -42,7 +43,7 @@ public class CutBackModelTests
 
     private static async Task<GenerationEnded> AskAsync(List<ChatTurn> turns)
     {
-        if (_client is null || _hold is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        if (_client is null || _hold is null) Assert.Inconclusive(TestStore.MissingModel(Chat.Model));
         var text = new StringBuilder();
         GenerationEnded? ended = null;
         await foreach (var reply in _client!.SendAsync(id => new Generate(id, Chat, turns, 48, RequestPriority.Interactive, Thinks: false, Conversation: "cut back"),

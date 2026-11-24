@@ -8,10 +8,13 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// The conversations a model keeps, each the client's whose request began it (<see cref="ClientIdentity"/>), in the host's own parts in
-/// this test's process (<see cref="InProcessHost"/>) — where a machine has the model: Qwen 3.5 9B, <c>qwen-3.5-9b</c> from the test
-/// store (<see cref="TestStore"/>), held on the CPU, whose conversations are cut back where a turn ended. Each request is run as a client
-/// of its own, as the host's server runs it; another client's turns, however alike, are read in full, while a client's own continue its
-/// conversations as ever. What is checked is what was read, never wording.
+/// this test's process (<see cref="InProcessHost"/>) — where a machine has the model: Gemma 4 E4B, <c>gemma-4-e4b-it</c> from the test
+/// store (<see cref="TestStore"/>), held on the CPU. Each request is run as a client of its own, as the host's server runs it; another
+/// client's turns, however alike, are read in full, while a client's own continue its conversations as ever. What is checked is what was
+/// read, never wording. Gemma's template writes an earlier answer again as it was written, so a short conversation's next turn is read
+/// onto it alone — told apart by what was read from one read afresh — while the instructions some conversations open with are long
+/// enough to cut back to and to share as an opening. How a model whose template rewrites earlier answers is cut back is
+/// <see cref="CutBackModelTests"/>'.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -20,7 +23,7 @@ namespace Nexaflow.Tests.AiHost;
 public class ClientConversationsTests
 {
     /// <summary>The model's chat part, as a request names it.</summary>
-    private static readonly ModelRef Chat = new("qwen-3.5-9b", "chat");
+    private static readonly ModelRef Chat = new("gemma-4-e4b-it", "chat");
 
     private static InProcessHost? _host;
 
@@ -30,7 +33,7 @@ public class ClientConversationsTests
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (TestStore.Root is null) return;
+        if (!TestStore.HoldsCpuBuildOf(Chat.Model)) return;
         _host = InProcessHost.OnTheCpu();
         _hold = await _host.Held.HoldAsync(new HoldModels(0, [Chat], RequestPriority.Interactive), _ => Task.CompletedTask, CancellationToken.None);
     }
@@ -50,12 +53,15 @@ public class ClientConversationsTests
     /// call's alone: its caller's flow serves whoever it served.</summary>
     private static async Task<GenerationEnded> AskAsync(ClientIdentity client, List<ChatTurn> turns, string? conversation = "the conversation")
     {
-        if (_host is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        if (_host is null) Assert.Inconclusive(TestStore.MissingModel(Chat.Model));
         client.Enter();
         var replies = await InProcessHost.RunAsync(new GenerateHandler(_host!.Models, _host.Held, _host.Scheduler),
-                                                   new Generate(1, Chat, [.. turns], 16, RequestPriority.Interactive, Thinks: false, Conversation: conversation));
+        new Generate(1, Chat, [.. turns], 48, RequestPriority.Interactive, Thinks: false, Conversation: conversation));
         turns.Add(new ChatTurn(TurnRole.Assistant, string.Concat(replies.OfType<TextDelta>().Select(delta => delta.Text))));
-        return replies.OfType<GenerationEnded>().Single();
+        var ended = replies.OfType<GenerationEnded>().Single();
+        // Only a reply that ends its turn leaves a conversation to continue; one cut short by the limit keeps nothing.
+        Assert.AreEqual(StopReason.EndOfTurn, ended.Reason, $"the reply ended its turn ({ended}): \"{turns[^1].Text}\"");
+        return ended;
     }
 
     /// <summary>Instructions long enough that reading them again is worth sparing: what a cut back keeps.</summary>

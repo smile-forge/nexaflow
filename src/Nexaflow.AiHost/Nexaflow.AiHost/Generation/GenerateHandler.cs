@@ -216,7 +216,7 @@ internal sealed class GenerateHandler(ModelRegistry models, HeldModels held, Gpu
         var reader = request.Tools is { Count: > 0 } tools && model.ToolCalls is { } syntax ? syntax.Read(text.Decode, tools) : null;
         var calls = new List<ChatToolCall>();
         var written = new StringBuilder();
-        int prompt = conversation.Tokens, generated = 0, thought = 0;
+        int prompt = conversation.Length, generated = 0, thought = 0;   // the opening it began with counted too: the whole conversation
         var circles = new CircleWatch();
         var (thinking, thoughts) = request.SendsReasoning && model.Thinking is { } said
             ? (new ReplyText(model.Model), new ReasoningStream(said.Heading)) : (null, null);
