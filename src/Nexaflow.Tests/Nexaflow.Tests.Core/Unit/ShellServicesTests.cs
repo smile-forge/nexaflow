@@ -412,4 +412,40 @@ public class ShellServicesTests
         thread.Join();
         if (caught is not null) throw caught;
     }
+
+    /// <summary>Counts the times its page was shown again.</summary>
+    private sealed class ReshownVm : IPageViewModel
+    {
+        public int Reshown { get; private set; }
+        public string GetContext() => string.Empty;
+        public void Reinitialize(Dictionary<string, string> pageParams) => Reshown++;
+    }
+
+    [TestMethod]
+    public void RequestRefresh_ReshowsThePageOfTheFocusedPane_NotTheOtherPanesActivePage()
+    {
+        RunSta(() =>
+        {
+            var svc  = CreateSvc();
+            var host = new FakeWindowHost();
+            svc.RegisterWindow(host);
+            svc.SetFocused(host);
+
+            // A split window: each pane has an active page, and the second pane has the focus.
+            var leftVm  = new ReshownVm();
+            var rightVm = new ReshownVm();
+            var left  = new Page { PageKind = "Files", ViewModelFactory = () => leftVm,  IsActive = true };
+            var right = new Page { PageKind = "Files", ViewModelFactory = () => rightVm, IsActive = true };
+            left.GetOrCreateViewModel();
+            right.GetOrCreateViewModel();
+            host.AddTab(right);
+            host.AddTab(left);
+            host.ActiveTab = right;
+
+            ((IShellServices)svc).RequestRefresh();
+
+            Assert.AreEqual(1, rightVm.Reshown, "the focused pane's page is the one the user is looking at");
+            Assert.AreEqual(0, leftVm.Reshown, "the other pane's page is left as it is");
+        });
+    }
 }

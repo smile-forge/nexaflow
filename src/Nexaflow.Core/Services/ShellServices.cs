@@ -1024,7 +1024,8 @@ public sealed class ShellServices : IShellServices
     {
         _ui.Invoke(() =>
         {
-            var active = FocusedWindow?.Tabs.FirstOrDefault(t => t.IsActive);
+            // The page the user is looking at: each pane of a split window has an active page of its own.
+            var active = FocusedWindow?.ActiveTab;
             active?.Reinitialize(active.PageParams ?? []);
         });
     }
