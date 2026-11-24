@@ -15,8 +15,9 @@ namespace Nexaflow.Tests.Features.UI;
 /// user's models from an earlier Nexaflow into the service's store and installs the service, which starts with the machine under its
 /// own account and keeps the store, every user reading. Nexaflow, started with no host of its own, answers from the service on the
 /// model moved in; Settings show the share of memory the service's models may hold as the service's, not the user's to change there,
-/// and About that its models run on the CUDA pack the service took up, as the service itself found it. Another app — the SDK's sample,
-/// given no host of its own — answers from the same service. With no app using it, the service runs no worker; a worker killed under
+/// and About that its models run on the CUDA pack the service took up, as the service itself found it. A picture the service draws
+/// lands in the user's folder. Another app — the SDK's sample, given no host of its own — answers from the same service, and the
+/// service fetches a model its store lacks for it, under its own account. With no app using it, the service runs no worker; a worker killed under
 /// the apps is replaced by one started for the next app to come. With the service stopped, the AI's line says Nexaflow's own models
 /// cannot run, and why, rather
 /// than each request failing, and the other app has no host — none of its own in the service's place; once the service is back, the
@@ -39,6 +40,11 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
     private const string StoreVariable = "NEXAFLOW_TEST_STORE";
     private const string Service = "SmileForgeAiHost";
     private const string Model = "gemma-4-26b-a4b-it";
+    private const string Painter = "z-image-turbo";
+    private const string PictureCheck = @"tools\image-safety-classifier-m";
+
+    /// <summary>The model the service fetches for another app, its store lacking it: the smallest the catalog holds.</summary>
+    private const string Fetched = "gemma-4-e4b-it";
     private const string Question = "Name the three primary colours of light, in one line.";
 
     private static readonly SecurityIdentifier Users = new(WellKnownSidType.BuiltinUsersSid, null);
@@ -47,10 +53,11 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
     private string _logs = "";
     private string _earlier = "";
     private bool _storeHadModel;
+    private string _pictures = "";
 
     /// <summary>The service's worker loads the model on the first request, and the other app loads it again after the worker is
-    /// replaced and once the service is gone.</summary>
-    protected override TimeSpan JourneyBudget => TimeSpan.FromMinutes(25);
+    /// replaced and once the service is gone; a picture loads Z-Image's parts, and the service fetches a model of 5.7 GB.</summary>
+    protected override TimeSpan JourneyBudget => TimeSpan.FromMinutes(40);
 
     /// <summary>Started as a journey's app is, yet joining the machine's service as the app does outside a test.</summary>
     protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
@@ -84,6 +91,8 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
             return;
         }
         OwnedModelFolder.RequireModel(store, Model, StoreVariable);
+        OwnedModelFolder.RequireModel(store, Painter, StoreVariable);
+        OwnedModelFolder.RequirePictureCheck(store, StoreVariable);
         _msi = Path.Combine(TestSampleData.RepoRoot, "aihostSetup", "bin", "x64", Configuration, "en-US", "aihostSetup.msi");
         if (!File.Exists(_msi)) Assert.Inconclusive($"{_msi} is not built: dotnet build aihostSetup/aihostSetup.wixproj -c {Configuration} -p:Platform=x64");
         if (!File.Exists(Sample) || !File.Exists(BuiltHost)) Assert.Inconclusive("The SDK's sample and the host are not built: build the solution.");
@@ -91,9 +100,11 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
         Directory.CreateDirectory(_logs);
 
         _earlier = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Smile", "nexaflow", "ai");
-        foreach (var file in OwnedModelFolder.FilesOf(Model))
+        foreach (var file in OwnedModelFolder.FilesOf(Model).Concat(OwnedModelFolder.FilesOf(Painter)))
             foreach (var each in new[] { file, file + ".verified" })
                 Copy(Path.Combine(store, each), Path.Combine(_earlier, each));
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(store, PictureCheck), "*", SearchOption.AllDirectories))
+            Copy(file, Path.Combine(_earlier, Path.GetRelativePath(store, file)));
         foreach (var pack in Directory.EnumerateDirectories(Path.Combine(store, "runtime"), "cuda-*"))
             foreach (var file in Directory.EnumerateFiles(pack, "*", SearchOption.AllDirectories))
                 Copy(file, Path.Combine(_earlier, Path.GetRelativePath(store, file)));
@@ -108,6 +119,28 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
         Check("with no app using it, the service runs no worker", () => Process.GetProcessesByName("Nexaflow.AiHost").Length == 1);
 
         var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
+        // A workspace open on a folder of its own, for the picture the service draws.
+        _pictures = Path.Combine(TestTemp.Root, "nexaflow-service-pictures-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_pictures);
+        var workspaces = Path.Combine(configDir, "workcontexts");
+        Directory.CreateDirectory(workspaces);
+        File.WriteAllText(Path.Combine(workspaces, $"config_{version}.json"), $$"""
+            {
+              "ConfigName": "workcontexts",
+              "FriendlyName": "Workspaces",
+              "Contexts": [
+                {
+                  "DefaultTabs": [
+                    { "PageKind": "FileSystem", "PageParams": { "mode": "path", "path": {{System.Text.Json.JsonSerializer.Serialize(_pictures)}} }, "Pane": 0, "Title": "pictures", "IsActive": true }
+                  ],
+                  "LastSessionTabs": [],
+                  "Name": "Default",
+                  "Color": "#5B8CFF",
+                  "Icon": "⬡"
+                }
+              ]
+            }
+            """);
         var abilities = Path.Combine(configDir, "Contexts", "Default", "ai-abilities");
         Directory.CreateDirectory(abilities);
         File.WriteAllText(Path.Combine(abilities, $"config_{version}.json"), $$"""
@@ -115,9 +148,11 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
               "ConfigName": "ai-abilities",
               "FriendlyName": "AI",
               "Columns": [
-                { "Id": "chat", "ProviderName": "Nexaflow", "Model": "{{Model}}", "Kind": "Language", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" }
+                { "Id": "chat", "ProviderName": "Nexaflow", "Model": "{{Model}}", "Kind": "Language", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" },
+                { "Id": "draw", "ProviderName": "Nexaflow", "Model": "{{Painter}}", "Kind": "ImageGeneration", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" }
               ],
-              "Assignments": { "GeneralIntelligence": [ "chat" ], "Disambiguation": [ "chat" ] }
+              "Assignments": { "GeneralIntelligence": [ "chat" ], "Disambiguation": [ "chat" ], "ImageGeneration": [ "draw" ] },
+              "LocalSeeded": true
             }
             """);
     }
@@ -155,9 +190,24 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
                 TimeSpan.FromSeconds(60)));
       CancelOptions();
 
+        // A picture, drawn by the service: what it makes crosses from the service's account to this user's.
+        CheckDoes("New opens the picker", "NewMenuAction", () => WaitForId("CreateFileNameBox", 6) is not null, 10);
+        CheckDoes("Gen Image offers the service's drawing model", "GenerateImageCreateAction", () => WaitForId("Images_GeneratePrompt", 6) is not null);
+        Check("What to draw is typed", () => TypeInto("Images_GeneratePrompt", "A lighthouse on a cliff at dusk, oil painting"));
+        Check("The name is given", () => TypeInto("CreateFileNameBox", "lighthouse"));
+        CheckDoes("Create sets it drawing", "FileSystem_CreateConfirm", () => Until(() => WaitForId("CreateFileNameBox", 1) is null, TimeSpan.FromSeconds(4)));
+        Check("the service draws it, and the picture lands in the folder", () =>
+            Until(() => new FileInfo(Path.Combine(_pictures, "lighthouse.png")) is { Exists: true, Length: > 0 }, TimeSpan.FromSeconds(Affordable(300))));
+
         // Another app, on the same service.
         Check("another app, given no host of its own, answers from the same service, fetching nothing", () =>
             Run(Sample, ["--model", Model], "sample-joined.log") is { Exit: 0 } ran && ran.Output.Trim().Length > 0 && !ran.Errors.Contains("fetching"));
+        Check("a model the service's store lacks is fetched by the service, under its own account, and answers the app that asked", () =>
+            !File.Exists(Path.Combine(Store, OwnedModelFolder.FilesOf(Fetched)[0]))
+            && Run(Sample, ["--model", Fetched], "sample-fetched.log") is { Exit: 0 } ran && ran.Output.Trim().Length > 0
+            && File.Exists(Path.Combine(Store, OwnedModelFolder.FilesOf(Fetched)[0])));
+        Check("and every user still only reads the store the service wrote it into", () =>
+            (UsersRights() & ~FileSystemRights.Synchronize) == FileSystemRights.ReadAndExecute);
 
         // The worker dies; the supervisor starts another, and the apps join it.
         int supervisor = int.Parse(Run("sc", ["queryex", Service]).Output.Split('\n').Single(l => l.TrimStart().StartsWith("PID", StringComparison.Ordinal))

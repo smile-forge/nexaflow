@@ -232,8 +232,10 @@ internal sealed class HostConnection : IAsyncDisposable
             if (AiHostService.ServerProcessIdOf(pipe) != processId)
                 throw Unavailable("Something other than the AI host service answered on its pipe; nothing was said to it.");
 
-            var sections = new ClientSections(message => channel!.SendAsync(message));
-            channel = new HostChannel(pipe, sections);
+            // The sections speak on the channel for as long as the connection lives; `channel` alone says whether this join still owns it.
+            HostChannel? joined = null;
+            var sections = new ClientSections(message => joined!.SendAsync(message));
+            channel = joined = new HostChannel(pipe, sections);
             await channel.SendAsync(new Hello(null, AiHostProtocol.Version, app), timeout.Token).ConfigureAwait(false);
             switch (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false))
             {

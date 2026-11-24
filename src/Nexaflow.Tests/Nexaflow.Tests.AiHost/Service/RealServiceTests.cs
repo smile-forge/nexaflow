@@ -37,6 +37,21 @@ public class RealServiceTests
     }
 
     [TestMethod]
+    public async Task AClientOfTheService_IsLentASectionTheWorkerMakes_ForABlockTooLargeForThePipe()
+    {
+        await using var service = ServiceUnderTest.Start();
+        await using var client = service.Join("Test");
+        await DescribeAsync(client);
+        int length = SharedBytes.InlineLimit * 3;
+
+        using var block = await client.AllocateAsync(length).WaitAsync(Generous);
+
+        Assert.AreEqual(length, block.Length);
+        Assert.IsNotNull(block.SectionId, "a block past the pipe's limit is lent in a section the host made, asked for over the joined connection");
+        block.Span[length - 1] = 42;
+    }
+
+    [TestMethod]
     public async Task AWorkerThatDies_IsReplaced_AndTheAppJoinsTheNext()
     {
         await using var service = ServiceUnderTest.Start();
