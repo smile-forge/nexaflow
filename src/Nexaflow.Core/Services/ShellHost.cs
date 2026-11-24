@@ -8,8 +8,7 @@ using Nexaflow.Core.Services.Elevation;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Core.Services.Tools;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.WindowsFileSystem.FileActions;
-using Nexaflow.Features.WindowsFileSystem.Services;
+
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Providers.AiHost;
@@ -226,39 +225,12 @@ internal sealed class ShellHost : IAsyncDisposable
         WorkspaceManager.Instance.Runtimes = Workspaces;
         StartupTimings.Mark("Init.Workspaces");
 
-        // ── 5. File map + external apps ──────────────────────────────────────
-        var fileMapConfig = new FileMapConfig();
-        ConfigManager.Instance.Register(fileMapConfig, fileMapConfig.ConfigName);
-
-        var externalAppsConfig = (ExternalAppsConfig)ConfigManager.Instance.Register(
-            new ExternalAppsConfig(), new ExternalAppsConfig().ConfigName);
-        ExternalAppRegistry.Instance.Initialize(externalAppsConfig);
-
-        // Give pre-Id apps a stable identity (referenced by Default Action overrides); persist once.
-        if (ExternalAppRegistry.Instance.BackfillIds())
-            ConfigManager.Instance.Save(externalAppsConfig, externalAppsConfig.ConfigName);
-
-        FileMapManager.Instance.Initialize(ConfigManager.Instance.BaseDir);
-
-        // Per-extension double-click overrides (Options → Default Actions), consulted by DefaultFileOpener.
-        var defaultActionsConfig = (DefaultActionsConfig)ConfigManager.Instance.Register(
-            new DefaultActionsConfig(), new DefaultActionsConfig().ConfigName);
-        DefaultActionRegistry.Instance.Initialize(defaultActionsConfig);
-
-        // ShellNew create-file entries from HKCR — gated on the registry-handlers toggle.
-        ShellNewRegistry.Instance.Initialize(externalAppsConfig.UseRegistryMapping);
-
-        // Templated-create (user templates) — global config + its appdata template store.
-        var templatedCreateConfig = new TemplatedCreateConfig();
-        ConfigManager.Instance.Register(templatedCreateConfig, templatedCreateConfig.ConfigName);
-        TemplatedCreateRegistry.Instance.Initialize(templatedCreateConfig, ConfigManager.Instance.BaseDir);
-        StartupTimings.Mark("Init.FileMap");
-
-        // ── 6. Feature system ────────────────────────────────────────────────
+        // ── 5. Feature system ────────────────────────────────────────────────
         // Builds the (cached) discovery index — on a normal launch this loads NO feature assemblies.
         // Each assembly is loaded + activated lazily (first page, handler query, or the post-paint warm-up
         // of StartBackground); activation registers that assembly's global configs, archive handlers /
-        // codecs (into the VFS) and theme contributions (folded below the theme applied in step 1).
+        // codecs (into the VFS) and theme contributions (folded below the theme applied in step 1), and runs the
+        // feature's own setup for the session (IFeatureStartup) — the file system's file map and registries among them.
         FeatureManager.Instance.RegisterFeatures(platform.Ui);
 
         // UI-test automation (--uiTest) drives the app far faster than a human and would outrun the

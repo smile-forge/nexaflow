@@ -88,6 +88,12 @@ public sealed class FeatureManager
     private static readonly string StreamCodecName    = typeof(IStreamCodec).FullName!;
     private static readonly string LocationProviderName = typeof(ILocationProvider).FullName!;
 
+    private static readonly string FeatureStartupName = typeof(IFeatureStartup).FullName!;
+
+    /// <summary>What a feature's setup is given of the session: the global configs, the data folder, and saving a config.</summary>
+    private FeatureStartupContext StartupContext()
+        => new(_configs, ConfigManager.Instance.BaseDir, config => ConfigManager.Instance.Save(config, config.ConfigName));
+
     /// <summary>
     /// Side-effects of loading a feature assembly, performed once on its first load: register its global
     /// configs with <see cref="ConfigManager"/>, register its archive handlers / stream codecs into the VFS,
@@ -107,8 +113,8 @@ public sealed class FeatureManager
                 try
                 {
                     var cfg = (IFeatureConfig)Activator.CreateInstance(configType)!;
-                    // ConfigManager.Register is first-wins and returns the canonical instance — startup may
-                    // have pre-registered some (e.g. FileMapConfig); use the canonical so all consumers share it.
+                    // ConfigManager.Register is first-wins and returns the canonical instance; use the canonical so all consumers
+                    // share it.
                     _configs[configType] = (IFeatureConfig)ConfigManager.Instance.Register(cfg, cfg.ConfigName);
                 }
                 catch { }
@@ -149,6 +155,14 @@ public sealed class FeatureManager
                     foreach (var u in uris)
                         if (Uri.TryCreate(u, UriKind.Absolute, out var uri) && _themeContributionUris.Add(uri))
                             themeChanged = true;
+        }
+
+        // The feature's own setup for the session, now its global configs are registered and before anything of it is built.
+        foreach (var te in entry.Types)
+        {
+            if (!te.Contracts.Contains(FeatureStartupName) || asm.GetType(te.Name) is not { } startupType) continue;
+            try { ((IFeatureStartup)Activator.CreateInstance(startupType)!).Start(StartupContext()); }
+            catch (Exception ex) { ShellSafetyLog.Instance.Failed($"setting up {startupType.FullName} for the session", ex); }
         }
 
         if (themeChanged)

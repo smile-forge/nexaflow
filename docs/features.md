@@ -446,6 +446,7 @@ long as the user keeps the icon it was pinned with.
 | Interface | What it's for |
 |---|---|
 | `IThemeContribution` | A feature ships fallback theme resources (region tokens / `Scene.*` templates) without Core referencing it. |
+| `IFeatureStartup` | A feature sets itself up for the session once, as its assembly activates — after its global configs are registered, before anything of it is built for a workspace: a registry read from the machine, a store under the app's data folder (`FeatureStartupContext`). It may run on the background warm-up thread, so it never touches the UI. |
 
 ### Text size & zoom
 

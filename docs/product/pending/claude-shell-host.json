@@ -229,11 +229,41 @@
           }
         ]
       }
+    },
+    "feature-startup": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/IFeatureStartup.cs",
+          "class": "IFeatureStartup"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/WindowsFileSystemStartup.cs",
+          "class": "WindowsFileSystemStartup"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/FeatureManager.cs",
+          "class": "FeatureManager",
+          "method": "OnAssemblyActivated"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/FeatureStartupTests.cs",
+            "class": "FeatureStartupTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 14,
   "touched_nodes": [
+    "feature-startup",
     "messages-workspace-tag",
     "shell-session",
     "ws-dormant-time",
