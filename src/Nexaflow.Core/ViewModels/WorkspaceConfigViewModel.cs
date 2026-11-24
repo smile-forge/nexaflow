@@ -94,10 +94,9 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
         // Capability instances for the ability grid's model lists (model-agnostic; columns: none).
         _editingProviderSet  = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
-        _aiConfig.Providers  = _editingProviderSet;
         _shelf               = ProviderManager.Instance.Assets is { } assets ? new LocalModelShelf(_editingProviderSet, assets) : null;
         _downloads           = ProviderManager.Instance.Service<LocalModelDownloads>();
-        _grid                = new AiAbilityGridViewModel(_aiConfig, _shelf, _downloads);
+        _grid                = new AiAbilityGridViewModel(_aiConfig, _editingProviderSet, _shelf, _downloads);
 
         BuildSections();
         SelectedSection = Sections.FirstOrDefault();
@@ -207,7 +206,6 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         {
             ProviderManager.Instance.ReleaseProviderSet(_editingProviderSet);
             _editingProviderSet = null;
-            _aiConfig.Providers = null;
         }
 
         if (!_dirty) return false;
@@ -325,7 +323,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         var fresh = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
         var old   = _editingProviderSet;
         _editingProviderSet = fresh;
-        _aiConfig.Providers = fresh;            // same AiConfig instance the grid holds — picks it up
+        _grid.UseProviders(fresh);
         if (old is not null) ProviderManager.Instance.ReleaseProviderSet(old);
     }
 }

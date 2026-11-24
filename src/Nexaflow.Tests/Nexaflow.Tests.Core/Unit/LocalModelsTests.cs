@@ -190,8 +190,7 @@ public class LocalModelsTests
             new Dictionary<string, string> { ["Nexaflow"] = "Nexaflow.Providers.AiHost.dll", ["Claude"] = "Nexaflow.Providers.Claude.dll" }, []);
         var config = new AiConfig
         {
-            Providers = providers,
-            Columns =
+    Columns =
             [
                 new ProviderModelPair { Id = "c", ProviderName = "Claude", Model = "sonnet", Kind = ModelKind.Language },
                 new ProviderModelPair { Id = SpeechIn, ProviderName = "Nexaflow", Model = "small", Kind = ModelKind.SpeechToText },
@@ -201,7 +200,7 @@ public class LocalModelsTests
         };
         var shelf = new LocalModelShelf(providers, _store);
         downloads ??= Downloads();
-        return new(new AiAbilityGridViewModel(config, shelf, downloads), config, shelf, downloads, new Workspace());
+        return new(new AiAbilityGridViewModel(config, providers, shelf, downloads), config, shelf, downloads, new Workspace());
     }
 
     private LocalModelDownloads Downloads() => new(_store, activities: null, (_, slot, column) => _used.Add((slot, column.Model)));

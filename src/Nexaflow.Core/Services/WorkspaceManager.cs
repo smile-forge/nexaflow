@@ -613,8 +613,7 @@ public sealed class WorkspaceManager
         }
         StartupTimings.Mark("Workspace.LocalColumnsFolded");
         var old   = ws.Providers;
-        ws.Providers               = fresh;
-        workspace.AiConfig.Providers = fresh;
+        ws.Providers = fresh;
         ProviderManager.Instance.ReleaseProviderSet(old);
         // Nothing is loaded here: the residency weighs each assigned model for loading ahead once the window is up. A standby
         // runtime's are weighed when a launch adopts it, so a window nobody has asked for yet loads nothing.
