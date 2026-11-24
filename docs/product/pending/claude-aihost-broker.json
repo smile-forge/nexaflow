@@ -655,6 +655,17 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Store/StoreAccessTests.cs",
             "class": "StoreAccessTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/AiHost/AiHostServiceJourneyTests.cs",
+            "class": "AiHostServiceJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SharedHostMeasurements.cs",
+            "class": "SharedHostMeasurements",
+            "method": "AnAppThatStopsReading_HoldsBackOnlyItsOwnReplies"
           }
         ]
       }

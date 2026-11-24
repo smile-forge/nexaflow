@@ -408,8 +408,24 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
     the variable and maps the store in read-only — and assert the shape of what a model made, never its wording. A
     journey that meets a model without being about one — Convert to Markdown in the PDF and image viewers — starts its app
     on an `EmptyModelStore` instead: a model folder and a temp folder of its own, empty, so it meets the same app on every
-    machine whatever that machine's store holds. A reading under way is not driven there: a real one ends sooner than a
-    journey can be sure to press Stop, so `PageConversionTests` holds one open.
+      machine whatever that machine's store holds. A reading under way is not driven there: a real one ends sooner than a
+      journey can be sure to press Stop, so `PageConversionTests` holds one open.
+    - **Apps sharing the AI host** *(`SharedHostMeasurements` in `Tests.AiHost`, `TestCategory("OwnedModel")`)* — on the GPU,
+      with the test store's CUDA pack, and `NEXAFLOW_TEST_ARIA_MODEL` naming the background app's model where one is used.
+      Several apps join one service run in the test (`ServiceUnderTest`: its supervisor in the test process, its worker the
+      host executable on the test store), each under a name of its own as apps join the machine's service: Nexaflow's voice
+      beside another app's thinking and a third app asking of the model Nexaflow holds; an app that asks and stops reading
+      (`UnreadClient`, a bare connection below the SDK, whose client reads every reply off the pipe however slowly its caller
+      takes them) beside one that reads, whose replies come as fast as alone; and a picture one app draws on a card made
+      tight (`GpuBallast`, device memory held through the pack's CUDA runtime) sending another app's conversation model away
+      and back. `NEXAFLOW_TEST_MEASUREMENTS` names a file their numbers are appended to.
+    - **The AI host service, installed** *(`AiHostServiceJourneyTests` in `Tests.UIJourneys`, `TestCategory("Machine")`)* —
+      installs the built `aihostSetup` MSI, so it runs only in Windows Sandbox and is inconclusive anywhere else; build the
+      solution and `aihostSetup` first. From the outside, as a machine gets it: the service runs with the machine under its
+      own account and keeps the store, every user reading; the SDK's sample, given no host of its own, joins it, has it fetch
+      its model and answers; a worker killed under it is replaced and the sample joins the next; with the service stopped,
+      the sample's own host runs what the store holds; and uninstalling gives the store back to every user. The sample's model
+      is fetched in the sandbox the first time, a few GB. What each step ran writes to `TestResults\aihost-service\`.
 - **`ImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host drawing with Z-Image Turbo's real
   graphs, `z-image-turbo` from the test store, on the CUDA pack there — the model is built for the GPU only. They assert a
   drawing's shape: its

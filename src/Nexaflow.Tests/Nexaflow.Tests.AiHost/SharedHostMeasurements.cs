@@ -234,7 +234,8 @@ public class SharedHostMeasurements
 
     private sealed record Setup(string Name, AiHostClient Voice, AiHostClient? Thinker, ModelRef VoiceModel, ModelRef? ThinkingModel);
 
-    private async Task MeasureAsync(Setup setup)
+    /// <summary>Measures the voice of <paramref name="setup"/> beside its thinking; what the thinking came to, where it has any.</summary>
+    private async Task<Thinking?> MeasureAsync(Setup setup)
     {
         using var gpu = GpuMemoryWatch.Start();
         using var stop = new CancellationTokenSource();
@@ -260,6 +261,7 @@ public class SharedHostMeasurements
                + $"first audio {Ms(turns.Select(t => t.Audio))}; GPU peak {Mib(gpu.PeakBytes)}");
         if (thought is not null)
             Report($"{setup.Name}: thinking made {thought.Calls} calls, {thought.Tokens} tokens in {thought.Ran.TotalSeconds:0} s, {thought.Lost} lost");
+        return thought;
     }
 
     [TestMethod]
@@ -300,6 +302,152 @@ public class SharedHostMeasurements
     }
 
     // ── What appending buys the background app ────────────────────────────────────────────────────────────────────────────────
+
+    // ── One service, several apps ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The machine's service as apps share it, run in the test (<see cref="ServiceUnderTest"/>): its worker on the test
+    /// store, on the CUDA pack there — every measurement is of the GPU.</summary>
+    private static ServiceUnderTest ServiceOnTheCard()
+        => TestStore.Root is { } root && TestStore.RuntimePackFolder is not null
+            ? ServiceUnderTest.Start(root)
+            : throw new AssertInconclusiveException(TestStore.Missing());
+
+    /// <summary>
+    /// Three apps on one service, each an app of its own to the host: Nexaflow holding its model and voice for a conversation, Aria
+    /// thinking for itself below people's priority, and a third app asking of the model Nexaflow holds — one copy on the card for both.
+    /// Each is served and none loses a request; the voice's times are reported beside the separate setups above.
+    /// </summary>
+    [TestMethod]
+    public async Task ThreeAppsOnOneService_VoiceBesideAnotherAppsThinking_AndAThirdAsking()
+    {
+        var aria = Aria();
+        await using var service = ServiceOnTheCard();
+        await using var nexaflow = service.Join("Nexaflow");
+        await using var thinker = service.Join("Aria");
+        await using var asker = service.Join("Sample");
+
+        await using var people = await TestStore.HoldPlacedAsync(nexaflow, [People], RequestPriority.Interactive);
+        await using var voice = await TestStore.HoldPlacedAsync(nexaflow, VoiceParts, RequestPriority.Voice);
+        await using var thinking = await TestStore.HoldPlacedAsync(thinker, [aria], RequestPriority.Background);
+        await using var asking = await TestStore.HoldPlacedAsync(asker, [People], RequestPriority.Background);
+
+        using var stop = new CancellationTokenSource();
+        var third = ThinkAsync(asker, People, stop.Token);
+        var thought = await MeasureAsync(new Setup("one service, three apps", nexaflow, thinker, People, aria));
+        await stop.CancelAsync();
+        var asked = await third;
+        Report($"one service, three apps: the third app made {asked.Calls} calls, {asked.Tokens} tokens in {asked.Ran.TotalSeconds:0} s, {asked.Lost} lost");
+
+        Assert.IsTrue(thought is { Calls: > 0, Lost: 0 }, "the thinking app is served beside the voice, losing nothing");
+        Assert.IsTrue(asked is { Calls: > 0, Lost: 0 }, "and so is the third");
+    }
+
+    /// <summary>
+    /// An app that asks and stops reading holds back only its own replies. Its replies fill its pipe and then the host's queue for it,
+    /// and stand aside from the rounds they share with another app's on the same model; the other's replies come as fast as with no
+    /// such app beside them. The app that stopped reading loses nothing: once it reads again, each of its requests ends, having gone on
+    /// to generate far more than its pipe and queue held — it was held back, not finished, while the other app was measured.
+    /// </summary>
+    [TestMethod]
+    public async Task AnAppThatStopsReading_HoldsBackOnlyItsOwnReplies()
+    {
+        const int Asked = 4, Most = 6000, Long = 1000;
+        await using var service = ServiceOnTheCard();
+        await using var reader = service.Join("Reader");
+        await using var held = await TestStore.HoldPlacedAsync(reader, [People], RequestPriority.Interactive);
+
+        async Task<double> TokensPerSecondAsync()
+        {
+            int tokens = 0;
+            var watch = Stopwatch.StartNew();
+            for (int i = 0; i < 3; i++)
+                await foreach (var reply in reader.SendAsync(id => new Generate(id, People, Story(i), 400, RequestPriority.Interactive, Thinks: false), StallLimit))
+                    if (reply is GenerationEnded ended) tokens += ended.GeneratedTokens;
+            return tokens / watch.Elapsed.TotalSeconds;
+        }
+
+        await TokensPerSecondAsync();   // warms the model
+        double alone = await TokensPerSecondAsync();
+
+        await using var stalled = await UnreadClient.JoinAsync(service.PipeName, "Stalled");
+        // Replies that run long — a model asked to count far cuts it short — so they are still being written when the other app is measured.
+        List<ChatTurn> Saga(int i) => [new(TurnRole.User, $"Write a long saga, number {i}, of at least four thousand words, about a city that floods. Write it in full.")];
+        var asked = new List<long>();
+        for (int i = 0; i < Asked; i++)
+        {
+            int n = i;
+            asked.Add(await stalled.AskAsync(id => new Generate(id, People, Saga(n), Most, RequestPriority.Interactive, Thinks: false)));
+        }
+
+        // Full once the host has stopped writing to its pipe: what the pipe holds no longer grows.
+        long waiting = -1;
+        var still = Stopwatch.StartNew();
+        var filling = Stopwatch.StartNew();
+        while (still.Elapsed < TimeSpan.FromSeconds(5) && filling.Elapsed < TimeSpan.FromMinutes(2))
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(250));
+            if (stalled.Waiting is var now && now != waiting)
+            {
+                waiting = now;
+                still.Restart();
+            }
+        }
+
+        double beside = await TokensPerSecondAsync();
+        using var drained = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var (ends, generated) = await stalled.ReadUntilEndedAsync(asked, drained.Token);
+
+        Report($"replies alone: {alone:0} tok/s; beside {Asked} requests of an app that stopped reading, its pipe full at {waiting >> 10} KiB "
+               + $"after {filling.Elapsed.TotalSeconds - 5:0} s: {beside:0} tok/s; read again, its requests generated {generated:N0} tokens");
+        // Its pipe and its queue hold a few hundred replies: requests that went on well past them were held back, not finished.
+        Assert.IsTrue(generated > Asked * Long, $"its requests generated {generated:N0} tokens: they ended before the other app was measured, not held back");
+        Assert.IsTrue(beside >= alone * 0.6, $"replies beside an app that stopped reading came at {beside:0} tok/s, against {alone:0} alone");
+        Assert.AreEqual(Asked, ends.Values.Count(e => e is Completed), "read again, every one of its requests ended, none lost");
+    }
+
+    /// <summary>
+    /// A picture one app draws on a card too full for it beside another app's voice conversation makes that conversation's model wait:
+    /// Nexaflow's hold is told its model is away while the picture is drawn, and back after, and the picture is drawn. The card is made
+    /// tight before the service starts (<see cref="GpuBallast"/>): it leaves room for the conversation and half the picture.
+    /// </summary>
+    [TestMethod]
+    public async Task APictureOneAppDraws_MakesAnotherAppsConversationWait_AndGivesItBack()
+    {
+        const string painting = "z-image-turbo";
+        static long Bytes(ModelRef part) => HostCatalog.Find(part.Model)!.PartsFor(HostCatalog.Cuda).First(p => p.Name == part.Part).MemoryBytes;
+        long conversationBytes = Bytes(People) + VoiceParts.Sum(Bytes) + (4L << 30);   // and room for the model's context
+        long picture = HostCatalog.Find(painting)!.PartsFor(HostCatalog.Cuda).Sum(p => p.MemoryBytes);
+        using var ballast = GpuBallast.Leaving(conversationBytes + picture / 2);
+
+        await using var service = ServiceOnTheCard();
+        await using var nexaflow = service.Join("Nexaflow");
+        await using var painter = service.Join("Painter");
+        await using var conversation = await TestStore.HoldPlacedAsync(nexaflow, [People, .. VoiceParts], RequestPriority.Voice);
+        int away = 0;
+        conversation.Changed += (_, _) =>
+        {
+            if (conversation.AnyAway) Interlocked.Increment(ref away);
+        };
+
+        var watch = Stopwatch.StartNew();
+        bool drawn = false;
+        await foreach (var reply in painter.SendAsync(id => new Draw(id, painting, "A lighthouse in a storm, at dusk.", 1024, 1024, 7, RequestPriority.Job),
+                                                      TimeSpan.FromMinutes(5)))
+        {
+            if (reply is not Drawn picturePixels) continue;
+            drawn = true;
+            picturePixels.Rgb.Dispose();
+        }
+        var drawing = watch.Elapsed;
+        var back = Stopwatch.StartNew();
+        while (conversation.AnyAway && back.Elapsed < TimeSpan.FromMinutes(2)) await Task.Delay(50);
+
+        Report($"held {Mib(ballast.Bytes)} to leave the card room for the conversation and half the picture; the picture took "
+               + $"{drawing.TotalSeconds:0.0} s, the conversation's model was back {back.Elapsed.TotalSeconds:0.0} s after");
+        Assert.IsTrue(drawn, "the picture was drawn");
+        Assert.IsTrue(away > 0, "the conversation's hold was told its model made way");
+        Assert.IsFalse(conversation.AnyAway, "and told it was back");
+    }
 
     [TestMethod]
     public async Task ABackgroundAppsConversation_ReadAppended_AgainstReadWholeEachCall()

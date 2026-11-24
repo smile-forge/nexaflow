@@ -249,9 +249,9 @@ kill-on-close job object of the SDK's own (`HostProcessJob`) so it dies with the
 account may open it, and serves every client that connects with the token (`HostListener`), each in a session of its own
 (`HostServer`); it ends once the last has gone. The SDK and the
 host keep their logs with one writer compiled into each (`AiHostLogFile`), and the host executable references nothing
-of Nexaflow's but its contracts. Another app runs a host of its own the same way, through the SDK alone —
-`Nexaflow.AiHost.Sample` is the shortest one, and `StandaloneSdkTests` holds the SDK to referencing nothing else of
-Nexaflow's and runs the sample against a real model. Every reason is something the test beds hit:
+of Nexaflow's but its contracts. Another app joins the machine's service, or runs a host of its own, the same way, through
+the SDK alone — `Nexaflow.AiHost.Sample` is the shortest one, and `StandaloneSdkTests` holds the SDK to referencing nothing
+else of Nexaflow's and runs the sample against a real model. Every reason is something the test beds hit:
 
 - **A native crash takes its process down.** Two access violations in onnxruntime-genai during testing; in the
   host that is a restart and a retried request, in the WPF process it is the whole app.
@@ -1305,7 +1305,8 @@ per-machine choice users change later. The installer carries the host alone.
   alone in the machine's one store, `%ProgramData%\Smile-Forge\Models` (`HostModelStore`), which every app asks the host
   to fetch into; the files an earlier Nexaflow kept under `%LOCALAPPDATA%\Smile\nexaflow\ai\` are moved in. Each provider ships a catalog manifest naming its models' files with source, size and
   SHA-256 (`ModelCatalog`, `Providers.Local`; the CUDA pack a set of its own, `AssetSet`); a download
-  resumes from a `.partial` file and a file is handed out only once verified. A file an earlier CUDA pack kept is moved in
+  resumes from a `.partial` file — at once, in the same fetch, when its connection drops or the server fails, given up only
+  after five passes in a row gain nothing (`VerifiedDownload`) — and a file is handed out only once verified. A file an earlier CUDA pack kept is moved in
   when it is the same file, before anything is weighed against the drive or downloaded.
 - **Hardware probe**: what decides where local models run is the SDK's `MachineCards`, read through NVIDIA's management
   library (NVML, with the driver on Windows and Linux) before any host runs: each NVIDIA card with its memory, in PCI
