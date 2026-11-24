@@ -1,6 +1,8 @@
+using Nexaflow.Core.Localization;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Elevation;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 
@@ -20,6 +22,10 @@ namespace Nexaflow.Core.Services;
 /// <param name="Folders">The session's file and folder watches, and its busy folders.</param>
 /// <param name="Elevation">How an admin-only request runs, out of process.</param>
 /// <param name="Clipboard">The system clipboard.</param>
+/// <param name="Dependencies">The third-party components the features declare, and what the last probe found of each.</param>
+/// <param name="Language">The UI language, which a window restarting for a new one selects.</param>
+/// <param name="Views">The view each open page is drawn with, let go when its tab closes.</param>
+/// <param name="HelpTools">The tools that read the help the app ships, which each runtime's assistant offers on every page.</param>
 public sealed record RuntimeSessionServices(
     ProviderManager Providers,
     BackgroundActivityManager? Tasks,
@@ -32,4 +38,8 @@ public sealed record RuntimeSessionServices(
     IUiThread Ui,
     FolderActivity Folders,
     ElevatedBridgeLauncher Elevation,
-    IShellClipboard Clipboard);
+    IShellClipboard Clipboard,
+    ExternalDependencyRegistry Dependencies,
+    LanguageManager Language,
+    PageViews Views,
+    IReadOnlyList<IClientTool> HelpTools);

@@ -167,11 +167,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>The focused pane's page view, when it has been shown: what a view itself offers (keys, a selection).</summary>
-    internal FrameworkElement? ActivePageView => ActiveTab is { } tab ? PageViews.Instance.Shown(tab) : null;
+    internal FrameworkElement? ActivePageView => ActiveTab is { } tab ? _session.Views.Shown(tab) : null;
 
     private void WireRootPane()
     {
-        var first    = new Pane();
+        var first    = new Pane(_session.Views);
         FocusedPane  = first;
         RootPaneNode = first;     // fires OnRootPaneNodeChanged → subscribes the leaf pane(s)
     }
@@ -447,7 +447,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
     private OptionsViewModel BuildOptionsPanel()
     {
-        var vm = new OptionsViewModel(_shellServices);
+        var vm = new OptionsViewModel(new ConfigPageModels(_session.Dependencies, _session.Language), _shellServices);
         vm.SaveError           += ShowErrorToast;
         vm.TabRefreshRequested += RefreshTabs;
         vm.SaveCompleted       += () =>
@@ -456,7 +456,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             // Neither a theme nor a language live-reflows (StaticResource, and strings resolved once as the XAML
             // loads — both by design); restart this window in place, reopening the same pane layout.
             if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell
-                && (shell.Theme != ThemeManager.Current || !LanguageManager.Instance.IsCurrent(shell.Language)))
+                && (shell.Theme != ThemeManager.Current || !_session.Language.IsCurrent(shell.Language)))
                 _shellServices.RestartWindowForAppearance(this, shell.Theme, shell.Language);
         };
         if (RequestedOptionsSection is { } section)
@@ -655,6 +655,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>The session's inbox: this window shows every message in it and toasts the new ones.</summary>
     private readonly MessageCenter _inbox;
 
+        /// <summary>What this window is given of the session: its page views, language and components among them.</summary>
+        private readonly WindowServices _session;
+
     /// <summary>
     /// Set by MainWindow after the RibbonControl is initialised so the shell can
     /// remove ribbon items from handler execution (e.g. "files no longer exist").
@@ -709,12 +712,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _pageCoveredByOverlay = covered;
 
         foreach (var page in LeafPanes.SelectMany(p => p.Pages))
-            if ((PageViews.Instance.Shown(page) as IAirspaceContent ?? page.ViewModel as IAirspaceContent) is { } airspace)
+            if ((_session.Views.Shown(page) as IAirspaceContent ?? page.ViewModel as IAirspaceContent) is { } airspace)
                 airspace.SetCoveredByOverlay(covered);
     }
 
     public ShellViewModel(WindowServices session, WorkspaceRuntime workspace)
     {
+        _session = session;
         var activityManager = session.Activities;
         _activityManager = activityManager;
         _inbox           = session.Inbox;
@@ -880,7 +884,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>The language a conversation is held in: the app's.</summary>
-    private static string SpokenLanguage() => (LanguageManager.TryInstance?.Current ?? LanguageManager.FallbackCode)[..2].ToLowerInvariant();
+    private string SpokenLanguage() => _session.Language.Current[..2].ToLowerInvariant();
 
     // ── Tab commands ──────────────────────────────────────────────────────
 
@@ -967,7 +971,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         var left = OwningPane(tab) ?? SoleLeaf;
         left.Remove(tab);
-        var right = new Pane();
+        var right = new Pane(_session.Views);
         right.Add(tab);
         Split(left, right);
     }
@@ -977,7 +981,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>Splits the tab area, adding an empty right-hand pane.</summary>
     [RelayCommand(CanExecute = nameof(CanSplitEmpty))]
-    private void SplitEmpty() => Split(SoleLeaf, new Pane());
+    private void SplitEmpty() => Split(SoleLeaf, new Pane(_session.Views));
 
     private bool CanSplitEmpty() => !IsSplit;
 
@@ -1164,7 +1168,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (RootPaneNode is SplitPaneNode split)
             return ReferenceEquals(split.First, subject) ? split.Second : split.First;
-        var beside = new Pane();
+        var beside = new Pane(_session.Views);
         Split(subject, beside);
         return beside;
     }

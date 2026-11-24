@@ -553,7 +553,7 @@ public partial class SetupWizardViewModel : ObservableObject
     /// not be read at all takes the wizard through the workspace's AI setup again, because what that file
     /// held is gone and the user is being asked to confirm what replaced it.
     /// </summary>
-    public static SetupWizardViewModel? Build(Workspace startupWorkspace)
+    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages)
     {
         var steps = new List<IWizardStep>();
 
@@ -584,7 +584,7 @@ public partial class SetupWizardViewModel : ObservableObject
             bool needsNewInfo = migrated.Contains(cfg.ConfigName)
                                 && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg);
             if (!isNew && !needsNewInfo) continue;
-            var editor = new ConfigEditViewModel(cfg, cfg.ConfigName, cfg.FriendlyName);
+            var editor = new ConfigEditViewModel(cfg, cfg.ConfigName, cfg.FriendlyName, pages: pages);
             steps.Add(new ConfigEditStep(cfg.FriendlyName, editor,
                 e => ConfigManager.Instance.Save(e.RealConfig, e.ConfigName)));
         }

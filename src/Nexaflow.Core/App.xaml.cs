@@ -248,7 +248,8 @@ public partial class App : Application
     private ShellHost OpenSession(WpfUiThread ui)
     {
         var host = new ShellHost(new ShellHostOptions(_resetRequested, UiTest),
-                                 new ShellPlatform(ui, new ShellClipboard(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance));
+                                 new ShellPlatform(ui, new ShellClipboard(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
+                                                   PageViews.FromCatalog));
         _host = host;
 
         // The window a runtime opens into for a tear-off, a "new window" or a workspace rebuild: the session cannot name MainWindow.
@@ -433,7 +434,7 @@ public partial class App : Application
             // stamped so post-update detection stays consistent.
             if (!UiTest && !StartupTimings.Enabled)
             {
-                var wizard = SetupWizardViewModel.Build(workspace);
+                var wizard = SetupWizardViewModel.Build(workspace, ConfigPages());
                 if (wizard is not null)
                 {
                     var wizardWin = new SetupWizardWindow(wizard);
@@ -513,7 +514,7 @@ public partial class App : Application
     private static bool SettleSetupAhead(Workspace workspace)
     {
         if (_setupShown) return true;
-        if (!UiTest && !StartupTimings.Enabled && SetupWizardViewModel.Build(workspace) is not null) return false;
+        if (!UiTest && !StartupTimings.Enabled && SetupWizardViewModel.Build(workspace, ConfigPages()) is not null) return false;
         _setupShown = true;
         FinishSetup();
         return true;
@@ -525,8 +526,11 @@ public partial class App : Application
     {
         StampLastRunVersion();
         if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell)
-            LanguageManager.Instance.Select(shell.Language);
+            _host!.Language.Select(shell.Language);
     }
+
+    /// <summary>What the setup wizard binds a settings page to: for a Core page that shows the session, its view-model over the session's services.</summary>
+    private static ConfigPageModels ConfigPages() => new(_host!.Dependencies, _host.Language);
 
     /// <summary>
     /// Centres <paramref name="win"/> within <paramref name="workArea"/> (a monitor's work area in WPF

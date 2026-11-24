@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Nexaflow.Core;
+using Nexaflow.Core.Help;
+using Nexaflow.Core.Localization;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -16,7 +18,9 @@ namespace Nexaflow.Tests.Core;
 /// on the launched process; this covers the in-process ones. Individual classes may still redirect to their
 /// own temp dir on top of this (e.g. WorkspaceManagerTests) — they restore to this root, not %APPDATA%.
 /// It also stands English from the source tree behind <c>Str</c>, as the feature suites do, so a message
-/// built with <c>Str.Format(key, …)</c> reads as its sentence with its arguments in it rather than the bare key.
+/// built with <c>Str.Format(key, …)</c> reads as its sentence with its arguments in it rather than the bare key. And it
+/// hands the feature injection the app-wide tools a page registration of Core's is built with, as the session does: the help
+/// pages, over the language packs the suite deploys.
 /// </summary>
 [TestClass]
 public static class TestConfigIsolation
@@ -26,6 +30,7 @@ public static class TestConfigIsolation
     {
         ConfigManager.Instance.Initialize(TestTemp.CreateSubdirectory("config-").FullName);
         Str.Source = new EnglishTable(EnglishStringTable.Load());
+        FeatureManager.Instance.ProvideTool(new HelpLibrary(new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load)));
     }
 
     private sealed class EnglishTable(IReadOnlyDictionary<string, string> strings) : ILocalizedStringSource

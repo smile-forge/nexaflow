@@ -89,7 +89,10 @@ A launch of a workspace already live opens a window on its runtime; tear-off and
 | `FolderActivity` | The session's file and folder watches — one per path, however many workspaces follow it — and its busy folders, so a folder being changed shows its wait in every workspace | — |
 | `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances on demand, kept in each runtime's `FeatureScope` | File-system contracts (those go to `FileSystemFeatureRegistry`) |
 | `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
-| `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
+| `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. The session makes it, points `Str` at it, and hands it to every window (`WindowServices`) and runtime (`RuntimeSessionServices`). A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
+| `HelpLibrary` | The help pages, read through the `LanguageManager`. The Help page's registration is given it by the feature injection (an app-wide tool, `FeatureManager.ProvideTool`); every runtime's assistant gets the tools that read it (`RuntimeSessionServices.HelpTools`) | — |
+| `ExternalDependencyRegistry` | The third-party components features declare (`IExternalDependency`), probed off the UI thread and cached; each finished probe announced on the session's `IUiThread`. Handed to every window — for About and the panel a page that could not be made is drawn with — and every runtime's `ShellServices`, which answers a feature's `GetDependencyStatus` | Installing a component |
+| `PageViews` | The view each open page is drawn with, made on first show and kept until its tab closes, so a tab moved between panes or windows keeps it. Made by the app (`ShellPlatform.Views` — only the app knows the views): every window's panes draw with it, every runtime's `ShellServices` lets a closed page's go | The page's view-model (the `Page` holds it) |
 | `FileMapManager`, `ExternalAppRegistry`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 | `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`LocalAiFolder`; `NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume by the AI host SDK's store | — |
 
@@ -589,6 +592,9 @@ public sealed class MyConfig : IFeatureConfig
 The title and each label are string-table keys, so the section reads in the active language — [localization.md → Options](localization.md#options).
 
 For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]` to the config class and implement `ICustomConfigApply` on the control.
+The control is made by its parameterless constructor and bound to the config. It reaches no service itself: a Core page that
+shows the session — About, Shell — is bound instead to a view-model `ConfigPageModels` makes from the session's services,
+which the window hands its Options and the app its setup wizard.
 
 ---
 
@@ -756,13 +762,15 @@ app's files go. It takes no other input and restores only what the admin-owned m
 ```
 App.OnStartup
   → single-instance IPC listener                            ← a later launch never waits behind start-up
-  → new ShellHost(options, ShellPlatform(WPF UI thread, clipboard, folder watcher, ApplyAppearance)):
+  → new ShellHost(options, ShellPlatform(WPF UI thread, clipboard, folder watcher, ApplyAppearance, page views)):
+      → the component registry (ExternalDependencyRegistry) and the page views made over it
       → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
       → register GLOBAL configs: ShellConfig (+ App applies the theme), WorkspacesConfig,
         FileMapConfig, ExternalAppsConfig
-      → LanguageManager.Initialize(Languages\, ShellConfig.Language)   ← records the language, points Str at it;
+      → new LanguageManager(Languages\), Select(ShellConfig.Language), Str pointed at it   ← records the language;
             loads nothing — the first string or help page asked for reads the pack. After the first-run wizard
             the language is selected again, before the first window's strings resolve
+      → HelpLibrary over the language, provided to the feature injection for the Help page
       → the AI host client, model residency, local tools
       → ProviderManager.Initialize(Activities, …)           ← records the shared ActivityManager
       → for each saved workspace: temp AiConfig ← ConfigManager.LoadFrom(workspace dir)
@@ -780,8 +788,8 @@ App.OnStartup
   → WorkspaceRuntimes.Open(workspace)                       ← its runtime: running, resumed, or built by
         WorkspaceRuntimeFactory — workspace.EnsureSharedServicesLoaded, AIService + ShellServices +
         FeatureScope made with it, AcquireProviderSet(pool) → register providers, mount its connections
-  → new MainWindow(activityManager, runtime, runtimes)      ← window on ONE runtime at a time
-      → ShellViewModel(runtime)   (CurrentRuntime = runtime)
+  → new MainWindow(WindowServices, runtime)                 ← window on ONE runtime at a time
+      → ShellViewModel(WindowServices, runtime)   (CurrentRuntime = runtime)
           → ribbon binds runtime.Workspace → RibbonViewModel.SetWorkspace → Load() (shared layout)
           → OpenWorkspaceTabs()   ← the session it left when resumed from dormancy, its startup tabs otherwise
   → win.Show(); its first frame → ShellHost.FirstWindowDrawn (models load ahead); ShellHost.StartBackground (warm-up)
@@ -810,7 +818,7 @@ App.OnStartup
 User clicks ribbon button
   → RibbonControl.InternalRibbonActionCommand → ShellViewModel.OpenRibbonItem(item)
   → _shellServices.OpenTab(item.PageKind, item.PageParams)   ← persisted items carry only PageKind/params
-  → PaneView asks PageViews.ViewOf(page)    ← ViewModelFactory run, then the [ViewFor] view made, on first show
+  → PaneView asks its pane's PageViews.ViewOf(page)    ← ViewModelFactory run, then the [ViewFor] view made, on first show
   → ActiveTab = page, breadcrumbs updated
 
 Feature code calls shellServices.OpenTab("PageKind", params, callerPage)

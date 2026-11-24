@@ -47,15 +47,27 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// <summary>Posts a message to the session's inbox.</summary>
     private readonly Action<NotificationItem> _notify;
 
+    /// <summary>The third-party components the features declare, which a feature asks about before it uses one.</summary>
+    private readonly ExternalDependencyRegistry _dependencies;
+
+    /// <summary>The UI language, selected again when a window restarts for a new one.</summary>
+    private readonly LanguageManager _language;
+
+    /// <summary>The view each open page is drawn with, let go when its tab closes.</summary>
+    private readonly PageViews _views;
+
     internal ShellServices(WorkspaceRuntime workspace, RuntimeSessionServices session)
     {
-        _workspace = workspace;
-        _activity  = session.Tasks;
-        _elevation = session.Elevation;
-        _ui        = session.Ui;
-        _folders   = session.Folders;
-        _notify    = session.Notify;
-        Clipboard  = session.Clipboard;
+        _workspace    = workspace;
+        _activity     = session.Tasks;
+        _elevation    = session.Elevation;
+        _ui           = session.Ui;
+        _folders      = session.Folders;
+        _notify       = session.Notify;
+        _dependencies = session.Dependencies;
+        _language     = session.Language;
+        _views        = session.Views;
+        Clipboard     = session.Clipboard;
         _folders.Busy.Changed += OnBusyFoldersChanged;
     }
 
@@ -227,7 +239,7 @@ public sealed class ShellServices : IShellServices, IDisposable
 
         if (theme != ThemeManager.Current)
             ThemeManager.Apply(theme, FeatureManager.Instance.ThemeContributionUris);
-        LanguageManager.Instance.Select(language);
+        _language.Select(language);
 
         // Fresh window, opened where the old one is meant to be, then close the old one.
         var fresh = CreateWindowFactory();
@@ -493,7 +505,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     }
 
     /// <summary>Lets go of a closed page's view; the page has already disposed its view-model as it closed.</summary>
-    private static void DisposePage(Page tab) => PageViews.Instance.Release(tab);
+    private void DisposePage(Page tab) => _views.Release(tab);
 
     /// <summary>
     /// Closes every tab across all of this workspace's windows (windows stay open). Used when the
@@ -1029,7 +1041,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     // Cached probe, not a fresh one: features call this on the UI thread just before using a component, and
     // the registry owns both the probing and the "not probed yet" answer.
     public Nexaflow.Features.Common.Dependencies.ExternalDependencyStatus GetDependencyStatus(string id)
-        => ExternalDependencyRegistry.Instance.StatusOf(id);
+        => _dependencies.StatusOf(id);
 
     // Selection lives here rather than in the caller so the shell — which owns the instances' lifetime —
     // also owns deciding which one applies. Instances are cached per (type, workspace) and ctor-injected with

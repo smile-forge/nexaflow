@@ -14,7 +14,7 @@ for the ability to switch.
 | **Build** | `src/Nexaflow.Languages/Nexaflow.Language.<code>/` — a three-line project importing `LanguagePack.targets`, which embeds every `Localization/<code>/` file under `src/*/` and `src/*/*/` (test projects excepted). |
 | **Names** | Each file is embedded as `<ProjectFolder>/<path under Localization/<code>/>`, forward-slashed: `Nexaflow.Core/strings.json`, `Nexaflow.Features.Markdown/help/images/markdown/qr-codes.png`. |
 | **Ship** | `LanguagePacks.Deploy.targets` (imported by Core and Tests.Core) builds every pack and copies it to `$(OutDir)Languages\`. The installer's harvest ships the folder, and a guard fails the installer build when a pack is missing. |
-| **Run** | `LanguageManager` (Core, one per process) lists packs by file name, loads the active pack and English — only those, and only on first use — and serves every resource along the chain *active → English*. |
+| **Run** | `LanguageManager` (Core, one per session: `ShellHost` makes it and points `Str` at it) lists packs by file name, loads the active pack and English — only those, and only on first use — and serves every resource along the chain *active → English*. |
 
 Packs are **drop-ins**. They are not in `deps.json`; `LanguageManager` loads them by path into a load context of
 their own, and nothing in them is code.

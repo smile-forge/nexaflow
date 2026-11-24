@@ -1,4 +1,3 @@
-using System.Windows.Threading;
 using Nexaflow.Features.Common.Dependencies;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -18,15 +17,14 @@ namespace Nexaflow.Core.Services;
 /// marshalled to the UI thread. Unlike that one this can be re-run on demand (About has a re-check
 /// button), since a user who installs a missing runtime should not have to restart to see it appear.
 /// </para>
+/// <para>
+/// The session makes one (<see cref="ShellHost"/>) and hands it to what reads it: every window, for the About page and the
+/// panel a page that could not be made is drawn with, and every runtime's <see cref="ShellServices"/>, for a feature's question.
+/// </para>
 /// </summary>
-public sealed class ExternalDependencyRegistry
+/// <param name="ui">The thread <see cref="Updated"/> is raised on.</param>
+public sealed class ExternalDependencyRegistry(IUiThread ui)
 {
-    public static ExternalDependencyRegistry Instance { get; } = new();
-    private ExternalDependencyRegistry() { }
-
-    /// <summary>The app UI dispatcher, captured when the singleton is built on the UI thread.</summary>
-    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
-
     private readonly object _gate = new();
     private IReadOnlyList<ExternalDependencyReport> _reports = [];
     private Task? _inFlight;
@@ -84,7 +82,8 @@ public sealed class ExternalDependencyRegistry
         lock (_gate) _reports = reports;
         IsReady = true;
 
-        Dispatch(() => Updated?.Invoke(this, EventArgs.Empty));
+        // A probe runs on the thread pool, never on the UI thread: the event is queued there.
+        ui.Post(() => Updated?.Invoke(this, EventArgs.Empty));
     }
 
     private static List<ExternalDependencyReport> BuildReports() => BuildReports(Discover());
@@ -162,12 +161,6 @@ public sealed class ExternalDependencyRegistry
         if (name.StartsWith(prefix, StringComparison.Ordinal)) name = name[prefix.Length..];
         else if (name.StartsWith("Nexaflow.", StringComparison.Ordinal)) name = name["Nexaflow.".Length..];
         return name.Replace('.', ' ');
-    }
-
-    private void Dispatch(Action action)
-    {
-        if (_ui.CheckAccess()) action();
-        else _ui.BeginInvoke(action);
     }
 
     /// <summary>Collects the features declaring one component while its probe result is held once.</summary>

@@ -258,13 +258,66 @@
           }
         ]
       }
+    },
+    "opt-about": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/AboutControl.xaml.cs",
+          "class": "AboutControl"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/AboutConfig.cs",
+          "class": "AboutConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/AboutViewModel.cs",
+          "class": "AboutViewModel"
+        }
+      ]
+    },
+    "options": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/OptionsPanel.xaml",
+          "class": "OptionsPanel"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/OptionsViewModel.cs",
+          "class": "OptionsViewModel"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/features.md",
+          "title_path": [
+            "Building a Feature",
+            "Persisted settings \u2014 \u0060IFeatureConfig\u0060"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/ConfigPageModels.cs",
+          "class": "ConfigPageModels"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 14,
+  "changed_sets": 16,
   "touched_nodes": [
     "feature-startup",
     "messages-workspace-tag",
+    "opt-about",
+    "options",
     "shell-session",
     "ws-dormant-time",
     "ws-lifetimes",

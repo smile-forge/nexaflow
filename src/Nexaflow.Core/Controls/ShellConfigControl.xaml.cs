@@ -11,6 +11,11 @@ using System.ComponentModel;
 
 namespace Nexaflow.Core.Controls;
 
+/// <summary>
+/// The Shell section of Options and the setup wizard. Bound to a <see cref="ShellConfigViewModel"/> the settings panel makes
+/// (<see cref="ViewModels.ConfigPageModels"/>), which carries the session's language for the picker; it saves into the config
+/// that view-model was made over.
+/// </summary>
 public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ShellConfigViewModel? _vm;
@@ -20,12 +25,11 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
         InitializeComponent();
         DataContextChanged += (_, e) =>
         {
-            if (e.NewValue is ShellConfig cfg)
+            if (e.NewValue is ShellConfigViewModel vm)
             {
                 if (_vm is not null) _vm.PropertyChanged -= OnChoicesChanged;
-                _vm = new ShellConfigViewModel(cfg);
+                _vm = vm;
                 _vm.PropertyChanged += OnChoicesChanged;
-                RootPanel.DataContext = _vm;
                 HasChangesChanged?.Invoke(this, EventArgs.Empty);
             }
         };
@@ -43,8 +47,9 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
 
     public void Apply()
     {
-        if (DataContext is ShellConfig cfg && _vm is not null)
+        if (_vm is not null)
         {
+            var cfg = _vm.Config;
             cfg.Theme                      = _vm.Theme;
             cfg.Language                   = _vm.Language;
             cfg.TextFontSize               = _vm.TextFontSize;
@@ -86,10 +91,11 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     public IReadOnlyList<ThemeChoice> ThemeOptions { get; } =
         [.. Enum.GetValues<ThemeOption>().Select(t => new ThemeChoice(t.ToString(), ThemeChoice.Shown(t)))];
 
-    /// <summary>The installed language packs, read from their file names (nothing is loaded to list them). Before
-    /// startup has created the language manager — a design surface, a test — only English is on offer.</summary>
-    public IReadOnlyList<LanguageInfo> LanguageOptions { get; } =
-        LanguageManager.TryInstance?.Available ?? [new LanguageInfo(LanguageManager.FallbackCode, "English", "")];
+    /// <summary>The installed language packs, read from their file names (nothing is loaded to list them).</summary>
+    public IReadOnlyList<LanguageInfo> LanguageOptions { get; }
+
+    /// <summary>The config the page shows, which <see cref="ShellConfigControl.Apply"/> saves the choices into.</summary>
+    public ShellConfig Config { get; }
 
     /// <summary>Sizes offered for <see cref="TextFontSize"/>. A fixed list rather than a spinner over the
     /// whole clamped range: every step here is one a reader would actually pick, and the large end is
@@ -141,13 +147,17 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         OnPropertyChanged(nameof(HasChanges));
     }
 
-    public ShellConfigViewModel(ShellConfig cfg)
+    /// <param name="cfg">The config the page shows and saves into.</param>
+    /// <param name="language">The session's UI language, whose installed packs the picker offers.</param>
+    public ShellConfigViewModel(ShellConfig cfg, LanguageManager language)
     {
+        Config                      = cfg;
+        LanguageOptions             = language.Available;
         _selectedTheme              = cfg.Theme.ToString();
         // As a code the list offers, so the combo shows a selection: the "English" an older build stored, or a
         // language whose pack has since been removed, both open on English — which is what the app is running in.
-        var language                = LanguageManager.Normalize(cfg.Language);
-        _selectedLanguage           = LanguageOptions.Any(l => l.Code == language) ? language : LanguageManager.FallbackCode;
+        var configured              = LanguageManager.Normalize(cfg.Language);
+        _selectedLanguage           = LanguageOptions.Any(l => l.Code == configured) ? configured : LanguageManager.FallbackCode;
         // Snapped onto an offered size so the combo shows a selection: a config carrying 13.5 (or anything
         // off-list, including a value a future build offered) would otherwise open blank and, once touched,
         // silently become whichever size the user happened to click past.

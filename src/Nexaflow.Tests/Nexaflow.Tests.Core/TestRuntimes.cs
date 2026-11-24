@@ -1,6 +1,8 @@
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using Nexaflow.Core;
+using Nexaflow.Core.Localization;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.Elevation;
@@ -14,7 +16,7 @@ namespace Nexaflow.Tests.Core;
 /// The suite's workspace runtimes, built as the app builds them — through a <see cref="WorkspaceRuntimeFactory"/> — but
 /// unstarted: wired with their assistant, shell services, file system and feature scope, with no provider acquired, nothing
 /// mounted and nothing run in the background. Their conversations go under the suite's own config root
-/// (<see cref="TestConfigIsolation"/>).
+/// (<see cref="TestConfigIsolation"/>). Their session ships the language packs but no help, so their assistants offer no help tools.
 /// </summary>
 internal static class TestRuntimes
 {
@@ -25,10 +27,13 @@ internal static class TestRuntimes
     {
         var ui        = new WpfUiThread(Dispatcher.CurrentDispatcher);
         var locations = new LocationProviderRegistry();
+        var dependencies = new ExternalDependencyRegistry(ui);
         return new WorkspaceRuntimeFactory(new RuntimeSessionServices(
             ProviderManager.Instance, tasks, notify, VirtualFileSystem.Instance, locations,
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
-            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard()));
+            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(),
+            dependencies, new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load),
+            PageViews.FromCatalog(dependencies), HelpTools: []));
     }
 
     /// <summary>A wired, unstarted runtime for <paramref name="workspace"/> (a fresh default one when none is given), standing ready

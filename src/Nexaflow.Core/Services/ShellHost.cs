@@ -2,6 +2,7 @@ using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
+using Nexaflow.Core.Help;
 using Nexaflow.Core.Localization;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Elevation;
@@ -28,11 +29,14 @@ internal sealed record ShellHostOptions(bool Reset, bool UiTest);
 /// <param name="FolderWatchers">Makes the folder watcher, which owns a window of the toolkit's.</param>
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
+/// <param name="Views">Makes the view each open page is drawn with, from the toolkit's views; a page that could not be made is
+/// drawn naming the session's missing components that may be why.</param>
 internal sealed record ShellPlatform(
     IUiThread Ui,
     IShellClipboard Clipboard,
     Func<ShellFolderWatcher> FolderWatchers,
-    Action<ShellConfig> ApplyAppearance);
+    Action<ShellConfig> ApplyAppearance,
+    Func<ExternalDependencyRegistry, PageViews> Views);
 
 /// <summary>
 /// The shell session: everything that lives as long as the process — from login when the app starts with Windows, otherwise
@@ -91,6 +95,15 @@ internal sealed class ShellHost : IAsyncDisposable
     /// <summary>The shell's own settings.</summary>
     public ShellConfig Shell { get; }
 
+    /// <summary>The UI language: the installed packs, the active one, and the strings and help pages they hold.</summary>
+    public LanguageManager Language { get; }
+
+    /// <summary>The third-party components the features declare, and what the last probe found of each.</summary>
+    public ExternalDependencyRegistry Dependencies { get; }
+
+    /// <summary>The view each open page is drawn with, kept while its tab is open, in whichever window.</summary>
+    public PageViews Views { get; }
+
     /// <summary>
     /// Opens the session up to what the first window needs: the configuration and the shell's settings, the AI host, the
     /// providers every workspace names, the workspace list, the feature catalogue and the runtime factory. Runs on the UI
@@ -103,6 +116,8 @@ internal sealed class ShellHost : IAsyncDisposable
         Folders  = new FolderActivity(platform.Ui, platform.FolderWatchers);
         Inbox    = new MessageCenter(platform.Ui);
         Discovered = new DiscoveredLocations(LocationProviders);
+        Dependencies = new ExternalDependencyRegistry(platform.Ui);
+        Views = platform.Views(Dependencies);
 
         // ── 0. Base path — single source of truth for all app-data paths ─────
         // NEXAFLOW_CONFIG_DIR overrides the default (used by UI tests for an isolated, fresh config
@@ -136,7 +151,13 @@ internal sealed class ShellHost : IAsyncDisposable
 
         // The UI language: records the choice and points Str at it. Loads nothing - the first string or help page
         // asked for reads the pack (one resource-only assembly, once).
-        LanguageManager.Initialize(Path.Combine(AppContext.BaseDirectory, "Languages"), Shell.Language);
+        Language = new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load);
+        Language.Select(Shell.Language);
+        Str.Source = Language;
+        // The help pages, read through the language: the Help page's registration is given them, and each runtime's assistant
+        // the tools that read them.
+        var help = new HelpLibrary(Language);
+        FeatureManager.Instance.ProvideTool(help);
         StartupTimings.Mark("Init.Language");
 
         var securityConfig = new SecurityConfig();
@@ -232,12 +253,13 @@ internal sealed class ShellHost : IAsyncDisposable
             ProviderManager.Instance, Activities, Inbox.Post, VirtualFileSystem.Instance,
             LocationProviders, Discovered,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
-            platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard));
+            platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard,
+            Dependencies, Language, Views, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools]));
         // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
                                            workspace => WorkspaceManager.Instance.Workspaces.Contains(workspace), TimeProvider.System);
         WorkspaceManager.Instance.Runtimes = Workspaces;
-        Windows = new WindowServices(Activities, Workspaces, Inbox);
+        Windows = new WindowServices(Activities, Workspaces, Inbox, Dependencies, Language, Views);
         StartupTimings.Mark("Init.Workspaces");
 
         // ── 5. Feature system ────────────────────────────────────────────────

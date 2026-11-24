@@ -16,10 +16,14 @@ namespace Nexaflow.Core.Controls;
 /// <summary>
 /// About page for the Options panel: app version and whether a newer release is offered (with Check for updates /
 /// Update), source link, the system components Nexaflow relies on, and the bundled third-party notices (rendered from
-/// <c>Assets/ThirdPartyNotices.md</c>).
+/// <c>Assets/ThirdPartyNotices.md</c>). Bound to an <see cref="AboutViewModel"/> the settings panel makes
+/// (<see cref="ConfigPageModels"/>), which carries the session's components.
 /// </summary>
 public partial class AboutControl : UserControl
 {
+    /// <summary>The components the page lists while it is on screen: its view-model's, taken as it loads.</summary>
+    private ExternalDependencyRegistry? _dependencies;
+
     public AboutControl()
     {
         InitializeComponent();
@@ -32,12 +36,7 @@ public partial class AboutControl : UserControl
         VersionText.Text  = Str.Format("Shell.About.VersionFormat", SetupWizardViewModel.CurrentVersion());
         NoticesView.Document = new EditedDocument(LoadNotices());
 
-        // The registry re-raises this after every probe, including the ones the Re-check button starts.
-        ExternalDependencyRegistry.Instance.Updated -= OnComponentsUpdated;
-        ExternalDependencyRegistry.Instance.Updated += OnComponentsUpdated;
-
-        ShowComponents();
-        ExternalDependencyRegistry.Instance.StartProbe();
+        Follow((DataContext as AboutViewModel)?.Dependencies);
 
         // The startup check, a toast's Update or this page's own buttons can each move it on while the page is open.
         App.Updates.Changed -= OnUpdatesChanged;
@@ -47,8 +46,22 @@ public partial class AboutControl : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        ExternalDependencyRegistry.Instance.Updated -= OnComponentsUpdated;
+        Follow(null);
         App.Updates.Changed -= OnUpdatesChanged;
+    }
+
+    /// <summary>Lists <paramref name="dependencies"/> and follows its probes, letting go of the one followed before; nothing
+    /// for null.</summary>
+    private void Follow(ExternalDependencyRegistry? dependencies)
+    {
+        if (_dependencies is { } followed) followed.Updated -= OnComponentsUpdated;
+        _dependencies = dependencies;
+        if (dependencies is null) return;
+
+        // The registry re-raises this after every probe, including the ones the Re-check button starts.
+        dependencies.Updated += OnComponentsUpdated;
+        ShowComponents();
+        dependencies.StartProbe();
     }
 
     private void OnComponentsUpdated(object? sender, EventArgs e) => ShowComponents();
@@ -59,7 +72,7 @@ public partial class AboutControl : UserControl
     /// </summary>
     private void ShowComponents()
     {
-        var registry = ExternalDependencyRegistry.Instance;
+        if (_dependencies is not { } registry) return;
         var rows = registry.Reports.Select(r => new ComponentRow(r, ResolveBrush)).ToList();
 
         ComponentsList.ItemsSource = rows;
@@ -94,8 +107,9 @@ public partial class AboutControl : UserControl
 
     private async void OnRecheckClick(object sender, RoutedEventArgs e)
     {
+        if (_dependencies is not { } registry) return;
         RecheckButton.IsEnabled = false;
-        try { await ExternalDependencyRegistry.Instance.RefreshAsync(); }
+        try { await registry.RefreshAsync(); }
         catch { /* the registry already degrades a failed probe to Unknown; nothing to add here */ }
         finally { ShowComponents(); }
     }

@@ -1,6 +1,8 @@
+using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -8,12 +10,15 @@ namespace Nexaflow.Tests.Core.Unit;
 [CoversNode("chrome-content-area")]
 public class PaneTests
 {
+    /// <summary>Page views for panes whose pages are never drawn.</summary>
+    private static readonly PageViews Undrawn = new(new ViewRegistry(_ => null), (_, _) => throw new InvalidOperationException("a pane under test draws nothing"));
+
     private static Page MakePage(string title = "Page") => new() { Title = title };
 
     [TestMethod]
     public void Add_InsertsAtFrontAndActivates()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         pane.Add(a);
@@ -26,7 +31,7 @@ public class PaneTests
     [TestMethod]
     public void Add_SetsIsActiveFlagOnNewPageAndClearsPrevious()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         pane.Add(a);
@@ -39,7 +44,7 @@ public class PaneTests
     [TestMethod]
     public void Remove_WhenActive_ActivatesAdjacentPage()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         pane.Add(a);
@@ -54,7 +59,7 @@ public class PaneTests
     [TestMethod]
     public void Remove_LastPage_SetsActiveNull()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage();
         pane.Add(a);
 
@@ -67,7 +72,7 @@ public class PaneTests
     [TestMethod]
     public void Remove_UnknownPage_IsNoOp()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage();
         pane.Add(a);
 
@@ -79,7 +84,7 @@ public class PaneTests
     [TestMethod]
     public void Remove_NonActive_DoesNotChangeActivePage()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         pane.Add(a);
@@ -94,7 +99,7 @@ public class PaneTests
     [TestMethod]
     public void BringToFront_MovesToIndex0WithoutChangingActive()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         var c = MakePage("C");
@@ -111,7 +116,7 @@ public class PaneTests
     [TestMethod]
     public void BringToFront_AlreadyAtFront_IsNoOp()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         pane.Add(a);
@@ -126,7 +131,7 @@ public class PaneTests
     [TestMethod]
     public void Move_ReordersPage()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         var c = MakePage("C");
@@ -142,7 +147,7 @@ public class PaneTests
     [TestMethod]
     public void Move_ClampsNegativeIndexToZero()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         pane.Add(a);
@@ -156,7 +161,7 @@ public class PaneTests
     [TestMethod]
     public void Move_ClampsTooLargeIndexToLast()
     {
-        var pane = new Pane();
+        var pane = new Pane(Undrawn);
         var a = MakePage("A");
         var b = MakePage("B");
         pane.Add(a);

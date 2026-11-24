@@ -76,7 +76,7 @@ public sealed class WorkspaceRuntimeFactory(RuntimeSessionServices session)
     internal AIService NewAiService(WorkspaceRuntime runtime)
     {
         var jobs    = Session.Tasks is { } tasks ? new BackgroundJobs(tasks, runtime, Session.Notify) : null;
-        var service = new AIService(runtime, runtime.Workspace.ConversationsDir, jobs);
+        var service = new AIService(runtime, runtime.Workspace.ConversationsDir, Session.HelpTools, jobs);
         service.LoadAbilityConfig(runtime.Workspace.AiConfig);
         return service;
     }

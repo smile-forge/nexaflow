@@ -334,8 +334,14 @@ public partial class ConfigEditViewModel : ObservableObject
         System.Windows.FrameworkElement control, string configName, string friendlyName)
         => new(control, configName, friendlyName);
 
+    /// <param name="realConfig">The config edited; a clone holds the edits until they are applied.</param>
+    /// <param name="configName">The name the config is saved under.</param>
+    /// <param name="friendlyName">The section's title.</param>
+    /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed, for its pickers.</param>
+    /// <param name="pages">What a <c>[CustomControl]</c> page is bound to (<see cref="ConfigPageModels"/>); without it, the config.
+    /// Given wherever a Core page that shows the session may be edited — Options and the setup wizard.</param>
     public ConfigEditViewModel(object realConfig, string configName, string friendlyName,
-                               Nexaflow.Features.Common.IShellServices? shell = null)
+                               Nexaflow.Features.Common.IShellServices? shell = null, ConfigPageModels? pages = null)
     {
         RealConfig   = realConfig;
         ConfigName   = configName;
@@ -351,7 +357,7 @@ public partial class ConfigEditViewModel : ObservableObject
             {
                 var ctrl = System.Activator.CreateInstance(customControlType);
                 if (ctrl is System.Windows.FrameworkElement fe)
-                    fe.DataContext = realConfig;
+                    fe.DataContext = pages?.ModelFor(realConfig) ?? realConfig;
                 CustomControlInstance = ctrl;
 
                 // Hand the control the shell so it can use the themed file/folder pickers.
@@ -439,7 +445,10 @@ public partial class OptionsViewModel : ObservableObject
     public event Action<string>?              SaveError;
     public event Action<IEnumerable<string>>? TabRefreshRequested;
 
-    public OptionsViewModel(Nexaflow.Features.Common.IShellServices? shell = null)
+    /// <param name="pages">What each <c>[CustomControl]</c> section is bound to: the session's view-model for a Core page that shows
+    /// it, else its config.</param>
+    /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed.</param>
+    public OptionsViewModel(ConfigPageModels pages, Nexaflow.Features.Common.IShellServices? shell = null)
     {
         // Options lists every feature's global config. With lazy feature loading a config is registered only
         // when its assembly activates, so make sure they're all activated before reading the registry —
@@ -456,7 +465,7 @@ public partial class OptionsViewModel : ObservableObject
 
             // Pass the shell so IShellAware custom controls (e.g. the File Type Actions editor's themed
             // confirmation, file/folder pickers) get AttachShell'd.
-            var section = new ConfigEditViewModel(config, configName, friendlyName, shell);
+            var section = new ConfigEditViewModel(config, configName, friendlyName, shell, pages);
             section.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(ConfigEditViewModel.IsValid))

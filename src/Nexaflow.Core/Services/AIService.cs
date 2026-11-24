@@ -434,13 +434,7 @@ public sealed class AIService : IAIService, IDisposable
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
-        // No language pack means no help to offer — which is the case in a unit test of this loop, and the
-        // same way BuildTools above yields nothing without a shell.
-        if (LanguageManager.TryInstance is not null)
-        {
-            tools.AddRange(new Help.HelpClientTools(Help.HelpLibrary.Shared).Tools);
-            tools.AddRange(new Help.MarkdownSyntaxTools(Help.HelpLibrary.Shared).Tools);
-        }
+        tools.AddRange(_helpTools);
 
         // The page first — it is what the request is about — then where it sits.
         return (pageContext + "\n\n" + shellCtx.BuildContext(), [.. tools.Select(Offered).OfType<IClientTool>()], scope);
@@ -565,6 +559,9 @@ public sealed class AIService : IAIService, IDisposable
     /// <summary>Where calls that run on in the background are set going; null where there is no list of them to show.</summary>
     private readonly BackgroundJobs? _jobs;
 
+    /// <summary>The tools that read the help the app ships, offered on every page.</summary>
+    private readonly IReadOnlyList<IClientTool> _helpTools;
+
     /// <summary>Where each ability stands, and the offer of a download it waits on.</summary>
     private readonly AbilityReadiness _readiness;
 
@@ -574,11 +571,13 @@ public sealed class AIService : IAIService, IDisposable
 
     /// <param name="workspace">The owning Workspace — used to resolve query handlers via FeatureManager.</param>
     /// <param name="conversationsDir">Full path to the directory where this workspace's conversations are stored.</param>
+    /// <param name="helpTools">The tools that read the help the app ships — the session's, none where it ships no help.</param>
     /// <param name="jobs">Where slow tool calls run on in the background; without it, every call is waited for.</param>
-    public AIService(WorkspaceRuntime workspace, string conversationsDir, BackgroundJobs? jobs = null)
+    public AIService(WorkspaceRuntime workspace, string conversationsDir, IReadOnlyList<IClientTool> helpTools, BackgroundJobs? jobs = null)
     {
         _workspace = workspace;
         _baseDir   = conversationsDir;
+        _helpTools = helpTools;
         _jobs      = jobs;
         _readiness = new(() => _abilityConfig, id => _providers.GetValueOrDefault(id), () => workspace.Providers, () => workspace.ShellServices);
     }

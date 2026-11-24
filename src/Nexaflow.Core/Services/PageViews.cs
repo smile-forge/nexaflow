@@ -13,14 +13,22 @@ namespace Nexaflow.Core.Services;
 /// A page whose view-model or view could not be made is drawn by <see cref="PageLoadErrorView"/>, saying why, rather than
 /// left blank: a blank tab is indistinguishable from a feature that drew nothing.
 /// </para>
+/// <para>
+/// One per session, made by the app (it alone knows the views) through <see cref="ShellPlatform"/>: every window draws its
+/// panes with it, and every runtime's <see cref="ShellServices"/> lets a page's view go when its tab closes.
+/// </para>
 /// </summary>
 /// <param name="registry">Finds the view that draws a page's view-model.</param>
 /// <param name="failedView">Draws a page that could not be made, with the exception that stopped it.</param>
-internal sealed class PageViews(ViewRegistry registry, Func<Page, Exception?, FrameworkElement> failedView)
+public sealed class PageViews(ViewRegistry registry, Func<Page, Exception?, FrameworkElement> failedView)
 {
-    public static PageViews Instance { get; } = new(
-        new ViewRegistry(FeatureCatalog.Instance.ViewTypeFor),
-        (page, error) => new PageLoadErrorView(page, error));
+
+    /// <summary>
+    /// The app's: each page drawn by the view the feature catalogue marks as drawing its view-model, and one that could not be
+    /// made by <see cref="PageLoadErrorView"/>, naming any of <paramref name="dependencies"/> missing as the likely cause.
+    /// </summary>
+    public static PageViews FromCatalog(ExternalDependencyRegistry dependencies)
+        => new(new ViewRegistry(FeatureCatalog.Instance.ViewTypeFor), (page, error) => new PageLoadErrorView(page, error, dependencies));
 
     /// <summary>The app's views, which every window hands down so a feature's hosts draw with them too.</summary>
     public ViewRegistry Registry => registry;

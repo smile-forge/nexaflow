@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common.Dependencies;
 using Nexaflow.Tests.Fixtures;
+using NSubstitute;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -139,8 +141,29 @@ public class ExternalDependencyRegistryTests
     {
         // The pre-flight contract: features must be able to ask about anything and get a safe "carry on"
         // rather than a false "missing" that would suppress a viewer that would have worked.
-        var status = ExternalDependencyRegistry.Instance.StatusOf("nothing-declares-this");
+        var status = new ExternalDependencyRegistry(Substitute.For<IUiThread>()).StatusOf("nothing-declares-this");
         Assert.AreEqual(ExternalDependencyState.Unknown, status.State);
+    }
+
+    [TestMethod]
+    public async Task AFinishedProbe_IsAnnouncedOnTheGivenUiThread_NotOnTheProbes()
+    {
+        // The About page rebuilds its list on Updated, so it is raised where the page lives: queued on the session's UI thread,
+        // never from the thread pool the probe ran on.
+        var ui = Substitute.For<IUiThread>();
+        Action? queued = null;
+        ui.When(u => u.Post(Arg.Any<Action>())).Do(call => queued = call.Arg<Action>());
+        var registry = new ExternalDependencyRegistry(ui);
+        var raised = 0;
+        registry.Updated += (_, _) => raised++;
+
+        await registry.RefreshAsync();
+
+        Assert.IsTrue(registry.IsReady, "the probe has finished");
+        Assert.AreEqual(0, raised, "the probe's own thread raises nothing");
+        Assert.IsNotNull(queued, "the announcement is queued on the UI thread");
+        queued();
+        Assert.AreEqual(1, raised);
     }
 
     [TestMethod]

@@ -21,13 +21,15 @@ namespace Nexaflow.Core.Controls;
 public partial class PageLoadErrorView : UserControl
 {
     private readonly string _details;
+    private readonly ExternalDependencyRegistry _dependencies;
 
-    public PageLoadErrorView() : this(null, null) { }
-
-    /// <param name="page">The page that failed, for its title and kind. Null in design/test construction.</param>
+    /// <param name="page">The page that failed, for its title and kind; null when there is none to name.</param>
     /// <param name="error">The exception the content factory threw.</param>
-    public PageLoadErrorView(Page? page, Exception? error)
+    /// <param name="dependencies">The session's components, any missing one of which is named as the likely cause — given by
+    /// the session's <see cref="PageViews"/>, which makes this view.</param>
+    public PageLoadErrorView(Page? page, Exception? error, ExternalDependencyRegistry dependencies)
     {
+        _dependencies = dependencies;
         InitializeComponent();
 
         var what = Describe(page);
@@ -76,7 +78,7 @@ public partial class PageLoadErrorView : UserControl
         IReadOnlyList<ExternalDependencyReport> blocking;
         try
         {
-            blocking = ExternalDependencyRegistry.Instance.Reports.Where(r => r.IsBlocking).ToList();
+            blocking = _dependencies.Reports.Where(r => r.IsBlocking).ToList();
         }
         catch { return; }
 

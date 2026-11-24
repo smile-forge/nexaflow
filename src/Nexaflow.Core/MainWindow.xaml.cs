@@ -41,7 +41,7 @@ public partial class MainWindow : Window
         Services.StartupTimings.Mark("MainWindow.InitializeComponent");
 
         // Everything in the window draws a model with the app's views: a page's preview, a folder viewlet.
-        ViewRegistry.SetRegistry(this, PageViews.Instance.Registry);
+        ViewRegistry.SetRegistry(this, session.Views.Registry);
 
         _vm = new ShellViewModel(session, workspace)
         {
