@@ -227,6 +227,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     partial void OnCurrentRuntimeChanged(WorkspaceRuntime value) => WorkspaceTasks.Refresh();
 
+    /// <summary>This window's workspace was removed (in the Options panel, or by another window): it shows the first that remains.</summary>
+    private void OnWorkspacesRefreshed(object? sender, EventArgs e)
+    {
+        if (CurrentRuntime is null || WorkspaceManager.Instance.Workspaces.Contains(CurrentRuntime.Workspace)) return;
+        var fallback = WorkspaceManager.Instance.Workspaces.FirstOrDefault();
+        if (fallback is not null)
+            _ui.Invoke(() =>
+            {
+                WorkspaceManager.Instance.SwitchWorkspace(CurrentRuntime!, fallback);
+                OnPropertyChanged(nameof(CurrentRuntime));
+            });
+    }
+
+    private void OnRuntimeProvidersChanged(object? sender, EventArgs e) => _ui.InvokeAsync(RecomputeVoiceAvailable);
+
     /// <summary>Page-registered controls shown just left of the activity ticker (per-workspace, shared across
     /// this workspace's windows). See <see cref="ShellServices.MediatedTasks"/> / <c>RegisterMediatedTask</c>.</summary>
     public ObservableCollection<MediatedTaskRegistration> MediatedTasks => _shellServices.MediatedTasks;
@@ -703,25 +718,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _help = new HelpPaneController(this);   // before the panes exist: their first page change already asks it
         WireRootPane();
 
-        // If this workspace was removed in the Options panel, switch to the first available.
-        WorkspaceManager.Instance.WorkspacesRefreshed += (_, _) =>
-        {
-            if (CurrentRuntime is not null
-                && !WorkspaceManager.Instance.Workspaces.Contains(CurrentRuntime.Workspace))
-            {
-                var fallback = WorkspaceManager.Instance.Workspaces.FirstOrDefault();
-                if (fallback is not null)
-                    _ui.Invoke(() =>
-                    {
-                        WorkspaceManager.Instance.SwitchWorkspace(CurrentRuntime!, fallback);
-                        OnPropertyChanged(nameof(CurrentRuntime));
-                    });
-            }
-        };
+        WorkspaceManager.Instance.WorkspacesRefreshed += OnWorkspacesRefreshed;
 
         // ── Voice input availability + transcription wiring ──────────────────
         // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away.
-        workspace.ProvidersChanged += (_, _) => _ui.InvokeAsync(RecomputeVoiceAvailable);
+        workspace.ProvidersChanged += OnRuntimeProvidersChanged;
 
         _dictation.RecordingChanged += (_, rec) =>
             _ui.Invoke(() => { IsDictating = rec; IsRecording = VoiceActive = rec || Voice.IsActive; });
@@ -768,6 +769,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     public void Detach()
     {
         MessageCenter.Instance.MessagePosted -= OnMessagePosted;
+
+        // The workspace list and the runtime outlive their windows: unhook them, or a closed window stays rooted and keeps
+        // switching the runtime other windows show. A window that closes while listening stops listening.
+        WorkspaceManager.Instance.WorkspacesRefreshed -= OnWorkspacesRefreshed;
+        CurrentRuntime.ProvidersChanged -= OnRuntimeProvidersChanged;
+        _ = _dictation.StopAsync();
+        _ = Voice.StopAsync();
         Notifications.CollectionChanged -= OnInboxChanged;
         foreach (var m in Notifications) m.PropertyChanged -= OnMessageItemChanged;
 
