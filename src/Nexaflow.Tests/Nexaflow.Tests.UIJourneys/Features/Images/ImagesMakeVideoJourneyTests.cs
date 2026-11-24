@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// a clip, the image viewer's toolbar offers Video: a box for what happens, how long it runs and which way up; Start makes
 /// the clip at once as one of the workspace's background tasks, and the AI bar's pill lists it, with Stop.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding Wan2.2-TI2V-5B as the app keeps it, each file verified, which the
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding Wan2.2-TI2V-5B as the app keeps it, each file verified, which the
 /// app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it the journey is inconclusive.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
@@ -26,7 +26,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [CoversNode("images-make-video")]
 public class ImagesMakeVideoJourneyTests : UiJourneyTestBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
 

@@ -20,7 +20,7 @@
     and beside them the model card (README.md) and the recipe, so the published repository says how to rebuild itself.
     Upload with
       hf upload smile-forge/wan2.2-ti2v-5b-onnx <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the published files are written.

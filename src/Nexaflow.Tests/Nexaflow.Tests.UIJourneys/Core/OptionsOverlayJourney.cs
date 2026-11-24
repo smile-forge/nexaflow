@@ -1,8 +1,11 @@
 using System;
+using System.IO;
 using System.Linq;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
+using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 
 namespace Nexaflow.Tests.Features.UI;
@@ -118,5 +121,29 @@ public abstract class OptionsOverlayJourney : UiJourneyTestBase
             if (scroll.VerticalScrollPercent.Value >= 99.0) break;
         }
         return null;
+    }
+
+    /// <summary>Expands a collapsible section, tolerating one that is already open.</summary>
+    protected void Expand(string automationId)
+    {
+        var toggle = WaitForId(automationId, 5);
+        if (toggle is null) return;
+        if (toggle.Patterns.Toggle.PatternOrDefault?.ToggleState.Value == FlaUI.Core.Definitions.ToggleState.On)
+            return;
+
+        toggle.Click();
+        Wait.UntilInputIsProcessed();
+        System.Threading.Thread.Sleep(200);
+    }
+
+    /// <summary>What About → System components says of the component named <paramref name="name"/> — the line beside its name; null
+    /// while the list is not shown or holds no such row.</summary>
+    protected string? ComponentStatus(string name)
+    {
+        var row = WaitForId("About_ComponentsList", 5)?.FindAllChildren()
+                      .Select(item => item.FindAllChildren().Select(text => text.Name ?? "").ToList())
+                      .FirstOrDefault(texts => texts.Contains(name));
+        int at = row?.IndexOf(name) ?? -1;
+        return at >= 0 && at + 1 < row!.Count ? row[at + 1] : null;
     }
 }

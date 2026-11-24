@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Selecting;
 using Nexaflow.Tests.Fixtures;
 
@@ -7,9 +8,9 @@ namespace Nexaflow.Tests.AiHost.Selecting;
 /// <summary>
 /// SAM 3.1's tokenizer as the host runs it, held to the makers' <c>SimpleTokenizer</c>: its cleaning against what the
 /// makers' <c>lower</c> cleaning made of the same phrases, and its tokens against the reference set's
-/// (tools/ai-models/sam3.1/sam_reference.py). <c>NEXAFLOW_TEST_SAM</c> names the published graphs' folder, whose
-/// tokenizer/ holds the vocabulary, and <c>NEXAFLOW_TEST_SAM_REFERENCE</c> the reference set; without them the token tests
-/// are inconclusive.
+/// (tools/ai-models/sam3.1/sam_reference.py). The vocabulary is the one beside <c>sam3.1</c>'s text encoder in the test store
+/// (<see cref="TestStore"/>), and <c>NEXAFLOW_TEST_SAM_REFERENCE</c> names the reference set; without both the token tests are
+/// inconclusive.
 /// </summary>
 [TestClass]
 [CoversNode("picture-selection")]
@@ -40,11 +41,9 @@ public class ClipTokenizerTests
     [TestMethod]
     public void EveryReferencePhrase_IsTokenizedAsTheMakersTokenizeIt()
     {
-        string? graphs = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SAM");
         string? reference = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SAM_REFERENCE");
-        if (string.IsNullOrEmpty(graphs) || string.IsNullOrEmpty(reference))
-            Assert.Inconclusive("NEXAFLOW_TEST_SAM and NEXAFLOW_TEST_SAM_REFERENCE are not both set.");
-        var tokenizer = ClipTokenizer.Load(Path.Combine(graphs!, "tokenizer", ClipTokenizer.VocabularyFile));
+        if (string.IsNullOrEmpty(reference)) Assert.Inconclusive("NEXAFLOW_TEST_SAM_REFERENCE is not set.");
+        var tokenizer = ClipTokenizer.Load(Path.Combine(TestStore.PartFolder("sam3.1", SelectingParts.TextEncoder), ClipTokenizer.VocabularyFile));
         var set = JsonNode.Parse(File.ReadAllText(Path.Combine(reference!, "reference.json")))!;
 
         var phrases = set["tokens"]!.AsObject().Select(p => (p.Key, p.Value!))

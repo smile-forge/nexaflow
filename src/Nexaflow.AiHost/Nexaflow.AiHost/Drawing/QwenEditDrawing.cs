@@ -31,9 +31,8 @@ internal sealed class QwenEditDrawing(ModelRegistry models, GpuScheduler gpu) : 
 
     public bool Masks => true;
 
-    public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
+    public async Task<SharedBytes> DrawAsync(Draw request, DrawingModel model, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
-        var model = request.Model;
         var lane  = gpu.Open(request.Priority);
         int rows = request.Height / QwenEditSampler.PixelsPerToken, cols = request.Width / QwenEditSampler.PixelsPerToken, tokens = rows * cols;
 
@@ -47,7 +46,7 @@ internal sealed class QwenEditDrawing(ModelRegistry models, GpuScheduler gpu) : 
             foreach (var source in request.Sources)
             {
                 var (conditionWidth, conditionHeight) = QwenEditSampler.SizeWithin(QwenEditSampler.ConditionArea, source.Width, source.Height);
-                var condition = ReferenceResampling.ResizeAsPil(source.Rgb, source.Width, source.Height, 3, conditionWidth, conditionHeight, PilFilter.Lanczos);
+                var condition = ReferenceResampling.ResizeAsPil(source.Rgb.Span, source.Width, source.Height, 3, conditionWidth, conditionHeight, PilFilter.Lanczos);
                 var (readWidth, readHeight) = QwenEditSampler.ProcessorSize(conditionWidth, conditionHeight);
                 var read = ReferenceResampling.ResizeAsTorch(condition, conditionWidth, conditionHeight, 3, readWidth, readHeight, PilFilter.Bicubic);
                 using (await lane.NextAsync(model.Parts[DrawingParts.PictureReader].Device, ct))
@@ -85,8 +84,8 @@ internal sealed class QwenEditDrawing(ModelRegistry models, GpuScheduler gpu) : 
             {
                 var (width, height) = QwenEditSampler.SizeWithin(QwenEditSampler.VaeArea, source.Width, source.Height);
                 var rgb = (width, height) == (source.Width, source.Height)
-                    ? source.Rgb
-                    : ReferenceResampling.ResizeAsPil(source.Rgb, source.Width, source.Height, 3, width, height, PilFilter.Lanczos);
+                    ? source.Rgb.Memory
+                    : ReferenceResampling.ResizeAsPil(source.Rgb.Span, source.Width, source.Height, 3, width, height, PilFilter.Lanczos);
                 using (await lane.NextAsync(model.Parts[DrawingParts.PictureEncoder].Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
@@ -102,7 +101,7 @@ internal sealed class QwenEditDrawing(ModelRegistry models, GpuScheduler gpu) : 
         var sigmas  = QwenEditSampler.Sigmas(model.Steps, tokens);
         var noise   = QwenEditSampler.Noise(request.Seed, tokens);
         var latents = noise.ToArray();
-        var mask    = request.Mask is { } covered ? QwenEditSampler.TokenMask(covered, request.Width, request.Height) : null;
+        var mask    = request.Mask is { } covered ? QwenEditSampler.TokenMask(covered.Span, request.Width, request.Height) : null;
         var kept    = mask is null ? null : sources[0].Tokens;
         if (kept is not null && kept.Length != latents.Length)
             throw new HostRequestException(HostErrorKind.Invalid, "A mask lies over a first picture read at the size of the edit.");

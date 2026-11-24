@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Jinja;
@@ -63,16 +64,26 @@ internal sealed class ChatModel : IHostModel
     /// one and its GPU has the room to spare (<paramref name="spareOnGpu"/>); else its own.
     /// </summary>
     /// <param name="spareOnGpu">What its GPU has to spare now beyond the models loaded there (<see cref="ModelRegistry.SpareOn"/>).</param>
-    public LaneUse Enter(IReadOnlyList<ChatTurn> turns, RequestPriority priority, Func<int?> promptTokens, Func<int, long> spareOnGpu)
+    public LaneUse Enter(IReadOnlyList<ChatTurn> turns, string? conversation, RequestPriority priority, Func<int?> promptTokens, Func<int, long> spareOnGpu)
     {
         lock (_lanes)
         {
-            if (_background is { } held && held.Conversations.Continues(turns)) return Use(held);
-            if (Shared.Conversations.Continues(turns)) return new LaneUse(Shared, null);
+            if (_background is { } held && held.Conversations.Continues(turns, conversation)) return Use(held);
+            if (Shared.Conversations.Continues(turns, conversation)) return new LaneUse(Shared, null);
             if (priority is not (RequestPriority.Background or RequestPriority.Job) || Spec.BackgroundSequences == 0
                 || promptTokens() is not { } tokens || tokens > Spec.BackgroundTokens * 3 / 4)
                 return new LaneUse(Shared, null);
             return Background(spareOnGpu) is { } lane ? Use(lane) : new LaneUse(Shared, null);
+        }
+    }
+
+    /// <summary>Lets go of what its lanes keep of the conversation the client the request serves calls <paramref name="conversation"/>.</summary>
+    public void Forget(string conversation)
+    {
+        lock (_lanes)
+        {
+            Shared.Conversations.Forget(conversation);
+            _background?.Conversations.Forget(conversation);
         }
     }
 
@@ -130,7 +141,7 @@ internal sealed class ChatModel : IHostModel
     };
 
     /// <summary>A prompt ready to read: its text as tokens, split where its media are read.</summary>
-    public PreparedPrompt Prepare(string text, IReadOnlyList<byte[]> media)
+    public PreparedPrompt Prepare(string text, IReadOnlyList<ReadOnlyMemory<byte>> media)
         => media.Count == 0 ? PreparedPrompt.Text(Model.Tokenize(text)) : Projector!.Prepare(text, media);
 
     /// <exception cref="HostRequestException">A file would not load, or the GGUF carries no chat template the host reads.</exception>

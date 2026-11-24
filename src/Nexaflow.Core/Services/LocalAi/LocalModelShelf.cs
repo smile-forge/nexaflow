@@ -32,26 +32,20 @@ public sealed record LocalModelOption(string ProviderName, string AssemblyFileNa
 /// each job, the models of every provider that is Nexaflow's own harness — those this machine runs, and those it cannot,
 /// with why; whether each is here; fetching one with the runtime it shares; and removing what is here.
 /// </summary>
-public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store)
+public sealed class LocalModelShelf(ProviderSet providers, IModelAssetStore store)
 {
-    public ModelAssetStore Store => store;
+    public IModelAssetStore Store => store;
 
     /// <summary>
     /// The models <paramref name="slot"/> can hold: those this machine runs first, in their catalogs' order — each a model that
     /// serves every row of the job (<see cref="AiAbilityNames.Serves"/>), so picture editing offers only models that work from
-    /// pictures. Speech to text holds a conversation, so it offers Nexaflow's own speech models; where this machine runs none
-    /// of them it offers only <see cref="LocalColumns.Dictation"/>.
+    /// pictures.
     /// </summary>
     public IReadOnlyList<LocalModelOption> OptionsFor(LocalSlot slot)
     {
         var kind    = LocalColumns.KindOf(slot);
         var options = Catalogued(kind).Where(o => LocalColumns.AbilitiesOf(slot).All(a => AiAbilityNames.Serves(a, providers.Find(o.ProviderName, kind), o.Model.Id))).ToList();
-        if (slot == LocalSlot.SpeechToText)
-        {
-            var converse = options.Where(o => !LocalColumns.Dictates(o.Column())).ToList();
-            options = converse.Any(o => o.Runs) ? converse : [.. options.Where(o => o.IsIn(LocalColumns.Dictation))];
-        }
-        var tier = LocalColumns.TierOf(slot);
+        var tier    = LocalColumns.TierOf(slot);
         return [.. options.OrderBy(o => o.Runs ? 0 : 1).ThenBy(o => o.Model.Tier == tier ? 0 : 1)];
     }
 
@@ -91,18 +85,14 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
             : UnrunnableReason.TooLargeForThisMachine;
     }
 
-    /// <summary>Whether <paramref name="slot"/> only dictates here: the speech job where this machine runs none of Nexaflow's
-    /// own speech models, with <see cref="LocalColumns.Dictation"/> in their place.</summary>
-    public bool Dictates(LocalSlot slot) => OptionsFor(slot) is { Count: > 0 } options && options.All(o => LocalColumns.Dictates(o.Column()));
-
     /// <summary>Whether everything <paramref name="option"/> needs is here.</summary>
-    public bool IsReady(LocalModelOption option) => option.Needs.All(f => store.Locate(f) is not null);
+    public bool IsReady(LocalModelOption option) => option.Needs.All(f => store.Has(f));
 
     /// <summary>Whether the model's own files are here, whatever of its runtime is.</summary>
-    public bool IsHere(LocalModelOption option) => option.Model.Files.All(f => store.Locate(f) is not null);
+    public bool IsHere(LocalModelOption option) => option.Model.Files.All(f => store.Has(f));
 
     /// <summary>What fetching <paramref name="option"/> would download.</summary>
-    public long MissingBytes(LocalModelOption option) => option.Needs.Where(f => store.Locate(f) is null).Sum(f => f.Size);
+    public long MissingBytes(LocalModelOption option) => option.Needs.Where(f => !store.Has(f)).Sum(f => f.Size);
 
     /// <summary>Fetches what <paramref name="option"/> still needs.</summary>
     /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
@@ -112,7 +102,7 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
     /// <summary>Every runtime the models share.</summary>
     public IReadOnlyList<LocalRuntime> Runtimes => [.. All.Select(o => o.Runtime).OfType<LocalRuntime>().DistinctBy(r => r.Id)];
 
-    public bool IsHere(LocalRuntime runtime) => runtime.Files.All(f => store.Locate(f) is not null);
+    public bool IsHere(LocalRuntime runtime) => runtime.Files.All(f => store.Has(f));
 
     /// <summary>
     /// Removes the files of <paramref name="files"/> that are here, but those another model here lists too: two builds of
@@ -123,7 +113,7 @@ public sealed class LocalModelShelf(ProviderSet providers, ModelAssetStore store
     {
         var removing = files.Select(f => f.RelativePath).ToHashSet(StringComparer.Ordinal);
         var kept = All.Select(o => o.Model.Files)
-                      .Where(own => own.Any(f => !removing.Contains(f.RelativePath) && store.Locate(f) is not null))
+                      .Where(own => own.Any(f => !removing.Contains(f.RelativePath) && store.Has(f)))
                       .SelectMany(own => own.Select(f => f.RelativePath))
                       .ToHashSet(StringComparer.Ordinal);
         foreach (var file in files.Where(f => !kept.Contains(f.RelativePath))) await store.RemoveAsync(file, ct);

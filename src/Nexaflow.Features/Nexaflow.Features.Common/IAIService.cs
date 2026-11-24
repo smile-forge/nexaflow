@@ -20,8 +20,15 @@ namespace Nexaflow.Features.Common
         Task<IEnumerable<ConversationRecord>> LoadConversationsAsync();
         Task SaveConversationAsync(ConversationRecord conversation);
 
-        /// <summary>Permanently deletes a conversation (transcript + any artifacts) by id.</summary>
+        /// <summary>Permanently deletes a conversation (transcript + any artifacts) by id, and forgets it as
+        /// <see cref="ForgetConversationAsync"/> does.</summary>
         Task DeleteConversationAsync(string conversationId);
+
+        /// <summary>
+        /// The conversation named <paramref name="conversationId"/> is closed — its page closed, another loaded in its place, or it
+        /// ended: a model that keeps what a conversation read between its turns lets it go. Its record stays. Never throws.
+        /// </summary>
+        Task ForgetConversationAsync(string conversationId);
 
         /// <summary>
         /// Recreates the (unrealized) context page definitions saved with <paramref name="conversation"/>

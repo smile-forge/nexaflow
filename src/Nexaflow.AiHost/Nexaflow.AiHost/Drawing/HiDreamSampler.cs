@@ -1,5 +1,6 @@
 using Nexaflow.AiHost.Sampling;
 using Nexaflow.AiHost.Imaging;
+using Nexaflow.AiHost.Contracts;
 
 namespace Nexaflow.AiHost.Drawing;
 
@@ -87,10 +88,11 @@ internal static class HiDreamSampler
     public static float TimestepInput(int timestep) => 1f - timestep / 1000f;
 
     /// <summary>The finished tokens, in [−1, 1], as interleaved 8-bit RGB, rows × cols patches.</summary>
-    public static byte[] Rgb(ReadOnlySpan<float> tokens, int rows, int cols)
+    public static SharedBytes Rgb(ReadOnlySpan<float> tokens, int rows, int cols)
     {
         int width = cols * Patch, height = rows * Patch;
-        var rgb = new byte[width * height * 3];
+        var drawn = RequestSections.Create(width * height * 3);
+        var rgb = drawn.Span;
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols; c++)
             {
@@ -104,7 +106,7 @@ internal static class HiDreamSampler
                             rgb[pixel] = (byte)Math.Clamp((int)MathF.Round(value * 255f), 0, 255);
                         }
             }
-        return rgb;
+        return drawn;
     }
 
     // ── editing ──────────────────────────────────────────────────────────────────────────────────────────────────────

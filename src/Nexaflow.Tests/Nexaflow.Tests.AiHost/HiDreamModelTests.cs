@@ -2,13 +2,14 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Drawing;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The host drawing and editing with HiDream-O1's real graphs. <c>NEXAFLOW_TEST_HIDREAM</c> names a folder holding the
-/// built model as its catalog lays it out (<c>denoiser/</c>, <c>picture-reader/</c>); <c>NEXAFLOW_TEST_RUNTIME_PACK</c>
-/// the CUDA pack, without which nothing is drawn — the model is built for the GPU. What is asserted is the shape of a
+/// The host drawing and editing with HiDream-O1's real graphs, <c>hidream-o1-image</c> from the test store
+/// (<see cref="TestStore"/>), on the CUDA pack there, without which nothing is drawn — the model is built for the GPU.
+/// What is asserted is the shape of a
 /// drawing — its steps, its size, that it is a picture, what a mask keeps — not what it shows.
 /// </summary>
 [TestClass]
@@ -19,28 +20,17 @@ public class HiDreamModelTests
 {
     private const int Steps = 50;
 
+    /// <summary>The model, as the catalog names it: the host draws with its parts where it places them.</summary>
+    private const string Model = "hidream-o1-image";
+
     private static AiHostClient? _client;
-    private static DrawingModel? _model;
 
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_HIDREAM") is not { Length: > 0 } root) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        _model = new DrawingModel(DrawingMethod.HiDream, new Dictionary<string, ModelSpec>
-        {
-            [DrawingParts.Denoiser] = new("hidream-o1-image/denoiser", "hidream-denoiser", Path.Combine(root, "denoiser"), "denoiser.onnx", null, 12L << 30, 0, Device: 0),
-            [DrawingParts.PictureReader] = new("hidream-o1-image/picture-reader", "hidream-picture-reader", Path.Combine(root, "picture-reader"),
-                                                "picture-reader.onnx", null, 2L << 30, 0, Device: 0),
-        }, Steps, Shift: 3f, Guidance: 5f);
+    _client = await TestStore.HostAsync();
     }
 
     [ClassCleanup]
@@ -49,10 +39,10 @@ public class HiDreamModelTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, DrawingModel Model) Host()
+    private static (AiHostClient Client, string Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_HIDREAM and NEXAFLOW_TEST_RUNTIME_PACK are not both set.");
-        return (_client, _model);
+        if (_client is null) Assert.Inconclusive(TestStore.Missing());
+        return (_client, Model);
     }
 
     [TestMethod]
@@ -81,30 +71,30 @@ public class HiDreamModelTests
     }
 
     /// <summary>The same prompt and seed drawn with the denoiser whole and streamed, where its folder holds the streamed build: one
-    /// picture, to the rounding of fp16 arithmetic done in another order.</summary>
+    /// picture, to the rounding of fp16 arithmetic done in another order. Drawn by the host's own drawing method in this process
+    /// (<see cref="InProcessHost"/>), each denoiser placed by the test: a host's plan streams it only where its GPU lacks the room for it
+    /// whole.</summary>
     [TestMethod]
     [Timeout(2_400_000, CooperativeCancellation = true)]
     [CoversNode("owned-images-streamed")]
     public async Task AStreamedDenoiser_DrawsThePictureTheWholeOneDraws()
     {
-        var (client, model) = Host();
+        _ = Host();
+        using var host = InProcessHost.OnTheGpu();
+        var model = TestStore.DrawingModelOf(Model);
         var denoiser = model.Parts[DrawingParts.Denoiser];
-        if (!File.Exists(Path.Combine(denoiser.Folder, "denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
+        if (!File.Exists(TestStore.PathOf($"{denoiser.Folder}/denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
         var streamed = model with
         {
             Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 8L << 30 } },
         };
+        var drawing = new HiDreamDrawing(host.Models, host.Scheduler);
 
-        async Task<PngReader.Picture> Draw(DrawingModel drawing)
-        {
-            await foreach (var reply in client.SendAsync(id => new Draw(id, drawing, "A red fox asleep in the snow, watercolour.", 2560, 1440, 7, RequestPriority.Job),
-                                                         TimeSpan.FromMinutes(5)))
-                if (reply is Drawn drawn) return PngReader.Read(drawn.AsPng());
-            throw new AssertFailedException("nothing was drawn");
-        }
+        Task<PngReader.Picture> Draw(DrawingModel drawn)
+            => host.DrawAsync(drawing, new Draw(1, Model, "A red fox asleep in the snow, watercolour.", 2560, 1440, 7, RequestPriority.Job), drawn);
 
         PngReader.Picture whole, stream;
-        
+
         long streamedPeak, wholePeak;
         using (var watch = GpuMemoryWatch.Start()) { stream = await Draw(streamed); streamedPeak = watch.PeakBytes; }
         using (var watch = GpuMemoryWatch.Start()) { whole = await Draw(model); wholePeak = watch.PeakBytes; }
@@ -146,9 +136,7 @@ public class HiDreamModelTests
     [TestMethod]
     public void APrompt_IsReadAsHiDreamWritesIt_UpToTheBeginImageToken()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_HIDREAM") ?? "";
-        if (root.Length == 0) Assert.Inconclusive("NEXAFLOW_TEST_HIDREAM is not set.");
-        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(root, "denoiser", "tokenizer.json")));
+        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(TestStore.PartFolder("hidream-o1-image", DrawingParts.Denoiser), "tokenizer.json")));
 
         // Token ids from HiDream's own processor, chat template applied and <|boi_token|> after it.
         long[] french = [151644, 872, 198, 32, 51950, 42359, 2482, 5022, 429, 15804, 364, 2120, 266, 3845, 9682, 549, 40577, 266, 283, 4517,
@@ -180,8 +168,8 @@ public class HiDreamModelTests
         var replies = new List<HostReply>();
         await foreach (var reply in client.SendAsync(id => new Draw(id, model, "A red apple on the board.", 0, 0, 3, RequestPriority.Job)
                                                      {
-                                                         Sources = [new DrawingSource(width, height, source)],
-                                                         Mask = mask,
+                                                         Sources = [new DrawingSource(width, height, SharedBytes.Of(source))],
+                                                         Mask = SharedBytes.Of(mask),
                                                      }, TimeSpan.FromMinutes(10)))
             replies.Add(reply);
 
@@ -205,9 +193,7 @@ public class HiDreamModelTests
     [TestMethod]
     public void AnEditsPrompt_IsReadAsQwen3VlWritesIt_ThePicturesPlaceholdersBeforeTheText()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_HIDREAM") ?? "";
-        if (root.Length == 0) Assert.Inconclusive("NEXAFLOW_TEST_HIDREAM is not set.");
-        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(root, "denoiser", "tokenizer.json")));
+        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(TestStore.PartFolder("hidream-o1-image", DrawingParts.Denoiser), "tokenizer.json")));
         using var stream = typeof(HiDreamModelTests).Assembly.GetManifestResourceStream("hidream-edit.json")!;
         var prompt = System.Text.Json.Nodes.JsonNode.Parse(stream)!["prompt"]!;
         int[] counts = [.. prompt["grids"]!.AsArray().Select(g => g![0]!.GetValue<int>() * g[1]!.GetValue<int>())];

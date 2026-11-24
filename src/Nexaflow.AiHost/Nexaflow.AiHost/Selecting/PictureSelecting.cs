@@ -19,7 +19,7 @@ internal static class PictureSelecting
 
     /// <summary>The picture squashed to the encoder's square by PIL's bilinear resize — its alpha dropped, as PIL's
     /// <c>convert("RGB")</c> drops it — then planar RGB from -1 to 1.</summary>
-    public static float[] Prepare(byte[] rgba, int width, int height)
+    public static float[] Prepare(ReadOnlySpan<byte> rgba, int width, int height)
     {
         var rgb = new byte[width * height * 3];
         for (int i = 0, j = 0; i < rgba.Length; i += 4, j += 3)

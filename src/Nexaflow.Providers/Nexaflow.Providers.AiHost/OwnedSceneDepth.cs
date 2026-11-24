@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -6,59 +7,53 @@ using Nexaflow.Providers.Common;
 
 namespace Nexaflow.Providers.AiHost;
 
-/// <summary>A picture's disparity, in the file it was asked into, at the size the estimator read the picture.</summary>
-public sealed record EstimatedSceneDepth(int Width, int Height);
+/// <summary>A picture's scene depth: <see cref="Width"/> × <see cref="Height"/> single-precision floats of disparity, row by row
+/// (<see cref="SceneDepthEstimated"/>). Dispose it once read: the floats may be a section the AI host shares.</summary>
+public sealed record EstimatedSceneDepth(int Width, int Height, SharedBytes Disparity) : IDisposable
+{
+    public void Dispose() => Disparity.Dispose();
+}
 
 /// <summary>
 /// Scene depth in Nexaflow's AI host: how far each part of a picture lies from the camera, from the one picture, by Depth
-/// Anything V2 Small (<see cref="OwnedToolKind.SceneDepth"/>) — on the GPU where it has room, else the CPU.
+/// Anything V2 Small (<see cref="HostedToolKind.SceneDepth"/>) — on the GPU where it has room, else the CPU.
 /// </summary>
 public sealed class OwnedSceneDepth : OwnedToolFront
 {
-    public OwnedSceneDepth(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == OwnedToolKind.SceneDepth))
+    public OwnedSceneDepth(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds, MachineCards hardware)
+        : this(new OwnedModelRuntime(activities, assets, host, holds, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.SceneDepth))
     {
     }
 
-    internal OwnedSceneDepth(OwnedModelRuntime runtime, OwnedTool? tool) : base(runtime, tool)
+    internal OwnedSceneDepth(OwnedModelRuntime runtime, HostedTool? tool) : base(runtime, tool)
     {
     }
 
-    /// <summary>
-    /// Estimates the scene depth of the picture in <paramref name="pixels"/> — interleaved 8-bit RGBA with nothing else — into
-    /// <paramref name="into"/> (<see cref="EstimateSceneDepth"/>). Never downloads: the tool is fetched when a person asks for it.
-    /// </summary>
+    /// <summary>The scene depth of the picture <paramref name="pixels"/> — interleaved 8-bit RGBA with nothing else. Never
+    /// downloads: the tool is fetched when a person asks for it.</summary>
     /// <exception cref="InvalidOperationException">The tool is not on this machine, there is no room to run it, or the host
     /// could not.</exception>
-    public async Task<EstimatedSceneDepth> EstimateAsync(string pixels, int width, int height, string into, CancellationToken ct)
+    public async Task<EstimatedSceneDepth> EstimateAsync(ReadOnlyMemory<byte> pixels, int width, int height, CancellationToken ct)
     {
-        var madeWay = new List<IDisposable>();   // the models that make way for this picture, back once it is done
+        EstimatedSceneDepth? estimated = null;
         try
         {
-            var parts = await PlacedAsync(SceneDepthParts.All, ct);
-            EstimatedSceneDepth? estimated = null;
-            await foreach (var reply in Owned.Host.SendAsync(id => new EstimateSceneDepth(id, parts, pixels, width, height, into, RequestPriority.Job),
+            var tool = ToolId();
+            using var picture = await Owned.Host.ShareAsync(pixels, ct);
+            await foreach (var reply in Owned.Host.SendAsync(id => new EstimateSceneDepth(id, tool, picture, width, height, RequestPriority.Job),
                                                              OwnedModelRuntime.StallLimit, ct))
-            {
-                switch (reply)
-                {
-                    case MadeWay made:
-                        madeWay.Add(Owned.MakingWay(made.Models));
-                        break;
-                    case SceneDepthEstimated done:
-                        estimated = new EstimatedSceneDepth(done.Width, done.Height);
-                        break;
-                }
-            }
+                if (reply is SceneDepthEstimated done) estimated = new EstimatedSceneDepth(done.Width, done.Height, done.Disparity);
             return estimated ?? throw new InvalidOperationException("The AI host finished without the picture's depth.");
         }
         catch (Exception ex) when (ex is AiHostException or LlmProviderException)
         {
+            estimated?.Dispose();
             throw new InvalidOperationException($"The picture's depth could not be estimated: {ex.Message}", ex);
         }
-        finally
+        catch
         {
-            foreach (var back in madeWay) back.Dispose();
+            estimated?.Dispose();
+            throw;
         }
     }
 }

@@ -1,0 +1,95 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+  <!--
+    The AI host as the machine's service, in an MSI of its own: Nexaflow.AiHost and its runtime into
+    Program Files\Smile-forge\AiHost, installed as the SmileForgeAiHost service (Package.wxs). The Nexaflow bundle offers it as
+    an option (InstallAiHost); Nexaflow's own MSI keeps the host it starts for itself when no service runs.
+  -->
+  <PropertyGroup>
+    <AcceptEula>wix7</AcceptEula>
+    <!-- ICE61 is the expected, benign companion of MajorUpgrade/@AllowSameVersionUpgrades. -->
+    <SuppressIces>ICE61</SuppressIces>
+    <!-- The payload is built by BuildHostPayload below, which Visual Studio's fast up-to-date check cannot see. -->
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+    <!-- Released with Nexaflow, so versioned as it is: an upgrade of the bundle upgrades the service too. -->
+    <_CoreCsproj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\src\Nexaflow.Core\Nexaflow.Core.csproj'))</_CoreCsproj>
+    <NexaflowVersion>$([System.Text.RegularExpressions.Regex]::Match($(_CoreCsproj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</NexaflowVersion>
+    <DefineConstants>AppVersion=$(NexaflowVersion)</DefineConstants>
+  </PropertyGroup>
+
+  <!--
+    The payload is restored and built from this project's targets, never through a ProjectReference, for the reasons
+    nexaflowSetup.wixproj gives: Configuration and Platform passed down, references built, and the solution's map and the
+    IDE's flags taken away.
+  -->
+  <PropertyGroup>
+    <_PayloadBuildProperties>Configuration=$(Configuration);Platform=$(Platform);BuildProjectReferences=true</_PayloadBuildProperties>
+    <_PayloadContextProperties>CurrentSolutionConfigurationContents;BuildingSolutionFile;BuildingInsideVisualStudio;SolutionDir;SolutionExt;SolutionFileName;SolutionName;SolutionPath</_PayloadContextProperties>
+    <_HostCsproj>$(MSBuildThisFileDirectory)..\src\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj</_HostCsproj>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to the WixToolset.Sdk version above, as nexaflowSetup's are. -->
+    <PackageReference Include="WixToolset.Util.wixext" Version="7.0.0" />
+  </ItemGroup>
+
+  <Target Name="RestoreHostPayload">
+    <MSBuild Projects="$(_HostCsproj)" Targets="Restore"
+             Properties="$(_PayloadBuildProperties);MSBuildRestoreSessionId=$([System.Guid]::NewGuid());MSBuildIsRestoring=true"
+             RemoveProperties="$(_PayloadContextProperties)" />
+  </Target>
+
+  <Target Name="BuildHostPayload" DependsOnTargets="RestoreHostPayload">
+    <MSBuild Projects="$(_HostCsproj)" Targets="Build" Properties="$(_PayloadBuildProperties)" RemoveProperties="$(_PayloadContextProperties)">
+      <Output TaskParameter="TargetOutputs" ItemName="_HostRef" />
+    </MSBuild>
+  </Target>
+
+  <!--
+    HostComponents.wxs, generated from every file of the host's build output but the executable, which Package.wxs installs
+    itself, in the component that installs the service.
+  -->
+  <Target Name="HarvestHostOutput" DependsOnTargets="BuildHostPayload" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_HostProjDir>$([System.IO.Path]::GetDirectoryName('$(_HostCsproj)'))</_HostProjDir>
+      <_HostTargetPath>@(_HostRef)</_HostTargetPath>
+      <_HostOutDir>$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::Combine('$(_HostProjDir)', '$(_HostTargetPath)'))))\</_HostOutDir>
+      <_HostExe>$(_HostOutDir)Nexaflow.AiHost.exe</_HostExe>
+      <_HarvestWxs>$(IntermediateOutputPath)HostComponents.wxs</_HarvestWxs>
+      <DefineConstants>$(DefineConstants);HostExe=$(_HostExe)</DefineConstants>
+    </PropertyGroup>
+
+    <Error Condition="'$(_HostTargetPath)' == '' or !Exists('$(_HostExe)')"
+           Text="Could not resolve the AI host's build output: its build returned '$(_HostTargetPath)', and $(_HostExe) does not exist." />
+
+    <ItemGroup>
+      <_HostFile Include="$(_HostOutDir)**\*" Exclude="$(_HostOutDir)**\*.pdb;$(_HostExe)" />
+      <_HostRuntime Include="@(_HostFile)" Condition="'%(Filename)%(Extension)' == 'llama.dll' or '%(Filename)%(Extension)' == 'onnxruntime.dll'" />
+    </ItemGroup>
+
+    <!-- The runtimes the host loads: without them the service starts and fails every request. -->
+    <Error Condition="'@(_HostRuntime->Count())' &lt; '2'"
+           Text="The AI host's payload is incomplete: llama.dll and onnxruntime.dll must both be in $(_HostOutDir); found: @(_HostRuntime->'%(Filename)', ', '). Rebuild Nexaflow.AiHost, then this installer." />
+
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <ItemGroup>
+      <_WxsComp Include="@(_HostFile)" Condition="'%(_HostFile.RecursiveDir)' == ''">
+        <Line>      &lt;Component&gt;&lt;File Source=&quot;%(_HostFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
+      </_WxsComp>
+      <_WxsComp Include="@(_HostFile)" Condition="'%(_HostFile.RecursiveDir)' != ''">
+        <Line>      &lt;Component Subdirectory=&quot;$([System.Text.RegularExpressions.Regex]::Replace('%(_HostFile.RecursiveDir)', '\\$', ''))&quot;&gt;&lt;File Source=&quot;%(_HostFile.Identity)&quot; /&gt;&lt;/Component&gt;</Line>
+      </_WxsComp>
+      <_WxsLine Include="&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;" />
+      <_WxsLine Include="&lt;Wix xmlns=&quot;http://wixtoolset.org/schemas/v4/wxs&quot;&gt;" />
+      <_WxsLine Include="  &lt;Fragment&gt;" />
+      <_WxsLine Include="    &lt;ComponentGroup Id=&quot;HostComponents&quot; Directory=&quot;INSTALLFOLDER&quot;&gt;" />
+      <_WxsLine Include="@(_WxsComp->'%(Line)')" />
+      <_WxsLine Include="    &lt;/ComponentGroup&gt;" />
+      <_WxsLine Include="  &lt;/Fragment&gt;" />
+      <_WxsLine Include="&lt;/Wix&gt;" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_HarvestWxs)" Lines="@(_WxsLine)" Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(_HarvestWxs)" />
+    </ItemGroup>
+  </Target>
+</Project>

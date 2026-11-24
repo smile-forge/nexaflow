@@ -28,7 +28,7 @@ public sealed record EraseSteps(ImmutableArray<RecipeErase> Steps)
 /// An erased photo is the photo upright, as every recipe coordinate reads it, in its own colour space, 8 bits a channel,
 /// kept as PNG with that colour space embedded, so it decodes as the same pixels.
 /// </remarks>
-[LocalDiskOnly("erased photos, kept in the app's cache and handed to picture erasing through the temp folder; the photo itself is read through the runtime's file system")]
+[LocalDiskOnly("erased photos, kept in the app's cache; the photo itself is read through the runtime's file system")]
 public sealed class ErasedPictures(string folder, long budgetBytes)
 {
     /// <summary>How much disk the erased photos may take together before the oldest are let go.</summary>
@@ -106,22 +106,11 @@ public sealed class ErasedPictures(string folder, long budgetBytes)
         return path;
     }
 
-    /// <summary>What picture erasing makes of <paramref name="picture"/> under <paramref name="mask"/>, handed over by file.</summary>
+    /// <summary>What picture erasing makes of <paramref name="picture"/> under <paramref name="mask"/>.</summary>
     internal static async Task<byte[]> ByErasingAsync(IPictureErasing erasing, UprightPixels picture, byte[] mask, IProgress<double>? progress, CancellationToken ct)
     {
-        var work = Directory.CreateTempSubdirectory("nexaflow-erasing-").FullName;
-        try
-        {
-            string pixels = Path.Combine(work, "photo.rgba"), hole = Path.Combine(work, "mask.bytes"), into = Path.Combine(work, "erased.rgba");
-            await File.WriteAllBytesAsync(pixels, picture.Rgba, ct);
-            await File.WriteAllBytesAsync(hole, mask, ct);
-            await erasing.EraseAsync(new PictureEraseRequest(pixels, hole, picture.Width, picture.Height, into), progress, ct);
-            return await File.ReadAllBytesAsync(into, ct);
-        }
-        finally
-        {
-            try { Directory.Delete(work, recursive: true); } catch (IOException) { /* the temp folder's own clean-up has it */ }
-        }
+        using var erased = await erasing.EraseAsync(new PictureEraseRequest(picture.Rgba, mask, picture.Width, picture.Height), progress, ct);
+        return erased.Pixels.Memory.ToArray();
     }
 
     /// <summary>The erased photo kept as PNG, its colour space embedded; fast compression, since it is a cache.</summary>

@@ -6,6 +6,7 @@ using Nexaflow.IO.Common.Imaging;
 using Nexaflow.Media.Png;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Local;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Providers.AiHost;
 
@@ -20,14 +21,15 @@ namespace Nexaflow.Providers.AiHost;
 public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILocalModelCatalog, IAsyncDisposable
 {
     private readonly OwnedModelRuntime _runtime;
-    private readonly OwnedModel?       _model;
+    private readonly HostedModel?       _model;
 
-    public OwnedImageGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
+    public OwnedImageGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds,
                                         MachineCards hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, holds, hardware);
         _model   = OwnedModels.OfKind(ModelKind.ImageGeneration).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
+        _runtime.ReachabilityChanged += (_, _) => AvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public string Name => OwnedLlmProvider.ProviderName;
@@ -46,7 +48,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)
         => OwnedModels.OfKind(ModelKind.ImageGeneration).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
-    public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
+    public bool IsAvailable => _model is not null && _runtime.Reachable && _runtime.IsHere(_model);
 
     public event EventHandler? AvailabilityChanged;
 
@@ -59,7 +61,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
 
     public int MaxSourcesOf(string model) => SourcesOf(OwnedModels.OfKind(ModelKind.ImageGeneration).FirstOrDefault(m => m.Id == model));
 
-    private static int SourcesOf(OwnedModel? model) => model?.Sampler?.Editing?.Sources ?? 0;
+    private static int SourcesOf(HostedModel? model) => model?.Sampler?.Editing?.Sources ?? 0;
 
     /// <summary>A model that says at what size it draws each shape draws from prompts; one that says none only changes pictures.</summary>
     public bool DrawsFromPromptsOf(string model) =>
@@ -71,13 +73,13 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     /// it takes them; one of a name it does not have draws nothing, so it offers a square alone.</summary>
     public ImageSettings Settings => _model?.Sampler is { } ? SettingsOf(_model) : new([new(1, 1)]);
 
-    internal static ImageSettings SettingsOf(OwnedModel model)
+    internal static ImageSettings SettingsOf(HostedModel model)
     {
         var sampler = model.Sampler!;
         // A model that only changes pictures keeps each one's proportions, and has no shapes of its own to offer.
         return new(sampler.Sizes.Count == 0
                    ? [new(1, 1)]
-                   : [.. Enum.GetValues<MediaShape>().Select(shape => MediaAspect.Of(sampler.Sizes[shape].Width, sampler.Sizes[shape].Height))])
+                   : [.. Enum.GetValues<MediaShape>().Select(shape => sampler.Sizes[OwnedModels.Shape(shape)]).Select(size => MediaAspect.Of(size.Width, size.Height))])
         {
             Seeds           = true,
             NegativePrompts = sampler.NegativePrompts,
@@ -113,10 +115,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
             ? (0, 0)
             : sampler.Sizes.Values.First(size => new MediaAspect(size.Width, size.Height) == request.Aspect);
         byte[]? mask = request.Mask is { } stencil ? Redrawn(stencil, sources[0]) : null;
-        var parts = new Dictionary<string, ModelSpec>();
-        foreach (var role in DrawingParts.Of(sampler.Method))
-            parts[role] = await _runtime.PlacedOnDemandAsync(_model, role, ct);
-        var drawing = new DrawingModel(sampler.Method, parts, sampler.Steps, sampler.Shift, sampler.Guidance);
+        var model = _runtime.Ready(_model);
         long seed = request.Seed ?? Random.Shared.NextInt64();
 
         // A LoRA's files come the first time a picture asks for it; its trigger leads the prompt it is drawn with.
@@ -124,8 +123,8 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         DrawingLora? drawingLora = null;
         if (lora is not null)
         {
-            var files = await _runtime.FetchedAsync(_model, $"the {lora.Offer.Name} LoRA for {_model.Catalog.DisplayName}", lora.Files, ct);
-            drawingLora = new DrawingLora(files[0], lora.Strength, lora.Sampler is null ? null : files[1]);
+            await _runtime.FetchAsync(_model, $"the {lora.Offer.Name} LoRA for {_model.Catalog.DisplayName}", lora.Files, ct);
+            drawingLora = new DrawingLora(lora.Id, lora.Strength);
         }
         string prompt = lora?.Prompted(request.Prompt) ?? request.Prompt;
         string? negative = string.IsNullOrWhiteSpace(request.NegativePrompt) ? null : request.NegativePrompt;
@@ -134,12 +133,21 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         var activity = _runtime.Activities.StartActivity(label + "…");
         var host     = _runtime.Host;
         host.Environment = _runtime.Environment;
-        var madeWay  = new List<IDisposable>();   // the models that make way for this picture, back once it is done
+        var shared   = new List<SharedBytes>();   // the pictures and mask as the host reads them, closed once it has
         try
         {
+            var drawingSources = new List<DrawingSource>(sources.Count);
+            foreach (var source in sources)
+            {
+                var rgb = await host.ShareAsync(source.Rgb, ct);
+                shared.Add(rgb);
+                drawingSources.Add(new DrawingSource(source.Width, source.Height, rgb));
+            }
+            SharedBytes? covered = null;
+            if (mask is not null) shared.Add(covered = await host.ShareAsync(mask, ct));
             byte[]? png = null;
-            await foreach (var reply in host.SendAsync(id => new Draw(id, drawing, prompt, width, height, seed, RequestPriority.Job, negative, drawingLora)
-                                                             { Sources = sources, Mask = mask },
+            await foreach (var reply in host.SendAsync(id => new Draw(id, model, prompt, width, height, seed, RequestPriority.Job, negative, drawingLora)
+                                                             { Sources = drawingSources, Mask = covered },
                                                        OwnedModelRuntime.StallLimit, ct))
             {
                 switch (reply)
@@ -148,11 +156,9 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
                         activity.Update($"{label} — step {progress.Done} of {progress.Total}");
                         break;
                     case Drawn drawn:
-                        png = PngEncoder.EncodeRgb(drawn.Rgb, drawn.Width, drawn.Height);
+                        using (drawn.Rgb) png = PngEncoder.EncodeRgb(drawn.Rgb.Span, drawn.Width, drawn.Height);
                         break;
-                    case MadeWay made:
-                        madeWay.Add(_runtime.MakingWay(made.Models));
-                        break;
+
                 }
             }
             if (png is null) throw new LlmProviderException("The AI host finished without a picture.");
@@ -176,21 +182,21 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
         }
         finally
         {
-            foreach (var back in madeWay) back.Dispose();
+            foreach (var bytes in shared) bytes.Dispose();
         }
     }
 
     /// <summary>Each picture to work from as its pixels, at the size it is: the host reads each at the size its model reads it at.</summary>
     /// <exception cref="ArgumentException">A picture cannot be read.</exception>
-    private static List<DrawingSource> Readable(IReadOnlyList<MediaBytes> pictures)
+    private static List<RgbPicture> Readable(IReadOnlyList<MediaBytes> pictures)
     {
-        var sources = new List<DrawingSource>(pictures.Count);
+        var sources = new List<RgbPicture>(pictures.Count);
         foreach (var picture in pictures)
         {
             RgbPicture rgb;
             try { rgb = PictureDecoder.DecodeRgb(picture.Bytes); }
             catch (InvalidDataException ex) { throw new ArgumentException($"A picture to work from cannot be read: {ex.Message}", nameof(pictures), ex); }
-            sources.Add(new DrawingSource(rgb.Width, rgb.Height, rgb.Rgb));
+            sources.Add(rgb);
         }
         return sources;
     }
@@ -200,7 +206,7 @@ public sealed class OwnedImageGenerationProvider : IImageGenerationProvider, ILo
     /// — 255 where it is drawn again and 0 where the source is kept.
     /// </summary>
     /// <exception cref="ArgumentException">The mask cannot be read, or is not the first source's size.</exception>
-    private static byte[] Redrawn(MediaBytes stencil, DrawingSource first)
+    private static byte[] Redrawn(MediaBytes stencil, RgbPicture first)
     {
         AlphaPicture alpha;
         try { alpha = PictureDecoder.DecodeAlpha(stencil.Bytes); }

@@ -139,7 +139,7 @@ internal static class FaceAlignment
     /// <paramref name="pasteBack"/> lands them: each pixel the mask's share of the face and the rest of the picture,
     /// truncated to a byte as the helper's last step does. Only the face's footprint is touched; alpha is kept.
     /// </summary>
-    public static void Paste(byte[] picture, int width, int height, byte[] faceRgb, float[] softMask, Affine2D pasteBack)
+    public static void Paste(Memory<byte> picture, int width, int height, byte[] faceRgb, float[] softMask, Affine2D pasteBack)
     {
         const int size = FaceRestorer.Size;
         if (Footprint(pasteBack, width, height) is not { } region) return;
@@ -147,13 +147,14 @@ internal static class FaceAlignment
         var mask = ReferenceResampling.WarpAffine(softMask, size, size, pasteBack, region);
         Parallel.For(0, region.Height, ry =>
         {
+            var pixels = picture.Span;
             for (int rx = 0; rx < region.Width; rx++)
             {
                 float m = mask[ry * region.Width + rx];
                 if (m == 0) continue;
                 int at = ((region.Y + ry) * width + region.X + rx) * 4, from = (ry * region.Width + rx) * 3;
                 for (int c = 0; c < 3; c++)
-                    picture[at + c] = (byte)Math.Clamp((int)(m * face[from + c] + (1 - m) * picture[at + c]), 0, 255);
+                    pixels[at + c] = (byte)Math.Clamp((int)(m * face[from + c] + (1 - m) * pixels[at + c]), 0, 255);
             }
         });
     }

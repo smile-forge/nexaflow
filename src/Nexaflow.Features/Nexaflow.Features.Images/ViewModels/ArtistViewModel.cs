@@ -763,6 +763,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     public void Dispose()
     {
         Cutter.Close();
+        Edits.Dispose();
         CloseDocument();
         _documentSave.Dispose();
         _cts.Cancel();

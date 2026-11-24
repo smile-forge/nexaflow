@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// set up and let go, then set going, draws over it; and last the Layers panel's Canvas size grows the canvas with its new area
 /// generated. Each is shown drawing in the layers panel and arrives as a layer, the picture beneath kept.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding FLUX.2 [klein] 4B as the app keeps it, each file verified, which
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding FLUX.2 [klein] 4B as the app keeps it, each file verified, which
 /// the app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it the journey is inconclusive.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
@@ -30,7 +30,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [CoversNode("images-ai-edits")]
 public class ImagesAiEditsJourneyTests : ImageEditJourneyBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     /// <summary>The photo edited: a copy in a folder of the journey's own, since an edit writes beside it.</summary>
     private readonly string _photo = CopyOf(TestSampleData.Path("images", "photo_17.png"));

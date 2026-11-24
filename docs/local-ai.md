@@ -5,7 +5,7 @@ models that asks before high-risk context leaves this machine; providers serve s
 models, and the mic listens through the grid's Speech In chain (Nexaflow's own Whisper on this machine, OpenAI's
 realtime transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
 machine can run, and Options → About → System components what running on its GPU needs — an NVIDIA GPU of its own, a
-CUDA 13 driver, the CUDA pack and the AI host — with why each is not in place. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
+CUDA 13 driver, the CUDA pack and the AI host — as the AI host itself found them when it set its runtime up, the service where it is installed, with why each is not in place. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
 CUDA from a pack fetched from where NVIDIA, Microsoft and llama.cpp publish it, or on the CPU — as the provider
 "Nexaflow", chosen when a workspace is set up; tools can hand a model recordings to hear; and an AI-path suite runs the
 agent loop on it. Every model calls tools in its own protocol, prompted by its own chat template.
@@ -244,12 +244,14 @@ flowchart LR
 ### One host process on one stack
 
 Local models run in `Nexaflow.AiHost`, a helper executable beside the app, as `Nexaflow.PrivilegeBridge` is. The app's
-`AiHostClient` starts it on the first request for a model, speaks to it over a named pipe only the user can open, and
-binds it to a kill-on-close job object of the SDK's own (`HostProcessJob`) so it dies with the app. The SDK and the
+`AiHostClient` starts it on the first request for a model, under a pipe name and a token only it knows, and binds it to a
+kill-on-close job object of the SDK's own (`HostProcessJob`) so it dies with the app. The host opens the pipe, only its own
+account may open it, and serves every client that connects with the token (`HostListener`), each in a session of its own
+(`HostServer`); it ends once the last has gone. The SDK and the
 host keep their logs with one writer compiled into each (`AiHostLogFile`), and the host executable references nothing
-of Nexaflow's but its contracts. Another app runs a host of its own the same way, through the SDK alone —
-`Nexaflow.AiHost.Sample` is the shortest one, and `StandaloneSdkTests` holds the SDK to referencing nothing else of
-Nexaflow's and runs the sample against a real model. Every reason is something the test beds hit:
+of Nexaflow's but its contracts. Another app joins the machine's service, or runs a host of its own, the same way, through
+the SDK alone — `Nexaflow.AiHost.Sample` is the shortest one, and `StandaloneSdkTests` holds the SDK to referencing nothing
+else of Nexaflow's and runs the sample against a real model. Every reason is something the test beds hit:
 
 - **A native crash takes its process down.** Two access violations in onnxruntime-genai during testing; in the
   host that is a restart and a retried request, in the WPF process it is the whole app.
@@ -257,9 +259,8 @@ Nexaflow's and runs the sample against a real model. Every reason is something t
   behind.
 - **Native stacks cannot be mixed.** Two CUDA stacks in one process loaded clashing cuDNN; sherpa-onnx and Windows ML
   each ship their own `onnxruntime.dll`; the same class of problem the LlamaSharp provider
-  ([PR #74](https://github.com/smile-forge/nexaflow/pull/74)) fought with mirrored CUDA binaries. The Whisper
-  provider's `Whisper.net.Runtime.Cuda` (149 MB of ggml CUDA natives in every install) leaves the app for the same
-  reason once speech runs in the host.
+  ([PR #74](https://github.com/smile-forge/nexaflow/pull/74)) fought with mirrored CUDA binaries.
+
 - **One owner for the GPU.** Scheduling and the VRAM budget only work if one process decides.
 - **A watchdog.** Neither llama.cpp nor ONNX Runtime has a request timeout; a host that stops answering is
   killed and restarted.
@@ -304,10 +305,79 @@ Layout: `src/Nexaflow.AiHost/` — `Nexaflow.AiHost.Contracts` (the pipe's messa
 (the app's side, and the CUDA pack's manifest) and `Nexaflow.AiHost` (the executable); the provider is
 `Nexaflow.Providers.AiHost`, which takes the client by constructor injection like any app-wide service.
 
+**Several clients, one host.** A client connects at identification level, so the host reads which account it runs as from
+the pipe itself, and says hello with the protocol it speaks, its token and its app's name; the host welcomes it naming its
+own process — which the app that started it checks — or turns it away saying why (`HelloRefused`). Each request is served
+as its client (`ClientIdentity`: the account, and the app), and what clients leave behind is theirs alone: a model's kept
+conversations and the openings it shares are partitioned by client, each with a fair share of the room, so one client can
+neither continue another's conversation nor push it out while within its share. Turns on a device go round the clients
+waiting at each priority, and admission takes requests in the order they came. What a session sends goes out through an
+outbox of its own (`SessionOutbox`): answers to heartbeats and section messages go ahead of replies, and replies queue at
+most 256 deep, so the reading loop never waits on a send and a client slow to read holds back only its own requests — a
+reply whose client's queue is full stands aside from the token rounds it shares with other clients' replies until there is
+room (`TokenRounds.Member.StandAside`). A client that sends what cannot be read ends its own session, never the host.
+
+**The host's policy** is a file of the machine's administrator, `%ProgramData%\Smile-Forge\AiHost\host.json`
+(`HostPolicy`): the share of memory models on the CPU may hold, the folder the host logs to and whether it logs model calls there
+(`logModelCalls`, off unless it says so), how long a model nothing holds
+stays loaded once idle, and the highest priority each account — or one app of an account — may ask for, a request asking
+above it served at it. What the file leaves out is the host's default, and what an app that starts a host for itself
+passes on its command line comes before the file. The service's share is the administrator's alone: the host's welcome names it
+(`Welcome.Memory`), an app joined to the service weighs models by it, and Nexaflow's Settings show it, read-only, under the share
+the app would give a host of its own, saying the PC's AI host service sets it (`AiHostSettingRulings`, asked through
+`ConfigManager.RulingFor`, which any setting decided outside the app can use); the app's own share is kept, for a host it starts.
+
+**The service where it is installed, else a host of the app's own.** Where the machine has the host installed as its service
+(`SmileForgeAiHost`, on the pipe `SmileForge.AiHost`), a client joins it and uses nothing else: it asks Windows' service
+manager which process runs the service (`IAiHostService`, `AiHostService.Machine`), and speaks only where the process
+answering on the pipe is that one (`GetNamedPipeServerProcessId`) and welcomes it as that one — so something that took the
+pipe's name is never spoken to. A service that is not running, does not answer, is not what answers, speaks another protocol
+(`HelloRefused.Protocol` names the one it speaks) or turns the app away is no host: the request fails saying which
+(`AiHostFailure.Unavailable`), and no host of the app's own is started in its place. Where no service is installed, the app
+starts a host of its own, which keeps the store as fully as the service does — fetching, adopting and removing models. The
+service serves every client as it was set up, whatever environment the app would start its own host with. A Nexaflow run on a
+model store of its own, or under a UI test, never joins it.
+
+**The service.** Installed from an MSI of its own (`aihostSetup`; the bundle's `InstallAiHost` checkbox, ticked where the
+machine has NVIDIA's driver), the host runs as `SmileForgeAiHost` under a virtual account of its own,
+`NT SERVICE\SmileForgeAiHost`, started with the machine whoever is signed in (`HostWindowsService`). The service's process
+is a thin supervisor (`WorkerSupervisor`). It opens the pipe — any signed-in account may connect to read and write, none
+may open an instance of its own to answer on, and nothing across the network may connect (`ServicePipes`) — takes each
+client on, reads its account there, since only the process that connected a pipe can act as its client, and hands the
+connected pipe and the account to its worker (`PipeHandover`, `HandedPipes`): the same executable run with `--worker`,
+the broker itself, which welcomes clients as the supervisor's process. **A worker runs only while apps use it**: the
+supervisor starts one for the first client — a client taken meanwhile waits for it — and it exits once no client has been
+connected, and nothing held, for 30 s (`IdleWatch`, `WorkerExit.Idle`), so an idle service is its supervisor alone, about
+30 MiB and nothing on the GPU; a worker holds its runtime from the moment it starts — on an RTX PRO 6000, about 560 MiB of the
+card and 1 GB of memory with nothing loaded. How long that is after use is each app's to decide by how long it stays
+connected while it has nothing to ask: Nexaflow lets go after the idle time its Settings give a model (Local models,
+"Unload a model idle for", 0 for never), so it keeps a worker for as long as that says. A native crash in llama.cpp or
+ONNX Runtime costs the worker's requests, never the service: the next client starts another — a client handed to a worker
+as it goes is handed to the next — and after three failures in two minutes only after a minute's pause. Native libraries
+load once per process, so a CUDA pack fetched while the worker runs, or the one it runs from removed, is taken up by a new
+worker once nothing is held or running (`RuntimeWatch`, `WorkerExit.RuntimeChanged`). The service and its worker always log
+what they do with themselves — starting, stopping, a worker started or replaced, the runtime loaded — and every error, to
+`%ProgramData%\Smile-Forge\AiHost\Logs` unless the policy file names a folder. What they do for an app — a client connecting
+and going, a model loaded and let go where, llama.cpp's warnings as it reads one — says what was asked of them, so it is
+logged only where the policy turns `logModelCalls` on (`HostLog.WriteActivity`).
+A host an app starts logs only while that app's safety logging is on, and then logs both.
+
+**The store's permissions follow the service** (`StoreAccess`). While the service is installed the store is its: SYSTEM,
+Administrators and the service write, and every user reads. The installer, as SYSTEM, first moves the
+installing user's models from an earlier Nexaflow (`%LOCALAPPDATA%\Smile\nexaflow\ai`) into the store — the service cannot
+read that user's folders — then gives the store and the host's folder to the service, owned by Administrators so no user
+who made a file there keeps the right to change its rules. Uninstalling the service gives the store back to every user in
+full control, as the first host an app starts makes it where there is none, so whichever user's app starts a host can
+fetch, adopt and remove. Either way the store's rules are its own, and everything in it inherits them.
+
 The client watches the host three ways: a heartbeat answered on the host's reading loop, so a frozen process shows
 however busy its requests are; a stall limit per request, so a request that stops replying is taken for a hang; and
-a grace after a cancellation, so a request that will not stop is one. Any of them kills the host; the next request
-starts another, and a host that keeps crashing is not restarted until it has stayed down a while.
+a grace after a cancellation, so a request that will not stop is one. A host the app started is killed by any of them; the
+next request starts another, and a host that keeps crashing is not restarted until it has stayed down a while. The service
+is never the app's to kill: a request it leaves silent is cancelled and fails alone (`AiHostFailure.Stalled`), a cancel it
+does not finish is no longer waited for, and a missed heartbeat lets the connection go — its open requests lost — for the
+next request to join again; none of these counts as a crash. What the service keeps for an app is kept by the app's name
+and account, not its connection, so a conversation outlives a reconnect while the service runs (`AiHostClient.IsRunning`).
 
 A host that dies of a native fault — a CUDA error that ggml aborts on, an access violation in a runtime — takes its
 pipe with it a moment before its exit is seen, so a closed or broken pipe waits up to `AiHostTimings.ExitWait` for the
@@ -327,9 +397,8 @@ while that is off. While it is on:
 
 Models are loaded as published. A speech export is read through the config it is published with
 (`genai_config.native.json`, in onnxruntime-genai's format): its graphs' files, their inputs and outputs layer by layer,
-its features and its decoding limits. A language model's GGUF and projector go to llama.cpp as they are. An export that
-needs its files turned into what its runner reads names an adapter in its catalog entry (`IModelAdapter`), which
-prepares its folder once per adapter version.
+its features and its decoding limits. A language model's GGUF and projector go to llama.cpp as they are. Every file a
+runner reads is published as it reads it: nothing is converted on the user's machine.
 
 ### Capabilities instead of one text contract
 
@@ -364,14 +433,14 @@ The host owns:
   free is read at each admission through NVIDIA's management library (`CardMemory`, NVML), which sees every program on
   the card — llama.cpp's own reading on Windows sees only this process — so what another program, or another app's
   host, takes is left to it and what it gives back is there to use. Where NVML cannot read a card, the budget is what
-  was free when the host started. Every model runs on the one GPU its spec names, or on the CPU; a description of the
-  host reports each GPU, the budget it started with, and what is free on it now.
-- **A resident set** — the models the app holds, where the machine's setup places them, kept between turns (4–6 s to
-  reload is too slow between them). The app holds a model from its first request until it has stood idle, or from the
-  first window on for one its preload policy loads ahead (see *What stays loaded*). A model asked for in another place
-  or at another size is loaded again there, the old one going once nothing uses it. A part its catalog marks
-  `loadsOnDemand` — Kokoro's German voice — is not held with its model: the host loads it with the first request that
-  uses it.
+  was free when the host started. Every part runs on the one GPU the host places it on, or on the CPU; a description of
+  the host reports each GPU, the budget it started with, what is free on it now, and where every held part runs.
+- **Holds** — the parts an app has the host keep loaded (`HoldModels`, a request that runs for as long as the hold), where
+  the host places them, kept between turns (4–6 s to reload is too slow between them). Nexaflow holds a model from its
+  first request until it has stood idle, or from the first window on for one its preload policy loads ahead (see *What
+  stays loaded*); a voice conversation holds its speech models at the voice priority for its length. A part two holds
+  hold is loaded once, and goes once neither holds it and nothing is using it. A part its catalog marks `loadsOnDemand` —
+  Kokoro's German voice — is not held with its model: the host loads it with the first request that uses it.
 - **Models loaded on demand** — image, music, a tool's parts, a second LLM a request names: kept loaded after the
   request, and the first to go, least recently used, when another needs the room.
 - **Admission per GPU**: each model sized from its spec against its own GPU's budget; unload what may go, or refuse
@@ -388,10 +457,10 @@ The host owns:
   drawn, residents nothing is using may make way for its parts on their GPU, after every model loaded on demand; a
   reply in progress keeps its model, and the picture waits for it. Those residents load again once the last picture
   is done, or as soon as a request needs one — that request waiting, if it must, until the part holding the room is
-  done. The picture's request says which residents made way for it (`MadeWay`, protocol 8); the app holds them as away
-  until the picture is done (`HostModelSetup.MakingWay`), and a provider whose model is away says so
-  (`IAiProvider.IsMakingWay`). A voice conversation whose answering model is away pauses: it passes nothing the
-  microphone hears to the listener, and the AI bar says "Working…" until the model is back.
+  done. Every hold holding a part that made way is told (`ModelsAway`), whoever draws the picture, and told again once it
+  is loaded (`ModelsBack`); a provider whose model is away says so (`IAiProvider.IsMakingWay`). A voice conversation whose
+  answering model is away pauses: it passes nothing the microphone hears to the listener, and the AI bar says "Working…"
+  until the model is back.
 - **Priorities, preempted at token boundaries**: live voice, then interactive chat, then background analysis, then
   generation jobs. Concurrent models time-slice a GPU, so each device takes one step at a time — a token, a 512-token
   slice of prompt — and gives the next to the highest-priority request waiting for it; a background analysis yields to
@@ -428,9 +497,10 @@ runtimes and any tool's parts with it — and the next request starts a fresh on
 
 ### The machine's setup
 
-The app plans where the resident models run (`HostModelSetup`), every workspace's together, from the GPUs the host
-reports. Language models are placed first, then the rest from the largest down, each on the GPU it fills most nearly —
-so a GPU stays as whole as it can for a picture. A language model gets its catalog's context — all it was trained for,
+The host plans where the held parts run (`HeldModels`, with `ModelPlacement` from its catalog), every hold's together, on the
+GPUs it found: a request names a model or a part by its catalog id (`ModelRef`), never where it runs. Parts are placed by
+the priority they are held at — a voice's first — and within it language models first, then the rest from the largest
+down, each on the GPU it fills most nearly — so a GPU stays as whole as it can for a picture. A language model gets its catalog's context — all it was trained for,
 read from its GGUF header: 256k for most, 128k for Gemma 4 E4B, 16k for Phi-4 — where there is room, and a shorter one
 where there is not, in steps of 1,024 tokens down to 8k; its catalog entry gives what it
 holds with no context and what each token adds, measured as 16-bit values and held in 8 (34 bytes for every 64, which on
@@ -443,9 +513,12 @@ writes 58 tokens/s with 21 of its 30 layers on a GPU, against 209 with all of th
 and one with no CPU build is left out. Once everything is placed, a language model wholly on a GPU reads its prompts in
 steps of 2,048 tokens where what is left there holds them, and its catalog says what they cost — on Gemma 4 26B, 13,700
 tokens/s against 9,400 in steps of 512, for 2 GB; steps of 4,096 read no faster. On the CPU, the other models hold what their builds' files hold,
-and a language model is given the longest context the host's memory share leaves it, never under 8k — once a cut model's CPU layers, and the context they keep, are counted in that share: the host admits a cut model against its GPU's budget and the share both, idle models on the CPU making way for its layers there. When a workspace takes models on, the plan is redone and each
-model it moves is loaded again where it now runs; letting models go moves nothing. A picture's parts are placed each
-time: on a GPU where they fit beside the residents, else on the one with the most room, where the residents make way.
+and a language model is given the longest context the host's memory share leaves it, never under 8k — once a cut model's CPU layers, and the context they keep, are counted in that share: the host admits a cut model against its GPU's budget and the share both, idle models on the CPU making way for its layers there. When a hold comes, the plan is redone, each part it moves is
+loaded again where it now runs, and every hold holding one is told where its parts run now (`ModelsPlaced`); a hold
+going moves nothing. A picture's parts are placed each time: on a GPU where they fit beside the held parts, else on the
+one with the most room, where the held parts make way. A language or speech model a request names that nothing holds
+runs where the plan would place it were it held. Where the placement needs a build the store lacks — a GPU part's CPU
+build, for a GPU without the room — the host fetches it first, for a model whose files are in the store.
 
 Before the host has run — in the setup wizard, and for which models a machine is offered — the GPUs are those the
 adapters report, each less 1 GB for the desktop and the runtime's share. A language model is offered where it would
@@ -477,11 +550,16 @@ drifts from a re-read, it is greedy decoding branching on that rounding.
   started on, then the turns.
 - **Changes are appended, never edited.** Moving to another page appends an event carrying the new page's context;
   tool results and audio are appended like any other turn.
+- **A conversation is kept by its name.** A turn names the conversation it is of (`Generate.Conversation`) — Nexaflow's
+  chats by their id, a voice conversation by its own — and the host keeps what the model read and wrote under that name
+  for the next turn, one state a name, until the app forgets it (`ForgetConversation`, when a chat is closed or deleted)
+  or the room is wanted. A turn with no name — page analysis, triage, ranking, a judgement — is a one-off: read afresh,
+  let go when its reply ends, and never taking or pushing out what a conversation kept.
 - **Appending is how a conversation goes on.** A barge-in cancels generation and appends what the user actually heard
   as a note; a conversation cut short is dropped, and the next request reads it afresh.
 - **A prompt that parts from what was read is read from where it parts.** An edited last turn, a reply whose reasoning
-  the template leaves out of what was answered: the kept conversation sharing the longest start with the prompt — 256
-  tokens or more — is cut back to it, and only the rest is read. A model whose sequences are their cells alone is cut
+  the template leaves out of what was answered: the conversation of the turn's name, where it shares 256 tokens or more
+  with the prompt, is cut back to where they part, and only the rest is read. A model whose sequences are their cells alone is cut
   back where the two part. One holding more — a recurrent layer's state (Qwen 3.5's gated DeltaNet), a sliding window's
   cells (Gemma 4) — is cut back to where that state was saved: at the end of each turn it read, and where each prompt
   ends, eight saves kept across its conversations (`ModelPlacement.Checkpoints`) and counted in the host's memory share
@@ -504,9 +582,11 @@ drifts from a re-read, it is greedy decoding branching on that rounding.
 
 The cache is allocated once per model, as long as its context, and its conversations share it, each a sequence in one
 cache: 8 of them, as the catalog's figures were measured holding, or 16 where a model's catalog says what each more costs
-and its GPU has the room left (Gemma 4 26B: 204 MB each in 16 bits, 110 MB in 8). As many replies are written at once as
-the cache has sequences; the conversations kept between requests and the openings below take the rest, and are let go when
-a reply needs their sequence. A request past them waits for a reply to end, and one whose prompt finds no room waits for room
+and its GPU has the room left (Gemma 4 26B: 204 MB each in 16 bits, 110 MB in 8), and two more, one for each opening below
+(`ModelSpec.OpeningSequences`), counted in what the model holds. As many replies are written at once as the cache has
+sequences for replies; the conversations kept between requests and the openings take the rest, a kept conversation let go
+when a reply needs its sequence. An opening takes only a free sequence, and only where every reply that could still begin
+finds one — free, or given up by a kept conversation or an opening nobody holds: no conversation is let go to make one. A request past them waits for a reply to end, and one whose prompt finds no room waits for room
 rather than being turned away; its room is held for it from the moment it is let in, so prompts arriving together are never
 let into the same room. The kept conversations go first, oldest first, when room is needed. For E4B a 16k cache is under a
 gigabyte.
@@ -742,11 +822,8 @@ at the same moment) puts a complete turn at about 0.9 s.
 
 **Speech to text on this machine is a conversation's ears.** The Local page offers Nexaflow's own speech models —
 the listening stack above with Whisper large-v3-turbo, small or small.en as its final pass — and every one of them hears
-when a turn is over, so choosing any of them gives the mic a conversation. Where a machine runs none of them, the job
-is **Dictation only**: whisper.cpp's base on the CPU (`LocalColumns.Dictation`), into which `DictationService` streams the
-microphone, re-transcribing the whole buffer every second. It hears words but not when a speaker has finished, so the
-mic dictates with it and never starts a conversation (`AIService.CanConverse`); the grid names the job "Dictation only".
-whisper.cpp's other sizes are not offered for the job, and a workspace on one moves to the job's first model as it loads.
+when a turn is over, so choosing any of them gives the mic a conversation. Where a machine runs none of them, a cloud
+service's speech models can listen and speak instead; with neither, the mic is not offered (`AIService.CanConverse`).
 The small builds are ours too (`tools/ai-models/whisper-onnx-genai`, huggingface.co/smile-forge/whisper-onnx-genai);
 an English-only Whisper has one token less in its vocabulary — Whisper's own test — and takes no language or task in its
 prompt.
@@ -1220,12 +1297,16 @@ they are.
 
 ## Delivery
 
-**In the app, not the installer.** Updatum re-runs the whole installer bundle (~225 MB) on every update, Burn caches
-every payload a second time under Package Cache, the standard bootstrapper cannot probe a GPU, and models are a
-per-machine choice users change later. At most, the bundle's Install page gains an opt-in checkbox — like
-`InstallTools` — that the app reads on first run.
+**Models in the app, not the installer.** Updatum re-runs the whole installer bundle (~225 MB) on every update, Burn
+caches every payload a second time under Package Cache, the standard bootstrapper cannot probe a GPU, and models are a
+per-machine choice users change later. The installer carries the host alone.
 
 - **The host** ships in the base install, in `AiHost\` beside the app: ONNX Runtime and llama.cpp, CPU only, started only when a workspace uses a model Nexaflow runs.
+- **The host as the machine's service** is the bundle's option (`InstallAiHost`, beside `InstallTools`): its own MSI,
+  `aihostSetup`, installs the same host into `Program Files\Smile-forge\AiHost` and as the `SmileForgeAiHost` service.
+  It starts ticked where NVIDIA's CUDA library (`nvcuda.dll`) is in System32 — the machines whose models are worth one
+  owner for the GPU — and keeps what an earlier install chose: unticked over an install that has the service, the bundle
+  removes it.
 - **Execution providers**: the CUDA pack (about 1.3 GB on disk) for NVIDIA, fetched with the first owned model on a
   machine with an NVIDIA GPU and a CUDA 13 driver — from Microsoft's NuGet packages and NVIDIA's wheels on PyPI, each
   archive checked and only the DLLs kept. Each pack is kept in a folder of its id, which names the runtimes it carries,
@@ -1235,13 +1316,13 @@ per-machine choice users change later. At most, the bundle's Install page gains 
   rather than the whole pack. Once the new pack is whole, however it came, the earlier folders are deleted; on a
   machine the pack does not suit, at launch. Windows ML's providers, for other vendors and NPUs, come with the first
   model built for one of them.
-- **Models and voices**: `ModelAssetStore` — the AI host SDK's (`Nexaflow.AiHost.Provisioning`), so any app running
-  models through the host fetches them the same way — under `%LOCALAPPDATA%\Smile\nexaflow\ai\` (`LocalAiFolder`), a
-  short, real, non-roaming path. Each provider ships a catalog manifest naming its models' files with source, size and
+- **Models and voices**: `ModelAssetStore` — the AI host SDK's (`Nexaflow.AiHost.Provisioning`), kept by the host
+  alone in the machine's one store, `%ProgramData%\Smile-Forge\Models` (`HostModelStore`), which every app asks the host
+  to fetch into; the files an earlier Nexaflow kept under `%LOCALAPPDATA%\Smile\nexaflow\ai\` are moved in. Each provider ships a catalog manifest naming its models' files with source, size and
   SHA-256 (`ModelCatalog`, `Providers.Local`; the CUDA pack a set of its own, `AssetSet`); a download
-  resumes from a `.partial` file and a file is handed out only once verified. A file an earlier version kept — Whisper
-  models in `%APPDATA%\…\voice\models`, an earlier CUDA pack's — is moved in when it is the same file, before anything
-  is weighed against the drive or downloaded.
+  resumes from a `.partial` file — at once, in the same fetch, when its connection drops or the server fails, given up only
+  after five passes in a row gain nothing (`VerifiedDownload`) — and a file is handed out only once verified. A file an earlier CUDA pack kept is moved in
+  when it is the same file, before anything is weighed against the drive or downloaded.
 - **Hardware probe**: what decides where local models run is the SDK's `MachineCards`, read through NVIDIA's management
   library (NVML, with the driver on Windows and Linux) before any host runs: each NVIDIA card with its memory, in PCI
   bus order — the order the host numbers them in, since it sets `CUDA_DEVICE_ORDER=PCI_BUS_ID` — and the CUDA version
@@ -1250,15 +1331,14 @@ per-machine choice users change later. At most, the bundle's Install page gains 
   source (`Nvml`) for its budgets. `ComputeHardware` (IO.Common) reads every ML-capable adapter through DXCore — GPUs of
   every vendor and NPUs — for System Info's Local AI card and for what the requirement rows say was found where no
   NVIDIA card will do.
-- **Whisper's CUDA natives** leave the base install once speech runs in the host, cutting the installer and every
-  update by about 60%.
+
 
 ## Build order
 
 | Phase | Delivers | Size |
 |---|---|---|
 | 0. Spikes | done, measured above: echo cancellation and barge-in in a real room; Smart Turn for English, French and German; lexicon coverage on real replies; Qwen 3.8 27B and Gemma 4 26B-A4B; Whisper large-v3-turbo from C#; the append-only context across turns; the language models on llama.cpp, against onnxruntime-genai | small, each |
-| 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine) with dictation on it; the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
+| 1. Contracts and plumbing | done: streaming through the harness; grid chains, data residency and consent for high-risk context; model kinds and the speech-to-text contract (OpenAI realtime, Whisper on this machine); the asset store and catalog manifest; the hardware probe and System Info's Local AI card | medium |
 | 2. AI host + local LLM | done: the host, its pipe protocol, scheduler, budget and watchdog; the CUDA pack from upstream; Gemma 4 E4B on llama.cpp from Google's own 4-bit GGUF, with the append-only context, and chat templates rendered by the host's own Jinja engine (Gemma 4 and Qwen 3.5–3.8 held to Python's renders); the provider "Nexaflow" — superseding PR #74; the harness property and the workspace's choice of who runs its AI; recordings tools hand a model; the AI-path suite against the owned model. a setup per machine — each model on a card, its context sized to it, room made for a picture — with System Info's check of what a machine does; the larger Gemma 4, the Qwen models, MiMo and Phi-4 in the catalog, each offered where it fits. Open: Windows ML's providers, with a model built for one | large |
 | 3. Voice | done: speech in the host; the text-to-speech contract with Kokoro; the voice session with turn detection, barge-in and announced actions; the French and German phonemiser and its CC0 lexicons; the input-bar voice mode and overlay; and in the harness, each model's own tool protocol, tools chosen per step and unreadable calls written again | large |
 | 4. Generation tools | under way: the image and video generation contracts with OpenAI and Gemini behind them, and the `generate_image`, `generate_speech` and `generate_video` tools; pictures on this machine with Z-Image Turbo, and at high quality with HiDream-O1, in a high-quality image row; clips on this machine with Wan2.2-TI2V-5B — FastWan for clips from a description, the full model, in a high-quality video row, for clips from a picture. To come: the audio generation contract with music (ACE-Step) | medium per tool |

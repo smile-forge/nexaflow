@@ -3,19 +3,20 @@ using System.Text;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Catalog;
+using Nexaflow.AiHost;
 
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// What sharing one AI host between apps costs and buys, measured on this machine's GPU with real models: Nexaflow's people-facing
 /// model and voice beside the background thinking of an app like Aria, whose engine builds its state through one-shot calls below
-/// people's priority. They report numbers, asserting only what the host promises; each is inconclusive where its models are not named.
+/// people's priority. Each app holds its models as an app does, by the catalog's names for them, and the host places them. They report
+/// numbers, asserting only what the host promises; each is inconclusive where its models are not named.
 /// <list type="bullet">
-/// <item><c>NEXAFLOW_TEST_RUNTIME_PACK</c>: the CUDA pack. Every measurement is of the GPU.</item>
-/// <item><c>NEXAFLOW_TEST_SHARED_STORE</c>: the AI folder's <c>models</c> as the app keeps it, holding Gemma 4 26B A4B's QAT build and
-/// Kokoro.</item>
-/// <item><c>NEXAFLOW_TEST_ARIA_GGUF</c>: the GGUF the background app runs, a build of its own.</item>
-/// <item><c>NEXAFLOW_TEST_SECOND_GGUF</c>: a second people-facing model, for three apps on one card.</item>
+/// <item>The test store (<see cref="TestStore"/>), holding the CUDA pack — every measurement is of the GPU — Gemma 4 26B A4B's QAT
+/// build, Kokoro, and Gemma 4 E4B, the second people-facing model for three apps on one card.</item>
+/// <item><c>NEXAFLOW_TEST_ARIA_MODEL</c>: the language model of the catalog the background app runs, by its id, in the test store.</item>
 /// <item><c>NEXAFLOW_TEST_MEASUREMENTS</c>, optional: a file each measurement's lines are appended to.</item>
 /// </list>
 /// </summary>
@@ -25,54 +26,34 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("ai-host")]
 public class SharedHostMeasurements
 {
-    private const long GB = 1L << 30;
-
     /// <summary>The client's stall limit for a language model's request, as the app's own provider sets it.</summary>
     private static readonly TimeSpan StallLimit = TimeSpan.FromMinutes(2);
 
     public TestContext TestContext { get; set; } = null!;
 
-    private static string Pack()
-        => Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } pack && Directory.Exists(pack) ? pack
-           : throw new AssertInconclusiveException("NEXAFLOW_TEST_RUNTIME_PACK names no CUDA pack on this machine.");
+    /// <summary>A host keeping the test store, on the CUDA pack there: every measurement is of the GPU.</summary>
+    private static async Task<AiHostClient> HostOnTheCardAsync()
+        => await TestStore.HostAsync() ?? throw new AssertInconclusiveException(TestStore.Missing());
 
-    private static string Named(string variable, string what)
-        => Environment.GetEnvironmentVariable(variable) is { Length: > 0 } path && (File.Exists(path) || Directory.Exists(path)) ? path
-           : throw new AssertInconclusiveException($"{variable} names no {what} on this machine.");
+    /// <summary>The background app's model, its chat part: the language model of the catalog <c>NEXAFLOW_TEST_ARIA_MODEL</c> names.</summary>
+    private static ModelRef Aria()
+        => Environment.GetEnvironmentVariable("NEXAFLOW_TEST_ARIA_MODEL") is { Length: > 0 } id
+           && HostCatalog.Find(id) is HostedModel { Kind: HostedKind.Language } model
+           && model.Parts.FirstOrDefault(p => p.Role == HostedRoles.Chat) is { } chat
+            ? new ModelRef(id, chat.Name)
+            : throw new AssertInconclusiveException("NEXAFLOW_TEST_ARIA_MODEL names no language model of the catalog for the background app.");
 
-    /// <summary>Nexaflow's people-facing model: Gemma 4 26B A4B's QAT build, wholly on the first GPU, as the catalog has it.</summary>
-    private static ModelSpec People(string store)
-        => new("people/gemma-4-26b-a4b", "llama-chat", Path.Combine(store, "gemma-4-26b-a4b-it-qat"), "gemma-4-26B_q4_0-it.gguf", null,
-               18_790_481_920L + ContextCache.Q8.BytesPerToken(25_600) * 32_768, 32_768, ContextCache: ContextCache.Q8, Device: 0);
+    /// <summary>Nexaflow's people-facing model: Gemma 4 26B A4B's QAT build, its chat part.</summary>
+    private static readonly ModelRef People = new("gemma-4-26b-a4b-it", "chat");
 
-    /// <summary>A model named by its GGUF alone, on the first GPU: its file, what llama.cpp works in beside it, and its context.</summary>
-    private static ModelSpec Gguf(string id, string gguf, int contextTokens, long bytesPerToken)
-        => new(id, "llama-chat", Path.GetDirectoryName(gguf)!, Path.GetFileName(gguf), null,
-               new FileInfo(gguf).Length + 3 * GB + ContextCache.Q8.BytesPerToken(bytesPerToken) * contextTokens, contextTokens,
-               ContextCache: ContextCache.Q8, Device: 0, Checkpoints: 8);
+    /// <summary>A second people-facing model, for three apps on one card: Gemma 4 E4B, its chat part.</summary>
+    private static readonly ModelRef Second = new("gemma-4-e4b-it", "chat");
 
-    private static VoiceSpec Voice(string store)
-        => new("en", new ModelSpec("speech/kokoro", "kokoro", Path.Combine(store, "kokoro-82m"), "onnx/model.onnx", null, 1 * GB, 0, Device: 0),
-               "voices/af_heart.bin");
+    /// <summary>Nexaflow's voice: Kokoro, speaking in the voice the catalog gives each language.</summary>
+    private const string Voice = "kokoro-82m";
 
-    private static AiHostClient Host(string pack)
-        => new(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
-                                         TestTemp.CreateSubdirectory("nexaflow-shared-").FullName))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-
-    private static async Task LoadAsync(AiHostClient host, ModelSpec model)
-    {
-        await foreach (var _ in host.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(5))) { }
-    }
-
-    private static async Task<HostGpu> GpuOfAsync(AiHostClient host)
-    {
-        await foreach (var reply in host.SendAsync(id => new DescribeHost(id), TimeSpan.FromMinutes(1)))
-            if (reply is HostDescription { Gpus: [var gpu, ..] }) return gpu;
-        throw new AssertInconclusiveException("The host found no GPU.");
-    }
+    /// <summary>Kokoro's parts, as Nexaflow holds them for a voice conversation.</summary>
+    private static IReadOnlyList<ModelRef> VoiceParts => TestStore.HeldPartsOf(Voice, cuda: true);
 
     private void Report(string line)
     {
@@ -85,21 +66,25 @@ public class SharedHostMeasurements
 
     // ── Budgets ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// A host holding Nexaflow's model leaves another on the card only what it does not hold. The other is the host's own parts in this
+    /// process (<see cref="InProcessHost"/>), asked for a size no plan of its own would place there — past what the first leaves it — and
+    /// refusing it before anything loads.
+    /// </summary>
     [TestMethod]
     public async Task TwoHostsOnOneCard_EachLeavesTheOtherWhatItHolds()
     {
-        string pack = Pack();
-        var people = People(Named("NEXAFLOW_TEST_SHARED_STORE", "AI model folder"));
-
-        await using var first = Host(pack);
-        await using var second = Host(pack);
-        var secondBefore = await GpuOfAsync(second);
-        await LoadAsync(first, people);
+        await using var first = await HostOnTheCardAsync();
+        using var second = InProcessHost.OnTheGpu();
+        long secondBefore = second.Models.SpareOn(0);
+        await using var held = await TestStore.HoldPlacedAsync(first, [People], RequestPriority.Interactive);
+        var people = held.PlacementOf(People)!;
 
         // Within what the second host had when it started, past what the first leaves it now: refused before anything loads.
-        var crowding = people with { Id = "people/crowding", MemoryBytes = secondBefore.BudgetBytes - people.MemoryBytes / 2 };
-        var refused = await Assert.ThrowsExactlyAsync<AiHostException>(() => LoadAsync(second, crowding));
-        Report($"the second host started with {Mib(secondBefore.BudgetBytes)} to budget; once the first held {Mib(people.MemoryBytes)}, "
+        var crowding = TestStore.Spec(People.Model, People.Part, 0) with { Id = "people/crowding", MemoryBytes = secondBefore - people.MemoryBytes / 2 };
+        var refused = await Assert.ThrowsExactlyAsync<HostRequestException>(
+            async () => { using var _ = await second.Models.AcquireAsync(crowding, resident: true, _ => Task.CompletedTask, CancellationToken.None); });
+        Report($"the second host started with {Mib(secondBefore)} to budget; once the first held {Mib(people.MemoryBytes)}, "
                + $"it refused {Mib(crowding.MemoryBytes)}: {refused.Message}");
         Assert.AreEqual(HostErrorKind.Refused, refused.Kind);
     }
@@ -111,7 +96,7 @@ public class SharedHostMeasurements
 
     /// <summary>Replies one after another on <paramref name="model"/> until <paramref name="stop"/>, as a person reading them would
     /// ask; what came of them.</summary>
-    private static async Task<(int Replies, int Tokens, string? Lost)> PeopleAsync(AiHostClient host, ModelSpec model, CancellationToken stop)
+    private static async Task<(int Replies, int Tokens, string? Lost)> PeopleAsync(AiHostClient host, ModelRef model, CancellationToken stop)
     {
         int replies = 0, tokens = 0;
         try
@@ -132,17 +117,14 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task ThreeAppsOnOneCard_TwoPeopleReading_StillLeaveThinkingNobodyWatchesATurn()
     {
-        string pack = Pack();
-        string store = Named("NEXAFLOW_TEST_SHARED_STORE", "AI model folder");
-        var people = People(store);
-        var second = Gguf("people/second", Named("NEXAFLOW_TEST_SECOND_GGUF", "second people-facing GGUF"), 8_192, 17_920);
-        var aria = Gguf("aria/model", Named("NEXAFLOW_TEST_ARIA_GGUF", "background app's GGUF"), 16_384, 25_600);
+        var aria = Aria();
 
-        await using var host = Host(pack);
-        foreach (var model in new[] { people, second, aria }) await LoadAsync(host, model);
+        await using var host = await HostOnTheCardAsync();
+        await using var reading = await TestStore.HoldPlacedAsync(host, [People, Second], RequestPriority.Interactive);
+        await using var thinking = await TestStore.HoldPlacedAsync(host, [aria], RequestPriority.Background);
 
         using var stop = new CancellationTokenSource(StallLimit + TimeSpan.FromSeconds(40));
-        var readers = new[] { PeopleAsync(host, people, stop.Token), PeopleAsync(host, second, stop.Token) };
+        var readers = new[] { PeopleAsync(host, People, stop.Token), PeopleAsync(host, Second, stop.Token) };
         await Task.Delay(TimeSpan.FromSeconds(5));
 
         var watch = Stopwatch.StartNew();
@@ -186,14 +168,14 @@ public class SharedHostMeasurements
     private sealed record VoiceTurn(TimeSpan FirstWord, TimeSpan Sentence, TimeSpan Audio);
 
     /// <summary>One spoken turn: the reply's first sentence written, then its first audio, from the moment the person stopped.</summary>
-    private static async Task<VoiceTurn> SpeakAsync(AiHostClient host, ModelSpec model, VoiceSpec voice, string question)
+    private static async Task<VoiceTurn> SpeakAsync(AiHostClient host, ModelRef model, string question)
     {
         var watch = Stopwatch.StartNew();
         var text = new StringBuilder();
         TimeSpan? firstWord = null, sentence = null;
         string? said = null;
         List<ChatTurn> turns = [new(TurnRole.System, "You are a voice assistant. Answer in two short spoken sentences."), new(TurnRole.User, question)];
-        await foreach (var reply in host.SendAsync(id => new Generate(id, model, turns, 120, RequestPriority.Voice, Thinks: false), StallLimit))
+        await foreach (var reply in host.SendAsync(id => new Generate(id, model, turns, 120, RequestPriority.Voice, Thinks: false, Conversation: "voice"), StallLimit))
         {
             if (reply is not TextDelta delta) continue;
             firstWord ??= watch.Elapsed;
@@ -208,7 +190,7 @@ public class SharedHostMeasurements
         said ??= text.ToString();
         sentence ??= watch.Elapsed;
 
-        await using var speaking = await host.OpenStreamAsync(id => new Speak(id, [voice], 1f, RequestPriority.Voice), StallLimit);
+        await using var speaking = await host.OpenStreamAsync(id => new Speak(id, Voice, 1f, RequestPriority.Voice), StallLimit);
         await speaking.WriteAsync(new TextToSpeak(speaking.RequestId, 0, said, "en"));
         await speaking.WriteAsync(new InputEnd(speaking.RequestId));
         TimeSpan? audio = null;
@@ -226,7 +208,7 @@ public class SharedHostMeasurements
     private sealed record Thinking(int Calls, int Tokens, int Lost, TimeSpan Ran);
 
     /// <summary>The background app's own work, one call at a time as its engine makes them, until <paramref name="stop"/>.</summary>
-    private static async Task<Thinking> ThinkAsync(AiHostClient host, ModelSpec model, CancellationToken stop)
+    private static async Task<Thinking> ThinkAsync(AiHostClient host, ModelRef model, CancellationToken stop)
     {
         var watch = Stopwatch.StartNew();
         int calls = 0, tokens = 0, lost = 0;
@@ -240,7 +222,7 @@ public class SharedHostMeasurements
             };
             try
             {
-                await foreach (var reply in host.SendAsync(id => new Generate(id, model, turns, most, RequestPriority.Background, tools, thinks), StallLimit, stop))
+                await foreach (var reply in host.SendAsync(id => new Generate(id, model, turns, most, RequestPriority.Background, tools, thinks, Conversation: i % 3 == 1 ? "aria" : null), StallLimit, stop))
                     if (reply is GenerationEnded ended) tokens += ended.GeneratedTokens;
                 calls++;
             }
@@ -250,9 +232,10 @@ public class SharedHostMeasurements
         return new Thinking(calls, tokens, lost, watch.Elapsed);
     }
 
-    private sealed record Setup(string Name, AiHostClient Voice, AiHostClient? Thinker, ModelSpec VoiceModel, ModelSpec? ThinkingModel);
+    private sealed record Setup(string Name, AiHostClient Voice, AiHostClient? Thinker, ModelRef VoiceModel, ModelRef? ThinkingModel);
 
-    private async Task MeasureAsync(Setup setup, VoiceSpec voice)
+    /// <summary>Measures the voice of <paramref name="setup"/> beside its thinking; what the thinking came to, where it has any.</summary>
+    private async Task<Thinking?> MeasureAsync(Setup setup)
     {
         using var gpu = GpuMemoryWatch.Start();
         using var stop = new CancellationTokenSource();
@@ -260,10 +243,10 @@ public class SharedHostMeasurements
         if (thinking is not null) await Task.Delay(TimeSpan.FromSeconds(10));
 
         var turns = new List<VoiceTurn>();
-        await SpeakAsync(setup.Voice, setup.VoiceModel, voice, "Say hello.");   // warms the voice path
+        await SpeakAsync(setup.Voice, setup.VoiceModel, "Say hello.");   // warms the voice path
         foreach (var question in Questions)
         {
-            turns.Add(await SpeakAsync(setup.Voice, setup.VoiceModel, voice, question));
+            turns.Add(await SpeakAsync(setup.Voice, setup.VoiceModel, question));
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
         stop.Cancel();
@@ -278,59 +261,200 @@ public class SharedHostMeasurements
                + $"first audio {Ms(turns.Select(t => t.Audio))}; GPU peak {Mib(gpu.PeakBytes)}");
         if (thought is not null)
             Report($"{setup.Name}: thinking made {thought.Calls} calls, {thought.Tokens} tokens in {thought.Ran.TotalSeconds:0} s, {thought.Lost} lost");
+        return thought;
     }
 
     [TestMethod]
     public async Task Voice_BesideThinkingNobodyWatches_InSeparateHostsAndInOne()
     {
-        string pack = Pack();
-        string store = Named("NEXAFLOW_TEST_SHARED_STORE", "AI model folder");
-        string ariaGguf = Named("NEXAFLOW_TEST_ARIA_GGUF", "background app's GGUF");
-        var people = People(store);
-        var aria = Gguf("aria/model", ariaGguf, 16_384, 25_600);
-        var voice = Voice(store);
+        var aria = Aria();
 
-        await using (var alone = Host(pack))
+        await using (var alone = await HostOnTheCardAsync())
         {
-            await LoadAsync(alone, people);
-            await LoadAsync(alone, voice.Model);
-            await MeasureAsync(new Setup("voice alone", alone, null, people, null), voice);
+            await using var people = await TestStore.HoldPlacedAsync(alone, [People], RequestPriority.Interactive);
+            await using var voice = await TestStore.HoldPlacedAsync(alone, VoiceParts, RequestPriority.Voice);
+            await MeasureAsync(new Setup("voice alone", alone, null, People, null));
         }
 
-        await using (var nexaflow = Host(pack))
-        await using (var thinker = Host(pack))
+        await using (var nexaflow = await HostOnTheCardAsync())
+        await using (var thinker = await HostOnTheCardAsync())
         {
-            await LoadAsync(nexaflow, people);
-            await LoadAsync(nexaflow, voice.Model);
-            await LoadAsync(thinker, aria);
-            await MeasureAsync(new Setup("separate hosts, own models", nexaflow, thinker, people, aria), voice);
+            await using var people = await TestStore.HoldPlacedAsync(nexaflow, [People], RequestPriority.Interactive);
+            await using var voice = await TestStore.HoldPlacedAsync(nexaflow, VoiceParts, RequestPriority.Voice);
+            await using var thinking = await TestStore.HoldPlacedAsync(thinker, [aria], RequestPriority.Background);
+            await MeasureAsync(new Setup("separate hosts, own models", nexaflow, thinker, People, aria));
         }
 
-        await using (var shared = Host(pack))
+        await using (var shared = await HostOnTheCardAsync())
         {
-            await LoadAsync(shared, people);
-            await LoadAsync(shared, voice.Model);
-            await LoadAsync(shared, aria);
-            await MeasureAsync(new Setup("one host, own models", shared, shared, people, aria), voice);
+            await using var people = await TestStore.HoldPlacedAsync(shared, [People], RequestPriority.Interactive);
+            await using var voice = await TestStore.HoldPlacedAsync(shared, VoiceParts, RequestPriority.Voice);
+            await using var thinking = await TestStore.HoldPlacedAsync(shared, [aria], RequestPriority.Background);
+            await MeasureAsync(new Setup("one host, own models", shared, shared, People, aria));
         }
 
-        await using (var shared = Host(pack))
+        await using (var shared = await HostOnTheCardAsync())
         {
-            await LoadAsync(shared, people);
-            await LoadAsync(shared, voice.Model);
-            await MeasureAsync(new Setup("one host, one model", shared, shared, people, people), voice);
+            await using var people = await TestStore.HoldPlacedAsync(shared, [People], RequestPriority.Interactive);
+            await using var voice = await TestStore.HoldPlacedAsync(shared, VoiceParts, RequestPriority.Voice);
+            await MeasureAsync(new Setup("one host, one model", shared, shared, People, People));
         }
     }
 
     // ── What appending buys the background app ────────────────────────────────────────────────────────────────────────────────
 
+    // ── One service, several apps ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The machine's service as apps share it, run in the test (<see cref="ServiceUnderTest"/>): its worker on the test
+    /// store, on the CUDA pack there — every measurement is of the GPU.</summary>
+    private static ServiceUnderTest ServiceOnTheCard()
+        => TestStore.Root is { } root && TestStore.RuntimePackFolder is not null
+            ? ServiceUnderTest.Start(root)
+            : throw new AssertInconclusiveException(TestStore.Missing());
+
+    /// <summary>
+    /// Three apps on one service, each an app of its own to the host: Nexaflow holding its model and voice for a conversation, Aria
+    /// thinking for itself below people's priority, and a third app asking of the model Nexaflow holds — one copy on the card for both.
+    /// Each is served and none loses a request; the voice's times are reported beside the separate setups above.
+    /// </summary>
+    [TestMethod]
+    public async Task ThreeAppsOnOneService_VoiceBesideAnotherAppsThinking_AndAThirdAsking()
+    {
+        var aria = Aria();
+        await using var service = ServiceOnTheCard();
+        await using var nexaflow = service.Join("Nexaflow");
+        await using var thinker = service.Join("Aria");
+        await using var asker = service.Join("Sample");
+
+        await using var people = await TestStore.HoldPlacedAsync(nexaflow, [People], RequestPriority.Interactive);
+        await using var voice = await TestStore.HoldPlacedAsync(nexaflow, VoiceParts, RequestPriority.Voice);
+        await using var thinking = await TestStore.HoldPlacedAsync(thinker, [aria], RequestPriority.Background);
+        await using var asking = await TestStore.HoldPlacedAsync(asker, [People], RequestPriority.Background);
+
+        using var stop = new CancellationTokenSource();
+        var third = ThinkAsync(asker, People, stop.Token);
+        var thought = await MeasureAsync(new Setup("one service, three apps", nexaflow, thinker, People, aria));
+        await stop.CancelAsync();
+        var asked = await third;
+        Report($"one service, three apps: the third app made {asked.Calls} calls, {asked.Tokens} tokens in {asked.Ran.TotalSeconds:0} s, {asked.Lost} lost");
+
+        Assert.IsTrue(thought is { Calls: > 0, Lost: 0 }, "the thinking app is served beside the voice, losing nothing");
+        Assert.IsTrue(asked is { Calls: > 0, Lost: 0 }, "and so is the third");
+    }
+
+    /// <summary>
+    /// An app that asks and stops reading holds back only its own replies. Its replies fill its pipe and then the host's queue for it,
+    /// and stand aside from the rounds they share with another app's on the same model; the other's replies come as fast as with no
+    /// such app beside them. The app that stopped reading loses nothing: once it reads again, each of its requests ends, having gone on
+    /// to generate far more than its pipe and queue held — it was held back, not finished, while the other app was measured.
+    /// </summary>
+    [TestMethod]
+    public async Task AnAppThatStopsReading_HoldsBackOnlyItsOwnReplies()
+    {
+        const int Asked = 4, Most = 6000, Long = 1000;
+        await using var service = ServiceOnTheCard();
+        await using var reader = service.Join("Reader");
+        await using var held = await TestStore.HoldPlacedAsync(reader, [People], RequestPriority.Interactive);
+
+        async Task<double> TokensPerSecondAsync()
+        {
+            int tokens = 0;
+            var watch = Stopwatch.StartNew();
+            for (int i = 0; i < 3; i++)
+                await foreach (var reply in reader.SendAsync(id => new Generate(id, People, Story(i), 400, RequestPriority.Interactive, Thinks: false), StallLimit))
+                    if (reply is GenerationEnded ended) tokens += ended.GeneratedTokens;
+            return tokens / watch.Elapsed.TotalSeconds;
+        }
+
+        await TokensPerSecondAsync();   // warms the model
+        double alone = await TokensPerSecondAsync();
+
+        await using var stalled = await UnreadClient.JoinAsync(service.PipeName, "Stalled");
+        // Replies that run long — a model asked to count far cuts it short — so they are still being written when the other app is measured.
+        List<ChatTurn> Saga(int i) => [new(TurnRole.User, $"Write a long saga, number {i}, of at least four thousand words, about a city that floods. Write it in full.")];
+        var asked = new List<long>();
+        for (int i = 0; i < Asked; i++)
+        {
+            int n = i;
+            asked.Add(await stalled.AskAsync(id => new Generate(id, People, Saga(n), Most, RequestPriority.Interactive, Thinks: false)));
+        }
+
+        // Full once the host has stopped writing to its pipe: what the pipe holds no longer grows.
+        long waiting = -1;
+        var still = Stopwatch.StartNew();
+        var filling = Stopwatch.StartNew();
+        while (still.Elapsed < TimeSpan.FromSeconds(5) && filling.Elapsed < TimeSpan.FromMinutes(2))
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(250));
+            if (stalled.Waiting is var now && now != waiting)
+            {
+                waiting = now;
+                still.Restart();
+            }
+        }
+
+        double beside = await TokensPerSecondAsync();
+        using var drained = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var (ends, generated) = await stalled.ReadUntilEndedAsync(asked, drained.Token);
+
+        Report($"replies alone: {alone:0} tok/s; beside {Asked} requests of an app that stopped reading, its pipe full at {waiting >> 10} KiB "
+               + $"after {filling.Elapsed.TotalSeconds - 5:0} s: {beside:0} tok/s; read again, its requests generated {generated:N0} tokens");
+        // Its pipe and its queue hold a few hundred replies: requests that went on well past them were held back, not finished.
+        Assert.IsTrue(generated > Asked * Long, $"its requests generated {generated:N0} tokens: they ended before the other app was measured, not held back");
+        Assert.IsTrue(beside >= alone * 0.6, $"replies beside an app that stopped reading came at {beside:0} tok/s, against {alone:0} alone");
+        Assert.AreEqual(Asked, ends.Values.Count(e => e is Completed), "read again, every one of its requests ended, none lost");
+    }
+
+    /// <summary>
+    /// A picture one app draws on a card too full for it beside another app's voice conversation makes that conversation's model wait:
+    /// Nexaflow's hold is told its model is away while the picture is drawn, and back after, and the picture is drawn. The card is made
+    /// tight before the service starts (<see cref="GpuBallast"/>): it leaves room for the conversation and half the picture.
+    /// </summary>
+    [TestMethod]
+    public async Task APictureOneAppDraws_MakesAnotherAppsConversationWait_AndGivesItBack()
+    {
+        const string painting = "z-image-turbo";
+        static long Bytes(ModelRef part) => HostCatalog.Find(part.Model)!.PartsFor(HostCatalog.Cuda).First(p => p.Name == part.Part).MemoryBytes;
+        long conversationBytes = Bytes(People) + VoiceParts.Sum(Bytes) + (4L << 30);   // and room for the model's context
+        long picture = HostCatalog.Find(painting)!.PartsFor(HostCatalog.Cuda).Sum(p => p.MemoryBytes);
+        using var ballast = GpuBallast.Leaving(conversationBytes + picture / 2);
+
+        await using var service = ServiceOnTheCard();
+        await using var nexaflow = service.Join("Nexaflow");
+        await using var painter = service.Join("Painter");
+        await using var conversation = await TestStore.HoldPlacedAsync(nexaflow, [People, .. VoiceParts], RequestPriority.Voice);
+        int away = 0;
+        conversation.Changed += (_, _) =>
+        {
+            if (conversation.AnyAway) Interlocked.Increment(ref away);
+        };
+
+        var watch = Stopwatch.StartNew();
+        bool drawn = false;
+        await foreach (var reply in painter.SendAsync(id => new Draw(id, painting, "A lighthouse in a storm, at dusk.", 1024, 1024, 7, RequestPriority.Job),
+                                                      TimeSpan.FromMinutes(5)))
+        {
+            if (reply is not Drawn picturePixels) continue;
+            drawn = true;
+            picturePixels.Rgb.Dispose();
+        }
+        var drawing = watch.Elapsed;
+        var back = Stopwatch.StartNew();
+        while (conversation.AnyAway && back.Elapsed < TimeSpan.FromMinutes(2)) await Task.Delay(50);
+
+        Report($"held {Mib(ballast.Bytes)} to leave the card room for the conversation and half the picture; the picture took "
+               + $"{drawing.TotalSeconds:0.0} s, the conversation's model was back {back.Elapsed.TotalSeconds:0.0} s after");
+        Assert.IsTrue(drawn, "the picture was drawn");
+        Assert.IsTrue(away > 0, "the conversation's hold was told its model made way");
+        Assert.IsFalse(conversation.AnyAway, "and told it was back");
+    }
+
     [TestMethod]
     public async Task ABackgroundAppsConversation_ReadAppended_AgainstReadWholeEachCall()
     {
-        string pack = Pack();
-        var aria = Gguf("aria/model", Named("NEXAFLOW_TEST_ARIA_GGUF", "background app's GGUF"), 16_384, 25_600);
-        await using var host = Host(pack);
-        await LoadAsync(host, aria);
+        var aria = Aria();
+        await using var host = await HostOnTheCardAsync();
+        await using var thinking = await TestStore.HoldPlacedAsync(host, [aria], RequestPriority.Background);
 
         foreach (bool clockInSystemTurn in new[] { false, true })
         {
@@ -349,7 +473,7 @@ public class SharedHostMeasurements
                 var text = new StringBuilder();
                 GenerationEnded? ended = null;
                 var calls = new List<ChatToolCall>();
-                await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, AriaTools, Thinks: false), StallLimit))
+                await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, AriaTools, Thinks: false, Conversation: "aria"), StallLimit))
                 {
                     if (reply is TextDelta delta) { firstWord ??= watch.Elapsed; text.Append(delta.Text); }
                     if (reply is ToolCallMade made) { firstWord ??= watch.Elapsed; calls.Add(made.Call); }
@@ -377,14 +501,13 @@ public class SharedHostMeasurements
     [TestMethod]
     public async Task ABackgroundApp_IsSentItsModelsReasoning_WhenItAsks_AndCanGiveItBack()
     {
-        string pack = Pack();
-        var aria = Gguf("aria/model", Named("NEXAFLOW_TEST_ARIA_GGUF", "background app's GGUF"), 16_384, 25_600);
-        await using var host = Host(pack);
-        await LoadAsync(host, aria);
+        var aria = Aria();
+        await using var host = await HostOnTheCardAsync();
+        await using var thinking = await TestStore.HoldPlacedAsync(host, [aria], RequestPriority.Background);
 
         var turns = new List<ChatTurn> { new(TurnRole.System, "Be brief."), new(TurnRole.User, "A train leaves at 14:10 and arrives at 16:45. How long is it?") };
         var (text, reasoning) = (new StringBuilder(), new StringBuilder());
-        await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, SendsReasoning: true), StallLimit))
+        await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, SendsReasoning: true, Conversation: "reasoning given back"), StallLimit))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);
             if (reply is ReasoningDelta thought) reasoning.Append(thought.Text);
@@ -399,7 +522,7 @@ public class SharedHostMeasurements
         turns.Add(new ChatTurn(TurnRole.Assistant, text.ToString()) { Reasoning = reasoning.ToString() });
         turns.Add(new ChatTurn(TurnRole.User, "And in minutes?"));
         var again = new StringBuilder();
-        await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background), StallLimit))
+        await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, Conversation: "reasoning given back"), StallLimit))
             if (reply is TextDelta delta) again.Append(delta.Text);
         Assert.IsFalse(string.IsNullOrWhiteSpace(again.ToString()), "a conversation given its reasoning back goes on");
     }

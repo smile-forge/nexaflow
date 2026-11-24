@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -71,26 +72,23 @@ public class CudaRuntimePackTests
         Assert.IsFalse(CudaRuntimePack.Applies(MachineCards.None));
     }
 
-    /// <summary>The real pack, where a machine has one: <c>NEXAFLOW_TEST_RUNTIME_PACK</c> names its folder.</summary>
+    /// <summary>The real pack, where the test store holds it (<see cref="TestStore"/>) and this machine runs it: the host finds it in its
+    /// store and runs on it.</summary>
     [TestMethod]
-    public async Task TheHostLoadsItsRuntimeFromThePack()
+    public async Task TheHostLoadsItsRuntimeFromThePackInItsStore()
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack)
+        await using var client = await TestStore.HostAsync();
+        if (client is null)
         {
-            Assert.Inconclusive("NEXAFLOW_TEST_RUNTIME_PACK names no CUDA pack on this machine.");
+            Assert.Inconclusive(TestStore.Missing());
             return;
         }
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        await using var client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(HostFolder, "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
 
         HostDescription? description = null;
         await foreach (var reply in client.SendAsync(id => new DescribeHost(id), TimeSpan.FromSeconds(30)))
             description = reply as HostDescription;
 
-        Assert.AreEqual(pack, description?.RuntimePack);
+        Assert.AreEqual(CudaRuntimePack.Id, description?.RuntimePack);
         CollectionAssert.Contains(description!.ExecutionProviders.ToArray(), "CUDAExecutionProvider");
     }
 }

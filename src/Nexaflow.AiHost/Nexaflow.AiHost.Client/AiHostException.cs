@@ -10,6 +10,9 @@ public enum AiHostFailure
     Lost,
     /// <summary>No host could be had: not installed, would not start, or crashing too often to be restarted yet.</summary>
     Unavailable,
+    /// <summary>A host other apps share left the request without a reply past its stall limit: the request alone was cancelled, and
+    /// the host — which this app does not own — goes on.</summary>
+    Stalled,
 }
 
 /// <summary>A request to the AI host that did not complete.</summary>

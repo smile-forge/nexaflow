@@ -21,6 +21,9 @@ public sealed class BarConversation
     /// <summary>The files the conversation's runs touched.</summary>
     public IReadOnlyCollection<string> Paths => _paths;
 
+    /// <summary>The name the conversation's runs are turns of; the next conversation, once this one ends, has one of its own.</summary>
+    public string Name { get; private set; } = NewName();
+
     /// <summary>The run of the next request: the conversation so far as its history, the reply written in
     /// <paramref name="replyStyle"/>, and what the run adds kept through <paramref name="keep"/> — which hands it back on the
     /// caller's thread, where <see cref="Keep"/> takes it.</summary>
@@ -30,6 +33,7 @@ public sealed class BarConversation
         return new AgentRunOptions
         {
             History    = [.. _thread],
+            Conversation = Name,
             ReplyStyle = replyStyle,
             Ran        = ran => keep(() => Keep(generation, ran)),
             HistoryCondensed = condensed => keep(() => Condensed(generation, condensed)),
@@ -42,14 +46,20 @@ public sealed class BarConversation
     /// <summary>Files a run of the conversation touched.</summary>
     public void Touched(IEnumerable<string> paths) => _paths.UnionWith(paths);
 
-    /// <summary>Ends the conversation: the next request starts a new one.</summary>
-    public void End()
+    /// <summary>Ends the conversation: the next request starts a new one, under a name of its own. Returns the name of the one
+    /// ended, for the models that kept it to let it go.</summary>
+    public string End()
     {
+        var ended = Name;
         _thread.Clear();
         _exchanges.Clear();
         _paths.Clear();
         _generation++;
+        Name = NewName();
+        return ended;
     }
+
+    private static string NewName() => "bar-" + Guid.NewGuid().ToString("N");
 
     private void Keep(int generation, IReadOnlyList<LlmMessage> ran)
     {

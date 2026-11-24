@@ -7,12 +7,13 @@ internal static class VerbCatalogue
 {
     public static readonly Verb Start = new(
         "start", VerbSide.Host,
-        "start [--monitor <name>] [--memory <MB>] [--offline] [--audio]",
+        "start [--monitor <name>] [--memory <MB>] [--offline] [--audio] [--no-gpu]",
         "Boot a sandbox, open its window maximised on a monitor beside your work, and start the agent in it. The monitor is "
         + "part of its name (DELL) or its device (DISPLAY2); unnamed, the first that is not the primary. Memory defaults to "
-        + "16384 MB. --offline cuts its network; --audio lets the voice journeys hear the host's microphone.",
+        + "16384 MB. --offline cuts its network; --audio lets the voice journeys hear the host's microphone; --no-gpu gives it no GPU, "
+        + "a PC without an NVIDIA card.",
         ValueOptions: new HashSet<string> { "monitor", "memory" },
-        Flags: new HashSet<string> { "offline", "audio" });
+        Flags: new HashSet<string> { "offline", "audio", "no-gpu" });
 
     public static readonly Verb Show = new(
         "show", VerbSide.Host,

@@ -72,7 +72,7 @@ An AI input bar on every window, and a dedicated AI Chat tab with saved history.
 
 **🧠 AI that runs on your machine**
 
-With a 10 GB graphics card or better, Nexaflow runs its own models — no service to install, nothing sent anywhere. A language model for the assistant, sized to the card it finds; speech in and out for dictation and a voice conversation in English, French and German; pictures, picture edits and video clips; and tools you use yourself — picture restoration, cut-out, and page reading. Put a local model and a cloud model side by side and they share the work: everyday requests stay on your machine, the heavy reasoning goes to the larger model. Pages that hold sensitive data ask before anything leaves the PC.
+With a 10 GB graphics card or better, Nexaflow runs its own models — no service to install, nothing sent anywhere. A language model for the assistant, sized to the card it finds; speech in and out for a voice conversation in English, French and German; pictures, picture edits and video clips; and tools you use yourself — picture restoration, cut-out, and page reading. Put a local model and a cloud model side by side and they share the work: everyday requests stay on your machine, the heavy reasoning goes to the larger model. Pages that hold sensitive data ask before anything leaves the PC.
 
 **[How the AI works →](https://smile-forge.github.io/nexaflow/together/)**
 

@@ -133,19 +133,23 @@ public class LocalColumnsTests
     }
 
     [TestMethod]
-    public void WhereOnlyDictationRuns_NexaflowsSpeechModel_GivesWayToIt()
+    public void AModelNoJobOffersAnyMore_IsLetGo_WhereNothingTheJobOffersRunsHere()
     {
         var speech = LocalColumns.IdOf(LocalSlot.SpeechToText);
-        var config = new AiConfig
+        AiConfig Retired() => new()
         {
-            Columns     = [Column(speech, "Nexaflow", "nemotron-whisper-turbo", ModelKind.SpeechToText)],
+            Columns     = [Column(speech, "Whisper", "large-v3-turbo", ModelKind.SpeechToText)],
             Assignments = { ["SpeechIn"] = AbilityChain.Of(speech) },
         };
+        var nexaflows = Column(speech, "Nexaflow", "nemotron-whisper-turbo", ModelKind.SpeechToText);
 
-        Assert.IsTrue(LocalColumns.Settle(config, _ => [(LocalColumns.Dictation, true, false, true)]));
+        var config = Retired();
+        Assert.IsTrue(LocalColumns.Settle(config, _ => [(nexaflows, false, false, true)]));
+        Assert.AreEqual(0, config.Columns.Count, "a provider since retired is let go, and the job has no model where none runs");
 
-        Assert.IsTrue(LocalColumns.Dictates(config.Columns.Single()));
-        Assert.AreEqual(LocalColumns.Dictation.Model, config.Columns.Single().Model);
+        var unread = Retired();
+        Assert.IsFalse(LocalColumns.Settle(unread, _ => []), "a job whose catalog was not read is left as it is");
+        Assert.AreEqual(1, unread.Columns.Count);
     }
 
     [TestMethod]

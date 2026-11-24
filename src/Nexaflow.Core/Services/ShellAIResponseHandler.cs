@@ -85,14 +85,16 @@ public partial class ShellAIResponseHandler : AiResponseHandlerBase
 
     protected override void Open() => InBar = true;
 
-    /// <summary>The reply dismissed, or continued as a conversation: the line is put away and the bar's conversation ends with it.</summary>
+    /// <summary>The reply dismissed, or continued as a conversation: the line is put away and the bar's conversation ends with it,
+    /// the models that kept it letting it go.</summary>
     protected override void Close()
     {
         InBar = false;
         Card.Close();
         Card.HasContent = false;
-    Conversation.End();
-    ContextUse = null;   // the next request starts a conversation of its own
+        var ended = Conversation.End();
+        _ = _shell.CurrentRuntime?.AiService?.ForgetConversationAsync(ended);
+        ContextUse = null;   // the next request starts a conversation of its own
     }
 
     private static string Line(string markdown) => MarkdownProse.RunTogether(markdown);

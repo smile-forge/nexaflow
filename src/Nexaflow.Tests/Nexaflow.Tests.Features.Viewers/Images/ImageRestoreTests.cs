@@ -279,7 +279,7 @@ public class ImageRestoreTests
         {
             lock (Restorations) Restorations.Add(request);
             if (Fails) throw new ToolRunException(ToolRunFailure.NotNow, "the GPU had no room");   // as the app's tools tell it
-            var source = File.ReadAllBytes(request.Pixels);
+            var source = request.Pixels.Span;
             int s = request.Scale, w = request.Width * s, h = request.Height * s;
             var made = new byte[w * h * 4];
             for (int y = 0; y < h; y++)
@@ -289,9 +289,8 @@ public class ImageRestoreTests
                     for (int c = 0; c < 3; c++) made[to + c] = (byte)(255 - source[from + c]);
                     made[to + 3] = source[from + 3];
                 }
-            File.WriteAllBytes(request.Into, made);
             progress?.Report(1);
-            return Task.FromResult(new PictureRestoration(w, h, 0));
+            return Task.FromResult(new PictureRestoration(w, h, 0, new ArrayMemoryOwner(made)));
         }
     }
 }

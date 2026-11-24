@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -21,7 +22,7 @@ public class OwnedPictureCheckingTests
     private static MachineCards NoGpu() => new([], null);
 
     private static OwnedPictureChecking Checking(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Nvidia());
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), hardware ?? Nvidia());
 
     private static IReadOnlyList<ModelAsset> Files => Checking(new FakeModelStore(), new FakeAiHost()).Catalog!.Files;
 
@@ -30,7 +31,7 @@ public class OwnedPictureCheckingTests
     [TestMethod]
     public void TheShippedTool_IsTheMClassifier_OnTheCpu_PinnedToItsAuthorsGraph()
     {
-        var tool = OwnedModels.Tools.Single(t => t.Kind == OwnedToolKind.PictureChecking);
+        var tool = OwnedModels.Tools.Single(t => t.Kind == HostedToolKind.PictureChecking);
         var classifier = tool.Part(CheckingParts.SafetyClassifier, OwnedModels.Cuda);
 
         Assert.AreEqual(("image-safety-classifier-m", "picture-safety-classifier"), (tool.Id, classifier.Runner));
@@ -42,7 +43,7 @@ public class OwnedPictureCheckingTests
     }
 
     [TestMethod]
-    public async Task APicture_IsCheckedOnTheCpu_AsItsPixels_AndItsVerdictGivenBack()
+    public async Task APicture_IsCheckedByTheToolItsCatalogNames_AsItsPixels_AndItsVerdictGivenBack()
     {
         var host = new FakeAiHost
         {
@@ -54,8 +55,8 @@ public class OwnedPictureCheckingTests
 
         var request = (CheckPicture)host.Requests.Single();
         Assert.AreEqual((2, 1), (request.Width, request.Height));
-        CollectionAssert.AreEqual(rgb, request.Rgb, "the picture goes as its pixels, decoded here");
-        Assert.IsNull(request.Classifier.Device, "the CPU, not the GPU");
+        CollectionAssert.AreEqual(rgb, request.Rgb.ToArray(), "the picture goes as its pixels, decoded here");
+        Assert.AreEqual("image-safety-classifier-m", request.Tool, "the tool by the catalog's id: its classifier, and where it runs, are the host's to take from it");
         Assert.AreEqual(new PictureVerdict(0.05f, 0.6f, 0.35f), verdict);
     }
 

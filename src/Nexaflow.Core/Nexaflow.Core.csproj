@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="NAudio" Version="3.3.0" />
     <PackageReference Include="StageKit.Updatum" Version="0.4.1" />
   </ItemGroup>
 
@@ -38,19 +37,6 @@
     <!-- Shown by the Options "About" page (read via Application.GetResourceStream). -->
     <Resource Include="Assets\ThirdPartyNotices.md" />
   </ItemGroup>
-
-  <!--
-    Whisper.net.Runtime (through the Whisper provider) ships every RID under runtimes\ regardless of our win-x64
-    RuntimeIdentifier. We're Windows-x64-only, so prune the dead trees. Runs after both Build and Publish; keeps win-x64.
-  -->
-  <Target Name="StripNonWinX64Runtimes" AfterTargets="Build;Publish">
-    <ItemGroup>
-      <_NfRuntimeRoot Include="$(OutDir)runtimes" Condition="Exists('$(OutDir)runtimes')" />
-      <_NfRuntimeRoot Include="$(PublishDir)runtimes" Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)runtimes')" />
-    </ItemGroup>
-    <RemoveDir Directories="@(_NfRuntimeRoot->'%(Identity)\win-arm64');@(_NfRuntimeRoot->'%(Identity)\win-x86')" />
-  </Target>
-
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
@@ -114,7 +100,6 @@
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Claude\Nexaflow.Providers.Claude.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Ollama\Nexaflow.Providers.Ollama.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.OpenAI\Nexaflow.Providers.OpenAI.csproj" />
-    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Whisper\Nexaflow.Providers.Whisper.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.AiHost\Nexaflow.Providers.AiHost.csproj" />
 	  <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Gemini\Nexaflow.Providers.Gemini.csproj" />
 	  <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.XAI\Nexaflow.Providers.XAI.csproj" />

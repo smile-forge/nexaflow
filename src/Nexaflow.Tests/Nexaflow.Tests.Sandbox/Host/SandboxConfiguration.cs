@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Sandbox.Host;
 /// the forwarded variables name are mapped read-only too.
 /// </summary>
 internal sealed record SandboxConfiguration(
-    string HostCheckout, string HostDotnet, HostWebView2? WebView2, int MemoryMB, bool Networking, bool AudioInput,
+    string HostCheckout, string HostDotnet, HostWebView2? WebView2, int MemoryMB, bool Networking, bool AudioInput, bool Gpu,
     IReadOnlyList<SharedFolder> Shared)
 {
     /// <summary>Where the checkout appears inside the sandbox, which has only a C: drive.</summary>
@@ -23,7 +23,8 @@ internal sealed record SandboxConfiguration(
     public string InSandbox(string hostPath) => Path.Combine(Checkout, Path.GetRelativePath(HostCheckout, hostPath));
 
     public string ToXml(string logonCommand) => new XElement("Configuration",
-        new XElement("VGpu", "Enable"),
+        // Without it the sandbox is a machine with no GPU at all — what Nexaflow's own models meet on a PC without an NVIDIA card.
+        new XElement("vGPU", Gpu ? "Enable" : "Disable"),
         new XElement("Networking", Networking ? "Default" : "Disable"),
         new XElement("MemoryInMB", MemoryMB),
         // The journeys copy and paste; redirected, that would be the host's clipboard.

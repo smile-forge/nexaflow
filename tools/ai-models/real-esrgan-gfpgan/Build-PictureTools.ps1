@@ -17,10 +17,10 @@
 
     each fp32, for CPU and CUDA alike, with the model card (README.md) and this recipe beside them. picture_reference.py
     then runs the makers' own pipelines on their own sample pictures into <Work>\reference — what the AI host's port is
-    held to (Nexaflow.Tests.AiHost's PictureRestorationTests, with NEXAFLOW_TEST_PICTURE_TOOLS=<Out> and
-    NEXAFLOW_TEST_PICTURE_REFERENCE=<Work>\reference). Upload with
+    held to (Nexaflow.Tests.AiHost's PictureRestorationTests, with <Out> as tools\real-esrgan-gfpgan in the test store
+    NEXAFLOW_TEST_STORE names and NEXAFLOW_TEST_PICTURE_REFERENCE=<Work>\reference). Upload with
       hf upload smile-forge/real-esrgan-gfpgan-onnx <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the published files are written.

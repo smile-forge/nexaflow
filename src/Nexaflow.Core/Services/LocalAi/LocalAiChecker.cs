@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Features.Common;
@@ -16,7 +17,7 @@ namespace Nexaflow.Core.Services.LocalAi;
 /// work once — a reply, a sentence spoken and heard back, a picture drawn, a clip made — while what the host holds on
 /// each GPU is sampled, and one report written, in Markdown, with the picture and the clip beside it.
 /// </summary>
-internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedModelInUse> models, string reportsFolder)
+internal sealed class LocalAiChecker(HostHolds holds, IReadOnlyList<OwnedModelInUse> models, string reportsFolder)
 {
     /// <summary>How often each GPU's memory is read while the check runs.</summary>
     private static readonly TimeSpan Sampling = TimeSpan.FromMilliseconds(250);
@@ -52,7 +53,8 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
                 {
                     await model.Provider.WarmupAsync(ct);
                     if (model.Catalog.LoadsOnDemand) return "it loads with each use";
-                    var unplaced = model.Catalog.NeedsOf(model.ModelId).Where(n => !n.CpuOnly && setup.Current?.Of(n.Id) is null).Select(n => n.Id).ToList();
+                    var held = HostPlacement.Of(await DescribeAsync(ct));
+                    var unplaced = model.Catalog.NeedsOf(model.ModelId).Where(n => !n.CpuOnly && held.Of(n.Id) is null).Select(n => n.Id).ToList();
                     return unplaced.Count == 0 ? "" : throw new InvalidOperationException($"{string.Join(", ", unplaced)} found no room on this machine");
                 }));
             }
@@ -90,7 +92,8 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
         }
 
         var after = await DescribeAsync(ct);
-        var memory = Memory(host.Gpus, after.Gpus, peaks).ToList();
+        var placed = PlacedParts.Of(HostPlacement.Of(after));
+        var memory = Memory(host.Gpus, after.Gpus, peaks, placed).ToList();
         bool passed = steps.All(s => s.Passed) && memory.All(m => m.Within);
         string summary = passed
             ? $"Every model did its work within its GPU's budget ({steps.Count} steps)."
@@ -98,7 +101,7 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
                                     .Concat(memory.Where(m => !m.Within).Select(m => $"GPU {m.Gpu.Device} held more than its models were expected to.")));
 
         string path = Path.Combine(reportsFolder, name + ".md");
-        await File.WriteAllTextAsync(path, Report(stamp, host, steps, memory, passed, summary), ct);
+        await File.WriteAllTextAsync(path, Report(stamp, host, placed, steps, memory, passed, summary), ct);
         return new LocalAiCheck(path, passed);
     }
 
@@ -107,7 +110,7 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
     {
         try
         {
-            return await setup.DescribeAsync(ct);
+            return await holds.DescribeAsync(ct);
         }
         catch (AiHostException ex)
         {
@@ -237,7 +240,7 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
         {
             while (!ct.IsCancellationRequested)
             {
-                foreach (var gpu in (await setup.DescribeAsync(ct)).Gpus)
+                foreach (var gpu in (await holds.DescribeAsync(ct)).Gpus)
                     peaks[gpu.Device] = Math.Max(peaks.GetValueOrDefault(gpu.Device), gpu.HeldBytes);
                 await Task.Delay(Sampling, ct);
             }
@@ -253,15 +256,14 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
         public bool Within => Peak <= Expected + HostGpu.ReservedBytes;
     }
 
-    private IEnumerable<GpuMemory> Memory(IReadOnlyList<HostGpu> before, IReadOnlyList<HostGpu> after, Dictionary<int, long> peaks)
+    private IEnumerable<GpuMemory> Memory(IReadOnlyList<HostGpu> before, IReadOnlyList<HostGpu> after, Dictionary<int, long> peaks, PlacedParts placed)
     {
-        var placement = setup.Current;
         var onDemand = models.Where(m => m.Catalog.LoadsOnDemand).SelectMany(m => m.Catalog.NeedsOf(m.ModelId)).ToList();
         foreach (var gpu in before)
         {
-            long resident = placement?.Placed.Where(s => s.Device == gpu.Device).Sum(s => s.MemoryBytes) ?? 0;
+            long resident = gpu.BudgetBytes - placed.Residents.FreeOn(gpu);
             // A picture's largest part loads beside the residents, or in their place where they make way.
-            long largest = onDemand.Select(n => placement is null ? null : ModelPlacement.PlaceOnDemand(placement, n))
+            long largest = onDemand.Select(n => placed.Of(n, onDemand: true))
                                    .Where(s => s?.Device == gpu.Device).Select(s => s!.MemoryBytes).DefaultIfEmpty(0).Max();
             // Where it makes the residents give way, they give no more than it needs: the GPU holds its budget at most.
             long expected = Math.Min(resident + largest, Math.Max(resident, gpu.BudgetBytes));
@@ -269,7 +271,7 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
         }
     }
 
-    private string Report(DateTime stamp, HostDescription host, IReadOnlyList<Step> steps, IReadOnlyList<GpuMemory> memory, bool passed, string summary)
+    private string Report(DateTime stamp, HostDescription host, PlacedParts placed, IReadOnlyList<Step> steps, IReadOnlyList<GpuMemory> memory, bool passed, string summary)
     {
         var md = new StringBuilder();
         md.AppendLine(CultureInfo.InvariantCulture, $"# Local AI check — {Environment.MachineName}");
@@ -288,17 +290,14 @@ internal sealed class LocalAiChecker(HostModelSetup setup, IReadOnlyList<OwnedMo
         md.AppendLine();
         md.AppendLine("| Model | Runs on | Holds | Context |");
         md.AppendLine("|---|---|---|---|");
-        var placement = setup.Current;
         foreach (var model in models)
         {
             var parts = model.Catalog.NeedsOf(model.ModelId).Where(n => !n.CpuOnly).ToList();
             foreach (var part in parts)
             {
-                var spec = model.Catalog.LoadsOnDemand
-                    ? (placement is null ? null : ModelPlacement.PlaceOnDemand(placement, part))
-                    : placement?.Of(part.Id);
+                var spec = placed.Of(part, model.Catalog.LoadsOnDemand);
                 string where = spec is null ? "does not fit" : spec.Device is { } d ? $"GPU {d}" : "CPU";
-                if (model.Catalog.LoadsOnDemand && spec is not null && placement!.Displaces(spec)) where += ", others making way";
+                if (spec is { Displaces: true }) where += ", others making way";
                 md.AppendLine(CultureInfo.InvariantCulture,
                     $"| {model.NameOf(part, parts.Count)} | {where} | {(spec is { Device: not null } ? Gb(spec.MemoryBytes) : "—")} | {(spec is { ContextTokens: > 0 } ? $"{spec.ContextTokens:N0} tokens" : "—")} |");
             }

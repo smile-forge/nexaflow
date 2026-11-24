@@ -9,17 +9,58 @@ internal readonly record struct DownloadProgress(long Received, long Total);
 
 /// <summary>
 /// Downloads a file whose size and SHA-256 are known in advance. The bytes go to <c>&lt;destination&gt;.partial</c>,
-/// which a later attempt resumes from with a range request — a large model survives a dropped connection or a
-/// closed app. The file takes its name only once its size and hash are right; a mismatch deletes what arrived.
+/// which the next pass resumes from with a range request — a large model survives a dropped connection or a closed app.
+/// A connection dropped, or a server failing, mid-download is resumed at once, after a pause that grows while passes gain
+/// nothing; it is given up only after <see cref="FruitlessLimit"/> passes in a row gain no byte. The file takes its name
+/// only once its size and hash are right; a mismatch deletes what arrived.
 /// </summary>
 internal static class VerifiedDownload
 {
     private const int BufferSize = 1 << 16;
 
+    /// <summary>How many passes in a row may gain nothing before the download is given up.</summary>
+    public const int FruitlessLimit = 5;
+
     /// <exception cref="InvalidDataException">The download is complete but not the file it should be.</exception>
+    /// <exception cref="HttpRequestException">The server refused it, or failed <see cref="FruitlessLimit"/> passes in a row.</exception>
+    /// <exception cref="IOException">The connection dropped <see cref="FruitlessLimit"/> passes in a row, gaining nothing.</exception>
     public static async Task DownloadAsync(
         HttpClient http, Uri source, string destination, long size, string sha256,
-        IProgress<DownloadProgress>? progress = null, CancellationToken ct = default)
+        IProgress<DownloadProgress>? progress = null, CancellationToken ct = default, TimeProvider? time = null)
+    {
+        string partial = destination + ".partial";
+        int fruitless = 0;
+        while (true)
+        {
+            long before = new FileInfo(partial) is { Exists: true } kept ? kept.Length : 0;
+            try
+            {
+                await PassAsync(http, source, destination, size, sha256, progress, ct);
+                return;
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested && Resumable(ex))
+            {
+                long now = new FileInfo(partial) is { Exists: true } after ? after.Length : 0;
+                fruitless = now > before ? 0 : fruitless + 1;
+                if (fruitless >= FruitlessLimit) throw;
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(30, 1 << fruitless)), time ?? TimeProvider.System, ct);
+            }
+        }
+    }
+
+    /// <summary>Whether the next pass may get further: a dropped connection or a failing server — not one that refuses the request,
+    /// nor a file that is not the one it should be.</summary>
+    private static bool Resumable(Exception ex) => ex switch
+    {
+        HttpRequestException { StatusCode: null } => true,
+        HttpRequestException { StatusCode: { } status } => (int)status >= 500,
+        IOException => true,
+        _ => false,
+    };
+
+    /// <summary>One pass: what the partial holds is checked into the hash, and the rest asked for.</summary>
+    private static async Task PassAsync(
+        HttpClient http, Uri source, string destination, long size, string sha256, IProgress<DownloadProgress>? progress, CancellationToken ct)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         var partial = destination + ".partial";

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The models the AI host runs: what each is, the parts the host loads and how each runs, its files with their source,
+    size and SHA-256, and — for a model that speaks, draws, films or writes — its voices, sampling and LoRAs. One catalog,
+    read by the host, which fetches, keeps and places the models, and by any app that would show them or know what this
+    machine could run before a host is started — with the CUDA pack the host runs on an NVIDIA card, and the machine's cards
+    as their driver reads them. Plain .NET: no Windows, no app.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Nvml: the driver's library is called through function pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.AiHost.Contracts\Nexaflow.AiHost.Contracts.csproj" />
+    <ProjectReference Include="..\Nexaflow.AiHost.Provisioning\Nexaflow.AiHost.Provisioning.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="models.json" LogicalName="models.json" />
+    <!-- Pinned to the host's own ONNX Runtime and onnxruntime-genai; Tests.AiHost holds them together. -->
+    <EmbeddedResource Include="cuda-pack.json" LogicalName="cuda-pack.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The cards as their driver reads them: the machine read before any host runs (MachineCards). -->
+    <Compile Include="..\Shared\Nvml.cs" Link="Nvml.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.AiHost" />
+  </ItemGroup>
+
+</Project>

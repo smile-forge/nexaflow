@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Llama;
 using Nexaflow.AiHost.Models;
@@ -16,14 +17,21 @@ namespace Nexaflow.AiHost.Generation;
 /// (<see cref="PromptOpening"/>), and each conversation that begins with it takes its cells rather than reading them again. An
 /// opening is let go, least recently used first, only once no conversation holds its cells.
 /// </para>
+/// <para>
+/// Each conversation, opening and prompt read is the client's whose request made it (<see cref="ClientIdentity"/>), and a request
+/// continues, cuts back or opens with its own client's alone: no client reads from what another left, however alike their turns. The
+/// capacities are the log's, every client's together. A lone client may fill them; beside others each is owed an equal part, and room
+/// is made first from whoever holds the most beyond its part (<see cref="ClientShares{T}"/>), so a busy client lets its own go before
+/// another's.
+/// </para>
 /// </summary>
 internal sealed class ConversationLog : IDisposable
 {
     /// <summary>Conversations kept between requests.</summary>
     internal const int Capacity = 4;
 
-    /// <summary>Openings held at once.</summary>
-    internal const int Openings = 2;
+    /// <summary>Openings held at once: the sequences the lane holds for them beside its replies'.</summary>
+    internal const int Openings = ModelSpec.OpeningSequences;
 
     /// <summary>The shortest start two prompts share that is worth holding as an opening.</summary>
     internal const int ShortestOpening = 256;
@@ -31,16 +39,17 @@ internal sealed class ConversationLog : IDisposable
     /// <summary>How many prompts read lately an opening is looked for in.</summary>
     private const int Remembered = 8;
 
-    /// <summary>Sequences the cache has — the lane's: one for each reply written at once, and those not being answered kept for a
-    /// conversation or held as an opening.</summary>
+    /// <summary>Sequences the cache has — the lane's: one for each reply written at once and one for each opening, those not in use
+    /// kept for a conversation or held as an opening.</summary>
     private int Sequences => _lane.Sequences;
 
     private readonly ChatLane _lane;
     private readonly string _id;
-    private readonly LinkedList<LiveConversation> _kept = new();
+    private readonly ClientShares<LiveConversation> _kept = new(Capacity);
     private readonly HashSet<LiveConversation> _live = [];
-    private readonly LinkedList<PromptOpening> _openings = new();
-    private readonly LinkedList<int[]> _recent = new();
+    private readonly ClientShares<PromptOpening> _openings = new(Openings);
+    /// <summary>The prompts read lately, each its client's: where an opening is looked for.</summary>
+    private readonly ClientShares<int[]> _recent = new(Remembered);
     /// <summary>The sequences nobody holds, lowest first: where each conversation has a slice of its own, sequences in use read in
     /// one step only where their numbers follow one another, so the lowest free is always the one taken.</summary>
     private readonly SortedSet<int> _free;
@@ -56,61 +65,44 @@ internal sealed class ConversationLog : IDisposable
         _lane = lane;
         _id = id;
         _free = [.. Enumerable.Range(0, Sequences)];
-        _answering = new(Sequences, Sequences);
+        _answering = new(lane.Replies, lane.Replies);
     }
 
-    /// <summary>Whether it keeps the conversation <paramref name="turns"/> continue.</summary>
-    public bool Continues(IReadOnlyList<ChatTurn> turns)
+    /// <summary>Whether the client the request serves keeps a conversation named <paramref name="name"/> that <paramref name="turns"/>
+    /// continue; never for a turn with no name, which continues nothing.</summary>
+    public bool Continues(IReadOnlyList<ChatTurn> turns, string? name)
     {
-        lock (_gate) return _kept.Any(conversation => conversation.IsContinuedBy(turns));
+        if (name is null) return false;
+        var client = ClientIdentity.Current;
+        lock (_gate) return _kept.Of(client).Any(conversation => conversation.Name == name && conversation.IsContinuedBy(turns));
     }
 
-    /// <summary>Takes the conversation <paramref name="turns"/> continues, out of the log while it is used.</summary>
-    public LiveConversation? TakeContinued(IReadOnlyList<ChatTurn> turns)
+    /// <summary>Takes the conversation the client the request serves keeps under <paramref name="name"/>, for the request to continue or
+    /// cut back; null where it keeps none so named.</summary>
+    public LiveConversation? TakeNamed(string name)
     {
-        lock (_gate)
-        {
-            for (var node = _kept.First; node is not null; node = node.Next)
-            {
-                if (!node.Value.IsContinuedBy(turns)) continue;
-                _kept.Remove(node);
-                return node.Value;
-            }
-            return null;
-        }
+        var client = ClientIdentity.Current;
+        lock (_gate) return _kept.Take(client, conversation => conversation.Name == name);
     }
 
     /// <summary>
-    /// Takes the kept conversation that shares the longest start with <paramref name="prompt"/>, cut back to it — where that start is
-    /// long enough to be worth more than reading it again (<see cref="ShortestOpening"/>), and the conversation can be cut there:
-    /// anywhere, for a model whose sequences are their cells; where a turn ended and its partial state was saved
-    /// (<see cref="Checkpoint"/>), for one holding more. Null where none shares enough; one that llama.cpp would not cut back is let go.
+    /// Cuts <paramref name="conversation"/> — taken for a request that does not continue it as its turns now render: an edited last turn,
+    /// reasoning the template leaves out of what was answered — back to where it and <paramref name="prompt"/> part, where that start is long
+    /// enough to be worth more than reading it again (<see cref="ShortestOpening"/>) and it can be cut there: anywhere, for a model whose
+    /// sequences are their cells; where a turn ended and its partial state was saved (<see cref="Checkpoint"/>), for one holding more.
+    /// False where it cannot be, and the request reads its prompt afresh.
     /// </summary>
-    public LiveConversation? TakeCutBackFor(int[] prompt)
+    public bool CutBack(LiveConversation conversation, int[] prompt)
     {
-        if (_lane.PerConversation) return null;
-        lock (_gate)
-        {
-            LinkedListNode<LiveConversation>? nearest = null;
-            int point = 0;
-            for (var node = _kept.First; node is not null; node = node.Next)
-                if (node.Value.CutPointFor(prompt) is var at && at > point)
-                {
-                    nearest = node;
-                    point = at;
-                }
-            if (nearest is null) return null;
-            _kept.Remove(nearest);
-            if (nearest.Value.CutBack(point)) return nearest.Value;
-            nearest.Value.Dispose();
-            return null;
-        }
+        if (_lane.PerConversation) return false;
+        lock (_gate) return conversation.CutPointFor(prompt) is > 0 and var point && conversation.CutBack(point);
     }
 
     /// <summary>
     /// Saves <paramref name="conversation"/>'s partial state where it stands — at the end of a turn it has read — so it can be cut back
     /// to here, where its lane keeps such saves (<see cref="ChatLane.Checkpoints"/>). Past as many as the lane keeps, the earliest of the
-    /// least recently used kept conversation's go first, then those of the conversations being answered, this one's last.
+    /// kept conversations' go first, theirs in the order the kept conversations would be let go for this one's room
+    /// (<see cref="ClientShares{T}.InEvictionOrder"/>), then those of the conversations being answered, this one's last.
     /// </summary>
     public void Checkpoint(LiveConversation conversation)
     {
@@ -120,7 +112,9 @@ internal sealed class ConversationLog : IDisposable
         {
             conversation.Checkpoint(state);
             int saved = _live.Sum(c => c.Checkpoints);
-            foreach (var holder in _kept.Reverse().Concat(_live.Except(_kept).Where(c => c != conversation)).Append(conversation))
+            if (saved <= _lane.Checkpoints) return;
+            var kept = _kept.InEvictionOrder(conversation.Client);
+            foreach (var holder in kept.Concat(_live.Except(kept).Where(c => c != conversation)).Append(conversation))
                 while (saved > _lane.Checkpoints && holder.Checkpoints > 0)
                 {
                     holder.DropEarliestCheckpoint();
@@ -129,35 +123,50 @@ internal sealed class ConversationLog : IDisposable
         }
     }
 
-    /// <summary>Keeps a conversation for the next request, as the most recently used.</summary>
+    /// <summary>Keeps <paramref name="conversation"/> for its client's next turn under its name, in place of what was kept under that name
+    /// before; one that has no name — a one-off, or one its client has forgotten — is let go.</summary>
     public void Keep(LiveConversation conversation)
     {
         // Where each conversation has a slice of its own, the work it does is never continued, and one kept would stand among
         // those being written.
-        if (_lane.PerConversation)
+        if (_lane.PerConversation || conversation.Name is not { } name)
         {
             conversation.Dispose();
             return;
         }
         lock (_gate)
         {
-            _kept.AddFirst(conversation);
-            while (_kept.Count > Capacity) DropOldest();
+            _kept.Take(conversation.Client, kept => kept.Name == name)?.Dispose();
+            _kept.Add(conversation.Client, conversation);
+            while (_kept.Count > Capacity && _kept.Evict(adding: null, beyondShare: true) is { } dropped) dropped.Dispose();
             Freed();   // kept, it is room that may be taken
         }
     }
 
-    /// <summary>A new conversation in a sequence of its own — a kept conversation, oldest first, or an opening nobody holds let go
-    /// when every sequence is taken. Where each conversation has a slice of its own it takes the highest free, out of the way of
-    /// the replies being written, which are gathered into the lowest (<see cref="Gather"/>).</summary>
-    public LiveConversation Start()
+    /// <summary>Lets go of what the client the request serves keeps under <paramref name="name"/>; a turn of it being answered now is let
+    /// go when it ends, not kept.</summary>
+    public void Forget(string name)
     {
+        var client = ClientIdentity.Current;
         lock (_gate)
         {
-            while (_free.Count == 0 && Releasable()) { }
+            _kept.Take(client, kept => kept.Name == name)?.Dispose();
+            foreach (var live in _live.Where(c => c.Client == client && c.Name == name)) live.Name = null;
+        }
+    }
+
+    /// <summary>A new conversation of the client the request serves, in a sequence of its own — a kept conversation or an opening nobody
+    /// holds let go (<see cref="Releasable"/>) when every sequence is taken. Where each conversation has a slice of its own it takes the
+    /// highest free, out of the way of the replies being written, which are gathered into the lowest (<see cref="Gather"/>).</summary>
+    public LiveConversation Start(string? name)
+    {
+        var client = ClientIdentity.Current;
+        lock (_gate)
+        {
+            while (_free.Count == 0 && Releasable(client)) { }
             int sequence = _lane.PerConversation ? _free.Max : _free.Min;
             _free.Remove(sequence);
-            var conversation = new LiveConversation(_lane.Context, sequence, Release);
+            var conversation = new LiveConversation(_lane.Context, sequence, client, Release) { Name = name };
             _live.Add(conversation);
             return conversation;
         }
@@ -191,7 +200,7 @@ internal sealed class ConversationLog : IDisposable
     }
 
     /// <summary>
-    /// A turn to answer: there are as many as the model writes replies at once (<see cref="ModelSpec.Sequences"/>), so a
+    /// A turn to answer: there are as many as the model writes replies at once (<see cref="ChatLane.Replies"/>), so a
     /// request past them waits for one to finish rather than being turned away. The turn is given back when the returned value
     /// is disposed.
     /// </summary>
@@ -212,54 +221,57 @@ internal sealed class ConversationLog : IDisposable
     }
 
     /// <summary>
-    /// The opening <paramref name="tokens"/> begin with — held already, or one to hold: the longest start they share with a
-    /// prompt read lately, where that is long enough to be worth holding. Null where there is neither. A new opening is read by
-    /// whoever claims it (<see cref="PromptOpening.Claim"/>); every other request waits for it.
+    /// The opening of the client the request serves that <paramref name="tokens"/> begin with — held already, or one to hold: the longest
+    /// start they share with a prompt that client read lately, where that is long enough to be worth holding. Null where there is neither,
+    /// or no opening may be let go for it: one held, or another client's within its share. A new opening is read by whoever claims it
+    /// (<see cref="PromptOpening.Claim"/>); every other request waits for it.
     /// </summary>
     public PromptOpening? OpeningFor(int[] tokens)
     {
         // Where each conversation has a slice of its own, none can share another's cells.
         if (_lane.PerConversation) return null;
+        var client = ClientIdentity.Current;
         lock (_gate)
         {
             try
             {
-                for (var node = _openings.First; node is not null; node = node.Next)
-                {
-                    if (!node.Value.Opens(tokens)) continue;
-                    _openings.Remove(node);
-                    _openings.AddFirst(node);
-                    return node.Value;
-                }
+                if (_openings.Use(client, o => o.Opens(tokens)) is { } held) return held;
 
                 // Never the whole prompt: its last token is read for the reply to start from.
-                int shared = Math.Min(tokens.Length - 1, _recent.Max(recent => (int?)Common(recent, tokens)) ?? 0);
+                int shared = Math.Min(tokens.Length - 1, _recent.Of(client).Max(recent => (int?)Common(recent, tokens)) ?? 0);
                 if (shared < ShortestOpening) return null;
-                while (_openings.Count >= Openings && _openings.LastOrDefault(o => !o.Held) is { } idle) DropOpening(idle);
+                while (_openings.Count >= Openings && _openings.Evict(client, o => !o.Held, beyondShare: true) is { } idle)
+                    idle.Holder.Dispose();
                 if (_openings.Count >= Openings) return null;
 
-                // Only a sequence no reply could need: one left over for each turn to answer not yet taken.
-                while (_free.Count <= _answering.CurrentCount && _kept.Count > 0) DropOldest();
-                if (_free.Count <= _answering.CurrentCount) return null;
-                var opening = new PromptOpening(new LiveConversation(_lane.Context, Lowest(), FreeOpening), tokens[..shared]);
-                _openings.AddFirst(opening);
+                // A free sequence, and one no reply could go short of: every turn to answer not yet taken still finds one, free or given up for it
+                // by a kept conversation or an opening nobody holds. A kept conversation is never let go to make an opening.
+                if (!OpeningFits(_free.Count, _kept.Count + _openings.All.Count(o => !o.Held), _answering.CurrentCount)) return null;
+                var opening = new PromptOpening(new LiveConversation(_lane.Context, Lowest(), client, FreeOpening), tokens[..shared]);
+                _openings.Add(client, opening);
                 return opening;
             }
             finally
             {
-                _recent.AddFirst(tokens);
-                while (_recent.Count > Remembered) _recent.RemoveLast();
+                _recent.Add(client, tokens);
+                while (_recent.Count > Remembered && _recent.Evict(adding: null, beyondShare: true) is not null) { }
             }
         }
     }
 
+    /// <summary>Whether an opening may take one of <paramref name="free"/> sequences: there is one, and once it is taken each of the
+    /// <paramref name="unanswered"/> turns to answer not yet taken still finds a sequence — a free one, or one of the
+    /// <paramref name="reclaimable"/> a request makes room from (<see cref="Releasable"/>).</summary>
+    internal static bool OpeningFits(int free, int reclaimable, int unanswered) => free > 0 && free - 1 + reclaimable >= unanswered;
+
     /// <summary>Has <paramref name="conversation"/>, read nothing yet, begin with <paramref name="opening"/>'s cells — false where
-    /// the opening has been let go for room since it was read, and the conversation must read its whole beginning itself.</summary>
+    /// the opening has been let go for room since it was read, or is another client's, and the conversation must read its whole beginning
+    /// itself.</summary>
     public bool Open(LiveConversation conversation, PromptOpening opening)
     {
         lock (_gate)
         {
-            if (!_openings.Contains(opening)) return false;
+            if (!opening.Client.Equals(conversation.Client) || !_openings.Contains(opening.Client, opening)) return false;
             conversation.Borrow(opening);
             return true;
         }
@@ -281,7 +293,7 @@ internal sealed class ConversationLog : IDisposable
 
     /// <summary>
     /// Makes room in the cache for <paramref name="tokens"/> more of <paramref name="conversation"/>'s: the kept conversations
-    /// go, oldest first, then the openings nobody holds, until it fits — and holds that room for them until they are read, so
+    /// go, then the openings nobody holds (<see cref="Releasable"/>), until it fits — and holds that room for them until they are read, so
     /// prompts arriving together are never let in to the same room. Where the conversations being answered hold it, this waits
     /// for them to let it go: a request that fits the model is answered once there is room, rather than turned away. Where each
     /// conversation has a slice of its own, its slice is its room.
@@ -298,7 +310,7 @@ internal sealed class ConversationLog : IDisposable
             Task freed;
             lock (_gate)
             {
-                while (!_lane.PerConversation && Held + tokens > context && Releasable()) { }
+                while (!_lane.PerConversation && Held + tokens > context && Releasable(conversation.Client)) { }
                 if (_lane.PerConversation || Held + tokens <= context)
                 {
                     conversation.Reserve(tokens);
@@ -320,49 +332,44 @@ internal sealed class ConversationLog : IDisposable
 
     /// <summary>
     /// Makes room in the cache for the token each conversation being answered reads next, as replies are written: the kept
-    /// conversations go, oldest first, then the openings nobody holds, until there is. False where the conversations being
+    /// conversations go, then the openings nobody holds (<see cref="Releasable"/>), until there is. False where the conversations being
     /// answered hold it all — a reply that reaches it has filled what it can read.
     /// </summary>
     public bool MakeRoomForNext()
     {
         if (_lane.PerConversation) return true;   // its slice is its own: how long it may grow is the lane's to say
         int context = _lane.Context.Tokens;
+        var client = ClientIdentity.Current;
         lock (_gate)
         {
             int answered = _live.Count - _kept.Count;
-            while (Held + answered > context && Releasable()) { }
+            while (Held + answered > context && Releasable(client)) { }
             return Held + answered <= context;
         }
     }
 
-    /// <summary>Lets go of what may be let go for room — the oldest kept conversation, else the least used opening nobody
-    /// holds — and says whether there was any. Called under the gate.</summary>
-    private bool Releasable()
+    /// <summary>Lets go of what may be let go for the room <paramref name="asking"/>'s request is to take — a kept conversation, else an
+    /// opening nobody holds, each the least recently used of the client holding the most of them, <paramref name="asking"/> counted with
+    /// one more (<see cref="ClientShares{T}.Evict"/>) — and says whether there was any. Called under the gate.</summary>
+    private bool Releasable(ClientIdentity asking)
     {
-        if (_kept.Count > 0)
+        if (_kept.Evict(asking) is { } kept)
         {
-            DropOldest();
+            kept.Dispose();
             return true;
         }
-        if (_openings.LastOrDefault(o => !o.Held) is not { } idle) return false;
-        DropOpening(idle);
+        if (_openings.Evict(asking, opening => !opening.Held) is not { } idle) return false;
+        idle.Holder.Dispose();
         return true;
     }
 
     /// <summary>The cells held — by every conversation with a sequence, kept or being answered, with the room each being answered
     /// holds for what it is about to read; and by the openings — a cell several share counted once.</summary>
-    private int Held => _live.Sum(c => c.Holding) + _openings.Sum(o => o.Holder.Holding);
-
-    private void DropOldest()
-    {
-        var oldest = _kept.Last!.Value;
-        _kept.RemoveLast();
-        oldest.Dispose();
-    }
+    private int Held => _live.Sum(c => c.Holding) + _openings.All.Sum(o => o.Holder.Holding);
 
     private void DropOpening(PromptOpening opening)
     {
-        if (_openings.Remove(opening)) opening.Holder.Dispose();
+        if (_openings.Remove(opening.Client, opening)) opening.Holder.Dispose();
     }
 
     private void Release(LiveConversation conversation)
@@ -388,256 +395,10 @@ internal sealed class ConversationLog : IDisposable
     {
         lock (_gate)
         {
-            foreach (var conversation in _kept) conversation.Dispose();
+            foreach (var conversation in _kept.All) conversation.Dispose();
             _kept.Clear();
-            foreach (var opening in _openings) opening.Holder.Dispose();
+            foreach (var opening in _openings.All) opening.Holder.Dispose();
             _openings.Clear();
         }
-    }
-}
-
-/// <summary>
-/// The start several prompts share, read once into a sequence of its own — its holder — whose cells each conversation that
-/// begins with it takes as its own beginning (<see cref="LiveConversation.Borrow"/>).
-/// </summary>
-internal sealed class PromptOpening(LiveConversation holder, int[] tokens)
-{
-    private int _claimed, _borrowers;
-
-    /// <summary>The sequence it is read into, and held in.</summary>
-    public LiveConversation Holder { get; } = holder;
-
-    public int[] Tokens { get; } = tokens;
-
-    /// <summary>Completes once it is read: true, or false where it could not be.</summary>
-    public TaskCompletionSource<bool> Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-    /// <summary>Whether a conversation holds its cells — one being answered, or one kept.</summary>
-    public bool Held => Volatile.Read(ref _borrowers) > 0;
-
-    /// <summary>Whether <paramref name="prompt"/> begins with it and goes on past it.</summary>
-    public bool Opens(int[] prompt) => prompt.Length > Tokens.Length && prompt.AsSpan(0, Tokens.Length).SequenceEqual(Tokens);
-
-    /// <summary>True for the one request that is to read it, which holds it while it reads (<see cref="Let"/> once read); false
-    /// for every other, which waits for <see cref="Ready"/>.</summary>
-    public bool Claim()
-    {
-        if (Interlocked.Exchange(ref _claimed, 1) != 0) return false;
-        Lend();
-        return true;
-    }
-
-    /// <summary>A conversation has taken its cells, or a request is reading them.</summary>
-    public void Lend() => Interlocked.Increment(ref _borrowers);
-
-    /// <summary>A conversation that took its cells has let them go, or the request reading them has read them.</summary>
-    public void Let() => Interlocked.Decrement(ref _borrowers);
-}
-
-/// <summary>
-/// One conversation's context: the sequence holding it, what it has read, and where it stopped. The cache holds the
-/// prompt it was last given and the reply generated after it, up to the token the reply stopped on — which it has not
-/// read.
-/// </summary>
-internal sealed class LiveConversation : IDisposable
-{
-    private readonly LlamaContext _context;
-    private readonly Action<LiveConversation> _release;
-    private bool _disposed;
-
-    private int? _window;
-    private int _promptEnd, _written;
-
-    /// <summary>Every token it has read, in order, up to the first medium — whose positions are not tokens; what a prompt is matched
-    /// against to cut it back (<see cref="CutPointFor"/>).</summary>
-    private readonly List<int> _history = [];
-    private bool _mediumRead;
-    /// <summary>The token <see cref="Readying"/> gave, read once <see cref="Advanced"/> says so.</summary>
-    private int _readying = -1;
-    /// <summary>Its partial state as saved at each position, for a model that holds such state (<see cref="LlamaContext.HoldsPartialState"/>):
-    /// where it may be cut back to. Changed only under its log's gate.</summary>
-    private readonly SortedList<int, byte[]> _checkpoints = [];
-
-    public LiveConversation(LlamaContext context, int sequence, Action<LiveConversation> release)
-    {
-        _context = context;
-        _release = release;
-        Sequence = sequence;
-    }
-
-    public int Sequence { get; private set; }
-
-    /// <summary>What it holds is now held in sequence <paramref name="to"/>.</summary>
-    public void Moved(int to)
-    {
-        _context.Move(Sequence, to);
-        Sequence = to;
-    }
-
-    /// <summary>The cache cells it holds of its own.</summary>
-    public int Tokens { get; private set; }
-
-    /// <summary>The cells it holds of its own once what it has room for is read.</summary>
-    private int _reserved;
-
-    /// <summary>The cells it holds of its own, or has room held for: what room is weighed against.</summary>
-    public int Holding => Math.Max(Tokens, _reserved);
-
-    /// <summary>Holds room for <paramref name="tokens"/> more cells than it has, until they are read.</summary>
-    public void Reserve(int tokens) => _reserved = Tokens + tokens;
-
-    /// <summary>The opening it began with, whose cells it shares; null where it read its whole beginning itself.</summary>
-    public PromptOpening? Opening { get; private set; }
-
-    /// <summary>How long it is: the opening's cells it shares, and its own.</summary>
-    public int Length => (Opening?.Tokens.Length ?? 0) + Tokens;
-
-    /// <summary>Begins, read nothing yet, with <paramref name="opening"/>'s cells: from here on it reads after them.</summary>
-    public void Borrow(PromptOpening opening)
-    {
-        _context.Share(opening.Holder.Sequence, Sequence, opening.Tokens.Length);
-        opening.Lend();
-        Opening = opening;
-        Positions = opening.Tokens.Length;
-        _history.AddRange(opening.Tokens);
-    }
-
-    /// <summary>The position its next token is read at.</summary>
-    public int Positions { get; private set; }
-
-    /// <summary>The token chosen to come next, from the logits the last read left; not yet read.</summary>
-    public int Next { get; private set; }
-
-    /// <summary>The turns read, ending with the reply generated for them.</summary>
-    public IReadOnlyList<ChatTurn> Read { get; private set; } = [];
-
-    /// <summary>The whole prompt the conversation was last given, as text — what the next request's must begin with.</summary>
-    public string Prompt { get; private set; } = "";
-
-    /// <summary>The text of the token the last reply stopped on, which the next read begins with.</summary>
-    public string StoppedAt { get; private set; } = "";
-
-    /// <summary>How the request answering in it chooses its tokens; null — the likeliest each time — between requests.</summary>
-    public LlamaSampler? Sampler { get; set; }
-
-    public bool IsContinuedBy(IReadOnlyList<ChatTurn> turns) => ConversationMatch.Continues(Read, turns);
-
-    /// <summary>Its next <paramref name="tokens"/> to read, at its next positions — at most a step's — choosing the token after
-    /// the last when <paramref name="sample"/>.</summary>
-    public SequenceRead Reading(ReadOnlyMemory<int> tokens, bool sample) => new(Sequence, Positions, tokens, sample, Sampler);
-
-    /// <summary>What <see cref="Reading"/> gave, <paramref name="tokens"/>, has been read, and <paramref name="next"/> chosen after it
-    /// — -1 where it was not asked for.</summary>
-    public void ReadIn(ReadOnlySpan<int> tokens, int next)
-    {
-        Tokens += tokens.Length;
-        Positions += tokens.Length;
-        if (!_mediumRead) _history.AddRange(tokens);
-        if (next >= 0) Next = next;
-    }
-
-    /// <summary>Reads a medium through the model's projector.</summary>
-    public void ReadMedium(MediaProjector projector, PromptPiece piece, bool sample)
-    {
-        _mediumRead = true;
-        Positions = projector.Read(_context, piece, Sequence, Positions, sample, out var next, Sampler);
-        Tokens += piece.TokenCount;
-        if (next is { } chosen) Next = chosen;
-    }
-
-    /// <summary>The token generated last, ready to be read in a round (<see cref="TokenRounds"/>) — forgetting first, when
-    /// it keeps only so much of what it writes, the written token that leaves the window as it is read.</summary>
-    public SequenceRead Readying(int token)
-    {
-        if (_window is { } window && _written >= window)
-        {
-            int oldest = _promptEnd + _written - window;
-            _context.Forget(Sequence, oldest, oldest + 1);
-            Tokens--;
-        }
-        _readying = token;
-        return new SequenceRead(Sequence, Positions, new[] { token }, Sample: true, Sampler);
-    }
-
-    /// <summary>The token <see cref="Readying"/> gave has been read, and <paramref name="next"/> chosen after it.</summary>
-    public void Advanced(int next)
-    {
-        Tokens++;
-        Positions++;
-        _written++;
-        if (!_mediumRead) _history.Add(_readying);
-        Next = next;
-    }
-
-    /// <summary>From here on each token written sees all that was read before it but only the last
-    /// <paramref name="tokens"/> written: the oldest is forgotten as each new one is read, its position kept, as a model
-    /// trained with reference sliding-window attention reads.</summary>
-    public void KeepWritten(int tokens)
-    {
-        _window = tokens;
-        _promptEnd = Positions;
-        _written = 0;
-    }
-
-    /// <summary>Whether it forgets what it writes, and so holds a context nobody can continue.</summary>
-    public bool Forgets => _window is not null;
-
-    /// <summary>Whether it can be cut back: it has read text alone, every token of it as read, and forgets nothing it writes.</summary>
-    public bool CutsBack => !_mediumRead && _window is null && _history.Count == Positions;
-
-    /// <summary>Where it may be cut back to for <paramref name="prompt"/> to be read from there; 0 where it may not, or not usefully —
-    /// see <see cref="ConversationMatch.CutPoint"/>. Called under its log's gate.</summary>
-    public int CutPointFor(int[] prompt)
-        => CutsBack ? ConversationMatch.CutPoint(_history, prompt, _context.HoldsPartialState ? _checkpoints.Keys : null,
-                                                 Opening?.Tokens.Length ?? 0, ConversationLog.ShortestOpening)
-                    : 0;
-
-    /// <summary>The positions its partial state is saved at.</summary>
-    public int Checkpoints => _checkpoints.Count;
-
-    /// <summary>Keeps <paramref name="state"/> — its partial state as <see cref="LlamaContext.SavePartial"/> saved it, at its position
-    /// now. Called under its log's gate.</summary>
-    public void Checkpoint(byte[] state) => _checkpoints[Positions] = state;
-
-    /// <summary>Lets go of the partial state saved earliest. Called under its log's gate.</summary>
-    public void DropEarliestCheckpoint() => _checkpoints.RemoveAt(0);
-
-    /// <summary>
-    /// Cuts it back to <paramref name="point"/> — a position <see cref="CutPointFor"/> gave — its cells after that forgotten and, for
-    /// a model holding partial state, that state given again as saved there; what it was asked and answered is forgotten with them,
-    /// and only a read from <paramref name="point"/> on continues it. False where llama.cpp would not, and it is to be let go. Called
-    /// under its log's gate.
-    /// </summary>
-    public bool CutBack(int point)
-    {
-        byte[]? partial = null;
-        if (_context.HoldsPartialState && !_checkpoints.TryGetValue(point, out partial)) return false;
-        if (!_context.CutBack(Sequence, point, partial)) return false;
-        Tokens -= Positions - point;
-        Positions = point;
-        _history.RemoveRange(point, _history.Count - point);
-        while (_checkpoints.Count > 0 && _checkpoints.Keys[^1] > point) _checkpoints.RemoveAt(_checkpoints.Count - 1);
-        Read = [];
-        Prompt = "";
-        StoppedAt = "";
-        return true;
-    }
-
-    /// <summary>The prompt now read in full, before its reply is generated.</summary>
-    public void Prompted(string prompt) => Prompt = prompt;
-
-    public void Answered(IReadOnlyList<ChatTurn> turns, string reply, IReadOnlyList<ChatToolCall> calls, string stoppedAt)
-    {
-        Read = [.. turns, new ChatTurn(TurnRole.Assistant, reply) { ToolCalls = calls.Count > 0 ? calls : null }];
-        StoppedAt = stoppedAt;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _checkpoints.Clear();
-        _context.Forget(Sequence);
-        _release(this);
     }
 }

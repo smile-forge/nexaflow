@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -7,40 +8,41 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Providers.AiHost;
 
 /// <summary>
-/// Things picked out of pictures in the AI host with SAM 3.1 (<see cref="OwnedToolKind.PictureSelection"/>): by clicks on
+/// Things picked out of pictures in the AI host with SAM 3.1 (<see cref="HostedToolKind.PictureSelection"/>): by clicks on
 /// a thing and off it, a box round it, or everything a phrase names.
 /// </summary>
 public sealed class OwnedPictureSelection : OwnedToolFront
 {
-    public OwnedPictureSelection(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == OwnedToolKind.PictureSelection))
+    public OwnedPictureSelection(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds, MachineCards hardware)
+        : this(new OwnedModelRuntime(activities, assets, host, holds, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PictureSelection))
     {
     }
 
-    internal OwnedPictureSelection(OwnedModelRuntime runtime, OwnedTool? tool) : base(runtime, tool)
+    internal OwnedPictureSelection(OwnedModelRuntime runtime, HostedTool? tool) : base(runtime, tool)
     {
     }
 
     /// <summary>
-    /// Opens a selection on the picture in <paramref name="pixels"/> — interleaved 8-bit RGBA, nothing else — and returns
-    /// once the host has read it, after which the file may go. The caller holds the session for as long as it selects from
+    /// Opens a selection on the picture <paramref name="pixels"/> — interleaved 8-bit RGBA, nothing else — and returns once the
+    /// host has read it. The caller holds the session for as long as it selects from
     /// that picture and disposes it after; what the host read goes with it. Never downloads.
     /// </summary>
     /// <exception cref="InvalidOperationException">The tool is not on this machine, or the host could not read the picture.</exception>
-    public async Task<OwnedSelectionSession> OpenAsync(string pixels, int width, int height, CancellationToken ct)
+    public async Task<OwnedSelectionSession> OpenAsync(ReadOnlyMemory<byte> pixels, int width, int height, CancellationToken ct)
     {
-        var parts = await PlacedAsync(SelectingParts.All, ct);
+        var tool = ToolId();
         IHostStream stream;
         try
         {
-            stream = await Owned.Host.OpenStreamAsync(id => new SelectInPicture(id, parts, pixels, width, height, RequestPriority.Interactive),
+            using var picture = await Owned.Host.ShareAsync(pixels, ct);
+            stream = await Owned.Host.OpenStreamAsync(id => new SelectInPicture(id, tool, picture, width, height, RequestPriority.Interactive),
                                                       OwnedModelRuntime.StallLimit, ct);
         }
         catch (AiHostException ex)
         {
             throw new InvalidOperationException($"The picture could not be read: {ex.Message}", ex);
         }
-        var session = new OwnedSelectionSession(stream, Owned);
+        var session = new OwnedSelectionSession(stream);
         try
         {
             await session.EncodedAsync(ct);
@@ -62,32 +64,30 @@ public sealed class OwnedPictureSelection : OwnedToolFront
 public sealed class OwnedSelectionSession : IAsyncDisposable
 {
     private readonly IHostStream _stream;
-    private readonly OwnedModelRuntime _owned;
     private readonly Lock _gate = new();
     private readonly Dictionary<int, TaskCompletionSource<HostReply>> _waiting = [];
     private readonly TaskCompletionSource _encoded = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly List<IDisposable> _madeWay = [];
     private readonly Task _reading;
     private Exception? _ended;
     private int _turns, _disposed;
 
-    internal OwnedSelectionSession(IHostStream stream, OwnedModelRuntime owned)
+    internal OwnedSelectionSession(IHostStream stream)
     {
         _stream = stream;
-        _owned = owned;
         _reading = Task.Run(ReadAsync);
     }
 
     /// <summary>Waits for the host to have read the picture.</summary>
     internal Task EncodedAsync(CancellationToken ct) => _encoded.Task.WaitAsync(ct);
 
-    /// <summary>Picks what clicks on it and off it, or a box round it, mean; its mask is written to the target.</summary>
+    /// <summary>Picks what clicks on it and off it, or a box round it, mean, its mask at the target's size. Dispose the answer's mask
+    /// once read: it may be a section the AI host shares.</summary>
     /// <exception cref="InvalidOperationException">The host could not, or the selection has ended.</exception>
     public async Task<PointsSelected> SelectAsync(IReadOnlyList<SelectionPoint> points, MaskTarget mask, CancellationToken ct)
         => (PointsSelected)await AskAsync(turn => new SelectByPoints(_stream.RequestId, turn, points, mask), ct);
 
-    /// <summary>Finds everything a phrase and its examples name, surest first; their masks are written to the target one
-    /// after another.</summary>
+    /// <summary>Finds everything a phrase and its examples name, surest first, their masks at the target's size one after another.
+    /// Dispose the answer's masks once read: they may be a section the AI host shares.</summary>
     /// <exception cref="InvalidOperationException">The host could not, or the selection has ended.</exception>
     public async Task<PhraseFound> FindAsync(string phrase, IReadOnlyList<SelectionExample> examples, MaskTarget masks, CancellationToken ct)
         => (PhraseFound)await AskAsync(turn => new SelectByPhrase(_stream.RequestId, turn, phrase, examples, masks), ct);
@@ -102,10 +102,13 @@ public sealed class OwnedSelectionSession : IAsyncDisposable
             turn = ++_turns;
             _waiting[turn] = answer;
         }
+        bool taken = false;
         try
         {
             await _stream.WriteAsync(ask(turn), ct);
-            return await answer.Task.WaitAsync(ct);
+            var answered = await answer.Task.WaitAsync(ct);
+            taken = true;
+            return answered;
         }
         catch (AiHostException ex)
         {
@@ -114,6 +117,7 @@ public sealed class OwnedSelectionSession : IAsyncDisposable
         finally
         {
             lock (_gate) _waiting.Remove(turn);
+            if (!taken && answer.Task.IsCompletedSuccessfully) Release(answer.Task.Result);   // answered as the ask was given up on
         }
     }
 
@@ -126,11 +130,7 @@ public sealed class OwnedSelectionSession : IAsyncDisposable
             {
                 switch (reply)
                 {
-                    case MadeWay made:
-                        lock (_gate) _madeWay.Add(_owned.MakingWay(made.Models));
-                        break;
                     case PictureEncoded:
-                        GiveBack();
                         _encoded.TrySetResult();
                         break;
                     case PointsSelected selected:
@@ -155,27 +155,20 @@ public sealed class OwnedSelectionSession : IAsyncDisposable
         var failure = new InvalidOperationException($"The selection stopped: {ended.Message}", ended);
         _encoded.TrySetException(failure);
         foreach (var w in waiting) w.TrySetException(failure);
-        GiveBack();
     }
 
     private void Answer(int turn, HostReply reply)
     {
-        GiveBack();
         TaskCompletionSource<HostReply>? waiting;
         lock (_gate) _waiting.TryGetValue(turn, out waiting);
-        waiting?.TrySetResult(reply);
+        if (waiting is null || !waiting.TrySetResult(reply)) Release(reply);   // an ask given up on: its masks let go
     }
 
-    /// <summary>The models that made way for an ask, given back once it is answered.</summary>
-    private void GiveBack()
+    /// <summary>Closes the masks of an answer nobody takes.</summary>
+    private static void Release(HostReply reply)
     {
-        List<IDisposable> back;
-        lock (_gate)
-        {
-            back = [.. _madeWay];
-            _madeWay.Clear();
-        }
-        foreach (var b in back) b.Dispose();
+        if (reply is PointsSelected selected) selected.Mask.Dispose();
+        else if (reply is PhraseFound found) found.Masks.Dispose();
     }
 
     public async ValueTask DisposeAsync()

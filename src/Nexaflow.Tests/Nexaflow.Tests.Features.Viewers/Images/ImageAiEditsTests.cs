@@ -243,6 +243,30 @@ public class ImageAiEditsTests
     }
 
     [TestMethod]
+    [CoversNode("images-edit-ai-change-picture")]
+    public void AModelThatEdits_AvailableOnlyAfterThePhotoOpened_IsOfferedThen_AndGone_IsOfferedNoMore()
+    {
+        var ai = Ai(edits: false);
+        var vm = Photo(ai);
+        var said = new System.Collections.Concurrent.ConcurrentQueue<string?>();
+        RunOnUi(() => vm.Edits.PropertyChanged += (_, e) => said.Enqueue(e.PropertyName));
+        Assert.IsFalse(_ui.Invoke(() => vm.Edits.OffersEditing), "no model edits yet");
+
+        // Its files read from the store after the photo opened, as a host's store is read in the background.
+        ai.EditsPictures.Returns(new PictureChoices(["1:1"]) { Sources = 2, Masks = true, KeepsSourceProportions = true });
+        ai.AbilitiesChanged += Raise.Event();
+        Until(() => new[] { nameof(PictureEdits.OffersChange), nameof(PictureEdits.OffersFill), nameof(PictureEdits.OffersExpansionFromCrop) }
+                        .All(said.Contains));
+        Assert.IsTrue(_ui.Invoke(() => vm.Edits.OffersExpansionFromCrop && vm.Edits.OffersChange), "said, and so");
+
+        said.Clear();
+        ai.EditsPictures.Returns((PictureChoices?)null);
+        ai.AbilitiesChanged += Raise.Event();
+        Until(() => said.Contains(nameof(PictureEdits.OffersEditing)));
+        Assert.IsFalse(_ui.Invoke(() => vm.Edits.OffersEditing), "gone — its host out of reach — nothing is offered");
+    }
+
+    [TestMethod]
     [CoversNode("images-edit-ai-fill-selection")]
     public async Task TheAssistant_FillsTheSelection_AsAJobOfTheWorkspaces()
     {

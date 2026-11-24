@@ -10,8 +10,8 @@ namespace Nexaflow.Tests.AiHost.Restoring;
 /// picture at each scale, faces repaired or not, against what the Python pipelines made from it — in fp32, GFPGAN with
 /// the noise it was trained with, the upscaler tiled as the host tiles it (tools/ai-models/real-esrgan-gfpgan makes them).
 /// <para>
-/// <c>NEXAFLOW_TEST_PICTURE_TOOLS</c> names the five graphs' folder, <c>NEXAFLOW_TEST_PICTURE_REFERENCE</c> the reference
-/// set and <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack; without them every test is inconclusive.
+/// The five graphs are <c>real-esrgan-gfpgan</c>'s from the test store (<see cref="TestStore"/>), run on the CUDA pack there;
+/// <c>NEXAFLOW_TEST_PICTURE_REFERENCE</c> names the reference set. Without both every test is inconclusive.
 /// </para>
 /// </summary>
 [TestClass]
@@ -25,66 +25,47 @@ public class PictureRestorationTests
     private const double Agreement = 50;
 
     private static AiHostClient? _client;
-    private static string? _graphs, _reference;
-    private static string _work = "";
-
+    private static string? _reference;
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
-    public static void Start(TestContext context)
+    public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_PICTURE_TOOLS") is not { Length: > 0 } graphs) return;
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_PICTURE_REFERENCE") is not { Length: > 0 } reference) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        (_graphs, _reference) = (graphs, reference);
-        _work = TestTemp.CreateSubdirectory("nexaflow-restoring-").FullName;
+        _client = await TestStore.HostAsync();
+        _reference = reference;
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
         if (_client is not null) await _client.DisposeAsync();
-        try { if (_work.Length > 0) Directory.Delete(_work, recursive: true); } catch (IOException) { }
     }
 
-    private static IReadOnlyDictionary<string, ModelSpec> Parts()
+    /// <summary>The restoring tool, as the catalog names it: the host runs its five graphs where it places them.</summary>
+    private static string Tool()
     {
-        if (_client is null || _graphs is null)
-            Assert.Inconclusive("NEXAFLOW_TEST_PICTURE_TOOLS, NEXAFLOW_TEST_PICTURE_REFERENCE and NEXAFLOW_TEST_RUNTIME_PACK are not all set.");
-        ModelSpec Part(string role, string runner, string folder, long gib)
-            => new($"picture-tools/{role}", runner, Path.Combine(_graphs!, folder), $"{folder}.onnx", null, gib << 30, 0, Device: 0);
-        return new Dictionary<string, ModelSpec>
-        {
-            [RestoringParts.UpscalerX2]   = Part(RestoringParts.UpscalerX2, "esrgan-upscaler", "upscaler-x2", 2),
-            [RestoringParts.UpscalerX4]   = Part(RestoringParts.UpscalerX4, "esrgan-upscaler", "upscaler-x4", 3),
-            [RestoringParts.FaceDetector] = Part(RestoringParts.FaceDetector, "retinaface-detector", "face-detector", 2),
-            [RestoringParts.FaceRestorer] = Part(RestoringParts.FaceRestorer, "gfpgan-restorer", "face-restorer", 2),
-            [RestoringParts.FaceParser]   = Part(RestoringParts.FaceParser, "face-parser", "face-parser", 1),
-        };
+        if (_client is null || _reference is null)
+            Assert.Inconclusive($"{TestStore.Missing()} Or NEXAFLOW_TEST_PICTURE_REFERENCE is not set.");
+        return "real-esrgan-gfpgan";
     }
 
     private static IEnumerable<JsonNode> Cases()
     {
-        _ = Parts();   // inconclusive without the graphs
+        _ = Tool();   // inconclusive without the graphs
         return JsonNode.Parse(File.ReadAllText(Path.Combine(_reference!, "reference.json")))!["cases"]!.AsArray()!.Select(c => c!);
     }
 
     private async Task<(List<HostReply> Replies, byte[] Pixels)> RestoreAsync(string picture, int width, int height, int scale, bool faces,
                                                                              CancellationToken ct = default)
     {
-        var into = Path.Combine(_work, $"{Path.GetFileNameWithoutExtension(picture)}-x{scale}{(faces ? "-faces" : "")}.rgba");
+        using var pixels = await _client!.ShareFileAsync(Path.Combine(_reference!, picture), ct);
         var replies = new List<HostReply>();
-        await foreach (var reply in _client!.SendAsync(id => new RestorePicture(id, Parts(), Path.Combine(_reference!, picture), width, height,
-                                                                                scale, faces, into, RequestPriority.Job),
-                                                       TimeSpan.FromMinutes(5), ct))
+        await foreach (var reply in _client.SendAsync(id => new RestorePicture(id, Tool(), pixels, width, height, scale, faces, RequestPriority.Job),
+                                                      TimeSpan.FromMinutes(5), ct))
             replies.Add(reply);
-        return (replies, File.ReadAllBytes(into));
+        using var restored = replies.OfType<PictureRestored>().Single().Pixels;
+        return (replies, restored.ToArray());
     }
 
     /// <summary>Peak signal to noise, in dB, over every byte of two pictures of one size.</summary>

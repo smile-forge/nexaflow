@@ -35,7 +35,7 @@
         Bitness="always32" />
 
     <!-- The Visual C++ runtime the native libraries load: llama.cpp and ONNX Runtime in the AI
-         host, whisper and assimp in the app. The x64 redistributable records itself under this key in the 64-bit
+         host, assimp in the app. The x64 redistributable records itself under this key in the 64-bit
          view. A DLL needs a runtime at least as new as the toolset that linked it, so the minimum the package below
          detects is the newest linker version among those DLLs' PE headers - 14.44. Raise it when a native
          dependency is built with a newer toolset; the payload itself can be newer than the minimum. -->
@@ -121,6 +121,57 @@
         Value="1" />
 
     <!--
+      The choice of the AI host service (aihostSetup): the checkbox under InstallExplorerMenu, deciding whether the AiHostService
+      package below is installed - and, unticked over an install that has it, removed. Overridable like InstallTools:
+      nexaflowBundle.exe /quiet InstallAiHost=1
+
+      Left alone it keeps what is installed: AiHostOffered is written by every Nexaflow that offers the service, the service's
+      own MSI writes Service while it is installed, so offered-and-absent reads 0. Never offered - a fresh install - it is on
+      where the machine has NVIDIA's driver (its CUDA library, nvcuda.dll, in System32), the machines whose models are worth one
+      owner for the GPU, and off elsewhere. A value from the command line replaces "auto", so neither search nor default
+      overrides it.
+    -->
+    <Variable Name="InstallAiHost" bal:Overridable="yes" Type="string" Value="auto" />
+
+    <util:RegistrySearch
+        Id="AiHostOfferedSearch"
+        Variable="AiHostOffered"
+        Root="HKLM"
+        Key="SOFTWARE\Smile-forge\Nexaflow"
+        Value="AiHostOffered"
+        Result="exists"
+        Bitness="always64" />
+    <util:RegistrySearch
+        Id="AiHostInstalledSearch"
+        After="AiHostOfferedSearch"
+        Variable="InstallAiHost"
+        Condition="InstallAiHost = &quot;auto&quot; AND AiHostOffered"
+        Root="HKLM"
+        Key="SOFTWARE\Smile-forge\AiHost"
+        Value="Service"
+        Result="exists"
+        Bitness="always64" />
+    <util:FileSearch
+        Id="NvidiaDriverSearch"
+        After="AiHostInstalledSearch"
+        Variable="NvidiaDriver"
+        Condition="InstallAiHost = &quot;auto&quot;"
+        Path="[System64Folder]nvcuda.dll"
+        Result="exists" />
+    <SetVariable
+        Id="AiHostWhereNvidia"
+        After="NvidiaDriverSearch"
+        Variable="InstallAiHost"
+        Condition="InstallAiHost = &quot;auto&quot; AND NvidiaDriver"
+        Value="1" />
+    <SetVariable
+        Id="AiHostElsewhere"
+        After="AiHostWhereNvidia"
+        Variable="InstallAiHost"
+        Condition="InstallAiHost = &quot;auto&quot;"
+        Value="0" />
+
+    <!--
       Backs the Options page's "Install location" box. It was never declared, so the box opened EMPTY
       and the page could not be completed without typing a path by hand — and since the Tools checkbox
       shares that page, opting into nfi.exe meant inventing an install path first.
@@ -192,6 +243,14 @@
              ignored — the MSI fell back to its own default, so the box was decorative as well as blank. -->
         <MsiProperty Name="INSTALLFOLDER" Value="[InstallFolder]" />
       </MsiPackage>
+
+      <!-- The AI host as the machine's service, where the Install page's checkbox asks for it. Nexaflow's own MSI keeps the host
+           it starts for itself, for when no service runs. -->
+      <MsiPackage Id="AiHostService"
+                  SourceFile="$(var.aihostSetup.TargetPath)"
+                  Visible="no"
+                  Vital="yes"
+                  InstallCondition="InstallAiHost = 1" />
     </Chain>
 
   </Bundle>

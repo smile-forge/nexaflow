@@ -17,6 +17,7 @@ using Nexaflow.Core.Localization;
 using Nexaflow.Core.Help;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Interaction;
+using Nexaflow.AiHost.Client;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -245,26 +246,43 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>True while the mic is actively capturing — disables the input box.</summary>
     [ObservableProperty] private bool    _isRecording;
 
-    /// <summary>Mic button enabled only when the workspace's Speech In chain has a model ready to listen.</summary>
+    /// <summary>Mic button enabled only when the workspace can hold a spoken conversation: its Speech In chain has a model ready to
+    /// listen, a voice speaks the language, and a model answers (<see cref="AIService.CanConverse"/>).</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ToggleVoiceCommand))]
     private bool _voiceAvailable;
-
-    /// <summary>This window's dictation — the microphone streamed into the Speech In model.</summary>
-    private readonly DictationService _dictation = new();
-
-    /// <summary>The mic holds a spoken conversation rather than dictating: the workspace's models can.</summary>
-    [ObservableProperty] private bool _voiceConverses;
-
-    /// <summary>Dictation owns the box: the user's words fill it, and typing would fight them.</summary>
-    [ObservableProperty] private bool _isDictating;
 
     /// <summary>This window's spoken conversation: the bar in voice mode, and what it shows over the page.</summary>
     public VoiceConversationViewModel Voice { get; }
 
     /// <summary>Whether the AI bar gives its top line to the assistant: in a voice conversation, while a response is in the bar,
     /// and while the workspace has background tasks, whose pill sits at the line's end.</summary>
-    public bool ShowsAiLine => Voice.IsActive || Ai.InBar || WorkspaceTasks.Any;
+    public bool ShowsAiLine => Voice.IsActive || Ai.InBar || WorkspaceTasks.Any || LocalAiNotice is not null;
+
+    /// <summary>Why the workspace's models of Nexaflow's own cannot run — the host they run in is out of reach, the machine's AI host
+    /// service stopped, say — where the workspace uses any; null otherwise. The AI's line says it while it has nothing else to say, and
+    /// a request that needs one is answered with it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsLocalAiNotice))]
+    private string? _localAiNotice;
+
+    /// <summary>The AI's line shows <see cref="LocalAiNotice"/>: it has one, and nothing else to say.</summary>
+    public bool ShowsLocalAiNotice => LocalAiNotice is not null && !Voice.IsActive && !Ai.InBar;
+
+    partial void OnLocalAiNoticeChanged(string? value) => RecheckAiLine();
+
+    private void RecomputeLocalAiNotice()
+    {
+        LocalAiNotice = ProviderManager.Instance.Service<IAiHost>() is { Unreachable: { } why } && CurrentRuntime.AiService is { UsesOwnModels: true }
+            ? Str.Format("Shell.AiBar.LocalAiUnreachable", why)
+            : null;
+    }
+
+    private void OnHostReachabilityChanged(object? sender, EventArgs e) => _ui.InvokeAsync(() =>
+    {
+        RecomputeLocalAiNotice();
+        RecomputeVoiceAvailable();
+    });
 
     /// <summary>Whether the AI's line was shown when last told: its coming and going is animated, so it is told only when it changes.</summary>
     private bool _aiLineShown;
@@ -685,13 +703,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         PropertyChanged    += OnShellPropertyChangedForOverlay;
         Ai.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ShellAIResponseHandler.InBar)) RecheckAiLine();
+        if (e.PropertyName == nameof(ShellAIResponseHandler.InBar))
+            {
+                RecheckAiLine();
+                OnPropertyChanged(nameof(ShowsLocalAiNotice));
+            }
             if (e.PropertyName is nameof(ShellAIResponseHandler.InBar) or nameof(ShellAIResponseHandler.ContextUse))
                 OnPropertyChanged(nameof(AiContextUse));
         };
         Voice.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive)) RecheckAiLine();
+        if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive))
+            {
+                RecheckAiLine();
+                OnPropertyChanged(nameof(ShowsLocalAiNotice));
+            }
             if (e.PropertyName is nameof(VoiceConversationViewModel.IsActive) or nameof(VoiceConversationViewModel.ContextUse))
                 OnPropertyChanged(nameof(AiContextUse));
         };
@@ -722,15 +748,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // ── Voice input availability + transcription wiring ──────────────────
         // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away.
         workspace.ProvidersChanged += (_, _) => _ui.InvokeAsync(RecomputeVoiceAvailable);
+        // What the workspace's own models need is the host they run in: out of reach, the AI's line says so.
+        workspace.ProvidersChanged += (_, _) => _ui.InvokeAsync(RecomputeLocalAiNotice);
+        if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged += OnHostReachabilityChanged;
 
-        _dictation.RecordingChanged += (_, rec) =>
-            _ui.Invoke(() => { IsDictating = rec; IsRecording = VoiceActive = rec || Voice.IsActive; });
-        // Voice owns the input display while listening — set, don't append; the text is everything heard so
-        // far, revised as the model hears more, and its last word lands when listening stops.
-        _dictation.TranscriptUpdated += (_, text) =>
-            _ui.Invoke(() => AiInputText = text);
-        _dictation.Failed += (_, msg) =>
-            _ui.Invoke(() => ShowError(Str.Get("Shell.Errors.Voice"), msg));
+
 
         // A spoken conversation owns the bar as dictation does: what is heard fills the box, and the mic stops it.
         Voice.Heard += text => AiInputText = text;
@@ -745,7 +767,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         {
             if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive))
             {
-                IsRecording = VoiceActive = Voice.IsActive || _dictation.IsRecording;
+                IsRecording = VoiceActive = Voice.IsActive;
                 ToggleVoiceCommand.NotifyCanExecuteChanged();
             }
             else if (e.PropertyName == nameof(VoiceConversationViewModel.State))
@@ -753,6 +775,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         };
 
         RecomputeVoiceAvailable();
+        RecomputeLocalAiNotice();
 
         // ── Shared inbox: keep this window's unread badge + toasts in sync ──
         // The store is shared across windows, but UnreadCount is derived, so recompute on both
@@ -767,7 +790,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>Detaches shared-store handlers so a closed window's view-model can be collected.</summary>
     public void Detach()
     {
-        MessageCenter.Instance.MessagePosted -= OnMessagePosted;
+    MessageCenter.Instance.MessagePosted -= OnMessagePosted;
+        // The host outlives its windows: unhooked, or this window stays rooted by it.
+        if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged -= OnHostReachabilityChanged;
         Notifications.CollectionChanged -= OnInboxChanged;
         foreach (var m in Notifications) m.PropertyChanged -= OnMessageItemChanged;
 
@@ -816,8 +841,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void RecomputeVoiceAvailable()
     {
         var ai = CurrentRuntime.AiService;
-        VoiceAvailable = ai?.StatusOf(AiAbility.SpeechIn).IsUsable == true;
-        VoiceConverses = ai?.CanConverse(SpokenLanguage()) == true;
+        VoiceAvailable = ai is not null && ai.StatusOf(AiAbility.SpeechIn).IsUsable && ai.CanConverse(SpokenLanguage());
     }
 
     /// <summary>The language a conversation is held in: the app's.</summary>
@@ -1614,8 +1638,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         AiResponse? response;
         try
         {
-            // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly.
-            var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed;
+            // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly;
+            // answered on a page that holds a conversation, it is a turn of that conversation.
+            var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed with { Conversation = handler.ConversationName };
             response = await svc.RunAgentAsync(pageVm, input, includeContext, handler, options, token);
         }
         catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }
@@ -1623,10 +1648,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         if (response is null)
         {
-            // Nothing assigned to answer: said in the reply's place, rather than the request vanishing.
+            // Nothing to answer: said in the reply's place, rather than the request vanishing — why the workspace's own models cannot
+            // run where that is why, else that nothing is assigned.
             if (!token.IsCancellationRequested && !svc.StatusOf(AiAbility.GeneralIntelligence).IsUsable)
             {
-                handler.ShowFinal(Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
+                handler.ShowFinal(LocalAiNotice ?? Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
                 return TurnOutcome.Completed;
             }
             handler.Abort();
@@ -1675,25 +1701,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private async Task ToggleVoice()
     {
         if (Voice.IsActive) { await Voice.StopAsync(); return; }
-        if (_dictation.IsRecording) { await _dictation.StopAsync(); return; }   // manual early stop; it also stops by itself after a silence
+        
 
         var ai = CurrentRuntime.AiService;
         if (ai is null || !await ai.MakeReadyAsync(AiAbility.SpeechIn)) return;   // a model still to download offers it, and stops here
         string language = SpokenLanguage();
-        if (ai is not null && ai.CanConverse(language))
+        if (!ai.CanConverse(language)) return;   // the workspace's models changed since the mic was offered; it is offered again when they can
+        var pageVm = ActivePageViewModel;
+        try
         {
-            var pageVm = ActivePageViewModel;
-            try
-            {
-                await Voice.StartAsync(ai, () => ActivePageViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
-            }
-            catch (Exception ex)
-            {
-                ShowError(Str.Get("Shell.Errors.Voice"), ex.Message);
-            }
-            return;
+            await Voice.StartAsync(ai, () => ActivePageViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
         }
-        if (ai?.SpeechToText is { } model) await _dictation.StartAsync(model);
+        catch (Exception ex)
+        {
+            ShowError(Str.Get("Shell.Errors.Voice"), ex.Message);
+        }
     }
 
     /// <summary>Carries a voice conversation on in a conversation page: what was said becomes the conversation's first

@@ -7,9 +7,10 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The real model in the real host — where a machine has it. <c>NEXAFLOW_TEST_GEMMA</c> names a folder holding Gemma
-/// 4 E4B's GGUF and projector as the catalog lays them out; <c>NEXAFLOW_TEST_RUNTIME_PACK</c>, when set, runs it on
-/// CUDA. What is checked is behaviour — the context appended rather than re-read, media read where it comes, calls
+/// The real model in the real host — where a machine has it: Gemma 4 E4B, <c>gemma-4-e4b-it</c> from the test store
+/// (<see cref="TestStore"/>), held where the host places it — on CUDA where the store holds the pack this machine runs, on the CPU
+/// otherwise. What is
+/// checked is behaviour — the context appended rather than re-read, media read where it comes, calls
 /// made and what came of them read on, cancellation honoured — never wording; the media is the sample dataset's, whose
 /// content is beside the point.
 /// </summary>
@@ -19,37 +20,33 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("ai-host")]
 public class OwnedModelTests
 {
+    /// <summary>The model's chat part, as a request names it.</summary>
+    private static readonly ModelRef Chat = new("gemma-4-e4b-it", "chat");
+
     private static AiHostClient? _client;
-    private static ModelSpec? _model;
+
+    /// <summary>The model held for the class's requests, as a conversation holds it.</summary>
+    private static HostHold? _hold;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_GEMMA") is not { Length: > 0 } folder) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        // On the first GPU when the host runs from the pack, as the catalog has it there; on the CPU without.
-        _model = new ModelSpec("gemma-4-e4b-it", "llama-chat", folder, "gemma-4-E4B_q4_0-it.gguf", null,
-                               pack is null ? 0 : 5905580032L + 17920L * 16_384, 16_384, Projector: "gemma-4-E4B-it-mmproj.gguf",
-                               Device: pack is null ? null : 0);
-        await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _model), TimeSpan.FromMinutes(3))) { }
+        _client = await TestStore.HostOnEitherAsync();
+        if (_client is null) return;
+        _hold = await TestStore.HoldPlacedAsync(_client, [Chat], RequestPriority.Interactive);
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
+        if (_hold is not null) await _hold.DisposeAsync();
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, ModelSpec Model) Model()
+    private static (AiHostClient Client, ModelRef Model) Model()
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_GEMMA names no Gemma 4 E4B folder on this machine.");
-        return (_client!, _model!);
+        if (_client is null || _hold is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        return (_client!, Chat);
     }
 
     private sealed record Answer(string Text, GenerationEnded Ended, IReadOnlyList<ChatToolCall> Calls);
@@ -62,7 +59,7 @@ public class OwnedModelTests
         var text = new StringBuilder();
         var calls = new List<ChatToolCall>();
         GenerationEnded? ended = null;
-        await foreach (var reply in client.SendAsync(id => new Generate(id, model, turns, maxNew, RequestPriority.Interactive, tools, Sampling: sampling),
+        await foreach (var reply in client.SendAsync(id => new Generate(id, model, turns, maxNew, RequestPriority.Interactive, tools, Sampling: sampling, Conversation: "the conversation"),
                                                      TimeSpan.FromMinutes(2), ct))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);
@@ -104,15 +101,11 @@ public class OwnedModelTests
         var gemma = new TokenSampling(1.0f, 64, 0.95f, Seed: 11);
         List<ChatTurn> Asked() => Conversation("Write two sentences about a lighthouse keeper.");
 
-        async Task<string[]> OnAFreshHostAsync()
+        async Task<(string[] Replies, PartPlacement Placed)> OnAFreshHostAsync()
         {
-            string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
-            await using var host = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
-                                                                              TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName))
-            {
-                Environment = new AiHostEnvironment(pack),
-            };
-            await foreach (var _ in host.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
+            // The same store on the same machine, beside the class's host: each fresh host places the model as the other did.
+            await using var host = (await TestStore.HostOnEitherAsync())!;
+            await using var hold = await TestStore.HoldPlacedAsync(host, [model], RequestPriority.Interactive);
             var replies = new List<string>();
             foreach (var seed in new uint[] { 11, 12, 13 })
             {
@@ -122,21 +115,22 @@ public class OwnedModelTests
                     if (reply is TextDelta delta) text.Append(delta.Text);
                 replies.Add(text.ToString());
             }
-            return [.. replies];
+            return ([.. replies], hold.PlacementOf(model)!);
         }
 
         var first = await OnAFreshHostAsync();
         var again = await OnAFreshHostAsync();
 
-        CollectionAssert.AreEqual(first, again, "the same requests in the same order draw the same");
-        Assert.IsTrue(first.Distinct().Count() > 1, "it is sampled, not the likeliest token each time");
+        Assert.AreEqual(first.Placed, again.Placed, "each fresh host runs the model where the other did");
+        CollectionAssert.AreEqual(first.Replies, again.Replies, "the same requests in the same order draw the same");
+        Assert.IsTrue(first.Replies.Distinct().Count() > 1, "it is sampled, not the likeliest token each time");
     }
 
     [TestMethod]
     public async Task AnImage_IsReadWithItsTurn()
     {
         var turns = Conversation("Describe this image in a few words.");
-        turns[^1] = turns[^1] with { Media = [new ChatMedia(MediaKind.Image, TestSampleData.Files("images").First(f => f.EndsWith(".png")), null)] };
+        turns[^1] = turns[^1] with { Media = [new ChatMedia(MediaKind.Image, SharedBytes.Of(File.ReadAllBytes(TestSampleData.Files("images").First(f => f.EndsWith(".png")))))] };
         var withImage = await AskAsync(turns);
 
         var plain = await AskAsync(Conversation("Describe this image in a few words."));
@@ -153,7 +147,7 @@ public class OwnedModelTests
         var turns = Conversation("Name a primary colour.");
         await AskAsync(turns);
         turns.Add(new ChatTurn(TurnRole.User, "Now describe this image in a few words.",
-                               [new ChatMedia(MediaKind.Image, TestSampleData.Files("images").First(f => f.EndsWith(".png")), null)]));
+                               [new ChatMedia(MediaKind.Image, SharedBytes.Of(File.ReadAllBytes(TestSampleData.Files("images").First(f => f.EndsWith(".png")))))]));
 
         var answer = await AskAsync(turns);
 
@@ -187,7 +181,7 @@ public class OwnedModelTests
     public async Task ARecording_IsReadWithItsTurn()
     {
         var turns = Conversation("What do you hear in this recording?");
-        turns[^1] = turns[^1] with { Media = [new ChatMedia(MediaKind.Audio, null, File.ReadAllBytes(TestSampleData.Files("audio").First(f => f.EndsWith("tone_mono.wav"))))] };
+        turns[^1] = turns[^1] with { Media = [new ChatMedia(MediaKind.Audio, SharedBytes.Of(File.ReadAllBytes(TestSampleData.Files("audio").First(f => f.EndsWith("tone_mono.wav")))))] };
 
         var answer = await AskAsync(turns);
 

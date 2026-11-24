@@ -6,8 +6,8 @@ namespace Nexaflow.AiHost.Llama;
 /// <summary>
 /// llama.cpp in this process, set up once: the CPU backend best for this processor, from the libraries beside the
 /// host, and with a runtime pack, the CUDA backend from the pack — loaded by path, its NVIDIA libraries found on the
-/// PATH <see cref="NativeRuntime"/> gave the pack. llama.cpp's warnings and errors go to the host's log, and so does
-/// ggml's message when it aborts the process.
+/// PATH <see cref="NativeRuntime"/> gave the pack. llama.cpp's errors go to the host's log, and so does ggml's message when it
+/// aborts the process; its warnings, which name the model it is reading, only where the log keeps model calls.
 /// </summary>
 internal static unsafe class LlamaBackends
 {
@@ -71,7 +71,10 @@ internal static unsafe class LlamaBackends
     private static void Log(LlamaNative.LogLevel level, byte* text, void* userData)
     {
         if (level is not (LlamaNative.LogLevel.Warn or LlamaNative.LogLevel.Error) || text is null) return;
-        _log?.Write("llama.cpp: " + Marshal.PtrToStringUTF8((IntPtr)text)?.TrimEnd());
+        string line = "llama.cpp: " + Marshal.PtrToStringUTF8((IntPtr)text)?.TrimEnd();
+        // An error is the host's; a warning comes as it reads a model, and says which.
+        if (level == LlamaNative.LogLevel.Error) _log?.Write(line);
+        else _log?.WriteActivity(line);
     }
 
     /// <summary>ggml's last words: its message as it aborts, before <c>abort()</c> ends the process. Written to the host's

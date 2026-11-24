@@ -82,8 +82,8 @@ public class ChatPromptTests
     [TestMethod]
     public void MediaTheModelTakesIn_IsAMarkerBeforeTheText_AndMediaItCannot_ANote()
     {
-        var image = new ChatMedia(MediaKind.Image, @"C:\shot.png", null);
-        var speech = new ChatMedia(MediaKind.Audio, null, [1, 2, 3]);
+        var image = new ChatMedia(MediaKind.Image, SharedBytes.Of([137, 80, 78, 71]));
+        var speech = new ChatMedia(MediaKind.Audio, SharedBytes.Of([1, 2, 3]));
 
         var parts = List(Mapping(List(Variables([new(TurnRole.User, "What is this?", [image])])["messages"])[0])["content"]);
         var heard = Mapping(List(Variables([new(TurnRole.User, "And this?", [speech])])["messages"])[0])["content"];

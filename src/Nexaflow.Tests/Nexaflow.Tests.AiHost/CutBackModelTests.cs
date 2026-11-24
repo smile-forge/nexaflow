@@ -7,8 +7,8 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// A conversation cut back to where a prompt parts from it, in the real host with a model whose layers hold recurrent state —
-/// where a machine has one. <c>NEXAFLOW_TEST_HYBRID</c> names the GGUF of a hybrid model (Qwen 3.5, its gated DeltaNet layers
-/// beside attention); it runs on the CPU. What is checked is what was read, never wording.
+/// where a machine has one: Qwen 3.5 9B, <c>qwen-3.5-9b</c> from the test store (<see cref="TestStore"/>), its gated DeltaNet
+/// layers beside attention, held where the host places it. What is checked is what was read, never wording.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -16,33 +16,37 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("conversation-cut-back")]
 public class CutBackModelTests
 {
+    /// <summary>The model's chat part, as a request names it.</summary>
+    private static readonly ModelRef Chat = new("qwen-3.5-9b", "chat");
+
     private static AiHostClient? _client;
-    private static ModelSpec? _model;
+
+    /// <summary>The model held for the class's requests, as a conversation holds it.</summary>
+    private static HostHold? _hold;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_HYBRID") is not { Length: > 0 } gguf || !File.Exists(gguf)) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir));
-        _model = new ModelSpec("hybrid", "llama-chat", Path.GetDirectoryName(gguf)!, Path.GetFileName(gguf), null, 0, 8192,
-                               ContextCache: ContextCache.Q8, Checkpoints: 8);
-        await foreach (var _ in _client.SendAsync(id => new LoadModel(id, _model), TimeSpan.FromMinutes(3))) { }
+        if (!TestStore.HoldsCpuBuildOf(Chat.Model)) return;
+        _client = await TestStore.HostAsync(gpu: false);
+        if (_client is null) return;
+        // A model holding recurrent state is held with saves of it, which is what a conversation is cut back to.
+        _hold = await TestStore.HoldPlacedAsync(_client, [Chat], RequestPriority.Interactive);
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
+        if (_hold is not null) await _hold.DisposeAsync();
         if (_client is not null) await _client.DisposeAsync();
     }
 
     private static async Task<GenerationEnded> AskAsync(List<ChatTurn> turns)
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_HYBRID names no hybrid model's GGUF on this machine.");
+        if (_client is null || _hold is null) Assert.Inconclusive(TestStore.MissingModel(Chat.Model));
         var text = new StringBuilder();
         GenerationEnded? ended = null;
-        await foreach (var reply in _client!.SendAsync(id => new Generate(id, _model!, turns, 48, RequestPriority.Interactive, Thinks: false),
+        await foreach (var reply in _client!.SendAsync(id => new Generate(id, Chat, turns, 48, RequestPriority.Interactive, Thinks: false, Conversation: "cut back"),
                                                        TimeSpan.FromMinutes(5)))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);

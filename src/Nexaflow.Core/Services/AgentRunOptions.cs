@@ -15,6 +15,10 @@ public sealed record AgentRunOptions
     /// <summary>The conversation before this request, oldest first.</summary>
     public IReadOnlyList<LlmMessage> History { get; init; } = [];
 
+    /// <summary>The conversation the run is a turn of, which a model that keeps conversations between turns keeps it under; null
+    /// for work that is no conversation.</summary>
+    public string? Conversation { get; init; }
+
     /// <summary>Guidance on how the reply is written, added to the system prompt; null for the usual.</summary>
     public string? ReplyStyle { get; init; }
 

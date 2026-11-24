@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -15,7 +16,7 @@ public class ModelPlacementTests
 
     private static HostGpu Gpu(int device, double budgetGb) => new(device, $"GPU {device}", null, (long)(budgetGb * GB) + (2 * GB), (long)(budgetGb * GB), (long)(budgetGb * GB) + HostGpu.ReservedBytes);
 
-    private static ModelSpec Spec(string id, long bytes, int context = 0) => new(id, "runner", id, null, null, bytes, context);
+    private static ModelSpec Spec(string id, long bytes, int context = 0) => new(id, "runner", id, null, bytes, context);
 
     /// <summary>Gemma 4 E4B as the catalog has it: 6 GB with no context, 18 KB a token, 32k where there is room.</summary>
     private static PlacementNeed Gemma(bool onCpu = true)
@@ -315,5 +316,15 @@ public class ModelPlacementTests
 
         var short_ = Placed(ModelPlacement.Plan([Gpu(0, 28)], [Large()]), "large");
         Assert.AreEqual(0, short_.BackgroundSequences, "what is left once the model is placed, 2 GB longer steps and 1 GB more sequences in, holds no 9 GB context");
+    }
+
+    [TestMethod]
+    public void ALanguageModelsContext_HoldsItsOpeningsSequencesBesideItsReplies()
+    {
+        var large = Large();
+
+        Assert.AreEqual(large.OnGpu.MemoryBytes + large.BytesPerToken * 32_768 + ModelSpec.OpeningSequences * large.BytesPerSequence,
+                        large.BytesAt(32_768, sequences: ModelSpec.DefaultSequences),
+                        "the replies its catalog was measured writing, and a sequence for each opening beside them");
     }
 }

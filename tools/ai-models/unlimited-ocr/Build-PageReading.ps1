@@ -17,7 +17,7 @@
     to Paddle's own predictor on the sample pages. page_reference.py then runs the makers' own transformers code on those
     pages, and text_finder_reference.py Paddle's detector, into <Work>\reference — what the AI host is held to. Upload with
       hf upload smile-forge/unlimited-ocr <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the published files are written.

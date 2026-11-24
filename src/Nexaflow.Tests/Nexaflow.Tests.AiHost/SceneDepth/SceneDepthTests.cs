@@ -13,8 +13,9 @@ namespace Nexaflow.Tests.AiHost.SceneDepth;
 /// against what their pipeline made of it in fp32 (tools/ai-models/depth-anything-v2-small makes them) — what the network was
 /// given, what it gave at its working size, and that brought to the picture's size by the corner-aligned resize.
 /// <para>
-/// <c>NEXAFLOW_TEST_SCENE_DEPTH</c> names the graph's folder, <c>NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE</c> the reference set and
-/// <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack; without them every test is inconclusive.
+/// The graph is <c>depth-anything-v2-small</c>'s from the test store (<see cref="TestStore"/>), run by a host on the CUDA pack there,
+/// and on the CPU by the host's own handler in the test's process with no GPU to place it on (<see cref="InProcessHost"/>);
+/// <c>NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE</c> names the reference set. Without both every test is inconclusive.
 /// </para>
 /// </summary>
 [TestClass]
@@ -27,51 +28,36 @@ public class SceneDepthTests
     /// another order, and on a GPU in other kernels.</summary>
     private const double Agreement = 0.01;
 
-    private static AiHostClient? _client;
-    private static string? _graph, _reference;
-    private static string _work = "";
+    /// <summary>The scene depth tool, as the catalog names it.</summary>
+    private const string Tool = "depth-anything-v2-small";
 
+    /// <summary>Its estimator, as a hold names it.</summary>
+    private static readonly ModelRef Estimator = new(Tool, SceneDepthParts.Estimator);
+
+    private static AiHostClient? _client;
+    private static string? _reference;
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
-    public static void Start(TestContext context)
+    public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SCENE_DEPTH") is not { Length: > 0 } graph) return;
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE") is not { Length: > 0 } reference) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        (_graph, _reference) = (graph, reference);
-        _work = TestTemp.CreateSubdirectory("nexaflow-scene-depth-").FullName;
+        _client = await TestStore.HostAsync();
+        _reference = reference;
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
         if (_client is not null) await _client.DisposeAsync();
-        try { if (_work.Length > 0) Directory.Delete(_work, recursive: true); } catch (IOException) { }
-    }
-
-    private static IReadOnlyDictionary<string, ModelSpec> Parts(int? device)
-    {
-        if (_client is null || _graph is null)
-            Assert.Inconclusive("NEXAFLOW_TEST_SCENE_DEPTH, NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE and NEXAFLOW_TEST_RUNTIME_PACK are not all set.");
-        return new Dictionary<string, ModelSpec>
-        {
-            [SceneDepthParts.Estimator] = new("depth-anything-v2-small/estimator", "scene-depth-estimator", Path.Combine(_graph!, "estimator"),
-                                              "depth-anything-v2-small.onnx", null, 2L << 30, 0, Device: device),
-        };
     }
 
     private sealed record Case(string Name, int Width, int Height, int WorkingWidth, int WorkingHeight);
 
     private static IEnumerable<Case> Cases()
     {
-        _ = Parts(0);   // inconclusive without the graph
+        if (_client is null || _reference is null)
+            Assert.Inconclusive($"{TestStore.Missing()} Or NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE is not set.");
         return JsonNode.Parse(File.ReadAllText(Path.Combine(_reference!, "reference.json")))!.AsObject()
             .Select(c => new Case(c.Key, c.Value!["width"]!.GetValue<int>(), c.Value!["height"]!.GetValue<int>(),
                                   c.Value!["workingWidth"]!.GetValue<int>(), c.Value!["workingHeight"]!.GetValue<int>()));
@@ -79,15 +65,20 @@ public class SceneDepthTests
 
     private static float[] Floats(string file) => MemoryMarshal.Cast<byte, float>(File.ReadAllBytes(file)).ToArray();
 
-    private async Task<(SceneDepthEstimated Done, float[] Disparity)> EstimateAsync(Case c, int? device)
+    private async Task<(SceneDepthEstimated Done, float[] Disparity)> EstimateAsync(Case c)
     {
-        var into = Path.Combine(_work, $"{c.Name}-{device?.ToString() ?? "cpu"}.f32");
+        using var pixels = await _client!.ShareFileAsync(Path.Combine(_reference!, $"{c.Name}.rgba"));
         var replies = new List<HostReply>();
-        await foreach (var reply in _client!.SendAsync(id => new EstimateSceneDepth(id, Parts(device), Path.Combine(_reference!, $"{c.Name}.rgba"),
-                                                                                    c.Width, c.Height, into, RequestPriority.Job),
-                                                       TimeSpan.FromMinutes(5)))
+        await foreach (var reply in _client.SendAsync(id => new EstimateSceneDepth(id, Tool, pixels, c.Width, c.Height, RequestPriority.Job),
+                                                      TimeSpan.FromMinutes(5)))
             replies.Add(reply);
-        return (replies.OfType<SceneDepthEstimated>().Single(), Floats(into));
+        return Disparity(replies);
+    }
+
+    private static (SceneDepthEstimated Done, float[] Disparity) Disparity(List<HostReply> replies)
+    {
+        var done = replies.OfType<SceneDepthEstimated>().Single();
+        using (done.Disparity) return (done, MemoryMarshal.Cast<byte, float>(done.Disparity.Span).ToArray());
     }
 
     /// <summary>The largest difference between two sets of values, as a share of the reference's range.</summary>
@@ -115,9 +106,13 @@ public class SceneDepthTests
     [TestMethod]
     public async Task EachPicture_HasTheDepthInferImageGives_OnTheGpu()
     {
-        foreach (var c in Cases())
+        var cases = Cases();
+        // Held, the estimator runs where the host placed it for the hold: a GPU, where one has room for it.
+        await using var hold = await TestStore.HoldPlacedAsync(_client!, [Estimator], RequestPriority.Job);
+        Assert.IsNotNull(hold.PlacementOf(Estimator)!.Device, "the host placed the estimator on a GPU");
+        foreach (var c in cases)
         {
-            var (done, disparity) = await EstimateAsync(c, device: 0);
+            var (done, disparity) = await EstimateAsync(c);
             Assert.AreEqual((c.WorkingWidth, c.WorkingHeight), (done.Width, done.Height), $"{c.Name}: the disparity is at the working size");
             double atWork = Worst(Floats(Path.Combine(_reference!, $"{c.Name}.disparity")), disparity);
             var full = PictureResampling.ResizePlaneBilinearAligned(disparity, done.Width, done.Height, c.Width, c.Height);
@@ -131,7 +126,10 @@ public class SceneDepthTests
     public async Task EachPicture_HasTheSameDepth_OnTheCpu()
     {
         var c = Cases().First();
-        var (done, disparity) = await EstimateAsync(c, device: null);
+        using var host = InProcessHost.OnTheCpu();
+        var request = new EstimateSceneDepth(1, Tool, SharedBytes.Of(File.ReadAllBytes(Path.Combine(_reference!, $"{c.Name}.rgba"))), c.Width, c.Height,
+                                             RequestPriority.Job);
+        var (done, disparity) = Disparity(await InProcessHost.RunAsync(new SceneDepthHandler(host.Held, host.Scheduler), request));
         double atWork = Worst(Floats(Path.Combine(_reference!, $"{c.Name}.disparity")), disparity);
         TestContext.WriteLine($"{c.Name} on the CPU: {atWork:P3} of its range from the network's");
         Assert.IsTrue(atWork < Agreement, $"{c.Name}: {atWork:P3} of its range from infer_image's on the CPU");

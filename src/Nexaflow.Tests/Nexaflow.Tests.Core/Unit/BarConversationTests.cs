@@ -60,6 +60,18 @@ public class BarConversationTests
     }
 
     [TestMethod]
+    public void ItsRuns_AreTurnsOfOneNamedConversation_AndTheNextConversationHasANameOfItsOwn()
+    {
+        var bar  = new BarConversation();
+        var name = bar.Run(Style, Now).Conversation;
+        Assert.IsNotNull(name);
+        Assert.AreEqual(name, bar.Run(Style, Now).Conversation, "each request is a turn of the one conversation");
+
+        Assert.AreEqual(name, bar.End(), "ending it names the conversation ended, for its models to let go");
+        Assert.AreNotEqual(name, bar.Run(Style, Now).Conversation);
+    }
+
+    [TestMethod]
     public void ItsExchanges_AndTheFilesItTouched_AreKeptInOrder_EachFileOnce()
     {
         var bar = new BarConversation();

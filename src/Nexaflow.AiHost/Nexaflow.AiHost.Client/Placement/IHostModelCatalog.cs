@@ -1,3 +1,5 @@
+using Nexaflow.AiHost.Catalog;
+
 namespace Nexaflow.AiHost.Client;
 
 /// <summary>A provider of models the host runs, as the machine's setup is described before any of them loads: what

@@ -9,7 +9,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// out to cut out or retouch, and AI fill — each made with nothing offered to download or try again. The edit journey
 /// covers the same controls waiting, disabled, for models that are not here.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding the picture tools, picture selection and picture erasing as the
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding the picture tools, picture selection and picture erasing as the
 /// app keeps them, which the app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it, or with one of them missing —
 /// the editor then offers it for download — the journey is inconclusive.
 /// </para>
@@ -21,7 +21,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [CoversNode("images-edit-models")]
 public class ImagesEditAiJourneyTests : ImageEditJourneyBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
 

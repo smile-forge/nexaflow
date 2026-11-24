@@ -11,6 +11,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+    <!-- SharedSection: a mapped section is read in place through a span over its view. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The two ends that make and open shared sections, within the SDK family. -->
+    <InternalsVisibleTo Include="Nexaflow.AiHost" />
+    <InternalsVisibleTo Include="Nexaflow.AiHost.Client" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.AiHost" />
+  </ItemGroup>
 
 </Project>

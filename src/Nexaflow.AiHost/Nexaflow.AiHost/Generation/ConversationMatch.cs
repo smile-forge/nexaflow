@@ -1,4 +1,5 @@
 using Nexaflow.AiHost.Contracts;
+using System.Security.Cryptography;
 
 namespace Nexaflow.AiHost.Generation;
 
@@ -49,9 +50,19 @@ internal static class ConversationMatch
         && a.Answers == b.Answers;
 
     private static bool SameMedia(IReadOnlyList<ChatMedia> a, IReadOnlyList<ChatMedia> b)
-        => a.Count == b.Count && a.Zip(b).All(p => p.First.Kind == p.Second.Kind
-                                                  && p.First.Path == p.Second.Path
-                                                  && (p.First.Bytes ?? []).AsSpan().SequenceEqual(p.Second.Bytes ?? []));
+        => a.Count == b.Count && a.Zip(b).All(p => p.First.Kind == p.Second.Kind && p.First.Bytes.Span.SequenceEqual(p.Second.Bytes.Span));
+
+    /// <summary>
+    /// <paramref name="turns"/> as a kept conversation remembers them: each medium's bytes replaced by their SHA-256, since the bytes
+    /// end with the request that sent them while the conversation outlives it. Turns compare by <see cref="Same"/> as they would
+    /// with their bytes, both sides remembered.
+    /// </summary>
+    public static IReadOnlyList<ChatTurn> Remembered(IReadOnlyList<ChatTurn> turns)
+        => turns.Any(t => t.Media is { Count: > 0 })
+           ? [.. turns.Select(t => t.Media is { Count: > 0 } media
+                 ? t with { Media = [.. media.Select(m => new ChatMedia(m.Kind, SharedBytes.Of(SHA256.HashData(m.Bytes.Span))))] }
+                 : t)]
+           : turns;
 
     /// <summary>
     /// Where a conversation holding <paramref name="history"/> — every token it has read, in order — may be cut back to, for

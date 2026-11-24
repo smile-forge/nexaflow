@@ -20,6 +20,7 @@ using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Local;
+using Nexaflow.AiHost.Catalog;
 
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -45,7 +46,7 @@ public class LocalModelsTests
         ["whisper/small.bin"] = Bytes(4_000, 1),
         ["whisper/large.bin"] = Bytes(9_000, 3),
         ["whisper/base.bin"]  = Bytes(2_000, 15),
-        ["whisper/ggml-large.bin"] = Bytes(2_500, 17),
+        
         ["models/e4b.gguf"]   = Bytes(6_000, 5),
         ["models/big.gguf"]   = Bytes(7_000, 7),
         ["models/z.onnx"]     = Bytes(5_000, 9),
@@ -62,7 +63,6 @@ public class LocalModelsTests
     private static readonly CatalogModel Large = Model("large", "whisper/large.bin");
 
     private static readonly CatalogModel Base  = Model("base", "whisper/base.bin");
-    private static readonly CatalogModel CppLarge = Model("large-v3-turbo", "whisper/ggml-large.bin");
     private static readonly CatalogModel E4b   = Model("e4b", "models/e4b.gguf");
     private static readonly CatalogModel Big   = Model("big", "models/big.gguf");
     private static readonly CatalogModel Z     = Model("z", "models/z.onnx");
@@ -134,18 +134,6 @@ public class LocalModelsTests
         public Task<ISpeechToTextSession> StartSessionAsync(SpeechToTextOptions options, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
-    /// <summary>whisper.cpp, on any machine: base, which dictates, and a larger size an earlier version could choose.</summary>
-    private sealed class WhisperCpp : ISpeechToTextProvider, ILocalModelCatalog
-    {
-        public string Name => "Whisper";
-        public DataResidency Residency => DataResidency.StaysOnMachine;
-        public ModelHarness Harness => ModelHarness.Owned;
-        public IReadOnlyList<CatalogModel> Catalog => [Base, CppLarge];
-        public IReadOnlyList<UnrunnableModel> Unrunnable => [];
-        public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<string>>([]);
-        public Task<ISpeechToTextSession> StartSessionAsync(SpeechToTextOptions options, CancellationToken ct = default) => throw new NotSupportedException();
-    }
-
     private sealed class Claude : ILlmProvider
     {
         public string Name => "Claude";
@@ -198,8 +186,8 @@ public class LocalModelsTests
     /// <summary>A workspace conversing on Claude and listening with Nexaflow's small speech model, on the Local column.</summary>
     private Setup Open(bool runs = true, LocalModelDownloads? downloads = null)
     {
-        var providers = new ProviderSet([new Gemma(runs), new Listening(runs), new WhisperCpp(), new Pictures(runs), new Claude()], new Dictionary<string, IAiProvider>(), [],
-            new Dictionary<string, string> { ["Nexaflow"] = "Nexaflow.Providers.AiHost.dll", ["Whisper"] = "Nexaflow.Providers.Whisper.dll", ["Claude"] = "Nexaflow.Providers.Claude.dll" }, []);
+        var providers = new ProviderSet([new Gemma(runs), new Listening(runs), new Pictures(runs), new Claude()], new Dictionary<string, IAiProvider>(), [],
+            new Dictionary<string, string> { ["Nexaflow"] = "Nexaflow.Providers.AiHost.dll", ["Claude"] = "Nexaflow.Providers.Claude.dll" }, []);
         var config = new AiConfig
         {
             Providers = providers,
@@ -409,32 +397,25 @@ public class LocalModelsTests
     });
 
     [TestMethod]
-    public void SpeechToText_OffersNexaflowsOwnSpeechModels_NeverWhisperCpps_WhereOneRunsHere() => OnUi(() =>
+    public void SpeechToText_OffersNexaflowsOwnSpeechModels() => OnUi(() =>
     {
         var speech = Job(Page(Open()), LocalSlot.SpeechToText);
 
         CollectionAssert.AreEqual(new[] { "SMALL", "LARGE" }, speech.Choices.Select(c => c.DisplayName).ToArray(), "every one of them holds a conversation");
-        Assert.IsFalse(speech.IsDictationOnly);
         Assert.IsTrue(speech.CanChoose);
         return Task.CompletedTask;
     });
 
     [TestMethod]
-    public void AMachineThatRunsNoneOfNexaflowsSpeechModels_OnlyDictates_WithWhisperBase() => OnUi(() =>
+    public void AMachineThatRunsNoneOfNexaflowsSpeechModels_HasNothingToChoose_AndSaysWhy() => OnUi(() =>
     {
         var setup  = Open(runs: false);
         var speech = Job(Page(setup), LocalSlot.SpeechToText);
 
-        Assert.AreEqual(LocalColumns.Dictation.Model, setup.Shelf.OptionsFor(LocalSlot.SpeechToText).Single().Id);
-        Assert.IsTrue(speech.IsDictationOnly);
-        Assert.IsFalse(speech.CanChoose, "there is nothing to choose");
-        Assert.AreEqual(Str.Get("Shell.Config.Local.DictationNote"), speech.Note);
-        Assert.AreEqual(Str.Get("Shell.Config.AiGrid.Local.NoHardware"), setup.Grid.LocalNotice, "dictation answers nothing: a cloud service still has to");
-
-        LocalColumns.Choose(setup.Config, LocalSlot.SpeechToText, LocalColumns.Dictation);
-        var grid = new AiAbilityGridViewModel(setup.Config, setup.Shelf, setup.Downloads);
-    Assert.AreEqual(Str.Format("Shell.Config.AiGrid.Local.NotHereFormat", Str.Get("Shell.Config.Local.Dictation")), LocalCell(grid, AiAbility.SpeechIn).Note,
-                        "the grid names the job, not whisper.cpp's model");
+        Assert.IsTrue(setup.Shelf.OptionsFor(LocalSlot.SpeechToText).All(o => !o.Runs), "they are shown, none to choose");
+        Assert.IsFalse(speech.CanChoose);
+        Assert.AreEqual(Str.Get(AiAbilityGridViewModel.WhyNoneRunsKey(setup.Shelf.WhyNoneRuns(LocalSlot.SpeechToText))), speech.Note);
+        Assert.AreEqual(Str.Get("Shell.Config.AiGrid.Local.NoHardware"), setup.Grid.LocalNotice, "a cloud service has to listen, or there is no voice");
         return Task.CompletedTask;
     });
 
@@ -638,13 +619,12 @@ public class LocalModelsTests
     }
 
     [TestMethod]
-    public async Task AModelNoJobOffersHere_IsStillListedWhileItIsOnDisk_SoItCanGo()
+    public async Task AModelThisMachineDoesNotRun_IsStillListedWhileItIsOnDisk_SoItCanGo()
     {
-        var cpp = CppLarge;
-        await _store.EnsureAllAsync([.. cpp.Files]);
-        var page = new DownloadedModelsViewModel(Open().Shelf, () => [], []);
+        await _store.EnsureAllAsync([.. Small.Files]);
+        var page = new DownloadedModelsViewModel(Open(runs: false).Shelf, () => [], []);
 
-        var listed = page.Models.Single(m => m.Name == "LARGE-V3-TURBO");
+        var listed = page.Models.Single(m => m.Name == "SMALL");
         Assert.IsTrue(listed.DeleteCommand.CanExecute(null));
     }
 
@@ -688,13 +668,13 @@ public class LocalModelsTests
         var setup = Open();
 
         var offered = new LocalModelsViewModel(setup.Shelf, setup.Grid, setup.Workspace, setup.Downloads, () => _saves++, [],
-                                               new CudaPackDownload(_store, _root, gpu, null)).CudaPack!;
+                                               new CudaPackDownload(_store, () => false, gpu, null)).CudaPack!;
         Assert.IsTrue(offered.IsMissing);
         Assert.IsTrue(offered.DownloadCommand.CanExecute(null));
         Assert.AreEqual(Str.Format("Shell.Config.Local.DownloadFormat", SizeFormatter.FormatBytes(CudaRuntimePack.Size)), offered.DownloadLabel);
 
         var unused = new LocalModelsViewModel(setup.Shelf, setup.Grid, setup.Workspace, setup.Downloads, () => _saves++, [],
-                                              new CudaPackDownload(_store, _root, MachineCards.None, null)).CudaPack!;
+                                              new CudaPackDownload(_store, () => false, MachineCards.None, null)).CudaPack!;
         Assert.IsFalse(unused.IsMissing, "a machine without an NVIDIA GPU runs on its CPU, and is offered no pack");
         Assert.IsFalse(unused.DownloadCommand.CanExecute(null));
         return Task.CompletedTask;

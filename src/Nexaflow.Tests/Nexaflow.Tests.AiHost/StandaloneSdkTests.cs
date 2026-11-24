@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;
@@ -8,8 +9,8 @@ namespace Nexaflow.Tests.AiHost;
 /// <summary>
 /// The AI host and its SDK on their own: what they reference of Nexaflow — nothing but themselves — and an app that is not
 /// Nexaflow (<c>Nexaflow.AiHost.Sample</c>, copied into <c>AiHostSample\</c> beside these tests) running a private host
-/// through the SDK alone. <c>NEXAFLOW_TEST_SAMPLE_GGUF</c> names the GGUF it runs; <c>NEXAFLOW_TEST_RUNTIME_PACK</c>, optional,
-/// the CUDA pack it runs on where the machine suits it.
+/// through the SDK alone, on the test store (<see cref="TestStore"/>): Gemma 4 E4B, on the CUDA pack where the machine suits it.
+/// The app fetches what its host's store lacks, so it runs only where the test store holds all it would ask for.
 /// </summary>
 [TestClass]
 [CoversNode("ai-host")]
@@ -53,8 +54,12 @@ public class StandaloneSdkTests
     [Timeout(600_000, CooperativeCancellation = true)]
     public async Task AnAppThatIsNotNexaflow_RunsAPrivateHost_ThroughTheSdkAlone()
     {
-        string gguf = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SAMPLE_GGUF") ?? "";
-        if (!File.Exists(gguf)) Assert.Inconclusive("NEXAFLOW_TEST_SAMPLE_GGUF names no GGUF on this machine.");
+        // What the app asks its host for: the model's files for the runtime this machine runs it on, and the pack for the GPU.
+        const string model = "gemma-4-e4b-it";
+        var entry = HostCatalog.Models.Single(m => m.Id == model);
+        bool onGpu = CudaRuntimePack.Applies(MachineCards.Probe()) && entry.RunsOn(HostCatalog.Cuda);
+        if (!TestStore.HoldsAll([.. entry.FilesFor(onGpu ? HostCatalog.Cuda : HostCatalog.Cpu), .. onGpu ? CudaRuntimePack.Files : []]))
+            Assert.Inconclusive($"{TestStore.Missing(gpu: false)} Or it does not hold all of {entry.DisplayName}{(onGpu ? " and the CUDA pack" : "")}.");
 
         string bin = AppContext.BaseDirectory;
         var start = new ProcessStartInfo(Path.Combine(bin, "AiHostSample", "Nexaflow.AiHost.Sample.exe"))
@@ -63,13 +68,8 @@ public class StandaloneSdkTests
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
-        foreach (var argument in new[] { "--host", Path.Combine(bin, "AiHost", "Nexaflow.AiHost.exe"), "--gguf", gguf })
+        foreach (var argument in new[] { "--host", Path.Combine(bin, "AiHost", "Nexaflow.AiHost.exe"), "--model", model, "--store", TestStore.Root! })
             start.ArgumentList.Add(argument);
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } pack)
-        {
-            start.ArgumentList.Add("--pack");
-            start.ArgumentList.Add(pack);
-        }
 
         using var app = Process.Start(start)!;
         var output = app.StandardOutput.ReadToEndAsync();

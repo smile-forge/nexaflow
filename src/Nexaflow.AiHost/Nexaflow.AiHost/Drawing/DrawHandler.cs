@@ -12,24 +12,25 @@ namespace Nexaflow.AiHost.Drawing;
 /// them, not all — and the picture borrows that room: residents nothing is using make way on its parts' GPUs, and load
 /// again after it.
 /// </summary>
-internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMethod> methods) : HostRequestHandler<Draw>
+internal sealed class DrawHandler(ModelRegistry models, RequestModels requests, IReadOnlyList<IDrawingMethod> methods) : HostRequestHandler<Draw>
 {
     public const string Drawing = "drawing";
 
     protected override async Task HandleAsync(Draw request, Func<HostReply, Task> reply, CancellationToken ct)
     {
-        var method = methods.FirstOrDefault(m => m.Method == request.Model.Method)
-                     ?? throw new HostRequestException(HostErrorKind.Invalid, $"This host does not draw the {request.Model.Method} way.");
+        var (entry, sampler) = requests.Drawer(request.Model);
+        var method = methods.FirstOrDefault(m => m.Method == sampler.Method)
+                      ?? throw new HostRequestException(HostErrorKind.Invalid, $"This host does not draw the {sampler.Method} way.");
         if (string.IsNullOrWhiteSpace(request.Prompt))
             throw new HostRequestException(HostErrorKind.Invalid, "Drawing needs a prompt.");
         if (request.NegativePrompt is not null && !method.TakesNegativePrompts)
-            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way is told nothing to keep out.");
+            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {sampler.Method} way is told nothing to keep out.");
         if (request.Lora is not null && !method.TakesLoras)
-            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way takes no LoRA.");
+            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {sampler.Method} way takes no LoRA.");
         if (request.Sources.Count > method.MaxSources)
-            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way works from at most {method.MaxSources} picture(s).");
+            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {sampler.Method} way works from at most {method.MaxSources} picture(s).");
         if (request.Mask is not null && !method.Masks)
-            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {request.Model.Method} way takes no mask.");
+            throw new HostRequestException(HostErrorKind.Invalid, $"A model that draws the {sampler.Method} way takes no mask.");
 
         if (request.Sources.Count > 0)
         {
@@ -46,8 +47,11 @@ internal sealed class DrawHandler(ModelRegistry models, IReadOnlyList<IDrawingMe
                 throw new HostRequestException(HostErrorKind.Invalid, $"{request.Width}x{request.Height} is not a size this model draws at.");
         }
 
-        using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
-        var rgb = await method.DrawAsync(request, stage => reply(new Progress(request.RequestId, stage, 0, 0)),
+        Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
+        var model = await requests.DrawingAsync(entry, request.Lora, Stage, ct);
+
+        using var room = models.BorrowRoom();
+        var rgb = await method.DrawAsync(request, model, Stage,
                                          (done, total) => reply(new Progress(request.RequestId, Drawing, done, total)), room, ct);
         await reply(new Drawn(request.RequestId, request.Width, request.Height, rgb));
     }

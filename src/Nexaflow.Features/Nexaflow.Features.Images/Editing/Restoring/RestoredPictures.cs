@@ -20,7 +20,7 @@ namespace Nexaflow.Features.Images.Editing.Restoring;
 /// It goes to the tools as raw RGBA and comes back the same way (<see cref="PictureRestoreRequest"/>), and is kept as PNG
 /// with that colour space embedded, so it decodes as the same pixels.
 /// </remarks>
-[LocalDiskOnly("restorations, kept in the app's cache and handed to the picture tools through the temp folder; the photo itself is read through the runtime's file system")]
+[LocalDiskOnly("restorations, kept in the app's cache; the photo itself is read through the runtime's file system")]
 public sealed class RestoredPictures(string folder, long budgetBytes)
 {
     /// <summary>How much disk the restorations may take together before the oldest are let go.</summary>
@@ -63,37 +63,20 @@ public sealed class RestoredPictures(string folder, long budgetBytes)
         }
 
         Directory.CreateDirectory(folder);
-        var work = Directory.CreateTempSubdirectory("nexaflow-restoring-").FullName;
-        try
-        {
-            string pixels = Path.Combine(work, "photo.rgba"), into = Path.Combine(work, "restored.rgba");
-            var (width, height, space) = await Task.Run(() => WriteUprightAsync(services, photo, pixels, ct), ct);
-            var restored = await tools.RestoreAsync(new PictureRestoreRequest(pixels, width, height, restore.Scale, restore.Faces, into), progress, ct);
-            var kept = path + ".tmp";
-            await Task.Run(() => Encode(into, restored.Width, restored.Height, space, kept), ct);
-            _kept.Keep(kept, path);
-            return path;
-        }
-        finally
-        {
-            try { Directory.Delete(work, recursive: true); } catch (IOException) { /* the temp folder's own clean-up has it */ }
-        }
-    }
-
-    /// <summary>The photo at full size, upright, as raw unpremultiplied RGBA in its own colour space — what the tools read.</summary>
-    private static async Task<(int Width, int Height, SKColorSpace Space)> WriteUprightAsync(ImageEditingServices services, string photo, string into,
-                                                                                             CancellationToken ct)
-    {
-        var upright = await services.ReadUprightAsync(photo, ct);
-        await File.WriteAllBytesAsync(into, upright.Rgba, ct);
-        return (upright.Width, upright.Height, upright.Space);
+        var upright = await Task.Run(() => services.ReadUprightAsync(photo, ct), ct);
+        using var restored = await tools.RestoreAsync(new PictureRestoreRequest(upright.Rgba, upright.Width, upright.Height, restore.Scale, restore.Faces),
+                                                      progress, ct);
+        var kept = path + ".tmp";
+        await Task.Run(() => Encode(restored.Pixels.Memory, restored.Width, restored.Height, upright.Space, kept), ct);
+        _kept.Keep(kept, path);
+        return path;
     }
 
     /// <summary>The tools' raw RGBA kept as PNG, its colour space embedded; fast compression, since it is a cache.</summary>
-    private static void Encode(string pixels, int width, int height, SKColorSpace space, string into)
+    private static void Encode(ReadOnlyMemory<byte> pixels, int width, int height, SKColorSpace space, string into)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul, space);
-        using var image = SKImage.FromPixelCopy(info, File.ReadAllBytes(pixels))
+        using var image = SKImage.FromPixelCopy(info, pixels.Span)
                           ?? throw new InvalidOperationException("The restored picture could not be read back.");
         using var pixmap = image.PeekPixels();
         using var data = pixmap.Encode(new SKPngEncoderOptions(SKPngEncoderFilterFlags.AllFilters, zLibLevel: 2))

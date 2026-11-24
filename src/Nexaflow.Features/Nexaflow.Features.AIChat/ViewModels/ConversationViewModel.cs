@@ -189,8 +189,8 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     }
 
     /// <summary>
-    /// On tab close, queue a background analysis of the conversation when analysis is enabled and
-    /// content was added this session. Replaces any prior analysis (covers the full current transcript).
+    /// On tab close, the conversation is forgotten by the models that kept it, and a background analysis of it is queued when
+    /// analysis is enabled and content was added this session. Replaces any prior analysis (covers the full current transcript).
     /// </summary>
     private void OnOwnerClosed(object? sender, EventArgs e)
     {
@@ -204,6 +204,9 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         // Must run regardless of analysis settings.
         foreach (var p in _ownedContextPages) p.RaiseClosed();
         _ownedContextPages.Clear();
+
+        // The conversation is closed with its page: the models that kept it between turns let it go. Its record stays.
+        if (Conversation is { } closed) _ = _aiService.ForgetConversationAsync(closed.Id);
 
         if (!_config.IsAnalysisEnabled) return;
         if (Conversation is not { Messages.Count: > 0 }) return;
@@ -323,6 +326,12 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         RecomputeTokens();
     }
 
+    /// <summary>Another conversation loaded in the page, or a new one started: the models let go of the one it held.</summary>
+    partial void OnConversationChanged(ConversationRecord? oldValue, ConversationRecord? newValue)
+    {
+        if (oldValue is not null && oldValue.Id != newValue?.Id) _ = _aiService.ForgetConversationAsync(oldValue.Id);
+    }
+
     /// <summary>
     /// Seeds and runs a first turn from an external opener (e.g. the Projects "Task to AI" / "Plan with
     /// AI" buttons open this tab with an <c>initialPrompt</c> param). Echoes the prompt as the user
@@ -345,6 +354,9 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
 
     // ── IAIResponseHandler (inline agent rendering) ───────────────────────
     // The agent loop drives these; everything is rendered into Timeline. Marshalled to the UI thread.
+
+    /// <summary>The conversation the page holds, by its id: every turn asked here, typed or spoken, is a turn of it.</summary>
+    public string? ConversationName => Conversation?.Id;
 
     /// <summary>A new turn: echo the user's message and show a "considering" placeholder.</summary>
     public void BeginResponse(string userText) => OnUi(() =>

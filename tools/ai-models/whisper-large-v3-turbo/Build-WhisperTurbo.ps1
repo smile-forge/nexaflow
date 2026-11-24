@@ -15,7 +15,7 @@
     and beside them the model card (README.md), the patch and this script, so the published repository says how to
     rebuild itself. Upload with
       hf upload smile-forge/whisper-large-v3-turbo-onnx-genai <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the builds are written.

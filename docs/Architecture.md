@@ -88,7 +88,7 @@ The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved
 | `FileMapManager`, `ExternalAppRegistry`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 | `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`LocalAiFolder`; `NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume by the AI host SDK's store | — |
 
-**Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme, language), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`. Dictation's model is the workspace's: the ability grid's Speech In row.
+**Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme, language), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`. The models a voice conversation listens and speaks with are the workspace's: the ability grid's Speech In and Speech Out rows.
 
 > ⚠️ The **AI persona** (`AiPersonaConfig`: assistant name + system prompt) is **per-`Workspace`**
 > (persisted under `Contexts\<name>\ai-persona`, exposed as `Workspace.Persona`) — as are the
@@ -301,8 +301,9 @@ kinds the user picked (`ModelKindsStep`) in theirs, the Local column keeping a m
 nowhere; both chain the two in the reasoning rows and give the Local column the rest. A grid saved by an earlier version
 is brought up to date as it is read (`AiConfig.BringUpToDate`): its Conversation row becomes General Intelligence, and
 Speech In starts on the Local column where it never had the row; the workspace settles that model as it loads — one of
-Nexaflow's own speech models, or whisper.cpp's base where the machine runs none (`LocalColumns.Settle`). The mic holds a
-conversation on any speech model but that one; on it, `DictationService` streams the microphone into the box.
+Nexaflow's own speech models, and none where the machine runs none of them (`LocalColumns.Settle`). The mic holds a spoken
+conversation where something listens, a voice speaks the language and a model answers (`AIService.CanConverse`), locally or
+through a cloud service's speech models; where nothing does, the mic is not offered.
 
 **What needs an ability.** `IAIService.StatusOf` says where an ability stands — unassigned, assigned but unreachable,
 waiting on the download of a model Nexaflow runs itself, downloading, or ready (`AbilityReadiness`) — and
@@ -322,7 +323,7 @@ All providers implement `IAiProvider` through their kind's contract (and optiona
 | `Nexaflow.Providers.OpenAI` | OpenAI API over HTTPS: chat models, and the realtime transcription API for speech to text. |
 | `Nexaflow.Providers.OpenAICompatible` | Not a provider: `ChatCompletionsLlmProvider`, the chat-completions wire format (messages, tools, the streamed reply, the model list) that the OpenAI and xAI language models derive from, each saying only its name, endpoint, key and what its models can do. Shared like `Providers.Common`, so it declares no concrete provider or config (`ArchitectureRulesTests`). |
 | `Nexaflow.Providers.XAI` | xAI's Grok models over its OpenAI-compatible API. Which models it serves, which take pictures and how much each reads come from xAI's own model endpoints (`/language-models`, `/models/{id}`), not from the model's name. |
-| `Nexaflow.Providers.Whisper` | whisper.cpp (Whisper.net) on this machine's CPU: Dictation only, with Whisper base, where the machine runs none of Nexaflow's own speech models; its models come from the asset store. |
+
 | `Nexaflow.Providers.Ollama` | Ollama REST API for locally-hosted models. |
 | `Nexaflow.Providers.Local` | Not a provider: what a provider whose models run on this machine tells the app — its catalog (`ILocalModelCatalog`, `CatalogModel`, the manifest reader `ModelCatalog`), the models this machine cannot run and why, the runtime several share. The files themselves are the AI host SDK's (`Nexaflow.AiHost.Provisioning`: `ModelAsset`, `IModelAssetStore`, `ModelAssetStore`). Shared like `Providers.Common`, so it declares no concrete provider or config. |
 
@@ -889,7 +890,9 @@ re-rolling them.
 ## Installer
 
 The installer is its own solution, `NexaflowSetup.slnx`: `nexaflowSetup` builds the MSI that carries the app (and fails
-on a broken product tree — `ValidateSnaplinks`), and `nexaflowBundle` the WiX Burn bundle released as the setup exe.
+on a broken product tree — `ValidateSnaplinks`), `aihostSetup` the MSI that installs the AI host as the machine's service
+(installed by the bundle where its Install page's `InstallAiHost` asks — [local-ai.md](local-ai.md)), and
+`nexaflowBundle` the WiX Burn bundle released as the setup exe.
 The bundle's chain puts what the app needs from Windows in place before the MSI. Each prerequisite is an `ExePackage`
 whose installer is downloaded only when a registry search finds the machine without it; it is permanent (uninstalling
 Nexaflow leaves it) and vital (a failure stops the chain before the MSI).

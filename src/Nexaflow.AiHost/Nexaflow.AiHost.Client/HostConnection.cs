@@ -9,14 +9,21 @@ using Nexaflow.AiHost.Contracts;
 namespace Nexaflow.AiHost.Client;
 
 /// <summary>
-/// One running host and its pipe: the handshake, the loop that routes replies to their requests, and the heartbeat.
+/// One running host and its pipe: the handshake, the loop that routes replies to their requests, and the heartbeat. The host is
+/// one this app started for itself (<see cref="StartAsync"/>), killed when a watchdog finds it hung, or the machine's service — where it
+/// is installed, the only host — that other apps share too (<see cref="JoinAsync"/>, <see cref="Shared"/>), which this app never kills: a request that stalls there is
+/// cancelled and fails alone, and a missed heartbeat lets the connection go, for the next request to join again.
 /// When anything ends it — the process exiting, the pipe breaking, a watchdog — every open request fails as
 /// <see cref="AiHostFailure.Lost"/> and <see cref="Ended"/> is raised once, unless the app ended it itself.
 /// </summary>
 internal sealed class HostConnection : IAsyncDisposable
 {
-    private readonly IAiHostProcess _process;
+    /// <summary>The host's process, where this app started it; null for the service it joined.</summary>
+    private readonly IAiHostProcess? _process;
+    private readonly int _processId;
     private readonly HostChannel _channel;
+
+    private readonly ClientSections _sections;
     private readonly AiHostTimings _timings;
     private readonly TimeProvider _time;
     private readonly CancellationTokenSource _life = new();
@@ -38,17 +45,25 @@ internal sealed class HostConnection : IAsyncDisposable
 
     private Task? _closed;
 
-    private HostConnection(IAiHostProcess process, AiHostEnvironment environment, HostChannel channel, AiHostTimings timings,
-                           TimeProvider time)
+    private HostConnection(IAiHostProcess? process, int processId, AiHostEnvironment environment, HostChannel channel, ClientSections sections,
+                           AiHostTimings timings, TimeProvider time)
     {
         _process     = process;
+        _processId   = processId;
         Environment  = environment;
         _channel     = channel;
+        _sections    = sections;
         _timings     = timings;
         _time        = time;
         _lastPong    = time.GetTimestamp();
         _idleSince   = _lastPong;
     }
+
+    /// <summary>Joined to the machine's service, which other apps share: never killed by this app, only let go.</summary>
+    public bool Shared => _process is null;
+
+    /// <summary>The share of this machine's memory the host's models on the CPU may hold, as its welcome named it; null where it did not.</summary>
+    public HostMemory? Memory { get; private init; }
 
     public AiHostEnvironment Environment { get; }
 
@@ -108,15 +123,18 @@ internal sealed class HostConnection : IAsyncDisposable
         }
     }
 
-    /// <summary>Opens a pipe only this user can reach, starts a host on it and waits for its token.</summary>
+    /// <summary>Starts a host on a pipe of its own under a name only this call knows, connects to it once it has opened the pipe, and
+    /// says hello with the token it was started with: the host welcomes this app, the process it is the one started.</summary>
+    /// <param name="app">The app's name for itself, which the host keeps its conversations apart by.</param>
     /// <param name="onEnded">Attached before anything can end the connection: a host that dies straight after the
     /// handshake must still be counted.</param>
-    public static async Task<HostConnection> StartAsync(IAiHostLauncher launcher, AiHostEnvironment environment, AiHostTimings timings,
+    public static async Task<HostConnection> StartAsync(IAiHostLauncher launcher, AiHostEnvironment environment, string app, AiHostTimings timings,
                                                         TimeProvider time, EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
     {
         string pipeName = "nexaflow-aihost-" + Guid.NewGuid().ToString("N");
         string token    = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        var pipe = CreatePipe(pipeName);
+        // The host reads which account this app runs as from the pipe itself: the app lets it identify that account, and no more.
+        var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous, TokenImpersonationLevel.Identification);
 
         IAiHostProcess? process = null;
         try
@@ -125,27 +143,37 @@ internal sealed class HostConnection : IAsyncDisposable
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(AiHostProtocol.ConnectTimeout);
 
-            var connected = pipe.WaitForConnectionAsync(timeout.Token);
+            // The host opens its pipe once its runtime is up: connecting waits for it, or for the host to have exited instead.
+            var connected = pipe.ConnectAsync(timeout.Token);
             if (await Task.WhenAny(connected, process.Exited).ConfigureAwait(false) != connected)
             {
                 timeout.Cancel();
                 try { await connected.ConfigureAwait(false); } catch (OperationCanceledException) { }
                 int code = await process.Exited.ConfigureAwait(false);
-                throw new AiHostException(AiHostFailure.Unavailable, $"The AI host exited before connecting, with {DescribeExit(code, process.LastErrors)}.");
+                throw new AiHostException(AiHostFailure.Unavailable, $"The AI host exited before it took this app, with {DescribeExit(code, process.LastErrors)}.");
             }
             await connected.ConfigureAwait(false);
 
-            var channel = new HostChannel(pipe);
-            if (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false) is not Hello hello
-                || hello.ProtocolVersion != AiHostProtocol.Version
-                || !TokensMatch(hello.Token, token))
+            HostChannel? opened = null;
+            var sections = new ClientSections(message => opened!.SendAsync(message));
+            var channel = opened = new HostChannel(pipe, sections);
+            await channel.SendAsync(new Hello(token, AiHostProtocol.Version, app), timeout.Token).ConfigureAwait(false);
+            switch (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false))
             {
-                await channel.DisposeAsync().ConfigureAwait(false);
-                throw new AiHostException(AiHostFailure.Unavailable, "The AI host did not identify itself.");
+                case Welcome welcome when welcome.ProcessId == process.Id:
+                    break;
+                case HelloRefused refused:
+                    await channel.DisposeAsync().ConfigureAwait(false);
+                    throw new AiHostException(AiHostFailure.Unavailable, $"The AI host turned this app away: {refused.Reason}.");
+                case null:
+                    await channel.DisposeAsync().ConfigureAwait(false);
+                    throw new AiHostException(AiHostFailure.Unavailable, "The AI host closed its pipe without welcoming this app.");
+                default:
+                    await channel.DisposeAsync().ConfigureAwait(false);
+                    throw new AiHostException(AiHostFailure.Unavailable, "What answered on the AI host's pipe is not the host this app started.");
             }
-            await channel.SendAsync(new Welcome(), timeout.Token).ConfigureAwait(false);
 
-            var connection = new HostConnection(process, environment, channel, timings, time);
+            var connection = new HostConnection(process, process.Id, environment, channel, sections, timings, time);
             connection.Ended += onEnded;
             // The loops live as long as the host: on the thread pool, never on whatever context started it.
             connection._reading = Task.Run(connection.ReadAsync);
@@ -163,21 +191,89 @@ internal sealed class HostConnection : IAsyncDisposable
         }
     }
 
-    private static bool TokensMatch(string offered, string expected)
-        => offered.Length == expected.Length
-        && CryptographicOperations.FixedTimeEquals(System.Text.Encoding.ASCII.GetBytes(offered), System.Text.Encoding.ASCII.GetBytes(expected));
+    /// <summary>How long joining the service may take to find its pipe answering, once the service manager says it runs.</summary>
+    private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(3);
 
-    /// <summary>A pipe only this user can open, buffered both ways: unbuffered, every write would wait for the other
-    /// end to read it, and a heartbeat could queue behind a slow read.</summary>
-    private static NamedPipeServerStream CreatePipe(string name)
+    /// <summary>How long the service, once connected, may take to welcome this app: a client is served by the service's worker, which
+    /// may be starting — after a crash, or to take up a new runtime.</summary>
+    private static readonly TimeSpan WelcomeTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>Why an app on a machine whose AI host service is stopped has no host.</summary>
+    internal const string ServiceNotRunning = "The AI host service is installed but not running. Start the Smile-forge AI host service, "
+                                              + "or uninstall it for this app to run models itself.";
+
+    /// <summary>
+    /// Joins the machine's AI host service, which is installed: connects to its pipe, checks the process that answers is the service's own
+    /// — so nothing that took the pipe's name is ever spoken to — and says hello as <paramref name="app"/>. An app on a machine with the
+    /// service uses it and nothing else, so a service that cannot be joined is no host at all, saying why.
+    /// </summary>
+    /// <exception cref="AiHostException">The service is not running, does not answer, is not what answers, speaks another protocol, or
+    /// turned this app away (<see cref="AiHostFailure.Unavailable"/>); or the connection closed or broke before the welcome — the worker
+    /// it was handed to going — which a second join puts right (<see cref="AiHostFailure.Lost"/>).</exception>
+    public static async Task<HostConnection> JoinAsync(IAiHostService service, string app, AiHostTimings timings, TimeProvider time,
+                                                       EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
     {
-        var security = new PipeSecurity();
-        security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User!, PipeAccessRights.FullControl, AccessControlType.Allow));
-        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
-                                               PipeOptions.Asynchronous, PipeBuffer, PipeBuffer, security);
-    }
+    if (service.RunningProcessId() is not { } processId) throw Unavailable(ServiceNotRunning);
+        // The host reads which account this app runs as from the pipe itself: the app lets it identify that account, and no more. It asks
+        // to read and write, and no more: the service's pipe grants a client nothing else.
+        var pipe = new NamedPipeClientStream(".", service.PipeName, PipeAccessRights.ReadWrite, PipeOptions.Asynchronous,
+                                             TokenImpersonationLevel.Identification, HandleInheritability.None);
+        HostChannel? channel = null;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(JoinTimeout);
+            try { await pipe.ConnectAsync(timeout.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw Unavailable($"The AI host service is running but did not answer on its pipe within {JoinTimeout.TotalSeconds:0} s.");
+            }
+            timeout.CancelAfter(WelcomeTimeout);
+            if (AiHostService.ServerProcessIdOf(pipe) != processId)
+                throw Unavailable("Something other than the AI host service answered on its pipe; nothing was said to it.");
 
-    private const int PipeBuffer = 64 * 1024;
+            // The sections speak on the channel for as long as the connection lives; `channel` alone says whether this join still owns it.
+            HostChannel? joined = null;
+            var sections = new ClientSections(message => joined!.SendAsync(message));
+            channel = joined = new HostChannel(pipe, sections);
+            await channel.SendAsync(new Hello(null, AiHostProtocol.Version, app), timeout.Token).ConfigureAwait(false);
+            switch (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false))
+            {
+                case Welcome welcome when welcome.ProcessId == processId:
+                    var connection = new HostConnection(null, processId, AiHostEnvironment.Cpu, channel, sections, timings, time) { Memory = welcome.Memory };
+                    connection.Ended += onEnded;
+                    connection._reading = Task.Run(connection.ReadAsync);
+                    connection._beating = Task.Run(connection.BeatAsync);
+                    channel = null;
+                    return connection;
+                case HelloRefused { Protocol: { } protocol }:
+                    throw Unavailable($"The AI host service speaks protocol {protocol}, and this app {AiHostProtocol.Version}: they are updated together.");
+                case HelloRefused refused:
+                    throw Unavailable($"The AI host service turned this app away: {refused.Reason}.");
+                case null:
+                    throw Lost("The AI host service closed the connection before welcoming this app.");
+                default:
+                    throw Unavailable("Something other than the AI host service answered on its pipe.");
+            }
+        }
+        catch (IOException ex)
+        {
+            throw Lost($"The connection to the AI host service broke before it welcomed this app: {ex.Message}");
+        }
+        catch (Exception ex) when (ex is InvalidDataException or System.ComponentModel.Win32Exception
+                                      or OperationCanceledException && !ct.IsCancellationRequested)
+        {
+            throw Unavailable($"The AI host service could not be joined: {ex.Message}");
+        }
+        finally
+        {
+            if (channel is not null) await channel.DisposeAsync().ConfigureAwait(false);
+            else if (pipe is { IsConnected: false }) await pipe.DisposeAsync().ConfigureAwait(false);
+        }
+
+    static AiHostException Unavailable(string why) => new(AiHostFailure.Unavailable, why);
+        static AiHostException Lost(string why) => new(AiHostFailure.Lost, why);
+    }
 
     /// <summary>Sends the request <paramref name="create"/> makes; null when the connection is retiring and the request
     /// belongs on the next host.</summary>
@@ -199,6 +295,13 @@ internal sealed class HostConnection : IAsyncDisposable
         return new OpenRequest(this, request.RequestId, replies.Reader);
     }
 
+    /// <summary>Bytes to fill and send in a request on this connection: an array when small, else a section the host made.</summary>
+    public Task<SharedBytes> AllocateAsync(int length, CancellationToken ct) => _sections.AllocateAsync(length, ct);
+
+    /// <summary>Files arrived in the host's model store, verified, or left it, whichever app asked: their paths in the store. Raised
+    /// on the thread that reads the pipe.</summary>
+    public event EventHandler<IReadOnlyList<string>>? FilesChanged;
+
     private async Task ReadAsync()
     {
         try
@@ -209,6 +312,18 @@ internal sealed class HostConnection : IAsyncDisposable
                 {
                     case Pong:
                         Interlocked.Exchange(ref _lastPong, _time.GetTimestamp());
+                        break;
+                    case SectionAllocated allocated:
+                        _sections.Answer(allocated.Ticket, allocated);
+                        break;
+                    case SectionRefused refused:
+                        _sections.Answer(refused.Ticket, refused);
+                        break;
+                    case SectionClosed closed:
+                        _sections.Closed(closed.Id);
+                        break;
+                    case ModelFilesChanged changed:
+                        FilesChanged?.Invoke(this, changed.Paths);
                         break;
                     case HostReply reply when _open.TryGetValue(reply.RequestId, out var replies):
                         replies.Writer.TryWrite(reply);
@@ -248,7 +363,7 @@ internal sealed class HostConnection : IAsyncDisposable
                 if (late) Interlocked.Exchange(ref _lastPong, ticked);
                 else if (_time.GetElapsedTime(Interlocked.Read(ref _lastPong)) > _timings.HeartbeatTimeout)
                 {
-                    Kill($"the AI host stopped answering for {_timings.HeartbeatTimeout.TotalSeconds:0.#} s");
+                    GiveUp($"the AI host stopped answering for {_timings.HeartbeatTimeout.TotalSeconds:0.#} s");
                     return;
                 }
                 await _channel.SendAsync(new Ping(++sequence), _life.Token);
@@ -261,7 +376,7 @@ internal sealed class HostConnection : IAsyncDisposable
         }
     }
 
-    private async Task WatchExitAsync() => EndExited(await _process.Exited.ConfigureAwait(false));
+    private async Task WatchExitAsync() => EndExited(await _process!.Exited.ConfigureAwait(false));
 
     /// <summary>
     /// The pipe closed or broke. A host that dies takes its pipe with it a moment before its exit is seen — the exit waits
@@ -271,11 +386,17 @@ internal sealed class HostConnection : IAsyncDisposable
     /// </summary>
     private async Task PipeLostAsync(string reason)
     {
+        _sections.Lose($"The AI host's pipe was lost: {reason}.");
         if (!IsAlive) return;
+        if (_process is not { } process)
+        {
+            End(null, reason);   // the service's exit is not this app's to wait for
+            return;
+        }
         int code;
         try
         {
-            code = await _process.Exited.WaitAsync(_timings.ExitWait, _time, _life.Token).ConfigureAwait(false);
+            code = await process.Exited.WaitAsync(_timings.ExitWait, _time, _life.Token).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
@@ -294,7 +415,7 @@ internal sealed class HostConnection : IAsyncDisposable
     private void EndExited(int code)
     {
         if (Volatile.Read(ref _killReason) is { } killed) End(null, killed);
-        else End(code, code == 0 ? "the AI host exited" : $"the AI host exited with {DescribeExit(code, _process.LastErrors)}");
+        else End(code, code == 0 ? "the AI host exited" : $"the AI host exited with {DescribeExit(code, _process!.LastErrors)}");
     }
 
     /// <summary>An exit in words: its code, named where it is a common fault, and the last line the host wrote to its error
@@ -302,12 +423,19 @@ internal sealed class HostConnection : IAsyncDisposable
     private static string DescribeExit(int code, IReadOnlyList<string> errors)
         => $"exit code {AiHostExitCode.Describe(code)}" + (errors is [.., var last] ? $": {last}" : "");
 
-    /// <summary>Kills the host — it is hung — and ends the connection with <paramref name="reason"/>, which its exit
-    /// then reports rather than a bare exit code.</summary>
-    public void Kill(string reason)
+    /// <summary>Gives the host up — it is hung — and ends the connection with <paramref name="reason"/>. A host this app started is
+    /// killed, its exit then reporting the reason rather than a bare exit code; the service it joined is let go — its connection closed,
+    /// for the next request to join again — and goes on serving the apps that share it.</summary>
+    public void GiveUp(string reason)
     {
+        if (_process is not { } process)
+        {
+            End(null, reason);
+            _ = _channel.DisposeAsync().AsTask();
+            return;
+        }
         Interlocked.CompareExchange(ref _killReason, reason, null);
-        _process.Kill();
+        process.Kill();
         End(null, reason);
     }
 
@@ -318,7 +446,7 @@ internal sealed class HostConnection : IAsyncDisposable
         var lost = Lost(_closing ? "The AI host was shut down." : $"The AI host was lost: {reason}.");
         foreach (var replies in _open.Values) replies.Writer.TryComplete(lost);
         _open.Clear();
-        if (!_closing) Ended?.Invoke(this, new AiHostExitedEventArgs(_process.Id, exitCode, reason, _process.LastErrors));
+        if (!_closing) Ended?.Invoke(this, new AiHostExitedEventArgs(_processId, exitCode, reason, _process?.LastErrors ?? []));
     }
 
     private static AiHostException Lost(string message) => new(AiHostFailure.Lost, message);
@@ -327,8 +455,8 @@ internal sealed class HostConnection : IAsyncDisposable
 
     private Task SendCancelAsync(long requestId) => _channel.SendAsync(new CancelRequest(requestId));
 
-    /// <summary>Closes the pipe, which ends the host — once, however many ask: a host retiring for having stood idle can be
-    /// closed by the request that found it retiring too.</summary>
+    /// <summary>Closes the pipe, which ends a host this app started and lets go of the service it joined — once, however many ask: a
+    /// host retiring for having stood idle can be closed by the request that found it retiring too.</summary>
     public ValueTask DisposeAsync()
     {
         lock (_idleGate) _closed ??= Task.Run(CloseAsync);
@@ -339,13 +467,23 @@ internal sealed class HostConnection : IAsyncDisposable
     {
         _closing = true;
         End(null, "closed");
-        await _channel.DisposeAsync().ConfigureAwait(false);   // the host sees its pipe close and exits
-        using var grace = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try { await _process.Exited.WaitAsync(grace.Token).ConfigureAwait(false); }
-        catch (OperationCanceledException) { _process.Kill(); }
+        await _channel.DisposeAsync().ConfigureAwait(false);   // a host this app started sees its pipe close and exits
+        if (_process is { } process)
+        {
+            using var grace = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try { await process.Exited.WaitAsync(grace.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { process.Kill(); }
+        }
         await Task.WhenAll(_reading, _beating).ConfigureAwait(false);
-        _process.Dispose();
+        _process?.Dispose();
         _life.Dispose();
+    }
+
+    /// <summary>Cancels a request in the host, saying nothing where the pipe has gone meanwhile.</summary>
+    private async Task CancelQuietlyAsync(long requestId)
+    {
+        try { await SendCancelAsync(requestId).ConfigureAwait(false); }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
     }
 
     /// <summary>One request in flight: its replies, its stall watchdog, and its cancellation.</summary>
@@ -371,7 +509,8 @@ internal sealed class HostConnection : IAsyncDisposable
             }
         }
 
-        /// <summary>The next reply; the host is killed when none arrives within <paramref name="stallLimit"/>.</summary>
+        /// <summary>The next reply. Where none arrives within <paramref name="stallLimit"/>, a host this app started is killed; on the
+        /// service other apps share, the request alone is cancelled, and fails (<see cref="AiHostFailure.Stalled"/>).</summary>
         public async Task<HostReply> NextAsync(TimeSpan stallLimit, CancellationToken ct)
         {
             using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -384,8 +523,14 @@ internal sealed class HostConnection : IAsyncDisposable
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                connection.Kill($"a request went {stallLimit.TotalSeconds:0.#} s without a reply");
                 _ended = true;
+                if (connection.Shared)
+                {
+                    await connection.CancelQuietlyAsync(id).ConfigureAwait(false);
+                    throw new AiHostException(AiHostFailure.Stalled,
+                        $"The AI host left a request without a reply for {stallLimit.TotalSeconds:0.#} s; the request was cancelled.");
+                }
+                connection.GiveUp($"a request went {stallLimit.TotalSeconds:0.#} s without a reply");
                 throw Lost($"The AI host stopped responding to a request for {stallLimit.TotalSeconds:0.#} s.");
             }
             catch (ChannelClosedException ex) when (ex.InnerException is AiHostException lost)
@@ -396,7 +541,8 @@ internal sealed class HostConnection : IAsyncDisposable
         }
 
         /// <summary>A request left before its end — cancelled, or its reader stopped early — is cancelled in the host
-        /// too, so it stops holding the GPU. A host that does not end it within the grace is hung, and killed.</summary>
+        /// too, so it stops holding the GPU. A host this app started that does not end it within the grace is hung, and killed; the
+        /// service other apps share is no longer waited for.</summary>
         public async ValueTask DisposeAsync()
         {
             if (!_ended && connection.IsAlive)
@@ -407,10 +553,11 @@ internal sealed class HostConnection : IAsyncDisposable
                     using var grace = new CancellationTokenSource(connection._timings.CancelGrace);
                     while (await replies.ReadAsync(grace.Token).ConfigureAwait(false) is not (Completed or Failed)) { }
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (!connection.Shared)
                 {
-                    connection.Kill($"a cancelled request did not end within {connection._timings.CancelGrace.TotalSeconds:0.#} s");
+                    connection.GiveUp($"a cancelled request did not end within {connection._timings.CancelGrace.TotalSeconds:0.#} s");
                 }
+                catch (OperationCanceledException) { }
                 catch (Exception ex) when (ex is ChannelClosedException or IOException or ObjectDisposedException) { }
             }
             connection.Forget(id);

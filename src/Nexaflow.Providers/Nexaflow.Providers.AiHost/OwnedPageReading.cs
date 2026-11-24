@@ -1,4 +1,5 @@
 using System.Text;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 
@@ -8,7 +9,7 @@ using Nexaflow.Providers.Common;
 namespace Nexaflow.Providers.AiHost;
 
 /// <summary>
-/// Pages of writing read in the AI host (<see cref="OwnedToolKind.PageReading"/>): where a picture holds writing, by
+/// Pages of writing read in the AI host (<see cref="HostedToolKind.PageReading"/>): where a picture holds writing, by
 /// PP-OCRv5's text detector on the CPU; and a page read into its blocks by Unlimited-OCR, decoded as its makers decode it
 /// — greedy, each token seeing the page and only the last 128 it wrote, no 35-token run written twice within 128 — with
 /// the special tokens it marks each block with kept in its text.
@@ -27,24 +28,25 @@ public sealed class OwnedPageReading : OwnedToolFront
 
     private static readonly ReplyDecoding Makers = new(WrittenWindow: 128, RepeatBan: new RepeatBan(35, 128), WritesControlTokens: true);
 
-    public OwnedPageReading(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup, MachineCards hardware)
-        : this(new OwnedModelRuntime(activities, assets, host, setup, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == OwnedToolKind.PageReading))
+    public OwnedPageReading(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds, MachineCards hardware)
+        : this(new OwnedModelRuntime(activities, assets, host, holds, hardware), OwnedModels.Tools.FirstOrDefault(t => t.Kind == HostedToolKind.PageReading))
     {
     }
 
-    internal OwnedPageReading(OwnedModelRuntime runtime, OwnedTool? tool) : base(runtime, tool)
+    internal OwnedPageReading(OwnedModelRuntime runtime, HostedTool? tool) : base(runtime, tool)
     {
     }
 
-    /// <summary>Where the picture in <paramref name="pixels"/> — interleaved 8-bit RGBA, nothing else — holds writing.
+    /// <summary>Where the picture <paramref name="pixels"/> — interleaved 8-bit RGBA, nothing else — holds writing.
     /// Never downloads.</summary>
     /// <exception cref="InvalidOperationException">The tool is not on this machine, or the host could not look.</exception>
-    public async Task<IReadOnlyList<TextRegion>> FindTextAsync(string pixels, int width, int height, CancellationToken ct)
+    public async Task<IReadOnlyList<TextRegion>> FindTextAsync(ReadOnlyMemory<byte> pixels, int width, int height, CancellationToken ct)
     {
         try
         {
-            var parts = await PlacedAsync([ReadingParts.TextFinder], ct);
-            await foreach (var reply in Owned.Host.SendAsync(id => new FindTextInPicture(id, parts[ReadingParts.TextFinder], pixels, width, height),
+            var tool = ToolId();
+            using var picture = await Owned.Host.ShareAsync(pixels, ct);
+            await foreach (var reply in Owned.Host.SendAsync(id => new FindTextInPicture(id, tool, picture, width, height),
                                                              OwnedModelRuntime.StallLimit, ct))
                 if (reply is TextFoundInPicture found) return found.Regions;
             throw new InvalidOperationException("The AI host finished without saying where the text is.");
@@ -66,11 +68,12 @@ public sealed class OwnedPageReading : OwnedToolFront
     {
         try
         {
-            var parts = await PlacedAsync([ReadingParts.Reader], ct);
-            var turns = new[] { new ChatTurn(TurnRole.User, Instruction, [new ChatMedia(MediaKind.Image, picture, null)]) };
+            var reader = PartOf(ReadingParts.Reader);
+            using var page = await Owned.Host.ShareFileAsync(picture, ct);
+            var turns = new[] { new ChatTurn(TurnRole.User, Instruction, [new ChatMedia(MediaKind.Image, page)]) };
             var text = new StringBuilder();
             var priority = waiting ? RequestPriority.Interactive : RequestPriority.Job;
-            await foreach (var reply in Owned.Host.SendAsync(id => new Generate(id, parts[ReadingParts.Reader], turns, null, priority, Thinks: false, Decoding: Makers),
+            await foreach (var reply in Owned.Host.SendAsync(id => new Generate(id, reader, turns, null, priority, Thinks: false, Decoding: Makers),
                                                              OwnedModelRuntime.StallLimit, ct))
             {
                 if (reply is not TextDelta delta) continue;
@@ -79,7 +82,7 @@ public sealed class OwnedPageReading : OwnedToolFront
             }
             return text.ToString();
         }
-        catch (Exception ex) when (ex is AiHostException or LlmProviderException)
+        catch (Exception ex) when (ex is AiHostException or LlmProviderException or IOException)
         {
             throw new InvalidOperationException($"The page could not be read: {ex.Message}", ex);
         }

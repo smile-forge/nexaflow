@@ -18,6 +18,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Local;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Core.Services;
 
@@ -302,12 +303,11 @@ public sealed class AIService : IAIService
     }
 
     /// <summary>
-    /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens that hears when a turn
-    /// is over — anything but <see cref="LocalColumns.Dictation"/>, which only dictates — a voice speaks the language, and a
-    /// model answers. Where it cannot, the mic dictates instead.
+    /// Whether a spoken conversation can be held now in <paramref name="language"/>: something listens, a voice speaks the language,
+    /// and a model answers. Where it cannot, the mic is not offered.
     /// </summary>
     public bool CanConverse(string language)
-        => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: { } listening } && !LocalColumns.Dictates(listening)
+        => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: not null }
            && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.GeneralIntelligence) is not null;
 
     /// <summary>Whether the model that holds the conversation has made way on its GPU for a picture being drawn: a reply
@@ -539,15 +539,18 @@ public sealed class AIService : IAIService
             => provider is ILocalModelCatalog local && local.Catalog.FirstOrDefault(m => m.Id == model) is { } entry ? entry.DisplayName : model;
     }
 
+    /// <summary>Whether the workspace's ability grid names any model of Nexaflow's own — what the host being out of reach takes away.</summary>
+    public bool UsesOwnModels => OwnedModelsInUse().Count > 0;
+
     public Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default)
-        => ProviderManager.Instance.Service<HostModelSetup>() is { } setup
-    ? LocalAiSetupReader.DescribeAsync(setup, OwnedModelsInUse(),
+    => ProviderManager.Instance.Service<HostHolds>() is { } holds
+    ? LocalAiSetupReader.DescribeAsync(holds, OwnedModelsInUse(),
                                                ModelPlacement.Expected(ProviderManager.Instance.Service<MachineCards>() ?? MachineCards.Probe()), ct)
             : Task.FromResult<LocalAiSetup?>(null);
 
     public Task<LocalAiCheck> CheckLocalAiAsync(IProgress<LocalAiCheckProgress> progress, CancellationToken ct = default)
-        => ProviderManager.Instance.Service<HostModelSetup>() is { } setup
-            ? new LocalAiChecker(setup, OwnedModelsInUse(), Path.Combine(LocalAiFolder.Root(), "reports")).RunAsync(progress, ct)
+        => ProviderManager.Instance.Service<HostHolds>() is { } holds
+            ? new LocalAiChecker(holds, OwnedModelsInUse(), Path.Combine(LocalAiFolder.Root(), "reports")).RunAsync(progress, ct)
             : throw new InvalidOperationException("Nexaflow's own models are not set up in this session.");
 
     // ── Persistence ───────────────────────────────────────────────────────
@@ -624,8 +627,14 @@ public sealed class AIService : IAIService
             _conversations.RemoveAll(c => c.Id == conversationId);
         }
         catch { /* never crash on delete failures */ }
-        return Task.CompletedTask;
+        return ForgetConversationAsync(conversationId);
     }
+
+    /// <summary>Has every language model of the workspace let go of what it keeps of the conversation: its turns may have gone
+    /// to any model its row routes to, the larger one a run was handed over to among them. A model that keeps nothing, or never kept
+    /// this conversation, has nothing to let go.</summary>
+    public Task ForgetConversationAsync(string conversationId)
+        => Task.WhenAll(_providers.Values.OfType<ILlmProvider>().Distinct().ToList().Select(model => model.ForgetConversationAsync(conversationId)));
 
     public async Task SaveConversationArtifactAsync(string conversationId, string name, string json)
     {
@@ -940,7 +949,7 @@ public sealed class AIService : IAIService
 
     public Task<AiResponse?> RunAgentAsync(IPageViewModel? page, string input, bool includeContext, IAIResponseHandler approval,
                                           CancellationToken ct = default)
-        => RunAgentAsync(page, input, includeContext, approval, AgentRunOptions.Typed, ct);
+        => RunAgentAsync(page, input, includeContext, approval, AgentRunOptions.Typed with { Conversation = approval.ConversationName }, ct);
 
     /// <summary>
     /// Runs a request through the agent loop on the model its row routes it to (<see cref="RouteAsync"/>). The machine's model,
@@ -1091,7 +1100,7 @@ public sealed class AIService : IAIService
                 var exposed = await chooser.ChooseAsync(ct);
                 messages[0] = new(LlmRole.System, BuildSystemPrompt(page, context, protocol.Instructions(exposed), options.ReplyStyle));
 
-                var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, options.Thinking, ct);
+                var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, options.Thinking, options.Conversation, ct);
                 transcript?.Step(messages, exposed, taken.Written);
                 if (taken.Ended?.ContextTokens is { } used && window is { } read) approval.ReportContextUse(used, read);
 

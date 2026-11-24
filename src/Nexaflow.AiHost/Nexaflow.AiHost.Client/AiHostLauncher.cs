@@ -35,8 +35,12 @@ public interface IAiHostProcess : IDisposable
 /// to beside it (<see cref="HostErrorOutput"/>); null, or a null answer, and neither is kept — only the error output's last
 /// lines, in memory, for the record of the host's end. Asked rather than fixed, so a host started after the setting
 /// changes follows it.</param>
-public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int memoryShare = AiHostProtocol.DefaultMemoryShare,
-                                          Func<string?>? logDirectory = null) : IAiHostLauncher
+/// <param name="store">The model store the host keeps, where not the machine's own: a test's.</param>
+/// <param name="adoptFrom">Earlier stores whose files the host moves into its own, each when it is the same file.</param>
+/// <param name="downloads">False keeps the host's store to what is in it: nothing is downloaded — a UI test's host.</param>
+public sealed class ProcessAiHostLauncher(string hostPath, string? store = null, IReadOnlyList<string>? adoptFrom = null,
+                                          int memoryShare = AiHostProtocol.DefaultMemoryShare, Func<string?>? logDirectory = null,
+                                          bool downloads = true) : IAiHostLauncher
 {
     public IAiHostProcess Start(string pipeName, string token, AiHostEnvironment environment)
     {
@@ -53,8 +57,17 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int mem
         };
         info.ArgumentList.Add(AiHostProtocol.PipeArgument);
         info.ArgumentList.Add(pipeName);
-        info.ArgumentList.Add(AiHostProtocol.AiDirArgument);
-        info.ArgumentList.Add(aiDir);
+        if (store is not null)
+        {
+            info.ArgumentList.Add(AiHostProtocol.StoreArgument);
+            info.ArgumentList.Add(store);
+        }
+        foreach (var earlier in adoptFrom ?? [])
+        {
+            info.ArgumentList.Add(AiHostProtocol.AdoptArgument);
+            info.ArgumentList.Add(earlier);
+        }
+        if (!downloads) info.ArgumentList.Add(AiHostProtocol.NoDownloadsArgument);
         info.ArgumentList.Add(AiHostProtocol.MemoryShareArgument);
         info.ArgumentList.Add(memoryShare.ToString(System.Globalization.CultureInfo.InvariantCulture));
         string? logs = logDirectory?.Invoke();
@@ -63,11 +76,7 @@ public sealed class ProcessAiHostLauncher(string hostPath, string aiDir, int mem
             info.ArgumentList.Add(AiHostProtocol.LogDirArgument);
             info.ArgumentList.Add(logs);
         }
-        if (environment.RuntimePack is { } pack)
-        {
-            info.ArgumentList.Add(AiHostProtocol.RuntimePackArgument);
-            info.ArgumentList.Add(pack);
-        }
+
 
         var process = Process.Start(info)
             ?? throw new AiHostException(AiHostFailure.Unavailable, "The AI host could not be started.");

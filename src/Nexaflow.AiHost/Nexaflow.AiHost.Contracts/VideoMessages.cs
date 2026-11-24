@@ -42,17 +42,6 @@ public static class FilmingStages
     public const string Decoding = "decoding";
 }
 
-/// <summary>A video model's parts by role (<see cref="FilmingParts"/>), the method that films with them, and how it samples.</summary>
-/// <param name="Steps">How many denoising steps a clip takes.</param>
-/// <param name="Shift">The flow-matching shift of the noise levels the steps run through.</param>
-/// <param name="Guidance">How far each step steers away from <see cref="NegativePrompt"/>; 0 for a model that does not.</param>
-/// <param name="Timesteps">The timesteps a distilled model steps through, as it was trained to; empty for a model whose
-/// steps follow from <see cref="Steps"/> and <see cref="Shift"/>.</param>
-/// <param name="NegativePrompt">What guidance steers away from, as the model's makers give it; empty for a model that
-/// is not guided.</param>
-public sealed record FilmingModel(FilmingMethod Method, IReadOnlyDictionary<string, ModelSpec> Parts, int Steps, float Shift, float Guidance,
-                                  IReadOnlyList<int> Timesteps, string NegativePrompt);
-
 /// <summary>
 /// Makes one clip from a prompt, and from a picture to start from where one is given. Each step — reading the prompt,
 /// every denoising step, decoding each stretch of frames — takes the GPU at the request's priority, so speech and replies
@@ -60,18 +49,24 @@ public sealed record FilmingModel(FilmingMethod Method, IReadOnlyDictionary<stri
 /// then each latent frame decoded (<see cref="FilmingStages.Decoding"/>). The clip comes back as <see cref="FilmedFrames"/> as each
 /// stretch of it is decoded.
 /// </summary>
+/// <param name="Model">The video model, as the catalog names it: the parts it films with, the method and the sampling, the host's to
+/// take from its catalog.</param>
 /// <param name="Width">In pixels; with <see cref="Height"/>, a size the model films at.</param>
 /// <param name="Frames">How many frames: one, then a multiple of the model's frames per latent frame.</param>
 /// <param name="Seed">The noise the clip starts from: the same seed, prompt and picture make the same clip.</param>
-public sealed record Film(long RequestId, FilmingModel Model, string Prompt, int Width, int Height, int Frames, int FramesPerSecond,
+public sealed record Film(long RequestId, string Model, string Prompt, int Width, int Height, int Frames, int FramesPerSecond,
                           long Seed, RequestPriority Priority) : HostRequest(RequestId)
 {
     /// <summary>The picture the clip starts from, <see cref="Width"/> × <see cref="Height"/>, interleaved 8-bit RGB row by
     /// row; null for a clip from the prompt alone.</summary>
-    public byte[]? FirstFrame { get; init; }
+    public SharedBytes? FirstFrame { get; init; }
+
+    /// <summary>What to keep out of the clip besides what the model's makers keep out, for a model that is guided; null for theirs
+    /// alone.</summary>
+    public string? NegativePrompt { get; init; }
 }
 
 /// <summary>Frames of the clip as they are decoded, in order: interleaved 8-bit RGB, one frame after another, each the
 /// <see cref="Film"/>'s size. The request completes once the last is sent; encoding the clip is whoever keeps it's, frame by frame,
 /// so it is never held whole as pictures.</summary>
-public sealed record FilmedFrames(long RequestId, byte[] Rgb) : HostReply(RequestId);
+public sealed record FilmedFrames(long RequestId, SharedBytes Rgb) : HostReply(RequestId);

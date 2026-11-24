@@ -27,7 +27,7 @@ public class ConversationMatchTests
         Assert.IsTrue(ConversationMatch.Continues(read, [.. read, User("And Germany?")]));
         Assert.IsTrue(ConversationMatch.Continues(read, [System, User("Capital of France?"), Model(" Paris.\n"), User("And Germany?")]),
                       "the app's copy of the reply may differ in whitespace at its ends");
-        Assert.IsTrue(ConversationMatch.Continues(read, [.. read, User("What is this?", new ChatMedia(MediaKind.Image, @"C:\shot.png", null))]),
+        Assert.IsTrue(ConversationMatch.Continues(read, [.. read, User("What is this?", new ChatMedia(MediaKind.Image, SharedBytes.Of([137, 80, 78, 71])))]),
                       "a picture joins the conversation the model holds");
     }
 

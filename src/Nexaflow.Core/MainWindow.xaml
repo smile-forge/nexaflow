@@ -576,9 +576,10 @@
                             </Rectangle>
                             <Rectangle Grid.Column="1" Fill="{StaticResource BorderBrush}" Opacity="0.5"/>
                         </Grid>
-                        <ctrl:AiStatusDot DockPanel.Dock="Left"
+                        <ctrl:AiStatusDot DockPanel.Dock="Left" AutomationProperties.AutomationId="AiBar_StatusDot"
                                           IsBusy="{Binding AiIsBusy}"
                                           HandlerSymbol="{Binding AiHandlerSymbol}"
+                                          Warning="{Binding LocalAiNotice}"
                                           IsListening="{Binding AiIsListening}"
                                           Width="22" Height="22"/>
                         <!-- At the line's right end: the workspace's background tasks — work its assistant left running after replying — while it
@@ -667,7 +668,12 @@
         </ControlTemplate>
     </Button.Template>
 </Button>
-                        <vcc:TailClip Margin="8,0" VerticalAlignment="Center">
+<!-- With nothing else to say: why the workspace's models of Nexaflow's own cannot run — their host out of reach. -->
+<TextBlock AutomationProperties.AutomationId="AiBar_LocalAiNotice" Margin="8,0" VerticalAlignment="Center" FontSize="13"
+           Text="{Binding LocalAiNotice}" ToolTip="{Binding LocalAiNotice}" TextTrimming="CharacterEllipsis"
+           Foreground="{StaticResource WarningBrush}"
+           Visibility="{Binding ShowsLocalAiNotice, Converter={StaticResource BoolVis}}"/>
+<vcc:TailClip Margin="8,0" VerticalAlignment="Center">
 <TextBlock AutomationProperties.AutomationId="AiBar_VoiceReply" FontSize="13">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -731,26 +737,23 @@
                     </Button>
                 </Grid>
 
-                <!-- The user's line: the mic — a conversation, or dictation where the models cannot hold one — then the box. -->
-                <!-- ItemStatus says what the mic would start — True: a conversation, the workspace's speech models
-                     confirmed; False: dictation — so automation can wait for the models rather than guess. -->
+                <!-- The user's line: the mic — a spoken conversation, where the workspace's models can hold one — then the box. -->
+                <!-- ItemStatus says whether the mic would start a conversation — True once the workspace's speech models are
+                     confirmed — so automation can wait for the models rather than guess. -->
                 <Button Grid.Row="1" Grid.Column="0" AutomationProperties.AutomationId="AiBar_Mic"
-                        AutomationProperties.ItemStatus="{Binding VoiceConverses}"
+                        AutomationProperties.ItemStatus="{Binding VoiceAvailable}"
                         ToolTipService.ShowOnDisabled="True"
                         Command="{Binding ToggleVoiceCommand}"
                         Width="Auto" Height="Auto" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
-                            <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Voice}"/>
+                            <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Converse}"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding VoiceConverses}" Value="True">
-                                    <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Converse}"/>
-                                </DataTrigger>
-                                <!-- Nothing assigned to Speech In: disabled, and saying where to enable it. -->
+                                <!-- No conversation the workspace's models can hold: disabled, and saying where to enable it. -->
                                 <DataTrigger Binding="{Binding VoiceAvailable}" Value="False">
                                     <Setter Property="ToolTip" Value="{loc:Str Shell.Ai.AbilityDisabled}"/>
                                 </DataTrigger>
-                                <!-- Live — dictating or in a conversation: filled red, the sign of a microphone that is on. -->
+                                <!-- Live — in a conversation: filled red, the sign of a microphone that is on. -->
                                 <DataTrigger Binding="{Binding IsRecording}" Value="True">
                                     <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
                                     <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
@@ -826,9 +829,7 @@
                                             <DataTrigger Binding="{Binding AiIsBusy}" Value="True">
                                                 <Setter Property="IsEnabled" Value="False"/>
                                             </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsDictating}" Value="True">
-                                                <Setter Property="IsEnabled" Value="False"/>
-                                            </DataTrigger>
+
                                         </Style.Triggers>
                                     </Style>
                                 </ctrl:PlaceholderTextBox.Style>
@@ -890,14 +891,7 @@
                                     <Setter Property="Command" Value="{Binding CancelAiCommand}"/>
                                     <Setter Property="Background" Value="#E11D48"/>
                                 </DataTrigger>
-                                <!-- Dictating: show a listening icon; click to stop early. A conversation keeps Send — a turn
-                                     typed while talking is sent like any other, and the mic ends the conversation. -->
-                                <DataTrigger Binding="{Binding IsDictating}" Value="True">
-                                    <Setter Property="Content" Value="👂"/>
-                                    <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Listening}"/>
-                                    <Setter Property="Command" Value="{Binding ToggleVoiceCommand}"/>
-                                    <Setter Property="Background" Value="#06b6d4"/>
-                                </DataTrigger>
+
                             </Style.Triggers>
                         </Style>
                     </Button.Style>

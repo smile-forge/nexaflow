@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -22,15 +24,19 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     public const string ProviderName = "Nexaflow";
 
     private readonly OwnedModelRuntime _runtime;
-    private readonly OwnedModel?       _model;
+    private readonly HostedModel?       _model;
 
-    public OwnedLlmProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
+    /// <summary>The conversations this provider has named to the host, which the host may keep: only these are its to forget.</summary>
+    private readonly ConcurrentDictionary<string, byte> _named = new(StringComparer.Ordinal);
+
+    public OwnedLlmProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds,
                             MachineCards hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, holds, hardware);
         _model   = OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
         _runtime.MadeWayChanged += OnMadeWayChanged;
+        _runtime.ReachabilityChanged += (_, _) => AvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public string Name => ProviderName;
@@ -52,7 +58,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
         => OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
     /// <summary>Its files are here and verified.</summary>
-    public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
+    public bool IsAvailable => _model is not null && _runtime.Reachable && _runtime.IsHere(_model);
 
     public bool IsMakingWay => _model is not null && _runtime.IsMakingWay(_model);
 
@@ -70,8 +76,8 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     /// <summary>The model, with the context its GPU gives it once it is placed.</summary>
     public Task<ModelInfo?> GetModelInfoAsync(CancellationToken ct = default)
-        => Task.FromResult(_model is null ? null : new ModelInfo(_runtime.ContextOf(_model, OwnedRoles.Chat), _model.Catalog.DisplayName, _runtime.RepliesOf(_model, OwnedRoles.Chat),
-                                                                _runtime.BackgroundOf(_model, OwnedRoles.Chat)));
+        => Task.FromResult(_model is null ? null : new ModelInfo(_runtime.ContextOf(_model, HostedRoles.Chat), _model.Catalog.DisplayName, _runtime.RepliesOf(_model, HostedRoles.Chat),
+                                                                _runtime.BackgroundOf(_model, HostedRoles.Chat)));
 
     /// <summary>Fetches what is missing, then has the host load the model and keep it. Never throws: a model that will
     /// not come is unavailable, and its chain moves on.</summary>
@@ -94,10 +100,17 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
                                                         CancellationToken ct = default)
         => StreamAsync(messages, tools, urgency, LlmThinking.Allowed, ct);
 
-    /// <summary>The same, the model reasoning first or not as <paramref name="thinking"/> says. A reply may be as long as
-    /// the model's context leaves room for; it ends with why it ended, and how full the context now is.</summary>
+    /// <summary>The same, the model reasoning first or not as <paramref name="thinking"/> says: work that is no conversation,
+    /// which the host reads afresh and keeps for nothing.</summary>
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
                                                         LlmThinking thinking, CancellationToken ct = default)
+        => StreamAsync(messages, tools, urgency, thinking, conversation: null, ct);
+
+    /// <summary>The same, as a turn of <paramref name="conversation"/>: the host keeps what the model read and wrote under that
+    /// name for its next turn, which then costs only what is new. A reply may be as long as the model's context leaves room for;
+    /// it ends with why it ended, and how full the context now is.</summary>
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
+                                                        LlmThinking thinking, string? conversation, CancellationToken ct = default)
     {
         if (_model is null) throw new LlmProviderException($"{ProviderName} has no model to answer with.");
         var request = Turns(messages, _model);
@@ -106,22 +119,38 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
             : null;
         var priority = urgency == LlmUrgency.Background ? RequestPriority.Background : RequestPriority.Interactive;
         return LlmStreamRunner.RunAsync(_runtime.Activities, $"{ProviderName} ({_model.Catalog.DisplayName})…", ProviderName,
-            token => Events(_model, request, offered, priority, thinking == LlmThinking.Allowed, token), ct);
+            token => Events(_model, request, offered, priority, thinking == LlmThinking.Allowed, conversation, token), ct);
+    }
+
+    /// <summary>Has the host let go of what it keeps of <paramref name="conversation"/>, on every model keeping it. A conversation
+    /// this provider never named to the host is none of its keeping, and the host is not asked; a host that is gone kept nothing.</summary>
+    public async Task ForgetConversationAsync(string conversation, CancellationToken ct = default)
+    {
+        // Only a name it gave the host, and only a host still running: one started since keeps nothing of it.
+        if (!_named.TryRemove(conversation, out _) || !_runtime.Host.IsRunning) return;
+        try
+        {
+            await foreach (var _ in _runtime.Host.SendAsync(id => new ForgetConversation(id, conversation), OwnedModelRuntime.StallLimit, ct)) { }
+        }
+        catch (AiHostException) { }
     }
 
     /// <summary>The reply as the host writes it. A host lost before a word of it — it crashed, and the next request
     /// starts another — is asked once more; after a word, the reader has seen part of a reply and it is not.</summary>
-    private async IAsyncEnumerable<LlmStreamEvent> Events(OwnedModel model, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools,
-                                                          RequestPriority priority, bool thinks, [EnumeratorCancellation] CancellationToken ct)
+    private async IAsyncEnumerable<LlmStreamEvent> Events(HostedModel model, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools,
+                                                          RequestPriority priority, bool thinks, string? conversation,
+                                                          [EnumeratorCancellation] CancellationToken ct)
     {
         using var use = await _runtime.ModelUse.BeginAsync(ct);
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;
-        var spec = await _runtime.PlacedAsync(model, OwnedRoles.Chat, ct);
+        var spec = await _runtime.PlacedAsync(model, HostedRoles.Chat, ct);
+        if (conversation is not null) _named.TryAdd(conversation, 0);
         for (int attempt = 0; ; attempt++)
         {
             bool written = false;
-            await using var replies = host.SendAsync(id => new Generate(id, spec, turns, MaxNewTokens: null, priority, tools, thinks, SamplingOf(model, thinks)), OwnedModelRuntime.StallLimit, ct)
+            using var shared = await host.ShareMediaAsync(turns, ct);   // made again for a host started afresh: a section is its connection's
+            await using var replies = host.SendAsync(id => new Generate(id, spec, shared.Turns, MaxNewTokens: null, priority, tools, thinks, SamplingOf(model, thinks), Conversation: conversation), OwnedModelRuntime.StallLimit, ct)
                                           .GetAsyncEnumerator(ct);
             while (true)
             {
@@ -163,7 +192,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     /// <summary>How the model chooses its tokens for a request that reasons first or not, as its makers recommend; null —
     /// the likeliest each time — for a model whose makers recommend nothing, or under <see cref="GreedyVariable"/>.</summary>
-    internal static TokenSampling? SamplingOf(OwnedModel model, bool thinks)
+    internal static TokenSampling? SamplingOf(HostedModel model, bool thinks)
     {
         if (Environment.GetEnvironmentVariable(GreedyVariable) is { Length: > 0 }) return null;
         if (model.TokenSampling?.For(thinks) is not { } sampling) return null;
@@ -177,7 +206,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     /// <summary>The conversation as the host takes it: images and recordings the model reads go as media, where it reads
     /// them; any other attachment is named in the text, as for any provider that cannot read it. A turn's tool calls, and
     /// what answers one, go with it.</summary>
-    internal static IReadOnlyList<ChatTurn> Turns(IReadOnlyList<LlmMessage> messages, OwnedModel model)
+    internal static IReadOnlyList<ChatTurn> Turns(IReadOnlyList<LlmMessage> messages, HostedModel model)
         => [.. messages.Select(m =>
         {
             var role = m.Role switch
@@ -203,11 +232,15 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
     /// <exception cref="LlmProviderException">The recording is not one this app reads.</exception>
     private static ChatMedia Medium(LlmAttachment attachment)
     {
-        if (attachment.IsImage) return new ChatMedia(MediaKind.Image, attachment.Bytes is null ? attachment.FilePath : null, attachment.Bytes);
+        if (attachment.IsImage)
+        {
+            try { return new ChatMedia(MediaKind.Image, SharedBytes.Of(attachment.ReadBytes())); }
+            catch (IOException ex) { throw new LlmProviderException($"The picture {attachment.FilePath} cannot be read: {ex.Message}", ex); }
+        }
         try
         {
             var (pcm, rate) = WavAudio.ReadMono(attachment.ReadBytes());
-            return new ChatMedia(MediaKind.Audio, null, rate == WavAudio.SpeechRate ? pcm : new PcmResampler(rate, WavAudio.SpeechRate).Convert(pcm));
+            return new ChatMedia(MediaKind.Audio, SharedBytes.Of(rate == WavAudio.SpeechRate ? pcm : new PcmResampler(rate, WavAudio.SpeechRate).Convert(pcm)));
         }
         catch (InvalidDataException ex)
         {

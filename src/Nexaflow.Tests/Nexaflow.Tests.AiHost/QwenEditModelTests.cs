@@ -3,14 +3,14 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Drawing;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The host editing with Qwen-Image-Edit's real graphs. <c>NEXAFLOW_TEST_QWEN_EDIT</c> names a folder holding the built
-/// model as its catalog lays it out (<c>picture-reader/</c>, <c>prompt-encoder/</c>, <c>picture-encoder/</c>,
-/// <c>denoiser/</c>, <c>decoder/</c>); <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack, without which nothing is edited —
-/// the model is built for the GPU. What is asserted is the shape of an edit — its steps, its size, that it is a picture,
+/// The host editing with Qwen-Image-Edit's real graphs, <c>qwen-image-edit-2511</c> from the test store
+/// (<see cref="TestStore"/>), on the CUDA pack there, without which nothing is edited — the model is built for the GPU.
+/// What is asserted is the shape of an edit — its steps, its size, that it is a picture,
 /// and under a mask that what the mask leaves is kept — not what it shows.
 /// </summary>
 [TestClass]
@@ -21,32 +21,17 @@ public class QwenEditModelTests
 {
     private const int Steps = 40;
 
+    /// <summary>The model, as the catalog names it: the host edits with its parts where it places them.</summary>
+    private const string Model = "qwen-image-edit-2511";
+
     private static AiHostClient? _client;
-    private static DrawingModel? _model;
 
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_QWEN_EDIT") is not { Length: > 0 } root) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        ModelSpec Part(string folder, string runner, long bytes) =>
-            new($"qwen-image-edit-2511/{folder}", runner, Path.Combine(root, folder), $"{folder}.onnx", null, bytes, 0, Device: 0);
-        _model = new DrawingModel(DrawingMethod.QwenImageEdit, new Dictionary<string, ModelSpec>
-        {
-            [DrawingParts.PictureReader]  = Part("picture-reader", "qwen-edit-picture-reader", 2L << 30),
-            [DrawingParts.PromptEncoder]  = Part("prompt-encoder", "qwen-edit-prompt-encoder", 10L << 30),
-            [DrawingParts.PictureEncoder] = Part("picture-encoder", "qwen-edit-picture-encoder", 4L << 30),
-            [DrawingParts.Denoiser]       = Part("denoiser", "qwen-edit-denoiser", 24L << 30),
-            [DrawingParts.Decoder]        = Part("decoder", "qwen-edit-decoder", 6L << 30),
-        }, Steps, Shift: 0f, Guidance: 4f);
+    _client = await TestStore.HostAsync();
     }
 
     [ClassCleanup]
@@ -55,10 +40,10 @@ public class QwenEditModelTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, DrawingModel Model) Host()
+    private static (AiHostClient Client, string Model) Host()
     {
-        if (_client is null || _model is null) Assert.Inconclusive("NEXAFLOW_TEST_QWEN_EDIT and NEXAFLOW_TEST_RUNTIME_PACK are not both set.");
-        return (_client, _model);
+        if (_client is null) Assert.Inconclusive(TestStore.Missing());
+        return (_client, Model);
     }
 
     /// <summary>A picture with something in it: a sunlit gradient, a dark square in the middle, a pattern along the bottom.</summary>
@@ -84,10 +69,16 @@ public class QwenEditModelTests
         var replies = new List<HostReply>();
         await foreach (var reply in client.SendAsync(draw, TimeSpan.FromMinutes(10))) replies.Add(reply);
         var png = replies.OfType<Drawn>().Single().AsPng();
+        Keep(png, name);
+        return (replies, PngReader.Read(png));
+    }
+
+    /// <summary>Keeps a picture edited with the test's results, to look at: the test checks its shape, a person checks what it shows.</summary>
+    private void Keep(byte[] png, string name)
+    {
         var saved = Path.Combine(TestContext.TestRunResultsDirectory!, name);
         File.WriteAllBytes(saved, png);
-        TestContext.AddResultFile(saved);   // to look at: the test checks its shape, a person checks what it shows
-        return (replies, PngReader.Read(png));
+        TestContext.AddResultFile(saved);
     }
 
     [TestMethod]
@@ -99,7 +90,7 @@ public class QwenEditModelTests
         var source = Scene(width, height);
 
         var (replies, edited) = await EditAsync(id => new Draw(id, model, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
-                                                     { Sources = [new DrawingSource(width, height, source)] },
+                                                     { Sources = [new DrawingSource(width, height, SharedBytes.Of(source))] },
                                                 "edited-night-qwen.png");
 
         var steps = replies.OfType<Progress>().Where(p => p.Stage == DrawHandler.Drawing && p.Done > 0).Select(p => p.Done).ToArray();
@@ -109,29 +100,40 @@ public class QwenEditModelTests
     }
 
     /// <summary>The same edit with the denoiser whole and streamed, where its folder holds the streamed build: one picture, to the
-    /// rounding of fp16 arithmetic done in another order.</summary>
+    /// rounding of fp16 arithmetic done in another order. Edited by the host's own drawing method in this process
+    /// (<see cref="InProcessHost"/>), each denoiser placed by the test: a host's plan streams it only where its GPU lacks the room for it
+    /// whole.</summary>
     [TestMethod]
     [Timeout(2_400_000, CooperativeCancellation = true)]
     [CoversNode("owned-images-streamed")]
     public async Task AStreamedDenoiser_EditsAsTheWholeOneEdits()
     {
-        var (_, model) = Host();
+        _ = Host();
+        using var host = InProcessHost.OnTheGpu();
+        var model = TestStore.DrawingModelOf(Model);
         var denoiser = model.Parts[DrawingParts.Denoiser];
-        if (!File.Exists(Path.Combine(denoiser.Folder, "denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
+        if (!File.Exists(TestStore.PathOf($"{denoiser.Folder}/denoiser.stream.json"))) Assert.Inconclusive("The denoiser's folder holds no streamed build.");
         var streamed = model with
         {
             Parts = new Dictionary<string, ModelSpec>(model.Parts) { [DrawingParts.Denoiser] = denoiser with { File = "denoiser.stream.json", MemoryBytes = 8L << 30 } },
         };
         const int width = 1184, height = 896;
         var source = Scene(width, height);
-        Draw Edit(long id, DrawingModel drawing) => new(id, drawing, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
-                                                    { Sources = [new DrawingSource(width, height, source)] };
+        var drawing = new QwenEditDrawing(host.Models, host.Scheduler);
+
+        async Task<PngReader.Picture> EditInProcessAsync(DrawingModel edited, string name)
+        {
+            var picture = await host.DrawAsync(drawing, new Draw(1, Model, "Make it night, a full moon in the sky.", 0, 0, 4, RequestPriority.Job)
+                                                        { Sources = [new DrawingSource(width, height, SharedBytes.Of(source))] }, edited);
+            Keep(new Drawn(1, picture.Width, picture.Height, SharedBytes.Of(picture.Rgb)).AsPng(), name);
+            return picture;
+        }
 
         PngReader.Picture whole, stream;
         
         long streamedPeak, wholePeak;
-        using (var watch = GpuMemoryWatch.Start()) { stream = (await EditAsync(id => Edit(id, streamed), "night-qwen-streamed.png")).Picture; streamedPeak = watch.PeakBytes; }
-        using (var watch = GpuMemoryWatch.Start()) { whole = (await EditAsync(id => Edit(id, model), "night-qwen-whole.png")).Picture; wholePeak = watch.PeakBytes; }
+        using (var watch = GpuMemoryWatch.Start()) { stream = await EditInProcessAsync(streamed, "night-qwen-streamed.png"); streamedPeak = watch.PeakBytes; }
+        using (var watch = GpuMemoryWatch.Start()) { whole = await EditInProcessAsync(model, "night-qwen-whole.png"); wholePeak = watch.PeakBytes; }
         TestContext.WriteLine($"the GPU at its peak: streamed {streamedPeak / 1e9:0.00} GB, whole {wholePeak / 1e9:0.00} GB");
         Assert.IsTrue(streamedPeak < wholePeak, $"streamed, the GPU held {streamedPeak / 1e9:0.00} GB at its peak, whole {wholePeak / 1e9:0.00} GB");
         double mse = whole.Rgb.Zip(stream.Rgb).Average(p => (p.First - p.Second) * (double)(p.First - p.Second));
@@ -152,7 +154,7 @@ public class QwenEditModelTests
                 mask[y * width + x] = 255;
 
         var (_, filled) = await EditAsync(id => new Draw(id, model, "a bowl of oranges", 0, 0, 6, RequestPriority.Job)
-                                                { Sources = [new DrawingSource(width, height, source)], Mask = mask },
+                                                { Sources = [new DrawingSource(width, height, SharedBytes.Of(source))], Mask = SharedBytes.Of(mask) },
                                           "filled-oranges-qwen.png");
 
         // What the mask leaves comes back through the VAE: the same picture to within its rounding. What it covers is drawn again.
@@ -178,9 +180,7 @@ public class QwenEditModelTests
     [TestMethod]
     public void AnEditsPrompt_IsWrittenAsThePipelineWritesIt_EachPictureNumberedWithItsTokens()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_QWEN_EDIT") ?? "";
-        if (root.Length == 0) Assert.Inconclusive("NEXAFLOW_TEST_QWEN_EDIT is not set.");
-        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(root, "prompt-encoder", "tokenizer.json")));
+        var tokenizer = QwenTokenizer.FromJson(File.ReadAllText(Path.Combine(TestStore.PartFolder("qwen-image-edit-2511", DrawingParts.PromptEncoder), "tokenizer.json")));
         var encoder = new QwenEditPromptEncoder(null!, null!, tokenizer);
         using var stream = typeof(QwenEditModelTests).Assembly.GetManifestResourceStream("qwen-image-edit.json")!;
         var prompts = JsonNode.Parse(stream)!["prompts"]!;

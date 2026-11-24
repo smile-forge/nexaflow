@@ -31,9 +31,8 @@ internal sealed class KleinDrawing(ModelRegistry models, GpuScheduler gpu) : IDr
 
     public bool Masks => true;
 
-    public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
+    public async Task<SharedBytes> DrawAsync(Draw request, DrawingModel model, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
-        var model = request.Model;
         var lane  = gpu.Open(request.Priority);
         int rows = request.Height / KleinSampler.PixelsPerToken, cols = request.Width / KleinSampler.PixelsPerToken, tokens = rows * cols;
 
@@ -58,14 +57,14 @@ internal sealed class KleinDrawing(ModelRegistry models, GpuScheduler gpu) : IDr
                     using (await lane.NextAsync(model.Parts[DrawingParts.PictureEncoder].Device, ct))
                     {
                         ct.ThrowIfCancellationRequested();
-                        sources.Add(encoder.Encode(source.Rgb, source.Width, source.Height));
+                        sources.Add(encoder.Encode(source.Rgb.Memory, source.Width, source.Height));
                     }
             }
 
         var positions = KleinSampler.ImagePositions(rows, cols,
             [.. request.Sources.Select(s => (s.Height / KleinSampler.PixelsPerToken, s.Width / KleinSampler.PixelsPerToken))]);
         var promptPositions = KleinSampler.PromptPositions();
-        var mask    = request.Mask is { } covered ? KleinSampler.TokenMask(covered, request.Width, request.Height) : null;
+        var mask    = request.Mask is { } covered ? KleinSampler.TokenMask(covered.Span, request.Width, request.Height) : null;
         var sigmas  = KleinSampler.Sigmas(model.Steps, tokens);
         var noise   = KleinSampler.Noise(request.Seed, tokens);
         var latents = noise.ToArray();

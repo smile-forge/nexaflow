@@ -1,6 +1,7 @@
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.ML.Tokenizers;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
 

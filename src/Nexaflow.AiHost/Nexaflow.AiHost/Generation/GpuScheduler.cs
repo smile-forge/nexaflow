@@ -1,17 +1,19 @@
 using Nexaflow.AiHost.Contracts;
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 
 namespace Nexaflow.AiHost.Generation;
 
 /// <summary>
 /// The owner of the devices models run on — each GPU, and the CPU — taking turns on each separately: models on different
 /// cards never wait for each other. Work on a device is cut into steps — a token, a slice of prompt, a denoiser pass — and
-/// each step waits its turn: the next step goes to the highest-priority request waiting for that device, first come first
-/// served within a priority. Models running together only time-slice a GPU anyway (two at 30 tok/s each against 60 alone),
-/// so taking turns per step costs nothing while the steps are token-sized, and a background analysis gives way to a reply
-/// at the next token. Giving way is not waiting for good: while people's replies keep a device busy, work below them still
-/// has one turn in <see cref="ShareOfTurns"/>, so an app thinking in the background moves however many people are reading.
-/// Speech alone is never kept waiting.
+/// each step waits its turn: the next step goes to the highest-priority request waiting for that device. Within a priority
+/// the clients waiting take turns (<see cref="ClientIdentity"/>), each one's requests first come first served, so an app
+/// that queues many steps holds another's back by a step at a time, never by all of them. Models running together only
+/// time-slice a GPU anyway (two at 30 tok/s each against 60 alone), so taking turns per step costs nothing while the steps
+/// are token-sized, and a background analysis gives way to a reply at the next token. Giving way is not waiting for good:
+/// while people's replies keep a device busy, work below them still has one turn in <see cref="ShareOfTurns"/>, so an app
+/// thinking in the background moves however many people are reading. Speech alone is never kept waiting.
 /// <para>
 /// A generation job's steps are not token-sized: a high-quality picture's denoiser pass holds the GPU for about a third
 /// of a second, and a reply asks for its next token just after the GPU has been handed on, so taking turns would give it
@@ -34,9 +36,11 @@ internal sealed class GpuScheduler(TimeProvider? clock = null)
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
     private readonly ConcurrentDictionary<int, Turns> _devices = new();
 
-    /// <summary>Waits for a turn on <paramref name="device"/> — a GPU's index, or null for the CPU; the step ends when the
-    /// returned value is disposed.</summary>
-    public ValueTask<Step> NextAsync(RequestPriority priority, int? device, CancellationToken ct) => RequestActivity.WaitAsync(On(device).NextAsync(priority, ct));
+    /// <summary>Waits for a turn on <paramref name="device"/> — a GPU's index, or null for the CPU — at <paramref name="priority"/>, or
+    /// at the client's grant where it asks for more (<see cref="ClientIdentity.Granted"/>); the step ends when the returned value is
+    /// disposed.</summary>
+    public ValueTask<Step> NextAsync(RequestPriority priority, int? device, CancellationToken ct)
+        => RequestActivity.WaitAsync(On(device).NextAsync(ClientIdentity.Current.Granted(priority), ct));
 
     /// <summary>
     /// Someone is being attended to on <paramref name="devices"/> — a reply someone reads or hears, their words being
@@ -45,13 +49,13 @@ internal sealed class GpuScheduler(TimeProvider? clock = null)
     /// </summary>
     public IDisposable Engage(RequestPriority priority, params IEnumerable<int?> devices)
     {
-        if (priority is not (RequestPriority.Voice or RequestPriority.Interactive)) return Unengaged.Instance;
+        if (ClientIdentity.Current.Granted(priority) is not (RequestPriority.Voice or RequestPriority.Interactive)) return Unengaged.Instance;
         return new Engagement([.. devices.Distinct().Select(On).Select(turns => turns.Engage())]);
     }
 
     /// <summary>A request's turns, its age counted from now: a job's give way to people, as above; anything else's are taken
     /// as <see cref="NextAsync"/> gives them.</summary>
-    public Lane Open(RequestPriority priority) => new(this, priority, _clock.GetUtcNow());
+    public Lane Open(RequestPriority priority) => new(this, ClientIdentity.Current.Granted(priority), _clock.GetUtcNow());
 
     private Turns On(int? device) => _devices.GetOrAdd(device ?? -1, _ => new Turns());
 
@@ -60,8 +64,8 @@ internal sealed class GpuScheduler(TimeProvider? clock = null)
     {
         private readonly object _gate = new();
 
-        /// <summary>Who waits, a queue for each priority, first come first served within one.</summary>
-        private readonly Queue<TaskCompletionSource<Step>>[] _waiting = [.. Enum.GetValues<RequestPriority>().Select(_ => new Queue<TaskCompletionSource<Step>>())];
+        /// <summary>Who waits, for each priority: the clients in turn, each one's requests first come first served.</summary>
+        private readonly PriorityTurns[] _waiting = [.. Enum.GetValues<RequestPriority>().Select(_ => new PriorityTurns())];
         private bool _busy;
 
         /// <summary>Turns given since work below them, waiting all the while, last had one.</summary>
@@ -94,7 +98,7 @@ internal sealed class GpuScheduler(TimeProvider? clock = null)
                     return ValueTask.FromResult(new Step(Release));
                 }
                 turn = new TaskCompletionSource<Step>(TaskCreationOptions.RunContinuationsAsynchronously);
-                _waiting[(int)priority].Enqueue(turn);
+                _waiting[(int)priority].Enqueue(ClientIdentity.Current.Key, turn);
             }
 
             // A turn given to a request that has stopped waiting is handed straight on.
@@ -131,9 +135,9 @@ internal sealed class GpuScheduler(TimeProvider? clock = null)
         }
 
         /// <summary>
-        /// Who the next turn goes to — null when nobody waits: the most urgent request waiting, unless work below it has watched
-        /// <see cref="ShareOfTurns"/> − 1 turns go past since its last, when it is that work's. Speech is never kept waiting, and
-        /// its turns are not counted. Called under the gate.
+        /// Who the next turn goes to — null when nobody waits: the client whose turn it is at the most urgent priority waiting,
+        /// unless work below it has watched <see cref="ShareOfTurns"/> − 1 turns go past since its last, when it is that work's.
+        /// Speech is never kept waiting, and its turns are not counted. Called under the gate.
         /// </summary>
         private TaskCompletionSource<Step>? Next()
         {
@@ -143,17 +147,17 @@ internal sealed class GpuScheduler(TimeProvider? clock = null)
                 _passed = 0;
                 return null;
             }
-            if (first == (int)RequestPriority.Voice) return _waiting[first].Dequeue();
+            if (first == (int)RequestPriority.Voice) return _waiting[first].Take();
 
             int below = Waiting(first + 1);
             if (below < 0) _passed = 0;
             else if (_passed >= ShareOfTurns - 1)
             {
                 _passed = 0;
-                return _waiting[below].Dequeue();
+                return _waiting[below].Take();
             }
             else _passed++;
-            return _waiting[first].Dequeue();
+            return _waiting[first].Take();
         }
 
         /// <summary>The most urgent priority from <paramref name="from"/> down that someone still waits at; −1 for none. A
@@ -161,11 +165,7 @@ internal sealed class GpuScheduler(TimeProvider? clock = null)
         private int Waiting(int from)
         {
             for (int priority = from; priority < _waiting.Length; priority++)
-            {
-                var queue = _waiting[priority];
-                while (queue.TryPeek(out var head) && head.Task.IsCompleted) queue.Dequeue();
-                if (queue.Count > 0) return priority;
-            }
+                if (_waiting[priority].SomeoneWaits()) return priority;
             return -1;
         }
 
@@ -175,6 +175,70 @@ internal sealed class GpuScheduler(TimeProvider? clock = null)
             done.SetResult();
             return done;
         }
+    }
+
+    /// <summary>
+    /// The requests waiting at one priority on one device, their clients taking turns: each client's requests in the order
+    /// they came, and each turn to the client next in the round, which then goes to the back of it while it has more waiting.
+    /// One client queueing many steps holds another's back by one step at a time. A client's queue is kept once made — it
+    /// asks again with its next token, and the clients are the apps connected — so a turn allocates nothing. Called under the
+    /// device's gate.
+    /// </summary>
+    private sealed class PriorityTurns
+    {
+        private readonly Dictionary<string, ClientTurns> _clients = new(StringComparer.Ordinal);
+
+        /// <summary>The clients with requests waiting, whose turn it is first.</summary>
+        private readonly Queue<ClientTurns> _round = new();
+
+        /// <summary>Queues <paramref name="turn"/> behind <paramref name="client"/>'s others; a client that had none waiting
+        /// joins the round at its back.</summary>
+        public void Enqueue(string client, TaskCompletionSource<Step> turn)
+        {
+            ref var waiting = ref CollectionsMarshal.GetValueRefOrAddDefault(_clients, client, out _);
+            waiting ??= new ClientTurns();
+            waiting.Requests.Enqueue(turn);
+            if (waiting.InRound) return;
+            waiting.InRound = true;
+            _round.Enqueue(waiting);
+        }
+
+        /// <summary>Whether anyone still waits here. A request that stopped waiting is dropped as it is met, and a client with
+        /// nobody left waiting leaves the round; so after a true the client whose turn it is has a request still waiting
+        /// first.</summary>
+        public bool SomeoneWaits()
+        {
+            while (_round.TryPeek(out var client))
+            {
+                var requests = client.Requests;
+                while (requests.TryPeek(out var head) && head.Task.IsCompleted) requests.Dequeue();
+                if (requests.Count > 0) return true;
+                client.InRound = false;
+                _round.Dequeue();
+            }
+            return false;
+        }
+
+        /// <summary>The next turn — the first request of the client whose turn it is, the client going to the back of the
+        /// round if it has more. Only after <see cref="SomeoneWaits"/> said someone does.</summary>
+        public TaskCompletionSource<Step> Take()
+        {
+            var client = _round.Dequeue();
+            var turn = client.Requests.Dequeue();
+            if (client.Requests.Count > 0) _round.Enqueue(client);
+            else client.InRound = false;
+            return turn;
+        }
+    }
+
+    /// <summary>One client's requests waiting at one priority, first come first served.</summary>
+    private sealed class ClientTurns
+    {
+        public Queue<TaskCompletionSource<Step>> Requests { get; } = new();
+
+        /// <summary>Whether it is in its priority's round — it is while it has requests queued, though they may have stopped
+        /// waiting since.</summary>
+        public bool InRound { get; set; }
     }
 
     /// <summary>One step on a device.</summary>

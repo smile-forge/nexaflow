@@ -14,10 +14,10 @@
 
     with the model card (README.md) and this recipe beside it. lama_reference.py then runs the makers' own predict on
     SAM 3's sample pictures with a drawn mask each into <Work>\reference — what the AI host's port is held to
-    (Nexaflow.Tests.AiHost's PictureErasingTests, with NEXAFLOW_TEST_LAMA=<Out> and
-    NEXAFLOW_TEST_LAMA_REFERENCE=<Work>\reference). Upload with
+    (Nexaflow.Tests.AiHost's PictureErasingTests, with <Out> as tools\big-lama in the test store NEXAFLOW_TEST_STORE names
+    and NEXAFLOW_TEST_LAMA_REFERENCE=<Work>\reference). Upload with
       hf upload smile-forge/big-lama-onnx <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the published files are written.
