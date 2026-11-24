@@ -69,7 +69,7 @@ public class ServiceSupervisorTests
                                      WorkerRestarts? restarts)
     {
         var launches = new WorkerLaunches(worker);
-        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-service-").FullName);
+        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-service-").FullName, modelCalls: true);
         var supervisor = new WorkerSupervisor(accept, launches, log, restarts ?? Quick, TimeProvider.System);
         var stop = new CancellationTokenSource();
         return new Supervising(pipeName, launches, stop, Task.Run(() => supervisor.RunAsync(stop.Token)));

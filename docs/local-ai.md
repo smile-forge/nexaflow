@@ -318,7 +318,8 @@ reply whose client's queue is full stands aside from the token rounds it shares 
 room (`TokenRounds.Member.StandAside`). A client that sends what cannot be read ends its own session, never the host.
 
 **The host's policy** is a file of the machine's administrator, `%ProgramData%\Smile-Forge\AiHost\host.json`
-(`HostPolicy`): the share of memory models on the CPU may hold, the folder the host logs to, how long a model nothing holds
+(`HostPolicy`): the share of memory models on the CPU may hold, the folder the host logs to and whether it logs model calls there
+(`logModelCalls`, off unless it says so), how long a model nothing holds
 stays loaded once idle, and the highest priority each account — or one app of an account — may ask for, a request asking
 above it served at it. What the file leaves out is the host's default, and what an app that starts a host for itself
 passes on its command line comes before the file. The service's share is the administrator's alone: the host's welcome names it
@@ -354,8 +355,12 @@ connected while it has nothing to ask: Nexaflow lets go after the idle time its 
 ONNX Runtime costs the worker's requests, never the service: the next client starts another — a client handed to a worker
 as it goes is handed to the next — and after three failures in two minutes only after a minute's pause. Native libraries
 load once per process, so a CUDA pack fetched while the worker runs, or the one it runs from removed, is taken up by a new
-worker once nothing is held or running (`RuntimeWatch`, `WorkerExit.RuntimeChanged`). The service and its worker log to
-`%ProgramData%\Smile-Forge\AiHost\Logs` unless the policy file names a folder.
+worker once nothing is held or running (`RuntimeWatch`, `WorkerExit.RuntimeChanged`). The service and its worker always log
+what they do with themselves — starting, stopping, a worker started or replaced, the runtime loaded — and every error, to
+`%ProgramData%\Smile-Forge\AiHost\Logs` unless the policy file names a folder. What they do for an app — a client connecting
+and going, a model loaded and let go where, llama.cpp's warnings as it reads one — says what was asked of them, so it is
+logged only where the policy turns `logModelCalls` on (`HostLog.WriteActivity`).
+A host an app starts logs only while that app's safety logging is on, and then logs both.
 
 **The store's permissions follow the service** (`StoreAccess`). While the service is installed the store is its: SYSTEM,
 Administrators and the service write, and every user reads. The installer, as SYSTEM, first moves the

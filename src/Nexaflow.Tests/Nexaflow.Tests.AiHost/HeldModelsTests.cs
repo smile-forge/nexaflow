@@ -129,7 +129,7 @@ public class HeldModelsTests
         var gpus = new OneGpu(budget);
         var runners = new Runners();
         var store = new Store();
-        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-held-").FullName);
+        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-held-").FullName, modelCalls: true);
         var registry = new ModelRegistry(gpus, runners.All(), log, store);
         return new Host(new HeldModels(registry, store, runtime ?? Runtime, () => runtime == HostCatalog.Cpu ? [] : [gpus.Gpu(0)], HostMemory.Unbounded, log), registry, runners, store);
     }

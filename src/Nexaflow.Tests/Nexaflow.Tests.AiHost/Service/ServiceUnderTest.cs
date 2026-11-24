@@ -43,7 +43,7 @@ internal sealed class ServiceUnderTest : IAsyncDisposable
         string policy = Path.Combine(folder, "host.json");
         File.WriteAllText(policy, $$"""{ "logFolder": {{System.Text.Json.JsonSerializer.Serialize(logs)}} }""");
         string pipeName = "nexaflow-test-service-" + Guid.NewGuid().ToString("N");
-        var log = new HostLog(logs);
+        var log = new HostLog(logs, modelCalls: true);
         var workers = new Recording(new ProcessWorkerLauncher(TestStore.HostPath, [AiHostProtocol.StoreArgument, store ?? Path.Combine(folder, "store"),
                                                                                     AiHostProtocol.PolicyArgument, policy], log));
         var pipes = new ServicePipes(pipeName, ServicePipes.For(WindowsIdentity.GetCurrent().User!));

@@ -230,7 +230,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelRunners runners, HostLo
         {
             throw new HostRequestException(HostErrorKind.Runtime, $"{spec.Id} did not load: {ex.Message}");
         }
-        log.Write($"loaded {spec.Id} on {Where(spec)} in {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s");
+        log.WriteActivity($"loaded {spec.Id} on {Where(spec)} in {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s");
 
         bool displaced;
         Lease lease;
@@ -300,7 +300,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelRunners runners, HostLo
                 if (admission is null || admission.Waits)
                 {
                     admission = new VramBudget.Admission([.. held.Where(m => !m.InUse && (!m.Resident || room is not null)).Select(m => m.Id)], Waits: false);
-                    log.Write($"{spec.Id} needs {bytes >> 20} MiB of this machine's memory, past its {budget >> 20} MiB share beside the models in use; it loads past it");
+                    log.WriteActivity($"{spec.Id} needs {bytes >> 20} MiB of this machine's memory, past its {budget >> 20} MiB share beside the models in use; it loads past it");
                 }
                 unload.AddRange(admission.Unload);
             }
@@ -460,7 +460,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelRunners runners, HostLo
     private void Free(Entry entry)
     {
         entry.Model.Dispose();
-        log.Write($"unloaded {entry.Model.Spec.Id} from {Where(entry.Model.Spec)}");
+        log.WriteActivity($"unloaded {entry.Model.Spec.Id} from {Where(entry.Model.Spec)}");
     }
 
     private static string Where(ModelSpec spec) => spec.Device is { } device ? $"GPU {device}" : "the CPU";

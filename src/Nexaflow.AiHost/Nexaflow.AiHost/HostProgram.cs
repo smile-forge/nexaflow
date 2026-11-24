@@ -58,7 +58,9 @@ internal static class HostProgram
     /// <summary>A host an app started for itself.</summary>
     private static async Task<int> RunPrivateAsync(string pipeName, string[] args, HostPolicy policy)
     {
-        using var log = new HostLog(Argument(args, AiHostProtocol.LogDirArgument) ?? policy.LogFolder);
+        // An app names a folder only while its safety logging is on, which asks for everything; the policy's folder keeps what it says.
+        string? appsFolder = Argument(args, AiHostProtocol.LogDirArgument);
+        using var log = new HostLog(appsFolder ?? policy.LogFolder, modelCalls: appsFolder is not null || policy.LogsModelCalls);
         try
         {
             string token = (await Console.In.ReadLineAsync())?.Trim() ?? "";
@@ -90,7 +92,7 @@ internal static class HostProgram
     /// or until another runtime is in the store and nothing is held or running, when it exits for its supervisor to start another.</summary>
     private static async Task<int> RunWorkerAsync(string[] args, HostPolicy policy)
     {
-        using var log = new HostLog(policy.LogFolder ?? HostPolicy.ServiceLogFolder);
+        using var log = new HostLog(policy.LogFolder ?? HostPolicy.ServiceLogFolder, policy.LogsModelCalls);
         try
         {
             if (!int.TryParse(Argument(args, ServeAsArgument), NumberStyles.None, CultureInfo.InvariantCulture, out int supervisor)) return 2;
@@ -145,7 +147,7 @@ internal static class HostProgram
         {
             unreadable = ex.Message;
         }
-        using var log = new HostLog(policy?.LogFolder ?? HostPolicy.ServiceLogFolder);
+        using var log = new HostLog(policy?.LogFolder ?? HostPolicy.ServiceLogFolder, policy?.LogsModelCalls == true);
         log.Write($"service started (process {Environment.ProcessId}, protocol {AiHostProtocol.Version})");
         if (unreadable is not null) log.Write($"the policy file cannot be read, and no worker can start until it can: {unreadable}");
 

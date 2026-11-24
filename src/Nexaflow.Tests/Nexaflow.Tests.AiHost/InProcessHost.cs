@@ -21,7 +21,7 @@ namespace Nexaflow.Tests.AiHost;
 internal sealed class InProcessHost : IDisposable
 {
     /// <summary>What the host's parts log, as a host logs it — loads, places and lets go — in a folder of this host's own.</summary>
-    private readonly HostLog _log = new(TestTemp.CreateSubdirectory("nexaflow-in-process-host-").FullName);
+    private readonly HostLog _log = new(TestTemp.CreateSubdirectory("nexaflow-in-process-host-").FullName, modelCalls: true);
 
     private InProcessHost(string root, IHostGpus gpus, Func<IReadOnlyList<HostGpu>> gpusNow, string runtime)
     {

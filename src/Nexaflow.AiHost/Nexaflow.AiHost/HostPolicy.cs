@@ -7,23 +7,27 @@ namespace Nexaflow.AiHost;
 /// <summary>
 /// How this machine's administrator has the host run, from <c>host.json</c> in the host's own folder,
 /// <c>%ProgramData%\Smile-Forge\AiHost</c>: the share of the machine's memory models on the CPU may hold, the folder the host logs
-/// to, how long a model nothing holds stays loaded once nothing is using it, and the highest priority each identity may ask for.
-/// What the file leaves out — or the whole file, where there is none — is the host's own default; what an app that starts a host
-/// for itself says on its command line comes before the file.
+/// to and whether it logs model calls there, how long a model nothing holds stays loaded once nothing is using it, and the highest
+/// priority each identity may ask for. What the file leaves out — or the whole file, where there is none — is the host's own default;
+/// what an app that starts a host for itself says on its command line comes before the file.
 /// </summary>
 /// <param name="MemoryShare">Percent of the machine's memory models on the CPU may hold; null for the default.</param>
-/// <param name="LogFolder">Where the host keeps its log; null for none.</param>
+/// <param name="LogFolder">Where the host keeps its log; null for the service's own folder, and for none in a host an app starts.</param>
+/// <param name="LogsModelCalls">Whether the log keeps what the host does for its apps — who connected, which model loaded where —
+/// beside its own starting, stopping and errors, which it always keeps (<see cref="HostLog.WriteActivity"/>). Off unless the file
+/// turns it on.</param>
 /// <param name="IdleUnload">How long a model no hold holds stays loaded once nothing uses it.</param>
 /// <param name="Grants">The highest priority an identity may ask for, by its account's security identifier, or that and its app
 /// (<see cref="ClientIdentity.Key"/>) — the app's grant before its account's. An identity named in neither may ask for every
 /// priority.</param>
-internal sealed record HostPolicy(int? MemoryShare, string? LogFolder, TimeSpan IdleUnload, IReadOnlyDictionary<string, RequestPriority> Grants)
+internal sealed record HostPolicy(int? MemoryShare, string? LogFolder, bool LogsModelCalls, TimeSpan IdleUnload,
+                                  IReadOnlyDictionary<string, RequestPriority> Grants)
 {
     /// <summary>How long a model nothing holds stays loaded idle, where the file does not say: as long as an app lets one go after.</summary>
     public static readonly TimeSpan DefaultIdleUnload = TimeSpan.FromMinutes(15);
 
     /// <summary>The host's own defaults: no file.</summary>
-    public static HostPolicy Default { get; } = new(null, null, DefaultIdleUnload, new Dictionary<string, RequestPriority>());
+    public static HostPolicy Default { get; } = new(null, null, false, DefaultIdleUnload, new Dictionary<string, RequestPriority>());
 
     /// <summary>The host's folder on this machine, beside the model store.</summary>
     public static string DefaultFolder
@@ -63,13 +67,14 @@ internal sealed record HostPolicy(int? MemoryShare, string? LogFolder, TimeSpan 
             throw new InvalidDataException($"{path} gives a memory share of {share}%, outside {AiHostProtocol.MemoryShares.Start.Value}–{AiHostProtocol.MemoryShares.End.Value}%.");
         if (file.IdleUnloadMinutes is < 0)
             throw new InvalidDataException($"{path} gives a negative idle time.");
-        return new HostPolicy(file.MemoryShare, file.LogFolder,
+        return new HostPolicy(file.MemoryShare, file.LogFolder, file.LogModelCalls == true,
                               file.IdleUnloadMinutes is { } minutes ? TimeSpan.FromMinutes(minutes) : DefaultIdleUnload,
                               file.Grants ?? new Dictionary<string, RequestPriority>());
     }
 
     /// <summary>The file as written: every field optional.</summary>
-    internal sealed record PolicyFile(int? MemoryShare, string? LogFolder, double? IdleUnloadMinutes, Dictionary<string, RequestPriority>? Grants);
+    internal sealed record PolicyFile(int? MemoryShare, string? LogFolder, bool? LogModelCalls, double? IdleUnloadMinutes,
+                                      Dictionary<string, RequestPriority>? Grants);
 }
 
 /// <summary>The serializer for <see cref="HostPolicy.PolicyFile"/>, generated at build time.</summary>

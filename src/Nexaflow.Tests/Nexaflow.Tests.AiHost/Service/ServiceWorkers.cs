@@ -37,7 +37,7 @@ internal sealed class InProcessWorker : IWorkerProcess
         Id = number;
         _control = new StreamWriter(_line);
         var handed = new HandedPipes(new StreamReader(new AnonymousPipeClientStream(PipeDirection.In, _line.ClientSafePipeHandle)));
-        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-worker-").FullName);
+        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-worker-").FullName, modelCalls: true);
         var listener = new HostListener(handed, token: null, [new Describes($"worker {number}")], HostPolicy.Default, log, endsWithLastClient: false,
                                         welcomeAs: Environment.ProcessId);
         _ = Task.Run(async () =>

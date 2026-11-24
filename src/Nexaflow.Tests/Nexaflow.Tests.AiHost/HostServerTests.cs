@@ -158,7 +158,7 @@ public class HostServerTests
 
 
             var host = new HostChannel(hostEnd);
-            var log  = new HostLog(Path.Combine(TestTemp.Root, "nexaflow-tests", "aihost-logs"));
+            var log  = new HostLog(Path.Combine(TestTemp.Root, "nexaflow-tests", "aihost-logs"), modelCalls: true);
             var server = new HostServer(host, log, handlers, clock);
             return new Pipes(app, host, log, Task.Run(server.RunAsync));
         }

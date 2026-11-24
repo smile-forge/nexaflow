@@ -58,7 +58,7 @@ public class SessionOutboxTests
     public async Task AFullReplyQueue_HoldsBackReplies_WhileWhatKeepsTheConnectionGoingGoesAheadOfThem()
     {
         var stream = new HeldStream();
-        var outbox = new SessionOutbox(new HostChannel(stream), new HostLog(null));
+        var outbox = new SessionOutbox(new HostChannel(stream), new HostLog(null, modelCalls: false));
 
         var first = outbox.SendAsync(new TextDelta(1, "0"));
         await stream.Writing;   // the first reply is in the pipe's hands, held there
@@ -83,7 +83,7 @@ public class SessionOutboxTests
     public async Task WhatWaitsOnAReply_IsToldOnceItIsWritten_OrOnceTheSessionEndsWithoutIt()
     {
         var stream = new HeldStream();
-        var outbox = new SessionOutbox(new HostChannel(stream), new HostLog(null));
+        var outbox = new SessionOutbox(new HostChannel(stream), new HostLog(null, modelCalls: false));
         int written = 0;
 
         await outbox.SendAsync(new Completed(1), () => Interlocked.Increment(ref written));
@@ -94,7 +94,7 @@ public class SessionOutboxTests
         Assert.AreEqual(1, written);
 
         var broken = new HeldStream { Broken = true };
-        var gone = new SessionOutbox(new HostChannel(broken), new HostLog(null));
+        var gone = new SessionOutbox(new HostChannel(broken), new HostLog(null, modelCalls: false));
         int letGo = 0;
         await gone.SendAsync(new Completed(1), () => Interlocked.Increment(ref letGo));
         await gone.SendAsync(new Completed(2), () => Interlocked.Increment(ref letGo));

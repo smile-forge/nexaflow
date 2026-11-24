@@ -125,9 +125,9 @@ internal sealed class HostListener(IClientPipes pipes, string? token, IReadOnlyL
             server = new HostServer(channel, log, handlers, sections: sections, client: client with { Highest = policy.HighestFor(client) });
             lock (_gate) _sessions.Add(server);
             Interlocked.Increment(ref _welcomed);
-            log.Write($"{server.Client} connected");
+            log.WriteActivity($"{server.Client} connected");
             await server.RunAsync();
-            log.Write($"{server.Client} has gone");
+            log.WriteActivity($"{server.Client} has gone");
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or OperationCanceledException or UnauthorizedAccessException)
         {

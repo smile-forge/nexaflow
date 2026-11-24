@@ -30,7 +30,7 @@ public class HostListenerTests
     private static Listening Listen(HostPolicy? policy = null)
     {
         string pipe = "nexaflow-test-" + Guid.NewGuid().ToString("N");
-        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-listener-").FullName);
+        var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-listener-").FullName, modelCalls: true);
         var listener = new HostListener(new OwnPipes(pipe), Token, [new WhoAsked()], policy ?? HostPolicy.Default, log, endsWithLastClient: true);
         return new Listening(pipe, listener, Task.Run(listener.RunAsync));
     }

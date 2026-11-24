@@ -24,7 +24,7 @@ internal static class PackRuntime
             if (!_bound)
             {
                 NativeRuntime.Load(pack);
-                _log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-in-process-host-").FullName);
+                _log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-in-process-host-").FullName, modelCalls: true);
                 LlamaBackends.Load(pack, _log);
                 _bound = true;
             }
