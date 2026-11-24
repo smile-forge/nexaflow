@@ -209,11 +209,32 @@
           }
         ]
       }
+    },
+    "messages-workspace-tag": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/NotificationItem.cs",
+          "class": "NotificationItem",
+          "method": "Workspace"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/MessageCenterTests.cs",
+            "class": "MessageCenterTests",
+            "method": "AMessageAWorkspaceRaises_SaysWhichWorkspace_AndOneOfTheWholeAppDoesNot"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 12,
   "touched_nodes": [
+    "messages-workspace-tag",
     "shell-session",
     "ws-dormant-time",
     "ws-lifetimes",

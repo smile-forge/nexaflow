@@ -445,6 +445,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         var restore = new RelayCommand(() => RestoreSession(session));
         var note = new NotificationItem
         {
+        Workspace     = _workspace.Workspace,
             Title         = Str.Get("Shell.Notifications.RestoreTitle"),
             Body          = Str.Get("Shell.Notifications.RestoreBody"),
             Severity      = MessageSeverity.Info,
@@ -540,19 +541,19 @@ public sealed class ShellServices : IShellServices, IDisposable
     public void ShowError(string message) =>
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = Str.Get("Shell.Notifications.ErrorTitle"), Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.ErrorTitle"), Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
 
     public void ShowNotification(string message) =>
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info,
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info,
         });
 
     public void ShowNotification(string message, Page tab) =>
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info, ShowToast = true,
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info, ShowToast = true,
             Actions = [new MessageAction(Str.Get("Shell.Notifications.Open"), new RelayCommand(() => ActivateTab(tab)), IsPrimary: true)],
         });
 

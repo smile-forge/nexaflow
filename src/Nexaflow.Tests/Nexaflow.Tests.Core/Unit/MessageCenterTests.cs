@@ -1,5 +1,6 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -32,6 +33,20 @@ public class MessageCenterTests
             Assert.AreSame(second, raised);
         }
         finally { MessageCenter.Instance.MessagePosted -= Handler; }
+    }
+
+    [TestMethod]
+    public void AMessageAWorkspaceRaises_SaysWhichWorkspace_AndOneOfTheWholeAppDoesNot()
+    {
+        // One person, one inbox: every window shows every message, and each says which context it is about.
+        var workspace = new Workspace { Name = "Community" };
+        IShellServices shell = TestRuntimes.Unstarted(workspace).ShellServices;
+
+        shell.ShowError("the post did not go out");
+        Assert.AreSame(workspace, MessageCenter.Instance.Messages[0].Workspace);
+
+        MessageCenter.Instance.Post(new NotificationItem { Title = "An update is ready" });
+        Assert.IsNull(MessageCenter.Instance.Messages[0].Workspace);
     }
 
     [TestMethod]

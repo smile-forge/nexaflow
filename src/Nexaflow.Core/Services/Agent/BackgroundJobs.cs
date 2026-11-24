@@ -146,6 +146,7 @@ public sealed class BackgroundJobs(BackgroundActivityManager tasks, WorkspaceRun
 
         notify(new NotificationItem
         {
+            Workspace = workspace.Workspace,
             Title    = title,
             Body     = result.ModelText,
             Severity = result.IsError ? MessageSeverity.Error : MessageSeverity.Info,

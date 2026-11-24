@@ -84,7 +84,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     void IWindowHost.ShowError(string message) => ShowError(Str.Get("Shell.Errors.Error"), message);
     void IWindowHost.ShowNotification(string message)
-        => MessageCenter.Instance.Post(new NotificationItem { Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message });
+        => MessageCenter.Instance.Post(new NotificationItem { Workspace = CurrentRuntime.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message });
     void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel,
                                       string? confirmLabel, string? cancelLabel)
         => ShowConfirmation(title, prompt, onConfirm, onCancel, confirmLabel, cancelLabel);
@@ -393,7 +393,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void ShowError(string title, string message)
         => MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = title, Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+            Workspace = CurrentRuntime.Workspace, Title = title, Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
 
     public void ShowErrorToast(string message) => ShowError(Str.Get("Shell.Errors.Settings"), message);
@@ -402,7 +402,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     public void ShowInfoToast(string title, string message)
         => MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = title, Body = message, Severity = MessageSeverity.Info, ShowToast = true,
+            Workspace = CurrentRuntime.Workspace, Title = title, Body = message, Severity = MessageSeverity.Info, ShowToast = true,
         });
 
     // ── Unified overlay host ──────────────────────────────────────────────
