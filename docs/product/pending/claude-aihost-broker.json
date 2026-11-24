@@ -637,6 +637,16 @@
           "type": "code",
           "doc": "src/Nexaflow.Core/Services/LocalAi/AiHostSettingRulings.cs",
           "class": "AiHostSettingRulings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/HostLog.cs",
+          "class": "HostLog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Service/IdleWatch.cs",
+          "class": "IdleWatch"
         }
       ],
       "concerns": {
@@ -679,10 +689,40 @@
           }
         ]
       }
+    },
+    "system-components": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ExternalDependencyRegistry.cs",
+          "class": "ExternalDependencyRegistry"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Dependencies/IExternalDependency.cs",
+          "class": "IExternalDependency"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/AboutControl.xaml.cs",
+          "class": "AboutControl",
+          "method": "ShowComponents"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/LocalAiRequirements.cs",
+          "class": "LocalAiRequirements"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/AiHostReading.cs",
+          "class": "AiHostReading"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 16,
+  "changed_sets": 17,
   "touched_nodes": [
     "ai-host",
     "ai-host-service",
@@ -694,6 +734,7 @@
     "owned-images-moss-loras",
     "page-reading",
     "providers-speech-to-text",
+    "system-components",
     "voice-input"
   ]
 }

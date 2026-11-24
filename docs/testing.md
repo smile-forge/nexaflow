@@ -331,7 +331,7 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
     install puts it, and the sandbox's `BrowserExecutableFolder` policy points every app at it — the loader finds no
     runtime by that folder alone or by `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, but takes the policy — so the Web viewer and
     its journeys run there. Not the clipboard, printers or camera — and the microphone only
-    with `start --audio`. It gets 16 GB unless `--memory` says otherwise.
+    with `start --audio`. It has the host's GPU unless `start --no-gpu` takes it away — a PC with no NVIDIA card, where Nexaflow's own models run on the CPU. It gets 16 GB unless `--memory` says otherwise.
   - **The `NEXAFLOW_TEST_*` variables set where you `start` it go with it**, so a journey finds the models and media it
     finds on your desktop: a path outside the checkout is mapped read-only under `C:\nexaflow-host\<variable>` and the
     value rewritten to match, a path in the checkout is rewritten to its place in the mapping, anything else is passed

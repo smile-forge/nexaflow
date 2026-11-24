@@ -74,7 +74,7 @@ internal static class SandboxHost
         var forwarded = ForwardedEnvironment.FromHost(Checkout);
         var webView2 = HostWebView2.Find();
         var configuration = new SandboxConfiguration(
-            Checkout, HostDotnet(), webView2, arguments.IntValue("memory") ?? DefaultMemoryMB, !arguments.Flag("offline"), arguments.Flag("audio"),
+            Checkout, HostDotnet(), webView2, arguments.IntValue("memory") ?? DefaultMemoryMB, !arguments.Flag("offline"), arguments.Flag("audio"), !arguments.Flag("no-gpu"),
             forwarded.Folders);
 
         var session = SessionFolder.CreateNew(Checkout);
