@@ -208,7 +208,8 @@ internal sealed class HostConnection : IAsyncDisposable
     /// service uses it and nothing else, so a service that cannot be joined is no host at all, saying why.
     /// </summary>
     /// <exception cref="AiHostException">The service is not running, does not answer, is not what answers, speaks another protocol, or
-    /// turned this app away (<see cref="AiHostFailure.Unavailable"/>).</exception>
+    /// turned this app away (<see cref="AiHostFailure.Unavailable"/>); or the connection closed or broke before the welcome — the worker
+    /// it was handed to going — which a second join puts right (<see cref="AiHostFailure.Lost"/>).</exception>
     public static async Task<HostConnection> JoinAsync(IAiHostService service, string app, AiHostTimings timings, TimeProvider time,
                                                        EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
     {
@@ -247,11 +248,17 @@ internal sealed class HostConnection : IAsyncDisposable
                     throw Unavailable($"The AI host service speaks protocol {protocol}, and this app {AiHostProtocol.Version}: they are updated together.");
                 case HelloRefused refused:
                     throw Unavailable($"The AI host service turned this app away: {refused.Reason}.");
+                case null:
+                    throw Lost("The AI host service closed the connection before welcoming this app.");
                 default:
                     throw Unavailable("Something other than the AI host service answered on its pipe.");
             }
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or System.ComponentModel.Win32Exception
+        catch (IOException ex)
+        {
+            throw Lost($"The connection to the AI host service broke before it welcomed this app: {ex.Message}");
+        }
+        catch (Exception ex) when (ex is InvalidDataException or System.ComponentModel.Win32Exception
                                       or OperationCanceledException && !ct.IsCancellationRequested)
         {
             throw Unavailable($"The AI host service could not be joined: {ex.Message}");
@@ -262,7 +269,8 @@ internal sealed class HostConnection : IAsyncDisposable
             else if (pipe is { IsConnected: false }) await pipe.DisposeAsync().ConfigureAwait(false);
         }
 
-        static AiHostException Unavailable(string why) => new(AiHostFailure.Unavailable, why);
+    static AiHostException Unavailable(string why) => new(AiHostFailure.Unavailable, why);
+        static AiHostException Lost(string why) => new(AiHostFailure.Lost, why);
     }
 
     /// <summary>Sends the request <paramref name="create"/> makes; null when the connection is retiring and the request

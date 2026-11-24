@@ -5,15 +5,21 @@ namespace Nexaflow.AiHost.Service;
 /// <summary>
 /// The AI host service: a thin supervisor that takes clients on the service's pipe (<paramref name="accept"/>) and hands each to its
 /// worker — the broker, in a process of its own — so a native crash in llama.cpp or ONNX Runtime costs the worker's requests, never
-/// the service. A worker that exits is started again: at once where it exited to take up a new runtime
-/// (<see cref="WorkerExit.RuntimeChanged"/>), else unless it has failed <see cref="WorkerRestarts.Limit"/> times within
-/// <see cref="WorkerRestarts.Window"/>, when the next start waits <see cref="WorkerRestarts.Pause"/>. A client taken while no
-/// worker runs waits for the next one; one handed to a worker that then fails goes with it, and joins the next.
+/// the service. A worker runs only while clients want one: started for the first client, it exits once no client has been connected
+/// and nothing held for a while (<see cref="WorkerExit.Idle"/>) — each app deciding, by how long it stays connected while idle, how
+/// long that is — and the next client starts another; idle, the service holds no runtime, on the GPU or in memory. A worker that
+/// exits to take up a new runtime (<see cref="WorkerExit.RuntimeChanged"/>) is started again for the next client too; one that fails
+/// is, unless it has failed <see cref="WorkerRestarts.Limit"/> times within <see cref="WorkerRestarts.Window"/>, when the next start
+/// waits <see cref="WorkerRestarts.Pause"/>. A client taken while no worker runs waits for the one it starts; one handed to a worker
+/// that then fails goes with it, and joins the next.
 /// </summary>
 internal sealed class WorkerSupervisor(Func<CancellationToken, Task<TakenClient>> accept, IWorkerLauncher launcher, HostLog log,
                                        WorkerRestarts restarts, TimeProvider time)
 {
     private readonly Lock _gate = new();
+
+    /// <summary>A client is waiting for a worker: one is started for it.</summary>
+    private readonly SemaphoreSlim _demand = new(0);
     private TaskCompletionSource<IWorkerProcess> _live = Vacant();
 
     /// <summary>Supervises until <paramref name="ct"/> is cancelled, then stops the worker — killed where it has not stopped within
@@ -48,15 +54,32 @@ internal sealed class WorkerSupervisor(Func<CancellationToken, Task<TakenClient>
             }
             using (client)
             {
-                IWorkerProcess worker;
-                try { worker = await LiveWorker().WaitAsync(ct).ConfigureAwait(false); }
+                try { await HandAsync(client, ct).ConfigureAwait(false); }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
-                try { worker.Hand(client); }
-                catch (Exception ex) when (ex is IOException or Win32Exception or ObjectDisposedException)
-                {
-                    log.Write($"a client could not be handed to worker {worker.Id}, which is going: {ex.Message}");
-                }
             }
+        }
+    }
+
+    /// <summary>Hands <paramref name="client"/> to the live worker — one started for it where none runs; where that one is going as it
+    /// is handed the client, to the next, once the going one's exit is seen.</summary>
+    private async Task HandAsync(TakenClient client, CancellationToken ct)
+    {
+        while (true)
+        {
+            var live = LiveWorker();
+            if (!live.IsCompleted) _demand.Release();   // none runs: one is started for this client
+            var worker = await live.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                worker.Hand(client);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or Win32Exception or ObjectDisposedException or InvalidOperationException)
+            {
+                log.Write($"worker {worker.Id} is going as a client comes: {ex.Message}; the client waits for the next");
+            }
+            await worker.Exited.WaitAsync(ct).ConfigureAwait(false);
+            while (LiveWorker() == live) await Task.Delay(10, ct).ConfigureAwait(false);   // its going taken in
         }
     }
 
@@ -68,7 +91,7 @@ internal sealed class WorkerSupervisor(Func<CancellationToken, Task<TakenClient>
     private async Task KeepWorkerAsync(CancellationToken ct)
     {
         var failures = new Queue<DateTimeOffset>();
-        while (await WaitOutFailuresAsync(failures, ct).ConfigureAwait(false))
+        while (await DemandedAsync(ct).ConfigureAwait(false) && await WaitOutFailuresAsync(failures, ct).ConfigureAwait(false))
         {
             IWorkerProcess worker;
             try { worker = launcher.Start(); }
@@ -76,6 +99,7 @@ internal sealed class WorkerSupervisor(Func<CancellationToken, Task<TakenClient>
             {
                 log.Write($"the worker could not be started: {ex.Message}");
                 failures.Enqueue(time.GetUtcNow());
+                _demand.Release();   // the client that wanted it still waits
                 continue;
             }
             using (worker)
@@ -94,15 +118,36 @@ internal sealed class WorkerSupervisor(Func<CancellationToken, Task<TakenClient>
                     return;
                 }
                 Withdraw();
-                if (code == WorkerExit.RuntimeChanged)
+                switch (code)
                 {
-                    log.Write($"worker {worker.Id} exited to take up a new runtime; starting another");
-                    continue;
+                    case WorkerExit.Idle:
+                        log.Write($"worker {worker.Id} exited with no client to serve; the next client starts another");
+                        break;
+                    case WorkerExit.RuntimeChanged:
+                        log.Write($"worker {worker.Id} exited to take up a new runtime; the next client starts another");
+                        break;
+                    default:
+                        log.Write($"worker {worker.Id} exited with 0x{code:X8}");
+                        failures.Enqueue(time.GetUtcNow());
+                        break;
                 }
-                log.Write($"worker {worker.Id} exited with 0x{code:X8}");
-                failures.Enqueue(time.GetUtcNow());
             }
         }
+    }
+
+    /// <summary>Waits for a client to want a worker — those that wanted one together are one want; false once the service is stopping.</summary>
+    private async Task<bool> DemandedAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _demand.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        while (_demand.Wait(0)) { }
+        return true;
     }
 
     /// <summary>The live worker has gone: clients taken from now on wait for the next.</summary>
@@ -163,7 +208,10 @@ internal static class WorkerExit
     /// <summary>Asked to stop, it stopped.</summary>
     public const int Stopped = 0;
 
-    /// <summary>A CUDA pack its runtime is not loaded from arrived — or the one it is went — while nothing was held or running: it is
-    /// started again at once, on what the store now holds.</summary>
+    /// <summary>A CUDA pack its runtime is not loaded from arrived — or the one it is went — while nothing was held or running: the next
+    /// client starts it again, on what the store now holds.</summary>
     public const int RuntimeChanged = 10;
+
+    /// <summary>No client was connected, and nothing held, for <see cref="IdleWatch.Linger"/>: it is started again for the next client.</summary>
+    public const int Idle = 11;
 }

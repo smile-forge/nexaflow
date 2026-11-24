@@ -34,6 +34,10 @@ internal sealed class HostListener(IClientPipes pipes, string? token, IReadOnlyL
     private readonly List<HostServer> _sessions = [];
     private readonly CancellationTokenSource _stop = new();
     private int _welcomed;
+    private int _present;
+
+    /// <summary>How many clients are connected now — from the moment one's pipe arrives, so one still saying hello counts.</summary>
+    public int Clients => Volatile.Read(ref _present);
 
     /// <summary>Whether any client has a request running.</summary>
     public bool Busy
@@ -77,6 +81,7 @@ internal sealed class HostListener(IClientPipes pipes, string? token, IReadOnlyL
                 log.Write("no more clients will come; stopping");
                 break;
             }
+    Interlocked.Increment(ref _present);
             sessions.RemoveAll(t => t.IsCompleted);
             sessions.Add(Task.Run(() => ServeAsync(client)));
         }
@@ -138,6 +143,7 @@ internal sealed class HostListener(IClientPipes pipes, string? token, IReadOnlyL
             }
             sections?.Dispose();
             await pipe.DisposeAsync();
+            Interlocked.Decrement(ref _present);
             if (alone && endsWithLastClient) _stop.Cancel();
         }
     }

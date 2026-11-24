@@ -44,10 +44,8 @@ public class RealServiceTests
         await DescribeAsync(client);
 
         service.Workers.Single().Kill();
-        var until = DateTime.UtcNow + Generous;
-        while (service.Workers.Count < 2 && DateTime.UtcNow < until) await Task.Delay(20);
 
-        // The request that finds the connection gone fails; the next joins the service again, and its new worker serves it.
+        // The request that finds the connection gone fails; the next joins the service again, which starts a worker for it.
         HostDescription? next = null;
         for (int attempt = 0; attempt < 3 && next is null; attempt++)
         {

@@ -20,6 +20,7 @@ internal interface IWorkerProcess : IDisposable
     /// <summary>Hands the worker a client taken on the service's pipe. The worker takes a handle of its own to its pipe, so the caller
     /// closes its own.</summary>
     /// <exception cref="ObjectDisposedException">The worker was asked to stop.</exception>
+    /// <exception cref="InvalidOperationException">The worker has exited.</exception>
     /// <exception cref="IOException">The worker is going, and cannot be told.</exception>
     void Hand(TakenClient client);
 

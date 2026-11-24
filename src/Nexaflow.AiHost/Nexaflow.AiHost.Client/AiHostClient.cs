@@ -147,14 +147,22 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
             if (_service is { } service && service.IsInstalled())
             {
                 HostConnection joined;
-                try
+                for (int attempt = 1; ; attempt++)
                 {
-                    joined = await Task.Run(() => HostConnection.JoinAsync(service, _app, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
-                }
-                catch (AiHostException ex)
-                {
-                    Reach(ex.Message);
-                    throw;
+                    try
+                    {
+                        joined = await Task.Run(() => HostConnection.JoinAsync(service, _app, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
+                        break;
+                    }
+                    catch (AiHostException ex) when (ex.Failure == AiHostFailure.Lost && attempt == 1)
+                    {
+                        // Handed to a worker as it went: the service starts another for the next join.
+                    }
+                    catch (AiHostException ex)
+                    {
+                        Reach(ex.Message);
+                        throw;
+                    }
                 }
                 Reach(null);
                 _joinedLast = true;

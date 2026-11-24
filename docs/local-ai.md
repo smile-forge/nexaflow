@@ -344,11 +344,17 @@ is a thin supervisor (`WorkerSupervisor`). It opens the pipe — any signed-in a
 may open an instance of its own to answer on, and nothing across the network may connect (`ServicePipes`) — takes each
 client on, reads its account there, since only the process that connected a pipe can act as its client, and hands the
 connected pipe and the account to its worker (`PipeHandover`, `HandedPipes`): the same executable run with `--worker`,
-the broker itself, which welcomes clients as the supervisor's process. A native crash in llama.cpp or ONNX Runtime costs
-the worker's requests, never the service: the supervisor starts another at once — a client taken meanwhile waits for it —
-and after three failures in two minutes only after a minute's pause. Native libraries load once per process, so a CUDA
-pack fetched while the worker runs, or the one it runs from removed, is taken up by a new worker once nothing is held or
-running (`RuntimeWatch`, `WorkerExit.RuntimeChanged`). The service and its worker log to
+the broker itself, which welcomes clients as the supervisor's process. **A worker runs only while apps use it**: the
+supervisor starts one for the first client — a client taken meanwhile waits for it — and it exits once no client has been
+connected, and nothing held, for 30 s (`IdleWatch`, `WorkerExit.Idle`), so an idle service is its supervisor alone, about
+30 MiB and nothing on the GPU; a worker holds its runtime from the moment it starts — on an RTX PRO 6000, about 560 MiB of the
+card and 1 GB of memory with nothing loaded. How long that is after use is each app's to decide by how long it stays
+connected while it has nothing to ask: Nexaflow lets go after the idle time its Settings give a model (Local models,
+"Unload a model idle for", 0 for never), so it keeps a worker for as long as that says. A native crash in llama.cpp or
+ONNX Runtime costs the worker's requests, never the service: the next client starts another — a client handed to a worker
+as it goes is handed to the next — and after three failures in two minutes only after a minute's pause. Native libraries
+load once per process, so a CUDA pack fetched while the worker runs, or the one it runs from removed, is taken up by a new
+worker once nothing is held or running (`RuntimeWatch`, `WorkerExit.RuntimeChanged`). The service and its worker log to
 `%ProgramData%\Smile-Forge\AiHost\Logs` unless the policy file names a folder.
 
 **The store's permissions follow the service** (`StoreAccess`). While the service is installed the store is its: SYSTEM,

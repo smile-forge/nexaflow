@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Threading.Channels;
+using Microsoft.Win32.SafeHandles;
 using Nexaflow.AiHost;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
@@ -11,9 +13,10 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The AI host service's supervisor: clients taken on the service's pipe are served by its worker as the service's own process; a
-/// worker that fails is started again, and one that keeps failing only after a pause; one that exits to take up a new runtime at
-/// once; stopping the service stops the worker, killing one that will not; and the pipe is the service's alone.
+/// The AI host service's supervisor: no worker runs until a client comes; clients taken on the service's pipe are served by it as the
+/// service's own process; a worker that exits unused, or to take up a new runtime, is started again for the next client, and so is one
+/// that fails — after a pause where it keeps failing; stopping the service stops the worker, killing one that will not; and the pipe is
+/// the service's alone.
 /// </summary>
 [TestClass]
 [CoversNode("ai-host")]
@@ -32,8 +35,12 @@ public class ServiceSupervisorTests
     private static readonly WorkerRestarts Quick = new(Limit: 3, Window: TimeSpan.FromSeconds(30), Pause: TimeSpan.FromMinutes(10),
                                                        StopGrace: TimeSpan.FromMilliseconds(300));
 
-    private sealed record Supervising(string PipeName, WorkerLaunches Launches, CancellationTokenSource Stop, Task Running) : IAsyncDisposable
+    private sealed record Supervising(string PipeName, WorkerLaunches Launches, CancellationTokenSource Stop, Task Running,
+                                      Channel<TakenClient>? Clients = null) : IAsyncDisposable
     {
+        /// <summary>A client taken, as the service's pipe takes one — for a supervisor whose clients the test hands it.</summary>
+        public void Take() => Clients!.Writer.TryWrite(new TakenClient(new SafePipeHandle(IntPtr.Zero, ownsHandle: false), WindowsIdentity.GetCurrent().User!));
+
         public async ValueTask DisposeAsync()
         {
             await Stop.CancelAsync();
@@ -43,13 +50,27 @@ public class ServiceSupervisorTests
         }
     }
 
+    /// <summary>A supervisor on a pipe of the test's own, its workers made by <paramref name="worker"/>.</summary>
     private static Supervising Supervise(Func<int, IWorkerProcess> worker, WorkerRestarts? restarts = null, string? pipeName = null)
     {
         pipeName ??= "nexaflow-test-service-" + Guid.NewGuid().ToString("N");
         var pipes = new ServicePipes(pipeName, ServicePipes.For(WindowsIdentity.GetCurrent().User!));
+        return Start(pipes.AcceptAsync, pipeName, worker, restarts);
+    }
+
+    /// <summary>A supervisor whose clients the test hands it (<see cref="Supervising.Take"/>), for workers that serve no pipe.</summary>
+    private static Supervising SuperviseTaking(Func<int, IWorkerProcess> worker, WorkerRestarts? restarts = null)
+    {
+        var clients = Channel.CreateUnbounded<TakenClient>();
+        return Start(ct => clients.Reader.ReadAsync(ct).AsTask(), "", worker, restarts) with { Clients = clients };
+    }
+
+    private static Supervising Start(Func<CancellationToken, Task<TakenClient>> accept, string pipeName, Func<int, IWorkerProcess> worker,
+                                     WorkerRestarts? restarts)
+    {
         var launches = new WorkerLaunches(worker);
         var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-service-").FullName);
-        var supervisor = new WorkerSupervisor(pipes.AcceptAsync, launches, log, restarts ?? Quick, TimeProvider.System);
+        var supervisor = new WorkerSupervisor(accept, launches, log, restarts ?? Quick, TimeProvider.System);
         var stop = new CancellationTokenSource();
         return new Supervising(pipeName, launches, stop, Task.Run(() => supervisor.RunAsync(stop.Token)));
     }
@@ -72,6 +93,18 @@ public class ServiceSupervisorTests
     }
 
     [TestMethod]
+    public async Task NoWorkerRuns_TillAClientComes()
+    {
+        await using var service = SuperviseTaking(n => new ScriptedWorker(n));
+
+        await Task.Delay(300);
+        Assert.AreEqual(0, service.Launches.Starts, "idle, the service holds no runtime");
+
+        service.Take();
+        await UntilAsync(() => service.Launches.Starts == 1);
+    }
+
+    [TestMethod]
     public async Task AClientOfTheService_IsServedByItsWorker_AsTheServicesOwnProcess()
     {
         await using var service = Supervise(n => new InProcessWorker(n));
@@ -82,7 +115,7 @@ public class ServiceSupervisorTests
     }
 
     [TestMethod]
-    public async Task AWorkerThatFails_IsStartedAgain_AndServesTheNextClient()
+    public async Task AWorkerThatFails_IsStartedAgainForTheNextClient()
     {
         var workers = new List<InProcessWorker>();
         await using var service = Supervise(n =>
@@ -94,47 +127,55 @@ public class ServiceSupervisorTests
         Assert.AreEqual("worker 1", await DescribeAsync(service.PipeName));
 
         lock (workers) workers[0].Kill();
-        await UntilAsync(() => service.Launches.Starts == 2);
 
         Assert.AreEqual("worker 2", await DescribeAsync(service.PipeName));
+    }
+
+    [TestMethod]
+    public async Task AWorkerThatExitsUnused_IsStartedAgainForTheNextClient_AndThatIsNoFailure()
+    {
+        await using var service = SuperviseTaking(n =>
+        {
+            var worker = new ScriptedWorker(n);
+            worker.ExitWith(n % 2 == 0 ? WorkerExit.RuntimeChanged : WorkerExit.Idle);
+            return worker;
+        });
+
+        for (int i = 1; i <= 6; i++)
+        {
+            service.Take();
+            await UntilAsync(() => service.Launches.Starts == i);
+        }
     }
 
     [TestMethod]
     public async Task AWorkerFailingAgainAndAgain_IsStartedAgainOnlyAfterAPause()
     {
         var restarts = Quick with { Limit = 2, Pause = TimeSpan.FromMilliseconds(800) };
-        await using var service = Supervise(n =>
+        await using var service = SuperviseTaking(n =>
         {
             var worker = new ScriptedWorker(n);
             worker.ExitWith(1);
             return worker;
         }, restarts);
 
+        service.Take();
+        await UntilAsync(() => service.Launches.Starts == 1);
+        service.Take();
         await UntilAsync(() => service.Launches.Starts == 2);
+
+        service.Take();
         await Task.Delay(300);
         Assert.AreEqual(2, service.Launches.Starts, "two failures in the window: the next waits out the pause");
-        await UntilAsync(() => service.Launches.Starts >= 3);
-    }
-
-    [TestMethod]
-    public async Task AWorkerExitingToTakeUpANewRuntime_IsStartedAgainAtOnce_AndThatIsNoFailure()
-    {
-        int exits = 0;
-        await using var service = Supervise(n =>
-        {
-            var worker = new ScriptedWorker(n);
-            if (Interlocked.Increment(ref exits) <= 5) worker.ExitWith(WorkerExit.RuntimeChanged);
-            return worker;
-        });
-
-        await UntilAsync(() => service.Launches.Starts == 6);
+        await UntilAsync(() => service.Launches.Starts == 3);
     }
 
     [TestMethod]
     public async Task StoppingTheService_StopsItsWorker()
     {
         ScriptedWorker? worker = null;
-        var service = Supervise(n => worker = new ScriptedWorker(n));
+        var service = SuperviseTaking(n => worker = new ScriptedWorker(n));
+        service.Take();
         await UntilAsync(() => worker is not null);
 
         await service.DisposeAsync();
@@ -147,7 +188,8 @@ public class ServiceSupervisorTests
     public async Task AWorkerThatWillNotStop_IsKilledAfterTheGrace()
     {
         ScriptedWorker? worker = null;
-        var service = Supervise(n => worker = new ScriptedWorker(n, stopsWhenAsked: false));
+        var service = SuperviseTaking(n => worker = new ScriptedWorker(n, stopsWhenAsked: false));
+        service.Take();
         await UntilAsync(() => worker is not null);
 
         await service.DisposeAsync();
@@ -195,5 +237,19 @@ public class ServiceSupervisorTests
     public async Task HandedPipes_End_WhenTheSupervisorStopsHandingThem()
     {
         Assert.IsNull(await new HandedPipes(new StringReader("")).NextAsync(CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task AWorkerUnusedForItsLinger_IsDone_AndOneInUseIsNot()
+    {
+        bool used = true;
+        var watch = new IdleWatch(() => used, linger: TimeSpan.FromMilliseconds(200), every: TimeSpan.FromMilliseconds(20), TimeProvider.System);
+        var idle = watch.UntilIdleAsync(CancellationToken.None);
+
+        await Task.Delay(400);
+        Assert.IsFalse(idle.IsCompleted, "a worker with a client stays");
+        used = false;
+
+        await idle.WaitAsync(Generous);
     }
 }

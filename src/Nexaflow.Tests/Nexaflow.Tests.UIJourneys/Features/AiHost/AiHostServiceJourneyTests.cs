@@ -15,8 +15,8 @@ namespace Nexaflow.Tests.Features.UI;
 /// user's models from an earlier Nexaflow into the service's store and installs the service, which starts with the machine under its
 /// own account and keeps the store, every user reading. Nexaflow, started with no host of its own, answers from the service on the
 /// model moved in, and Settings show the share of memory the service's models may hold as the service's, not the user's to change
-/// there. Another app — the SDK's sample, given no host of its own — answers from the same service. A worker killed under them is
-/// replaced and the apps join the next. With the service stopped, the AI's line says Nexaflow's own models cannot run, and why, rather
+/// there. Another app — the SDK's sample, given no host of its own — answers from the same service. With no app using it, the service
+/// runs no worker; a worker killed under the apps is replaced by one started for the next app to come. With the service stopped, the AI's line says Nexaflow's own models cannot run, and why, rather
 /// than each request failing, and the other app has no host — none of its own in the service's place; once the service is back, the
 /// line clears and Nexaflow answers again. Uninstalling gives the store back to every user, and an app's own host then runs what the
 /// store holds, fetching nothing.
@@ -124,6 +124,10 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
     [TestMethod]
     public void TheAiHostService_ServesNexaflowAndAnotherApp_OutlivesItsWorker_SaysWhenItCannotRun_AndGivesTheStoreBack()
     {
+        // What the service costs the machine with no app using it: its supervisor alone, no worker holding a runtime.
+        RecordIdleFootprint();
+        Check("with no app using it, the service runs no worker", () => Process.GetProcessesByName("Nexaflow.AiHost").Length == 1);
+
         // Installed: with the machine, as its own account, keeping the store that the earlier models were moved into.
         string config = Run("sc", ["qc", Service]).Output;
         Check("the service starts with the machine, whoever is signed in", () => config.Contains("AUTO_START"));
@@ -153,9 +157,9 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
         var worker = Process.GetProcessesByName("Nexaflow.AiHost").Single(p => p.Id != supervisor);
         Process.EnterDebugMode();   // the worker runs as the service's account
         worker.Kill();
-        Check("a worker that dies is replaced", () => Until(() => Process.GetProcessesByName("Nexaflow.AiHost").Any(p => p.Id != supervisor && p.Id != worker.Id),
-                                                            TimeSpan.FromMinutes(2)));
-        Check("and the other app joins the next", () => Run(Sample, ["--model", Model], "sample-after-the-worker.log").Exit == 0);
+        Check("the app that comes next is served by another worker, started for it", () =>
+            Run(Sample, ["--model", Model], "sample-after-the-worker.log").Exit == 0
+            && Process.GetProcessesByName("Nexaflow.AiHost").Any(p => p.Id != supervisor && p.Id != worker.Id));
 
         // Stopped: nothing in its place, and said.
         Check("the service stops", () => Run("sc", ["stop", Service]).Exit == 0);
@@ -185,6 +189,22 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
             Run(Sample, ["--host", BuiltHost, "--model", Model], "sample-own-host.log") is { Exit: 0 } ran && !ran.Errors.Contains("fetching"));
 
         AssertJourney();
+    }
+
+    /// <summary>Writes what the service holds while no app uses it — each host process's working set and private memory, and the GPU's
+    /// compute processes as its driver lists them — to <c>idle-footprint.txt</c> in the journey's results: a reading, not a check.</summary>
+    private void RecordIdleFootprint()
+    {
+        System.Threading.Thread.Sleep(TimeSpan.FromSeconds(15));   // the worker started and settled
+        var lines = Process.GetProcessesByName("Nexaflow.AiHost")
+                           .Select(p => $"process {p.Id}: working set {p.WorkingSet64 >> 20} MiB, private {p.PrivateMemorySize64 >> 20} MiB")
+                           .ToList();
+        try
+        {
+            lines.Add(Run("nvidia-smi", ["--query-compute-apps=pid,used_memory", "--format=csv"]).Output.Trim());
+        }
+        catch (System.ComponentModel.Win32Exception) { lines.Add("nvidia-smi is not on this machine"); }
+        File.WriteAllLines(Path.Combine(_logs, "idle-footprint.txt"), lines);
     }
 
     /// <summary>A reply naming the three colours, within <paramref name="seconds"/>.</summary>

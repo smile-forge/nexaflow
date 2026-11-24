@@ -57,7 +57,11 @@ internal sealed class ProcessWorkerLauncher(string hostPath, IReadOnlyList<strin
 
         public void Hand(TakenClient client)
         {
-            lock (_gate) PipeHandover.Hand(client, _process.SafeHandle, _process.StandardInput);
+            lock (_gate)
+            {
+                if (_process.HasExited) throw new InvalidOperationException($"worker {Id} has exited");
+                PipeHandover.Hand(client, _process.SafeHandle, _process.StandardInput);
+            }
         }
 
         public void Stop()

@@ -55,7 +55,11 @@ internal sealed class InProcessWorker : IWorkerProcess
 
     public void Hand(TakenClient client)
     {
-        lock (_gate) PipeHandover.Hand(client, _self.SafeHandle, _control);
+        lock (_gate)
+        {
+            if (_exited.Task.IsCompleted) throw new InvalidOperationException($"worker {Id} has exited");
+            PipeHandover.Hand(client, _self.SafeHandle, _control);
+        }
     }
 
     public void Stop()

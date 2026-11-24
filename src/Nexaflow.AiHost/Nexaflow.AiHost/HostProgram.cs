@@ -106,10 +106,19 @@ internal static class HostProgram
             var serving = listener.RunAsync();
             var runtime = new RuntimeWatch(store.RuntimePack, broker.RuntimePack, () => broker.Held.AnyHeld || listener.Busy, RuntimeWatch.Every,
                                            TimeProvider.System).UntilWorthRestartingAsync(stop.Token);
-            if (await Task.WhenAny(serving, runtime) == runtime)
+            // A worker no client uses holds a runtime — on the GPU, and in memory — for nobody: it goes, and the next client starts another.
+            var idle = new IdleWatch(() => listener.Clients > 0 || broker.Held.AnyHeld, IdleWatch.Linger, IdleWatch.Every, TimeProvider.System)
+                .UntilIdleAsync(stop.Token);
+            var ended = await Task.WhenAny(serving, runtime, idle);
+            if (ended == runtime)
             {
                 log.Write("another runtime is in the store, and nothing is held or running: exiting to take it up");
                 return WorkerExit.RuntimeChanged;
+            }
+            if (ended == idle)
+            {
+                log.Write($"no client for {IdleWatch.Linger.TotalSeconds:0} s, and nothing held: exiting until one comes");
+                return WorkerExit.Idle;
             }
             await stop.CancelAsync();
             await serving;
