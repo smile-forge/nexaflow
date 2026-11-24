@@ -7,6 +7,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.IO.Common;
+using Nexaflow.Tests.Features.WindowsFileSystem;
 
 namespace Nexaflow.Tests.Features.Search;
 
@@ -58,8 +59,8 @@ public sealed class FileSystemSearchableTests : SearchableContentConformanceTest
     }
 
     private static FileSystemViewModel Vm(IShellServices? shell = null, string? root = null)
-        => new(root ?? TestTemp.Root, shell ?? Shell(), Substitute.For<IAIService>(),
-               new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        => new FileBrowserRuntime(shell ?? Shell(), Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(),
+                                  VirtualFileSystem.Instance).Browse(root ?? TestTemp.Root);
 
     protected override Task<ISearchable> CreateAsync()
         => Task.FromResult<ISearchable>(Vm(Shell(withCorpus: true)));

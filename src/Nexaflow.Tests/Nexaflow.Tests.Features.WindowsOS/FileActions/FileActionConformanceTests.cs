@@ -4,6 +4,8 @@ using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Tests.Features.FileActions;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
+using Nexaflow.Features.WindowsFileSystem.Operations;
+using Nexaflow.Features.WindowsFileSystem.Services;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem.FileActions;
 
@@ -20,7 +22,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem.FileActions;
 [CoversNode("winfs-action-strip")]
 public class CopyFilesConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new CopyFiles(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+    protected override IFileAction CreateAction() => new CopyFiles(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, FileCompanions.None);
 }
 
 [TestClass]
@@ -33,21 +35,25 @@ public class CopyPathsConformance : FileActionConformanceTests
 [CoversNode("winfs-action-strip")]
 public class CutFilesConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new CutFiles(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+    protected override IFileAction CreateAction() => new CutFiles(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, FileCompanions.None);
 }
 
 [TestClass]
 [CoversNode("winfs-action-strip")]
 public class DeleteFileConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new DeleteFile(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+    protected override IFileAction CreateAction()
+    {
+        var shell = Substitute.For<IShellServices>();
+        return new DeleteFile(shell, VirtualFileSystem.Instance, new FileOperationQueue(shell, VirtualFileSystem.Instance, FileCompanions.None));
+    }
 }
 
 [TestClass]
 [CoversNode("winfs-action-strip")]
 public class RenameFileConformance : FileActionConformanceTests
 {
-    protected override IFileAction CreateAction() => new RenameFile(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+    protected override IFileAction CreateAction() => new RenameFile(Substitute.For<IShellServices>(), VirtualFileSystem.Instance, FileCompanions.None);
 }
 
 [TestClass]

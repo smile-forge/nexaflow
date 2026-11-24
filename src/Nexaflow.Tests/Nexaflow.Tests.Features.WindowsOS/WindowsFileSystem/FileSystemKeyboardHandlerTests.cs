@@ -40,7 +40,7 @@ public class FileSystemKeyboardHandlerTests
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
 
-        var vm = new FileSystemViewModel(_scratch, shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).Browse(_scratch);
         await vm.Browsing;
         return vm;
     }

@@ -14,10 +14,13 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         private readonly IShellServices _shell;
         private readonly IVirtualFileSystem _vfs;
 
-        public RenameFile(IShellServices shell, IVirtualFileSystem vfs)
+        private readonly Services.FileCompanions _companions;
+
+        public RenameFile(IShellServices shell, IVirtualFileSystem vfs, Services.FileCompanions companions)
         {
-            _shell = shell;
-            _vfs   = vfs;
+            _shell      = shell;
+            _vfs        = vfs;
+            _companions = companions;
         }
 
         // ── IFileAction ───────────────────────────────────────────────────────
@@ -79,7 +82,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             try
             {
                 await _vfs.MoveAsync(path, dest, replace: false);
-                if (!isDir) await Services.FileCompanions.For(_shell).FollowAsync(_vfs, path, dest, move: true);
+                if (!isDir) await _companions.FollowAsync(_vfs, path, dest, move: true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

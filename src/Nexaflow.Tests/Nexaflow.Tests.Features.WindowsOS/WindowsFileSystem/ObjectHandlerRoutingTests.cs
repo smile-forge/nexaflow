@@ -94,8 +94,9 @@ public class ObjectHandlerRoutingTests
     {
         var vfs = Substitute.For<IVirtualFileSystem>();
         vfs.TryParseDisplayPath("sftp://adam@nas/home").Returns(@"::sftp-nas\home");
-        var handler = new FileSystemObjectHandler(Substitute.For<IShellServices>(), Substitute.For<IAIService>(),
-                                                  new Dictionary<Type, IFeatureConfig>(), vfs);
+        var shell   = Substitute.For<IShellServices>();
+        var handler = new FileSystemObjectHandler(shell, vfs,
+            new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), vfs).Registry);
 
         Assert.IsTrue(handler.CanHandleObject(@"C:\nowhere\at-all.txt"), "existence is the open's question, not the claim's");
         Assert.IsTrue(handler.CanHandleObject(@"::docs\notes.md"));

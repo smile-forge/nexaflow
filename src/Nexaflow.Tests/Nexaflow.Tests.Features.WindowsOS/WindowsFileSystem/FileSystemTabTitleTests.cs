@@ -37,9 +37,12 @@ public class FileSystemTabTitleTests
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
 
+        var configs = new Dictionary<Type, IFeatureConfig>();
+        var runtime = new FileBrowserRuntime(shell, ai, configs, VirtualFileSystem.Instance);
         return new FileSystemPageRegistration(
-            shell, ai, new Dictionary<Type, IFeatureConfig>(),
-            new FileMapConfig(), new ExternalAppsConfig(), new TemplatedCreateConfig(), VirtualFileSystem.Instance);
+            shell, ai, configs,
+            new FileMapConfig(), new ExternalAppsConfig(), new TemplatedCreateConfig(), VirtualFileSystem.Instance,
+            runtime.Registry, runtime.Operations, runtime.Companions);
     }
 
     /// <summary>The params a ribbon button holds: how the folder was reached, and nothing about naming.</summary>

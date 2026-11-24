@@ -9,6 +9,7 @@ using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using System.Collections.Generic;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Features.WindowsFileSystem.Services;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -54,7 +55,7 @@ public class FileOperationsPanelTests
     private static (FileOperationQueue Queue, FileOperationsPanelViewModel Panel) Panel()
     {
         var shell = Substitute.For<IShellServices>().Runs();
-        var queue = FileOperationQueue.For(shell, VirtualFileSystem.Instance);
+        var queue = new FileOperationQueue(shell, VirtualFileSystem.Instance, new FileCompanions(shell));
         return (queue, new FileOperationsPanelViewModel(queue, shell));
     }
 
@@ -201,7 +202,7 @@ public class FileOperationsPanelTests
         FileTransferEngine.FreeSpaceProbe = _ => 0;   // parks it so both panels have time to notice
 
         var shell = Substitute.For<IShellServices>().Runs();
-        var queue = FileOperationQueue.For(shell, VirtualFileSystem.Instance);
+        var queue = new FileOperationQueue(shell, VirtualFileSystem.Instance, new FileCompanions(shell));
 
         var started = new FileOperationsPanelViewModel(queue, shell);
         started.Attach();
@@ -306,7 +307,7 @@ public class FileOperationsPanelTests
         FileTransferEngine.FreeSpaceProbe = _ => 0;   // parks it so it is still running
 
         var shell = Substitute.For<IShellServices>().Runs();
-        var queue = FileOperationQueue.For(shell, VirtualFileSystem.Instance);
+        var queue = new FileOperationQueue(shell, VirtualFileSystem.Instance, new FileCompanions(shell));
 
         var op = queue.EnqueueDrop([src], dest, move: false);
 

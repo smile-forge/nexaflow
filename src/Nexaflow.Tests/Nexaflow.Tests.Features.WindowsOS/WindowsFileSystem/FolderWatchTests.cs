@@ -112,7 +112,7 @@ public class FolderWatchTests
 
     private async Task<FileSystemViewModel> OpenAsync()
     {
-        var vm = new FileSystemViewModel(_scratch, _shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(_shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).Browse(_scratch);
         await UntilAsync(() => !vm.IsLoadingEntries && vm.Entries.Count > 0);
         return vm;
     }

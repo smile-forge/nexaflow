@@ -5,6 +5,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Location.Memory;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Features.WindowsFileSystem.Services;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -45,6 +46,7 @@ public sealed class LocationDeleteTests
             NativePaths = new SameNames(),
         });
 
-        Assert.IsFalse(FileOperationQueue.For(Substitute.For<IShellServices>(), vfs).IsRecyclable(path));
+        var shell = Substitute.For<IShellServices>();
+        Assert.IsFalse(new FileOperationQueue(shell, vfs, new FileCompanions(shell)).IsRecyclable(path));
     }
 }

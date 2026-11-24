@@ -1,5 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Features.WindowsFileSystem.Operations;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
@@ -21,7 +23,10 @@ public sealed class FileSystemPageRegistration(
     FileMapConfig _fileMapConfig,
     ExternalAppsConfig _externalAppsConfig,
     TemplatedCreateConfig _templatedCreateConfig,
-    IVirtualFileSystem vfs) : IPageRegistration
+    IVirtualFileSystem vfs,
+    FileSystemFeatureRegistry registry,
+    FileOperationQueue operations,
+    FileCompanions companions) : IPageRegistration
 {
 #pragma warning restore CS9113
     public const string PageKind       = "FileSystem";
@@ -111,7 +116,7 @@ public sealed class FileSystemPageRegistration(
                 PageParams  = pageParams,
                 Breadcrumbs = { new BreadcrumbSegment { Label = label, Path = path, Content = new PlaceContent(path, PlaceNaming.OwnName) } }
             };
-            tab.ViewModelFactory = () => FollowNavigation(new FileSystemViewModel(path, shell, ai, configs, vfs), tab);
+            tab.ViewModelFactory = () => FollowNavigation(new FileSystemViewModel(path, shell, ai, configs, vfs, registry, operations, companions), tab);
             return tab;
         }
         else
@@ -124,7 +129,7 @@ public sealed class FileSystemPageRegistration(
                 PageParams  = pageParams ?? new() { ["mode"] = "thispc" },
                 Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("WindowsFileSystem.ThisPc.Title") } }
             };
-            tab.ViewModelFactory = () => FollowNavigation(FileSystemViewModel.CreateThisPc(shell, ai, configs, vfs), tab);
+            tab.ViewModelFactory = () => FollowNavigation(FileSystemViewModel.CreateThisPc(shell, ai, configs, vfs, registry, operations, companions), tab);
             return tab;
         }
     }

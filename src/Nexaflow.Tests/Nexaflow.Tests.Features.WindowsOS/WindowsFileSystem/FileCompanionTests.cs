@@ -57,6 +57,9 @@ public class FileCompanionTests
         return shell;
     }
 
+    /// <summary>The queue of <paramref name="shell"/>'s runtime, on this disk, carrying the companions it declares.</summary>
+    private static FileOperationQueue Queue(IShellServices shell) => new(shell, VirtualFileSystem.Instance, new FileCompanions(shell));
+
     private string Folder(string name, params string[] files)
     {
         var dir = Path.Combine(_scratch, name);
@@ -67,7 +70,7 @@ public class FileCompanionTests
 
     private static async Task<FileSystemViewModel> ListedAsync(string path, IShellServices shell)
     {
-        var vm = new FileSystemViewModel(path, shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).Browse(path);
         for (var i = 0; i < 400 && (vm.IsLoadingEntries || vm.Entries.Count == 0); i++) await Task.Delay(25);
         return vm;
     }
@@ -115,7 +118,7 @@ public class FileCompanionTests
         var src  = Folder("src", "photo.jpg", "photo.jpg.nfedit");
         var dest = Folder("dest", "photo.jpg");   // the name is taken, so the copy becomes photo (2).jpg
 
-        var op = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance).EnqueueDrop([Path.Combine(src, "photo.jpg")], dest, move: false);
+        var op = Queue(Shell()).EnqueueDrop([Path.Combine(src, "photo.jpg")], dest, move: false);
         await op!.Completion;
 
         Assert.AreEqual("src/photo.jpg", File.ReadAllText(Path.Combine(dest, "photo (2).jpg")));
@@ -133,7 +136,7 @@ public class FileCompanionTests
         var dest = Folder("dest");
 
         // A clipboard or another program's drag carries the companion as a source of its own.
-        var op = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance).EnqueueDrop(
+        var op = Queue(Shell()).EnqueueDrop(
             [Path.Combine(src, "photo.jpg"), Path.Combine(src, "photo.jpg.nfedit")], dest, move: true);
         await op!.Completion;
 
@@ -150,7 +153,7 @@ public class FileCompanionTests
         var src  = Folder("src", "photo.jpg");
         var dest = Folder("dest", "photo.jpg.nfedit");   // a recipe whose photo is gone
 
-        var op = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance).EnqueueDrop([Path.Combine(src, "photo.jpg")], dest, move: false);
+        var op = Queue(Shell()).EnqueueDrop([Path.Combine(src, "photo.jpg")], dest, move: false);
         await op!.Completion;
 
         Assert.IsTrue(File.Exists(Path.Combine(dest, "photo.jpg")));
@@ -163,7 +166,7 @@ public class FileCompanionTests
     public async Task DeletingAFileDeletesItsCompanion_PermanentlyOrToTheRecycleBin()
     {
         var dir = Folder("photos", "a.jpg", "a.jpg.nfedit", "b.jpg", "b.jpg.nfedit");
-        var queue = FileOperationQueue.For(Shell(), VirtualFileSystem.Instance);
+        var queue = Queue(Shell());
 
         await queue.EnqueueDelete([Path.Combine(dir, "a.jpg")], permanent: true)!.Completion;
         Assert.IsFalse(File.Exists(Path.Combine(dir, "a.jpg.nfedit")));
@@ -184,7 +187,7 @@ public class FileCompanionTests
         var renamed = new TaskCompletionSource();
         shell.When(s => s.RequestRefresh()).Do(_ => renamed.TrySetResult());
 
-        await new RenameFile(shell, VirtualFileSystem.Instance).PerformActionAsync(Path.Combine(dir, "photo.jpg"));
+        await new RenameFile(shell, VirtualFileSystem.Instance, new FileCompanions(shell)).PerformActionAsync(Path.Combine(dir, "photo.jpg"));
         await renamed.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.IsTrue(File.Exists(Path.Combine(dir, "holiday.jpg")));
@@ -196,7 +199,7 @@ public class FileCompanionTests
     public void WhatLeavesForAnotherProgram_CarriesTheCompanions()
     {
         var dir = Folder("photos", "photo.jpg", "photo.jpg.nfedit", "notes.txt");
-        var companions = FileCompanions.For(Shell());
+        var companions = new FileCompanions(Shell());
 
         var carried = companions.WithCompanions([Path.Combine(dir, "photo.jpg"), Path.Combine(dir, "notes.txt")]);
 
@@ -240,6 +243,7 @@ public class FileCompanionTests
         Assert.IsFalse(Offered("plain.jpg"), "nothing to revert");
         Assert.IsFalse(Offered("edited.jpg", "plain.jpg"), "every file in the selection, or it is not offered");
         Assert.IsFalse(Offered("album"), "a folder has no companion");
-        Assert.IsTrue(FileActionManager.HasRequiredCompanions(new DeleteFile(Shell(), VirtualFileSystem.Instance), [Entry("plain.jpg")], VirtualFileSystem.Instance), "an action about no companion is unaffected");
+        var shell = Shell();
+        Assert.IsTrue(FileActionManager.HasRequiredCompanions(new DeleteFile(shell, VirtualFileSystem.Instance, Queue(shell)), [Entry("plain.jpg")], VirtualFileSystem.Instance), "an action about no companion is unaffected");
     }
 }

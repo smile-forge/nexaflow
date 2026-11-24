@@ -3,7 +3,6 @@ using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
@@ -13,17 +12,17 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 /// primary take its companions along.
 /// </summary>
 /// <remarks>
-/// One per shell, like <see cref="FileSystemFeatureRegistry"/>, but reachable from the shell alone — the operation
-/// queue, delete and paste know nothing else. A companion is the primary's whole name plus a suffix, so everything
+/// One per workspace runtime (<see cref="FeatureServiceAttribute"/>), taken by constructor by the browser, the operation
+/// queue and the actions that copy, cut and rename. A companion is the primary's whole name plus a suffix, so everything
 /// here is arithmetic on names; whether a file is one is decided against its folder, never assumed from the name.
 /// </remarks>
+[FeatureService]
 public sealed class FileCompanions
 {
-    private static readonly ConditionalWeakTable<IShellServices, FileCompanions> PerShell = new();
-
     public static FileCompanions None { get; } = new([]);
 
-    public static FileCompanions For(IShellServices shell) => PerShell.GetValue(shell, Discover);
+    /// <summary>The companions every feature of <paramref name="shell"/>'s runtime declares.</summary>
+    public FileCompanions(IShellServices shell) : this(Discover(shell)) { }
 
     private FileCompanions(IReadOnlyList<FileCompanionKind> kinds)
     {
@@ -42,7 +41,7 @@ public sealed class FileCompanions
     /// <summary>A browser with these kinds of companion — for a test, or a caller that declares its own.</summary>
     public static FileCompanions Of(IReadOnlyList<FileCompanionKind> kinds) => new(kinds);
 
-    private static FileCompanions Discover(IShellServices shell)
+    private static List<FileCompanionKind> Discover(IShellServices shell)
     {
         var kinds = new List<FileCompanionKind>();
         foreach (var type in shell.DiscoverImplementations<IFileCompanionProvider>())
@@ -50,7 +49,7 @@ public sealed class FileCompanions
             if (type.GetConstructor(Type.EmptyTypes) is null) continue;
             if (Activator.CreateInstance(type) is IFileCompanionProvider provider) kinds.AddRange(provider.Companions);
         }
-        return new FileCompanions(kinds);
+        return kinds;
     }
 
     // ── Names ───────────────────────────────────────────────────────────────

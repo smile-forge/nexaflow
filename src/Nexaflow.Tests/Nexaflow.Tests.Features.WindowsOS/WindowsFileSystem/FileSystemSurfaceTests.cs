@@ -53,7 +53,7 @@ public class FileSystemSurfaceTests
     private async Task<(FileSystemViewModel Vm, IShellServices Shell)> AtScratchAsync()
     {
         var (shell, ai, configs) = Deps();
-        var vm = new FileSystemViewModel(_scratch, shell, ai, configs, VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, ai, configs, VirtualFileSystem.Instance).Browse(_scratch);
         await vm.Browsing;
         return (vm, shell);
     }
@@ -458,7 +458,7 @@ public class FileSystemSurfaceTests
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" },
                                new FileSystemEntry { Name = "b.txt", FullPath = @"C:\work\b.txt" }]);
 
-        var paths = PinnedPaths(vm, shell, new FileActionViewModel(new CopyFiles(shell, VirtualFileSystem.Instance)));
+        var paths = PinnedPaths(vm, shell, new FileActionViewModel(new CopyFiles(shell, VirtualFileSystem.Instance, vm.Companions)));
 
         CollectionAssert.AreEqual(new[] { @"C:\work\a.txt", @"C:\work\b.txt" }, paths,
                                   "the pin remembers the files, so pressing it later re-runs on the same ones");
@@ -471,7 +471,7 @@ public class FileSystemSurfaceTests
         var (vm, shell) = await AtScratchAsync();
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a.txt", FullPath = @"C:\work\a.txt" }]);
 
-        var folderAction = new FileActionViewModel(new FolderActionAdapter(new CopyFiles(shell, VirtualFileSystem.Instance)));
+        var folderAction = new FileActionViewModel(new FolderActionAdapter(new CopyFiles(shell, VirtualFileSystem.Instance, vm.Companions)));
         var paths = PinnedPaths(vm, shell, folderAction);
 
         CollectionAssert.AreEqual(new[] { _scratch }, paths,
@@ -520,8 +520,7 @@ public class FileSystemSurfaceTests
         vm.PinFileActionToRibbonCommand.Execute(action);
 
         Assert.IsNotNull(pinned, "a pinned action has to carry a payload or the ribbon button does nothing");
-        var handler = new FileActionRibbonPinHandler(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(),
-                                                     VirtualFileSystem.Instance);
+        var handler = new FileActionRibbonPinHandler(vm.Registry);
         var buttons = handler.Pin(new DragPayload((FileSystemPageRegistration.FileActionKind, pinned!)));
         Assert.AreEqual(1, buttons.Count, "a non-destructive action pins");
         return buttons[0];
@@ -574,7 +573,7 @@ public class FileSystemSurfaceTests
     public void InThisPcModeOnlyAnEmptySelectionHasNoTarget()
     {
         var (shell, ai, configs) = Deps();
-        var vm = FileSystemViewModel.CreateThisPc(shell, ai, configs, VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, ai, configs, VirtualFileSystem.Instance).ThisPc();
 
         Assert.AreEqual(0, vm.BuildContextActions([]).Count,
                         "This PC has no open folder, so a right-click on nothing has nothing to act on");

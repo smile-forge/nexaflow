@@ -979,8 +979,9 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
 
     /// <summary>Opens a specific directory as the starting point.</summary>
     public FileSystemViewModel(string targetDirectory, IShellServices shell, IAIService ai,
-                               IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
-        : this(shell, ai, configs, vfs)
+                               IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
+                               FileSystemFeatureRegistry registry, FileOperationQueue operations, FileCompanions companions)
+        : this(shell, ai, configs, vfs, registry, operations, companions)
     {
         _rootPath = targetDirectory;
         BuildDirectoryTree(targetDirectory);
@@ -989,10 +990,12 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
 
     /// <summary>Opens "This PC" showing all connected drives.</summary>
     public static FileSystemViewModel CreateThisPc(IShellServices shell, IAIService ai,
-                                                   IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
+                                                   IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
+                                                   FileSystemFeatureRegistry registry, FileOperationQueue operations,
+                                                   FileCompanions companions)
     {
         using var _t = Timing.Measure("ThisPC.CreateThisPc (total, UI thread)");
-        var vm = new FileSystemViewModel(shell, ai, configs, vfs);
+        var vm = new FileSystemViewModel(shell, ai, configs, vfs, registry, operations, companions);
         vm._rootPath     = string.Empty;
         vm._isThisPcMode = true;
         vm.CurrentPath   = string.Empty;
@@ -1128,7 +1131,7 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     private readonly IShellServices _shell;
 
     /// <summary>The companion files the features have declared — hidden in the list, carried by every operation.</summary>
-    internal FileCompanions Companions => FileCompanions.For(_shell);
+    internal FileCompanions Companions { get; }
     private readonly IAIService _ai;
 
     /// <summary>Surfaces a file-operation error (e.g. a failed drag-drop move) as a toast.
@@ -1149,15 +1152,17 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     public FileOperationsPanelViewModel FileOperations { get; }
 
     private FileSystemViewModel(IShellServices shell, IAIService ai,
-                                IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
+                                IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
+                                FileSystemFeatureRegistry registry, FileOperationQueue operations, FileCompanions companions)
     {
         _shell          = shell;
         // The action strip is rebuilt once the selection settles.
         _actionDebounceTimer = shell.CreateUiDelay(TimeSpan.FromMilliseconds(150), OnActionDebounceTimer);
         _ai             = ai;
         Vfs             = vfs;
-        Registry        = FileSystemFeatureRegistry.For(shell, ai, configs, vfs);
-        Operations      = FileOperationQueue.For(shell, vfs);
+        Registry        = registry;
+        Operations      = operations;
+        Companions      = companions;
         FileOperations  = new FileOperationsPanelViewModel(Operations, shell);
         _actionRegistry = new FileActionManager(Registry);
         _opener         = new DefaultFileOpener(Registry);

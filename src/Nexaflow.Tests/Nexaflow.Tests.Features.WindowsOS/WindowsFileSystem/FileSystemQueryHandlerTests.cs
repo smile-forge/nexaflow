@@ -27,7 +27,7 @@ public class FileSystemQueryHandlerTests
     private static async Task<FileSystemViewModel> AtPathAsync(string path)
     {
         var (shell, ai, configs) = Deps();
-        var vm = new FileSystemViewModel(path, shell, ai, configs, VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, ai, configs, VirtualFileSystem.Instance).Browse(path);
         await vm.Browsing;
         await vm.EntriesLoaded;   // the handler reads the listing, which arrives after the browse
         return vm;
@@ -104,7 +104,7 @@ public class FileSystemQueryHandlerTests
     public void CanProcess_ThisPcMode_RelativePath_IsRejected()
     {
         var (shell, ai, configs) = Deps();
-        var vm = FileSystemViewModel.CreateThisPc(shell, ai, configs, VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, ai, configs, VirtualFileSystem.Instance).ThisPc();
 
         // No folder root to resolve against.
         Assert.AreEqual(0f, new FileSystemQueryHandler().CanProcess("anything", false, vm));

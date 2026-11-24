@@ -40,7 +40,7 @@ public class TreeExpandToPathTests
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
-        var vm = new FileSystemViewModel(_root, shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).Browse(_root);
         await vm.Browsing;
         return vm;
     }
