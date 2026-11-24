@@ -507,7 +507,7 @@ public partial class OptionsViewModel : ObservableObject
         // Request tab refresh for the feature configs that changed (only meaningful when a window is open).
         // A refresh closes and reopens the tab, so reopening every feature's tabs on any save threw away
         // pages whose settings nobody touched — a Network sweep in flight among them.
-        var activeCtx = WorkspaceManager.Instance.FirstActive;
+        var activeCtx = WorkspaceManager.Instance.Runtimes?.FirstWithWindows;
         var pageKindsToRefresh = activeCtx is null ? [] : changed
             .SelectMany(type => FeatureManager.Instance.GetPageKindsForConfig(type, activeCtx))
             .Distinct()

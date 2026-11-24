@@ -50,6 +50,7 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
             cfg.TextFontSize               = _vm.TextFontSize;
             cfg.PrestartAtLogin            = _vm.PrestartAtLogin;
             cfg.KeepWindowReady            = _vm.KeepWindowReady;
+            cfg.DormantWorkspaceMinutes    = _vm.DormantWorkspaceMinutes;
             cfg.DisableAnimationsOnBattery = _vm.DisableAnimationsOnBattery;
             cfg.EnhancedAiProtection       = _vm.EnhancedAiProtection;
             cfg.SafetyLogging              = _vm.SafetyLogging;
@@ -95,11 +96,21 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     /// coarse because a point either way stops mattering once the text is that big.</summary>
     public IReadOnlyList<double> TextSizeOptions { get; } = [9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32];
 
+    /// <summary>How long a workspace left may stay ready, offered for <see cref="DormantWorkspaceMinutes"/>: steps a person moving
+    /// between tasks would pick, from closing it at once to an hour.</summary>
+    public IReadOnlyList<DormancyOption> DormancyOptions { get; } =
+    [
+        new(0, Str.Get("Shell.Options.Shell.DormantEndAtOnce")),
+        new(1, Str.Get("Shell.Options.Shell.DormantOneMinute")),
+        .. new[] { 5, 15, 30, 60 }.Select(minutes => new DormancyOption(minutes, Str.Format("Shell.Options.Shell.DormantMinutesFormat", minutes))),
+    ];
+
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private string _selectedTheme;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private string _selectedLanguage;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private double _textFontSize;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _prestartAtLogin;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _keepWindowReady;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private int _dormantWorkspaceMinutes;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _disableAnimationsOnBattery;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _enhancedAiProtection;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _safetyLogging;
@@ -110,11 +121,11 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
 
     /// <summary>Every choice the page saves, as one value, so the page and its saved state compare whole.</summary>
     private readonly record struct Choices(
-        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool KeepWindowReady, bool DisableAnimationsOnBattery,
-        bool EnhancedAiProtection, bool SafetyLogging);
+        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool KeepWindowReady, int DormantWorkspaceMinutes,
+        bool DisableAnimationsOnBattery, bool EnhancedAiProtection, bool SafetyLogging);
 
-    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, KeepWindowReady, DisableAnimationsOnBattery,
-                                   EnhancedAiProtection, SafetyLogging);
+    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, KeepWindowReady, DormantWorkspaceMinutes,
+                                   DisableAnimationsOnBattery, EnhancedAiProtection, SafetyLogging);
 
     // What the page last saved, or opened on — taken after the language and size were snapped onto offered values,
     // since a config the page had to normalise is not an edit the user made.
@@ -143,6 +154,8 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         _textFontSize               = NearestOfferedSize(cfg.TextFontSize);
         _prestartAtLogin            = cfg.PrestartAtLogin;
         _keepWindowReady            = cfg.KeepWindowReady;
+        // Snapped onto an offered time, as the size is, so the combo shows a selection.
+        _dormantWorkspaceMinutes    = DormancyOptions.MinBy(o => Math.Abs(o.Minutes - cfg.DormantWorkspaceMinutes))!.Minutes;
         _disableAnimationsOnBattery = cfg.DisableAnimationsOnBattery;
         _enhancedAiProtection       = cfg.EnhancedAiProtection;
         _safetyLogging              = cfg.SafetyLogging;
@@ -184,6 +197,9 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         return nearest;
     }
 }
+
+/// <summary>A time a workspace left may stay ready, as the Shell page offers it.</summary>
+public sealed record DormancyOption(int Minutes, string Label);
 
 /// <summary>One theme the picker offers: <paramref name="Value"/> is what is saved, <paramref name="Display"/> what is read.</summary>
 public sealed record ThemeChoice(string Value, string Display)

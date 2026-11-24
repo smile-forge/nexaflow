@@ -96,7 +96,7 @@ public partial class PageLoadErrorView : UserControl
     {
         // Via the interface, like AboutControl's reset button: the concrete ShellServices implements the
         // options members explicitly.
-        IShellServices? shell = WorkspaceManager.Instance.FirstActive?.ShellServices;
+        IShellServices? shell = WorkspaceManager.Instance.Runtimes?.FirstWithWindows?.ShellServices;
         try { shell?.OpenOptions("about"); }
         catch { }
     }

@@ -65,6 +65,16 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     /// </summary>
     public bool IsStandby { get; internal set; }
 
+    /// <summary>Where the runtime is in its life (<see cref="WorkspaceRuntimeState"/>).</summary>
+    public WorkspaceRuntimeState State { get; private set; } = WorkspaceRuntimeState.Starting;
+
+    /// <summary>Raised when the runtime turns active, dormant, or ends — what reacts to a person entering or leaving a workspace
+    /// listens.</summary>
+    public event EventHandler<WorkspaceRuntimeState>? StateChanged;
+
+    /// <summary>The session the runtime left when it turned dormant, for the first window that resumes it; null otherwise.</summary>
+    private IReadOnlyList<DefaultTabDescriptor>? _resumedSession;
+
     internal WorkspaceRuntime(Workspace workspace, WorkspaceRuntimeFactory session, bool standby)
     {
         Workspace     = workspace;
@@ -124,26 +134,45 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         if (Providers is { } providers) _session.Providers.Residency?.Preload(providers.Execution.Values);
     }
 
+    /// <summary>A window shows the runtime, or its background work runs.</summary>
+    internal void MarkActive() => Enter(WorkspaceRuntimeState.Active);
+
     /// <summary>
-    /// Points the runtime at <paramref name="workspace"/>, or renews it for the one it runs when that is the same: its tabs
-    /// close (their pages captured the old services), its feature instances and background jobs go, and it is given a new
-    /// assistant, providers acquired for the workspace's configs, and the workspace's connections. The workspace's saved
-    /// startup tabs reopen so its windows are not left empty.
+    /// Turns the runtime dormant: no window shows it and none of its work runs. Its provider set goes back to the pool — a local
+    /// model nothing else uses is let go after the residency's own idle time — and its assistant stops listening to them; its
+    /// configuration, assistant, file system and feature instances stay, for <see cref="Resume"/>.
     /// </summary>
-    internal void Renew(Workspace workspace)
+    internal void Rest()
     {
-        workspace.EnsureSharedServicesLoaded();
-        ShellServices.CloseAllTabs();
-        Features.Reset();
-        _session.StopJobsOf(this);
+        AiService.ClearProviders();
+        _session.Providers.ReleaseProviderSet(Providers);
+        Providers = null;
+        RaiseProvidersChanged();
+        Enter(WorkspaceRuntimeState.Dormant);
+    }
 
-        Workspace = workspace;
-        AiService.Dispose();
-        AiService = _session.NewAiService(this);
+    /// <summary>Takes a dormant runtime up again: its providers acquired afresh — at once where another workspace still holds them —
+    /// and the session it left kept for the window that resumes it.</summary>
+    internal void Resume()
+    {
+        _resumedSession = Workspace.LastSessionTabs;
         AcquireProviders();
-        Locations.Follow(workspace.Connections);
+        Enter(WorkspaceRuntimeState.Active);
+    }
 
-        ShellServices.OpenDefaultTabs(workspace.DefaultTabs);
+    /// <summary>The session the runtime left when it turned dormant, once: the first window that resumes it reopens it.</summary>
+    internal IReadOnlyList<DefaultTabDescriptor>? TakeResumedSession()
+    {
+        var session = _resumedSession;
+        _resumedSession = null;
+        return session;
+    }
+
+    private void Enter(WorkspaceRuntimeState state)
+    {
+        if (State == state) return;
+        State = state;
+        StateChanged?.Invoke(this, state);
     }
 
     /// <summary>
@@ -166,6 +195,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         Providers = null;
         ShellServices.Dispose();
         _session.Ended(this);
+        Enter(WorkspaceRuntimeState.Ended);
         return Locations.DisposeAsync();
     }
 

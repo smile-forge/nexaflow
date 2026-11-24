@@ -167,7 +167,7 @@ public partial class AboutControl : UserControl
     private void OnResetClick(object sender, RoutedEventArgs e)
     {
         Nexaflow.Features.Common.IShellServices? shell =
-            WorkspaceManager.Instance.FirstActive?.ShellServices;
+            WorkspaceManager.Instance.Runtimes?.FirstWithWindows?.ShellServices;
         shell?.ShowConfirmation(
             Str.Get("Shell.About.Reset.Ask"),
             Str.Get("Shell.About.Reset.AskBody"),

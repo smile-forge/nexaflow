@@ -100,7 +100,7 @@ public partial class App : Application
 
     /// <summary>
     /// True when launched with <c>--reset</c>: the relaunch issued by "Reset Config" (Options → About).
-    /// <see cref="InitializeApp"/> deletes the whole app-data directory before initialising, so the run
+    /// <see cref="ShellHost"/> deletes the whole app-data directory before initialising, so the run
     /// starts as a clean first-run. Set by the fresh process; the old one armed it before relaunching.
     /// </summary>
     private static bool _resetRequested;
@@ -131,7 +131,7 @@ public partial class App : Application
         OpenTabKind = openTabIdx >= 0 && openTabIdx + 1 < e.Args.Length ? e.Args[openTabIdx + 1] : null;
         OpenTabParams = TabParams(e.Args);
 
-        // Held by the safety log until the shell config says whether this session keeps one (InitializeApp).
+        // Held by the safety log until the shell config says whether this session keeps one (ShellHost).
         ShellSafetyLog.Instance.Step(prestart ? "startup as the login daemon (--prestart)"
                                    : UiTest   ? "startup under UI automation (--uiTest)"
                                    : "startup");
@@ -202,8 +202,8 @@ public partial class App : Application
         // finished, so it is built with every feature's theme and configs in place, then one each time the last window closes.
         if (prestart)
         {
-            var standby = new StandbyWindow(StandbyTarget, ws => BuildFirstWindow(_host!.Activities, ws, openPath: null));
-            WorkspaceManager.Instance.LastWindowClosed += (_, _) => standby.Schedule(StandbyWindow.AfterLastWindow);
+            var standby = new StandbyWindow(_host!.Workspaces, StandbyTarget, ws => BuildFirstWindow(_host!.Activities, ws, openPath: null));
+            _host.Workspaces.LastWindowClosed += (_, _) => standby.Schedule(StandbyWindow.AfterLastWindow);
             _standby = standby;
         }
 
@@ -215,7 +215,7 @@ public partial class App : Application
         // Drafts are the app's to clear, never Windows': a little after start-up, and daily while the app runs, every draft no tab
         // shows or would open again that has gone untouched too long, or is past the drafts' budget. What the tabs name is asked
         // only once the window has nothing else to do, and the sweep itself is off the UI thread.
-        _draftSweeping = new DraftSweeping(() => Dispatcher.InvokeAsync(WorkspaceManager.Instance.TabPaths, DispatcherPriority.ApplicationIdle).Task,
+        _draftSweeping = new DraftSweeping(() => Dispatcher.InvokeAsync(() => WorkspaceManager.Instance.TabPaths(_host!.Workspaces.OpenTabs()), DispatcherPriority.ApplicationIdle).Task,
                                            paths => DraftLocation.Sweep(paths), TimeProvider.System);
         _draftSweeping.Start();
 
@@ -251,9 +251,12 @@ public partial class App : Application
                                  new ShellPlatform(ui, new ShellClipboard(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance));
         _host = host;
 
-        // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
-        // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
-        WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(host.Activities, ws);
+        // The window a runtime opens into for a tear-off, a "new window" or a workspace rebuild: the session cannot name MainWindow.
+        host.Workspaces.WindowFactory = ws => new MainWindow(host.Activities, ws, host.Workspaces, openDefaultTabs: false).ViewModel;
+
+        // The app ends with its last window — unless it stays resident, or an update is ending it once its installer runs, which
+        // ending here would cut short.
+        host.Workspaces.LastWindowClosed += (_, _) => { if (!IsResident && !IsUpdating) Current.Shutdown(); };
 
         // Taskbar JumpList — one entry per Workspace.
         JumpListService.Initialize();
@@ -384,8 +387,8 @@ public partial class App : Application
             return;
         }
 
-        var workspace = named ?? WorkspaceManager.Instance.WorkspaceForOpenedPath();
-        if (WorkspaceManager.Instance.FindLiveWorkspace(workspace)?.ShellServices is { HasWindows: true } shell)
+        var workspace = named ?? WorkspaceManager.Instance.WorkspaceForOpenedPath(_host!.Workspaces.WithWindows);
+        if (_host.Workspaces.Find(workspace)?.ShellServices is { HasWindows: true } shell)
             shell.OpenFromOutside(path);
         else
             EnsureConfiguredThenCreateWindow(activityManager, workspace, activate, path);
@@ -443,7 +446,7 @@ public partial class App : Application
             FinishSetup();
         }
 
-        var ws = WorkspaceManager.Instance.CreateWorkspace(workspace);
+        var ws = _host!.Workspaces.Open(workspace);
         StartupTimings.Mark("WorkspaceBootstrapped");
 
         var win = BuildFirstWindow(activityManager, ws, openPath);
@@ -460,13 +463,9 @@ public partial class App : Application
         return win;
     }
 
-    /// <summary>A runtime's first window, unshown: opening <paramref name="openPath"/>, or the workspace's startup tabs, and
-    /// tearing off into windows of the same runtime.</summary>
+    /// <summary>A runtime's first window, unshown: opening <paramref name="openPath"/>, or the workspace's tabs.</summary>
     private static MainWindow BuildFirstWindow(BackgroundActivityManager activityManager, WorkspaceRuntime ws, string? openPath)
-    {
-        ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
-        return new MainWindow(activityManager, ws, openPath: openPath);
-    }
+        => new(activityManager, ws, _host!.Workspaces, openPath: openPath);
 
     /// <summary>
     /// What follows a launch's window drawing: models load ahead only then, so none of their loading competes with it, and a
@@ -501,7 +500,7 @@ public partial class App : Application
     /// </summary>
     private static Workspace? StandbyTarget()
     {
-    if (IsUpdating || OpenTabKind is not null || WorkspaceManager.Instance.AnyWindowsOpen) return null;
+    if (IsUpdating || OpenTabKind is not null || _host?.Workspaces.AnyWindowsOpen == true) return null;
         if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is not { KeepWindowReady: true }) return null;
         if (WorkspaceManager.Instance.Workspaces is not [var first, ..]) return null;
         return SettleSetupAhead(first) ? first : null;
@@ -576,30 +575,6 @@ public partial class App : Application
         if (shell.LastRunVersion == current) return;   // unchanged — skip the write
         shell.LastRunVersion = current;
         try { ConfigManager.Instance.Save(shell, shell.ConfigName); } catch { }
-    }
-
-    /// <summary>
-    /// Returns a factory that creates torn-off / "open in new window" shells in the SAME
-    /// <paramref name="owner"/> workspace (so extra windows share its tab registry and services).
-    /// </summary>
-    private static Func<IWindowHost> MakeWindowFactory(BackgroundActivityManager activityManager, WorkspaceRuntime owner)
-        => () =>
-        {
-            var win = new MainWindow(activityManager, owner, openDefaultTabs: false);
-            return (IWindowHost)win.ViewModel;
-        };
-
-    /// <summary>
-    /// Builds (does not show) the first window for a freshly-created <paramref name="ws"/> and wires
-    /// its tear-off factory. Registered as <see cref="WorkspaceManager.WindowHostFactory"/> so a
-    /// workspace rebuild (Configure panel) can spin up a replacement window without Core.Services
-    /// referencing <see cref="MainWindow"/>.
-    /// </summary>
-    private static IWindowHost CreateWorkspaceWindow(BackgroundActivityManager activityManager, WorkspaceRuntime ws)
-    {
-        ws.ShellServices!.CreateWindowFactory = MakeWindowFactory(activityManager, ws);
-        var win = new MainWindow(activityManager, ws, openDefaultTabs: false);
-        return (IWindowHost)win.ViewModel;
     }
 
     /// <summary>Resolves a workspace name to a saved <see cref="Workspace"/>, or null.</summary>

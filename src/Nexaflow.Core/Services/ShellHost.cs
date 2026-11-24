@@ -72,7 +72,10 @@ internal sealed class ShellHost : IAsyncDisposable
     public FolderActivity Folders { get; }
 
     /// <summary>Builds every workspace runtime, and ends those still running when the session ends.</summary>
-    public WorkspaceRuntimeFactory Runtimes { get; }
+    public WorkspaceRuntimeFactory RuntimeFactory { get; }
+
+    /// <summary>The session's live workspaces: one runtime each, active or dormant.</summary>
+    public WorkspaceRuntimes Workspaces { get; }
 
     /// <summary>The shell's own settings.</summary>
     public ShellConfig Shell { get; }
@@ -212,12 +215,15 @@ internal sealed class ShellHost : IAsyncDisposable
         // Persist the rebuilt list at once, so the recovery holds even if this session ends badly.
         if (listUnreadable) WorkspaceManager.Instance.SaveWorkspaces();
 
-        Runtimes = new WorkspaceRuntimeFactory(new RuntimeSessionServices(
+        RuntimeFactory = new WorkspaceRuntimeFactory(new RuntimeSessionServices(
             ProviderManager.Instance, Activities, MessageCenter.Instance.Post, VirtualFileSystem.Instance,
             LocationProviderRegistry.Instance, DiscoveredLocations.Instance,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
             platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard));
-        WorkspaceManager.Instance.RuntimeFactory = Runtimes;
+        // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.
+        Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
+                                           workspace => WorkspaceManager.Instance.Workspaces.Contains(workspace), TimeProvider.System);
+        WorkspaceManager.Instance.Runtimes = Workspaces;
         StartupTimings.Mark("Init.Workspaces");
 
         // ── 5. File map + external apps ──────────────────────────────────────
@@ -312,7 +318,8 @@ internal sealed class ShellHost : IAsyncDisposable
         _ended = true;
 
         ShellSafetyLog.Instance.Step("session ending");
-        var runtimesEnding = Runtimes.EndAllAsync();
+        Workspaces.Dispose();
+        var runtimesEnding = RuntimeFactory.EndAllAsync();
         Folders.Dispose();
         return new ValueTask(FinishAsync(runtimesEnding));
     }

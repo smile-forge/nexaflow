@@ -152,7 +152,14 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// <summary>The focused window, or the first open one (null when window-less).</summary>
     internal IWindowHost? FocusedWindow => _focused ?? _windows.FirstOrDefault();
 
-    internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
+    /// <summary>Raised when a window attaches to this runtime or leaves it.</summary>
+    internal event EventHandler? WindowsChanged;
+
+    internal void RegisterWindow(IWindowHost host)
+    {
+        _windows.Add(host);
+        WindowsChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     internal void UnregisterWindow(IWindowHost host)
     {
@@ -168,15 +175,9 @@ public sealed class ShellServices : IShellServices, IDisposable
         if (_focused == host)
             _focused = _windows.FirstOrDefault();
 
-        // When this workspace's last window closes, release its runtime resources.
-        WorkspaceManager.Instance.NotifyWindowClosed(_workspace);
-
-        // Shut down only when no windows remain across all live workspaces.
-        // In --prestart daemon mode, stay alive windowless so the next click can show a window
-        // instantly. During an update the updater ends the process once its installer script is
-        // running; shutting down here would end it before the script starts.
-        if (!WorkspaceManager.Instance.AnyWindowsOpen && !App.IsResident && !App.IsUpdating)
-            Application.Current.Shutdown();
+        // The session's registry hears of it: a runtime with no window left turns dormant, and the app with none open anywhere
+        // may end.
+        WindowsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -349,6 +350,16 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// itself and needs the tabs present immediately (no debounce/flash).</summary>
     public void RestoreTabLayout(IReadOnlyList<DefaultTabDescriptor> tabs) => OpenLayout(tabs);
 
+    /// <summary>
+    /// The tabs a window opening on this workspace shows: the session the workspace left, at once, when the window is resuming it
+    /// from dormancy; its startup tabs otherwise (<see cref="OpenDefaultTabs"/>).
+    /// </summary>
+    internal void OpenWorkspaceTabs()
+    {
+        if (_workspace.TakeResumedSession() is { Count: > 0 } session) OpenLayout(session);
+        else OpenDefaultTabs(_workspace.Workspace.DefaultTabs);
+    }
+
     private void OnDefaultTabsTick()
     {
         _defaultTabsTimer?.Stop();
@@ -490,20 +501,9 @@ public sealed class ShellServices : IShellServices, IDisposable
     }
 
     /// <summary>
-    /// Closes every window in this workspace except <paramref name="keep"/>. Used on a workspace
-    /// switch so the change collapses to the acting window instead of leaving the others empty and
-    /// showing the old workspace.
-    /// </summary>
-    internal void CloseOtherWindows(IWindowHost keep)
-    {
-        foreach (var host in _windows.Where(w => !ReferenceEquals(w, keep)).ToList())
-            host.Window.Close();
-    }
-
-    /// <summary>
-    /// Closes every window in this workspace. The last close runs <see cref="UnregisterWindow"/> →
-    /// <see cref="WorkspaceManager.NotifyWindowClosed"/>, which ends the runtime. Used by
-    /// <see cref="WorkspaceManager.RestartWorkspace"/> after a fresh replacement workspace+window is already showing.
+    /// Closes every window in this workspace, recording no session: the runtime is being replaced or its workspace deleted. Used by
+    /// <see cref="WorkspaceRuntimes.Restart"/> after a fresh replacement window is already showing, and by
+    /// <see cref="WorkspaceRuntimes.Close"/>.
     /// </summary>
     internal void CloseAllWindows()
     {
@@ -1029,7 +1029,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     // Selection lives here rather than in the caller so the shell — which owns the instances' lifetime —
     // also owns deciding which one applies. Instances are cached per (type, workspace) and ctor-injected with
     // this workspace's shell/ai/configs, the same path as feature tab creation, and are released by
-    // FeatureManager.EvictWorkspace. A CanExtract that throws disqualifies that extractor rather than
+    // the runtime's FeatureScope. A CanExtract that throws disqualifies that extractor rather than
     // failing the lookup: one broken feature must not make every file unsearchable.
     public IFileTextExtractor? GetFileTextExtractor(string path)
     {

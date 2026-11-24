@@ -23,43 +23,16 @@ public sealed class WorkspaceManager
     public ObservableCollection<Workspace> Workspaces { get; } = [];
 
     /// <summary>
-    /// Live runtime workspaces. One is created per app/IPC launch; removed when its last window
-    /// closes. Not exposed publicly — callers use <see cref="CreateWorkspace"/> / <see cref="SwitchWorkspace"/>.
-    /// </summary>
-    private readonly List<WorkspaceRuntime> _workspaces = [];
-
-    /// <summary>
     /// Fired after <see cref="Initialize"/> or when workspaces are added/removed, so listeners
     /// (JumpList, ShellViewModel) can refresh their derived state.
     /// </summary>
     public event EventHandler? WorkspacesRefreshed;
 
-    /// <summary>Raised when the last window open in any live workspace has closed — the app has no window left.</summary>
-    internal event EventHandler? LastWindowClosed;
-
-    /// <summary>The first live workspace, or null when no windows are open (e.g. daemon mode).</summary>
-    public WorkspaceRuntime? FirstActive => _workspaces.FirstOrDefault();
-
-    /// <summary>True when at least one window is open across all live workspaces.</summary>
-    internal bool AnyWindowsOpen
-        => _workspaces.Any(w => w.ShellServices is { } s && s.HasWindows);
-
     private WorkspacesConfig? _savedConfig;
 
-    /// <summary>
-    /// Set by <c>App</c> at startup. Given a freshly-created <see cref="WorkspaceRuntime"/>, builds (but does
-    /// not show) its first window host and wires the tear-off factory — the same logic App uses on
-    /// launch. Lets <see cref="RestartWorkspace"/> spin up a new workspace+window without Core.Services
-    /// referencing <c>MainWindow</c>.
-    /// </summary>
-    internal Func<WorkspaceRuntime, IWindowHost>? WindowHostFactory { get; set; }
-
-    /// <summary>Builds every runtime, and is its link to the session's provider pool, background tasks and locations. Set by
-    /// <c>App</c> at startup.</summary>
-    internal WorkspaceRuntimeFactory? RuntimeFactory { get; set; }
-
-    private WorkspaceRuntimeFactory Factory
-        => RuntimeFactory ?? throw new InvalidOperationException("No runtime is built before the app has its runtime factory.");
+    /// <summary>The session's live workspaces, which a saved workspace's runtime is found in: set by the session at start, for what
+    /// asks about them without being handed them.</summary>
+    internal WorkspaceRuntimes? Runtimes { get; set; }
 
     private WorkspaceManager() { }
 
@@ -71,7 +44,6 @@ public sealed class WorkspaceManager
     public void Initialize(WorkspacesConfig config)
     {
         _savedConfig = config;
-        _workspaces.Clear();
         Workspaces.Clear();
 
         var workspaces = config.Contexts is { Count: > 0 } saved ? saved : [new Workspace()];
@@ -206,78 +178,15 @@ public sealed class WorkspaceManager
     }
 
     /// <summary>
-    /// Creates a brand-new runtime <see cref="WorkspaceRuntime"/> for <paramref name="workspace"/>, started and listed among the
-    /// live ones. Always returns a fresh instance — used on every app/IPC launch (launching the app N times ⇒ N runtimes,
-    /// possibly all on one workspace).
-    /// </summary>
-    public WorkspaceRuntime CreateWorkspace(Workspace workspace)
-    {
-        var ws = Factory.Create(workspace);
-        _workspaces.Add(ws);
-        return ws;
-    }
-
-    /// <summary>
-    /// Builds a runtime for <paramref name="workspace"/> ahead of the launch that will use it: started as
-    /// <see cref="CreateWorkspace"/> starts one, but on standby (<see cref="WorkspaceRuntime.IsStandby"/>) — not live,
-    /// so nothing that asks which workspaces are open counts it, and with its models left unweighed until
-    /// <see cref="AdoptStandby"/>.
-    /// </summary>
-    internal WorkspaceRuntime CreateStandbyWorkspace(Workspace workspace) => Factory.CreateStandby(workspace);
-
-    /// <summary>Makes a standby runtime live, as <see cref="CreateWorkspace"/> would have made it: listed among the open
-    /// workspaces, and its assigned models weighed for loading ahead.</summary>
-    internal void AdoptStandby(WorkspaceRuntime ws)
-    {
-        ws.Adopted();
-        _workspaces.Add(ws);
-    }
-
-    /// <summary>
-    /// Switches <paramref name="ws"/> to a different <paramref name="target"/> workspace in place: records the outgoing
-    /// workspace's session, then renews the runtime for the target (<see cref="WorkspaceRuntime.Renew"/>), closing its tabs.
-    /// Other runtimes (incl. ones still on the old workspace) are untouched.
-    /// </summary>
-    public void SwitchWorkspace(WorkspaceRuntime ws, Workspace target)
-    {
-        if (ReferenceEquals(ws.Workspace, target)) return;
-        ws.ShellServices.CaptureLastSession();
-        ws.Renew(target);
-    }
-
-    /// <summary>
-    /// Called by <see cref="ShellServices.UnregisterWindow"/> when a window closes. When the runtime has no more windows, it
-    /// stops being live and ends (<see cref="WorkspaceRuntime.DisposeAsync"/>), letting go of everything it holds.
-    /// </summary>
-    public void NotifyWindowClosed(WorkspaceRuntime ws)
-    {
-        if (ws.ShellServices.HasWindows) return;
-
-        _workspaces.Remove(ws);
-        _ = EndAsync(ws);
-
-        if (!ws.IsStandby && !AnyWindowsOpen) LastWindowClosed?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>Ends <paramref name="ws"/>. Everything but its locations goes at once; a location that fails to close is
-    /// logged rather than thrown into nobody's hands.</summary>
-    private static async Task EndAsync(WorkspaceRuntime ws)
-    {
-        try { await ws.DisposeAsync(); }
-        catch (Exception ex) { ShellSafetyLog.Instance.Failed($"ending the workspace runtime '{ws.Name}'", ex); }
-    }
-
-    /// <summary>
     /// Makes <paramref name="model"/> <paramref name="workspace"/>'s <paramref name="slot"/> model — a download a choice waited on
-    /// has landed — saving it, and having every running window of the workspace take it up without closing its tabs.
+    /// has landed — saving it, and having the workspace's runtime take it up without closing its tabs.
     /// </summary>
     public void UseLocalModel(Workspace workspace, LocalSlot slot, ProviderModelPair model)
     {
         workspace.EnsureSharedServicesLoaded();
         LocalColumns.Use(workspace.AiConfig, slot, model);
         ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
-        foreach (var ws in _workspaces.Where(w => ReferenceEquals(w.Workspace, workspace)).ToList())
-            ws.AcquireProviders();
+        Runtimes?.Reacquire(workspace);
     }
 
     /// <summary>Adds a new workspace with a random icon/colour to <see cref="Workspaces"/>.</summary>
@@ -378,7 +287,7 @@ public sealed class WorkspaceManager
     /// </summary>
     public bool DeleteWorkspace(Workspace workspace, bool force = false)
     {
-        if (!force && IsWorkspaceInUse(workspace)) return false;
+        if (!force && Runtimes?.HasWindows(workspace) == true) return false;
         if (!RemoveWorkspace(workspace)) return false;   // removes + deletes the folder
         SaveWorkspaces();
         return true;
@@ -399,35 +308,24 @@ public sealed class WorkspaceManager
         catch { /* leave an orphaned folder rather than fail the removal */ }
     }
 
-    /// <summary>True if any live workspace is currently running <paramref name="workspace"/>.</summary>
-    public bool IsWorkspaceInUse(Workspace workspace)
-        => _workspaces.Any(w => ReferenceEquals(w.Workspace, workspace));
-
-    /// <summary>The live workspace running <paramref name="workspace"/>, or null when none is open.</summary>
-    public WorkspaceRuntime? FindLiveWorkspace(Workspace workspace)
-        => _workspaces.FirstOrDefault(w => ReferenceEquals(w.Workspace, workspace));
-
     /// <summary>
-    /// Every path a tab names — those open in every live workspace, and those each workspace's default tabs and last session would
-    /// open again — for what the app clears (<see cref="DraftLocation.Sweep"/>) never to take a file a tab shows or will show.
-    /// Called on the UI thread, where the tabs are.
+    /// Every path a tab names — those <paramref name="open"/> in the live workspaces, and those each workspace's default tabs and
+    /// last session would open again — for what the app clears (<see cref="DraftLocation.Sweep"/>) never to take a file a tab shows
+    /// or will show. Called on the UI thread, where the tabs are.
     /// </summary>
-    internal IReadOnlyList<string> TabPaths()
+    internal IReadOnlyList<string> TabPaths(IEnumerable<Page> open)
     {
         var saved = Workspaces.SelectMany(workspace => workspace.DefaultTabs.Concat(workspace.LastSessionTabs ?? []))
                               .SelectMany(tab => DraftLocation.PathsIn(tab.PageParams));
-        var open = _workspaces.SelectMany(runtime => runtime.ShellServices?.GetOpenTabs() ?? [])
-                              .SelectMany(tab => DraftLocation.PathsIn(tab.PageParams));
-        return [.. saved.Concat(open).Distinct(StringComparer.OrdinalIgnoreCase)];
+        var showing = open.SelectMany(tab => DraftLocation.PathsIn(tab.PageParams));
+        return [.. saved.Concat(showing).Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
     /// <summary>
-    /// The workspace an item opened from outside the app (Explorer's "Open in Nexaflow") goes to: the one workspace with
-    /// windows open, or the first saved workspace when none or several are.
+    /// The workspace an item opened from outside the app (Explorer's "Open in Nexaflow") goes to: the one workspace of those
+    /// <paramref name="withWindows"/>, or the first saved workspace when none or several are.
     /// </summary>
-    public Workspace WorkspaceForOpenedPath()
-        => ChooseWorkspaceForOpenedPath(
-            Workspaces, _workspaces.Where(w => w.ShellServices is { HasWindows: true }).Select(w => w.Workspace));
+    public Workspace WorkspaceForOpenedPath(IEnumerable<Workspace> withWindows) => ChooseWorkspaceForOpenedPath(Workspaces, withWindows);
 
     /// <summary>
     /// The rule <see cref="WorkspaceForOpenedPath"/> applies to the <paramref name="saved"/> workspaces and those
@@ -437,41 +335,6 @@ public sealed class WorkspaceManager
     {
         var open = withWindows.Distinct<Workspace>(ReferenceEqualityComparer.Instance).Take(2).ToList();
         return open is [var only] ? only : saved[0];
-    }
-
-    /// <summary>
-    /// Rebuilds <paramref name="old"/> as a brand-new workspace on the same workspace and swaps its
-    /// window: snapshots the focused window's tabs, creates a fresh workspace (fresh ShellServices /
-    /// AIService / providers / file-system registry that pick up the just-saved per-workspace config),
-    /// opens a replacement window where the old one was, reopens the tabs, then closes the old
-    /// workspace's windows (its last close disposes it). Used by the Configure panel after a
-    /// provider-config or workspace-scoped feature-config change — the theme-restart pattern, but
-    /// swapping the whole workspace. Renews the runtime in place (<see cref="WorkspaceRuntime.Renew"/>) when it
-    /// has no window, or no window factory is wired (e.g. headless).
-    /// </summary>
-    internal void RestartWorkspace(WorkspaceRuntime old)
-    {
-        var acting = old.ShellServices.FocusedWindow;
-        if (acting is null || WindowHostFactory is null) { old.Renew(old.Workspace); return; }
-
-        // Snapshot the acting window's tabs grouped by pane (so a left/right split survives) and its placement.
-        var snapshot  = acting.CaptureTabLayout();
-        var placement = acting.IntendedPlacement;
-
-        // Fresh workspace on the same workspace — the shared Workspace already carries the saved edits.
-        var fresh = CreateWorkspace(old.Workspace);
-
-        // Replacement window, opened where the old one is meant to be, shown BEFORE the old closes so the
-        // workspace is never left window-less (which would dispose it / shut the app down).
-        var freshHost = WindowHostFactory(fresh);
-        if (placement is not null) freshHost.OpenAt(placement);
-        freshHost.Window.Show();
-
-        // Tear down the old workspace's windows (last close releases its providers + evicts caches).
-        old.ShellServices.CloseAllWindows();
-
-        // Restore the captured pane layout (split + each pane's tabs + active tab) into the fresh window.
-        fresh.ShellServices.RestoreTabLayout(snapshot);
     }
 
     /// <summary>Per-workspace data folder: <c>%AppData%\…\Contexts\&lt;name&gt;</c> (folder name kept for compat).</summary>

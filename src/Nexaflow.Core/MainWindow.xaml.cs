@@ -23,7 +23,8 @@ namespace Nexaflow.Core;
 public partial class MainWindow : Window
 {
     private readonly ShellViewModel _vm;
-    private readonly ShellServices _shellServices;
+    /// <summary>The window and tab registry of the workspace this window shows now — it can move to another's.</summary>
+    private ShellServices _shellServices => _vm.CurrentRuntime.ShellServices;
     private SnapLayoutHook _snapHook = null!;
 
     private readonly WindowPlacementTracker _placement = new();
@@ -33,8 +34,7 @@ public partial class MainWindow : Window
 
     public ShellViewModel ViewModel => _vm;
 
-    public MainWindow(BackgroundActivityManager activityManager, WorkspaceRuntime workspace,
-                      bool openDefaultTabs = true, string? openPath = null)
+    public MainWindow(BackgroundActivityManager activityManager, WorkspaceRuntime workspace, WorkspaceRuntimes runtimes, bool openDefaultTabs = true, string? openPath = null)
     {
         Services.StartupTimings.Mark("MainWindow.ctor enter");
         InitializeComponent();
@@ -43,8 +43,7 @@ public partial class MainWindow : Window
         // Everything in the window draws a model with the app's views: a page's preview, a folder viewlet.
         ViewRegistry.SetRegistry(this, PageViews.Instance.Registry);
 
-        _shellServices = workspace.ShellServices!;
-        _vm = new ShellViewModel(activityManager, workspace)
+        _vm = new ShellViewModel(activityManager, workspace, runtimes)
         {
             Window    = this,
             Placement = _placement,
@@ -70,7 +69,7 @@ public partial class MainWindow : Window
                 if (App.OpenTabKind is { Length: > 0 } openKind)
                     _shellServices.OpenTab(openKind, new Dictionary<string, string>(App.OpenTabParams));
                 else
-                    _shellServices.OpenDefaultTabs(workspace.Workspace.DefaultTabs);
+                    _shellServices.OpenWorkspaceTabs();
             }
         }
         else
@@ -98,8 +97,7 @@ public partial class MainWindow : Window
 
         _vm.Ribbon = RibbonControl.ViewModel;
 
-        // ShellServices is stable for the life of the window: switching workspaces reconfigures the
-        // Workspace in place (same ShellServices), so no resync is needed here.
+        // The window can move to another workspace's runtime: each handler reaches the one it shows now.
 
         Activated   += (_, _) => _shellServices.SetFocused(_vm);
         Deactivated += (_, _) => _shellServices.ClearFocused(_vm);

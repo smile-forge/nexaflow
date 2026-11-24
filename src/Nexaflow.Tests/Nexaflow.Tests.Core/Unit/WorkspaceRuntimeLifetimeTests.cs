@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Core.Unit;
 /// provider another workspace still uses — holds the ended runtime alive.
 /// </summary>
 [TestClass]
-[CoversNode("workspaces")]
+[CoversNode("ws-lifetimes")]
 public class WorkspaceRuntimeLifetimeTests
 {
     [TestMethod]

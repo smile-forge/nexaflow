@@ -228,17 +228,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     partial void OnCurrentRuntimeChanged(WorkspaceRuntime value) => WorkspaceTasks.Refresh();
 
-    /// <summary>This window's workspace was removed (in the Options panel, or by another window): it shows the first that remains.</summary>
+    /// <summary>This window's workspace was removed (in the Options panel, or by another window): it shows the first left.</summary>
     private void OnWorkspacesRefreshed(object? sender, EventArgs e)
     {
         if (CurrentRuntime is null || WorkspaceManager.Instance.Workspaces.Contains(CurrentRuntime.Workspace)) return;
         var fallback = WorkspaceManager.Instance.Workspaces.FirstOrDefault();
         if (fallback is not null)
-            _ui.Invoke(() =>
-            {
-                WorkspaceManager.Instance.SwitchWorkspace(CurrentRuntime!, fallback);
-                OnPropertyChanged(nameof(CurrentRuntime));
-            });
+            _ui.Invoke(() => MoveToWorkspace(fallback));
     }
 
     /// <summary>The workspace's models changed: the mic follows its Speech In chain, and the AI's line what its own models need.</summary>
@@ -524,21 +520,41 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         if (!CanSwitchWorkspace) return;
         if (ReferenceEquals(workspace, CurrentRuntime?.Workspace)) return;
 
-        // Cancel any in-flight AI send before the workspace is reconfigured under it.
+        // Cancel any in-flight AI send before the window leaves the workspace it was sent in.
         _aiSendCts?.Cancel();
 
-        // Collapse the workspace to this window: the others would otherwise be left empty (their
-        // tabs close on reconfigure) and still showing the old workspace's ribbon.
-        _shellServices.CloseOtherWindows(this);
+        MoveToWorkspace(workspace);
+    }
 
-        // In-place: keep this Workspace object, reconfigure it for the new workspace (tabs close,
-        // providers/AIService rebuilt). ShellServices/windows reference the Workspace, which is
-        // unchanged — only its internals swap — so no window fix-up is needed.
-        WorkspaceManager.Instance.SwitchWorkspace(CurrentRuntime!, workspace);
+    /// <summary>
+    /// Moves this window to <paramref name="workspace"/>. It joins that workspace's runtime — the one running, the dormant one
+    /// resumed, or a new one — before it leaves its own, so the session is never without a window. Leaving closes its tabs; its
+    /// workspace's other windows stay as they are, and when this was the last of them the workspace records its session and turns
+    /// dormant. The window then shows the workspace it joined: the session it left, when it was dormant; its startup tabs otherwise.
+    /// </summary>
+    private void MoveToWorkspace(Workspace workspace)
+    {
+        var from = CurrentRuntime;
+        var to   = _runtimes.Open(workspace);
+        if (ReferenceEquals(from, to)) return;
 
-        // Same Workspace reference; re-raise so the ribbon (bound to CurrentRuntime.Workspace)
-        // and the selector reload for the new workspace.
-        OnPropertyChanged(nameof(CurrentRuntime));
+        to.ShellServices.RegisterWindow(this);
+        from.ShellServices.UnregisterWindow(this);
+        AttachRuntime(from, to);
+
+        to.ShellServices.SetFocused(this);
+        to.ShellServices.OpenWorkspaceTabs();
+    }
+
+    /// <summary>This window now shows <paramref name="to"/>: what it follows of a runtime — its providers, for the mic and the
+    /// AI's line — it follows there.</summary>
+    private void AttachRuntime(WorkspaceRuntime from, WorkspaceRuntime to)
+    {
+        from.ProvidersChanged -= OnRuntimeProvidersChanged;
+        CurrentRuntime = to;
+        to.ProvidersChanged += OnRuntimeProvidersChanged;
+        RecomputeVoiceAvailable();
+        RecomputeLocalAiNotice();
     }
 
     // ── Options overlay ───────────────────────────────────────────────────
@@ -630,7 +646,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// </summary>
     public ShellAIResponseHandler Ai { get; }
 
-    private ShellServices _shellServices;
+    /// <summary>The window and tab registry of the workspace this window shows now.</summary>
+    private ShellServices _shellServices => CurrentRuntime.ShellServices;
+
+    /// <summary>The session's live workspaces, which this window moves between.</summary>
+    private readonly WorkspaceRuntimes _runtimes;
 
     /// <summary>
     /// Set by MainWindow after the RibbonControl is initialised so the shell can
@@ -690,15 +710,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                 airspace.SetCoveredByOverlay(covered);
     }
 
-    public ShellViewModel(BackgroundActivityManager activityManager,
-                          WorkspaceRuntime workspace)
+    public ShellViewModel(BackgroundActivityManager activityManager, WorkspaceRuntime workspace, WorkspaceRuntimes runtimes)
     {
         _activityManager = activityManager;
         // NB: AiIsBusy is NOT coupled to background activity — the AI bar locks only while an actual
         // AI run is in flight (driven by SendAiMessage). Background tasks (NuGet checks, downloads,
         // conversation analysis) report through the activity ticker without blocking AI input.
         _currentRuntime = workspace;
-        _shellServices = workspace.ShellServices!;
+        _runtimes       = runtimes;
         WorkspaceTasks = new WorkspaceBackgroundTasks(activityManager, () => CurrentRuntime);
         WorkspaceTasks.PropertyChanged += (_, e) =>
         {
@@ -1257,7 +1276,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         var mgr = WorkspaceManager.Instance;
         if (mgr.Workspaces.Count <= 1) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
 
-        var liveWs = mgr.FindLiveWorkspace(workspace);
+        var liveWs = _runtimes.Find(workspace);
 
         var message = ReferenceEquals(liveWs, CurrentRuntime) && liveWs is not null
         ? Str.Format("Shell.Workspace.Delete.AskActiveFormat", workspace.Name)
@@ -1274,30 +1293,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         if (ReferenceEquals(liveWs, CurrentRuntime))
         {
-            // The active workspace: collapse to this window and move it onto a surviving workspace BEFORE
-            // the delete, so the app is never left window-less (closing the last window shuts it down) and
-            // the list-refresh that follows finds this runtime already on a workspace that still exists.
+            // The active workspace: move this window onto a surviving workspace BEFORE the delete, so the app is never left
+            // window-less (closing the last window shuts it down) and the list-refresh that follows finds this window already on a
+            // workspace that still exists.
             var fallback = mgr.Workspaces.FirstOrDefault(w => !ReferenceEquals(w, workspace));
             if (fallback is null) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
 
-            _shellServices.CloseOtherWindows(this);
-            mgr.SwitchWorkspace(CurrentRuntime!, fallback);
-            mgr.DeleteWorkspace(workspace, force: true);
-            WorkspaceConfigOpen = false;
-            return;
+            MoveToWorkspace(fallback);
         }
 
-        if (liveWs is not null)
-        {
-            // A different live workspace: tear down its windows (last close disposes it), then delete.
-            liveWs.ShellServices?.CloseAllWindows();
-            mgr.DeleteWorkspace(workspace, force: true);
-            WorkspaceConfigOpen = false;
-            return;
-        }
-
-        // An inactive workspace: straightforward delete; close the Configure overlay.
-        mgr.DeleteWorkspace(workspace);
+        // Its runtime ends now — any other window still showing it closes — rather than staying dormant for a workspace that is gone.
+        _runtimes.Close(workspace);
+        mgr.DeleteWorkspace(workspace, force: true);
         WorkspaceConfigOpen = false;
     }
 

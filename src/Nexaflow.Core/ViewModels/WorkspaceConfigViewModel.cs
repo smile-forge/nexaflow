@@ -213,8 +213,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
         // Pull the just-saved values into the live workspace, then rebuild the running workspace (if any).
         _workspace.ReloadSharedConfigs();
-        if (WorkspaceManager.Instance.FindLiveWorkspace(_workspace) is { } ws)
-            WorkspaceManager.Instance.RestartWorkspace(ws);
+        WorkspaceManager.Instance.Runtimes?.Restart(_workspace);
         return true;
     }
 

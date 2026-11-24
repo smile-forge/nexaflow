@@ -210,6 +210,16 @@ public class OptionsJourneyTests : OptionsOverlayJourney
         Check("And on again", () => SetToggle("ShellKeepWindowReadyToggle", true));
         Check("Not starting with Windows takes the choice away again", () =>
             SetToggle("ShellPrestartToggle", false) && WaitForId("ShellKeepWindowReadyToggle", 1) is null);
+
+        // A workspace left stays ready for a while, so going back to it is instant: five minutes until the user picks another time.
+        Check("A workspace left stays ready five minutes until the user picks another time", () =>
+            WaitForId("ShellDormantWorkspaceCombo", 5)?.AsComboBox().SelectedItem?.Text == "5 minutes");
+        Check("Another time can be picked", () =>
+        {
+            var combo = WaitForId("ShellDormantWorkspaceCombo", 5)?.AsComboBox();
+            combo?.Select("15 minutes");
+            return combo?.SelectedItem?.Text == "15 minutes";
+        });
     }
 
     /// <summary>

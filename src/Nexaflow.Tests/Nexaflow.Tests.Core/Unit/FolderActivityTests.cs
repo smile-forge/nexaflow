@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Core.Unit;
 /// workspaces watch goes on being watched for those still running when one of them ends.
 /// </summary>
 [TestClass]
-[CoversNode("workspaces")]
+[CoversNode("shell-session")]
 public class FolderActivityTests
 {
     [TestMethod]

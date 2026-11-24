@@ -185,7 +185,7 @@ internal static class PickerRoots
     {
         // Providers don't vary by workspace, so any live one will do when the caller has none to hand
         // (the Options browse buttons, the workspace folder picker).
-        workspace ??= WorkspaceManager.Instance.FirstActive;
+        workspace ??= WorkspaceManager.Instance.Runtimes?.FirstWithWindows;
 
         // No live workspace — tests, early startup — means nothing to build providers from, and so nothing to list:
         // even the volumes are a provider's rows.

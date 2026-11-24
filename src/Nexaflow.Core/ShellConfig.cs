@@ -53,6 +53,14 @@ public sealed class ShellConfig : IFeatureConfig
     [ConfigDisplayName("Shell.Config.Shell.KeepWindowReady")]
     public bool KeepWindowReady { get; set; } = true;
 
+    /// <summary>
+    /// How many minutes a workspace stays dormant once its last window has gone — switched away from, or closed — before it ends:
+    /// meanwhile its providers are back in the pool, but coming back to it is instant, its tabs as they were. Zero ends it at once.
+    /// Read each time a workspace turns dormant, so a change applies from the next.
+    /// </summary>
+    [ConfigDisplayName("Shell.Config.Shell.DormantWorkspaceMinutes")]
+    public int DormantWorkspaceMinutes { get; set; } = 5;
+
 
     /// <summary>
     /// When true, a theme's animated backdrop (the <c>Scene.{Region}</c> layer a <c>ThemedRegion</c>

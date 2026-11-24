@@ -209,7 +209,7 @@ public class AgentLoopTests
 
     /// <summary>
     /// An AIService on a runtime that carries both live services, the way
-    /// <c>WorkspaceManager.BootstrapServices</c> leaves one before any feature sees it.
+    /// <c>WorkspaceRuntimeFactory</c> builds one before any feature sees it.
     /// <para>
     /// It matters here because the agent's page catalog is built from this runtime
     /// (<c>get_openable_pages</c> → <c>GetPageCatalog</c>), and that catalog is what tells the agent which

@@ -1,0 +1,224 @@
+{
+  "branch": "claude/shell-host",
+  "nodes": {
+    "ws-switch-profile": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "SelectWorkspace"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "MoveToWorkspace"
+        }
+      ]
+    },
+    "ws-reconfigure-in-place": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WorkspaceRuntimes.cs",
+          "class": "WorkspaceRuntimes",
+          "method": "Restart"
+        }
+      ]
+    },
+    "ws-prestart-daemon": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/App.xaml.cs",
+          "class": "App",
+          "ast": "T:App/P:IsResident"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/ShellServices.cs",
+          "class": "ShellServices",
+          "method": "UnregisterWindow"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/StandbyWindow.cs",
+          "class": "StandbyWindow"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml.cs",
+          "class": "MainWindow",
+          "method": "ShowOutOfSight"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig",
+          "method": "KeepWindowReady"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WorkspaceRuntimes.cs",
+          "class": "WorkspaceRuntimes",
+          "method": "OpenStandby"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceStartupTabsTests.cs",
+            "class": "WorkspaceStartupTabsTests",
+            "method": "AStandbyWindow_RecordsNoSession_ForItWasNeverShownToAnyone"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceRuntimesTests.cs",
+            "class": "WorkspaceRuntimesTests",
+            "method": "AStandbyClosing_IsNotTheLastWindowClosing_AndEndsIt"
+          }
+        ]
+      }
+    },
+    "ws-lifetimes": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WorkspaceRuntimes.cs",
+          "class": "WorkspaceRuntimes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/WorkspaceRuntime.cs",
+          "class": "WorkspaceRuntime"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/WorkspaceRuntimeState.cs",
+          "class": "WorkspaceRuntimeState"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WorkspaceRuntimeFactory.cs",
+          "class": "WorkspaceRuntimeFactory"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/FeatureScope.cs",
+          "class": "FeatureScope"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/Architecture.md",
+          "title_path": [
+            "Nexaflow Architecture",
+            "Ownership \u0026 Lifetime"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceRuntimesTests.cs",
+            "class": "WorkspaceRuntimesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceRuntimeLifetimeTests.cs",
+            "class": "WorkspaceRuntimeLifetimeTests"
+          }
+        ]
+      }
+    },
+    "ws-dormant-time": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig",
+          "method": "DormantWorkspaceMinutes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml.cs",
+          "class": "ShellConfigViewModel",
+          "method": "DormancyOptions"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/OptionsJourneyTests.cs",
+            "class": "OptionsJourneyTests",
+            "method": "DriveShell"
+          }
+        ]
+      }
+    },
+    "shell-session": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellHost.cs",
+          "class": "ShellHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/IUiThread.cs",
+          "class": "IUiThread"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/WpfUiThread.cs",
+          "class": "WpfUiThread"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/FolderActivity.cs",
+          "class": "FolderActivity"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/RuntimeSessionServices.cs",
+          "class": "RuntimeSessionServices"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/FolderActivityTests.cs",
+            "class": "FolderActivityTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/SessionLayerWpfTests.cs",
+            "class": "SessionLayerWpfTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/CoreSingletonRatchetTests.cs",
+            "class": "CoreSingletonRatchetTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 10,
+  "touched_nodes": [
+    "shell-session",
+    "ws-dormant-time",
+    "ws-lifetimes",
+    "ws-prestart-daemon",
+    "ws-reconfigure-in-place",
+    "ws-switch-profile"
+  ]
+}

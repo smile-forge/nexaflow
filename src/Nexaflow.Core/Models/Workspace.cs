@@ -189,7 +189,7 @@ public sealed partial class Workspace : ObservableObject
     /// <summary>
     /// Re-reads ALL shared config (ability grid, persona, provider + per-workspace feature configs)
     /// from disk into the live instances. Called when the Configure panel closes after edits were
-    /// applied to disk, so a subsequent <see cref="WorkspaceManager.RestartWorkspace"/> rebuilds the
+    /// applied to disk, so a subsequent <see cref="WorkspaceRuntimes.Restart"/> rebuilds the
     /// workspace from the saved values (the panel deliberately leaves the live instances untouched
     /// while editing).
     /// </summary>

@@ -18,7 +18,7 @@ public sealed class MessageCenter
 
     /// <summary>
     /// The app UI dispatcher. This singleton is forced into existence on the UI thread from
-    /// <c>App.InitializeApp</c> so it captures the app dispatcher even in the windowless
+    /// <c>ShellHost</c> so it captures the app dispatcher even in the windowless
     /// <c>--prestart</c> daemon — where the first <see cref="Post"/> would otherwise arrive from a
     /// background update-check thread and bind <c>_ui</c> to the wrong thread.
     /// </summary>

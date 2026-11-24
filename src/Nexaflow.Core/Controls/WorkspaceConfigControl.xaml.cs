@@ -71,7 +71,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
                 Name    = p.Name,
                 Color   = p.Color,
                 Icon    = p.Icon,
-                IsInUse = WorkspaceManager.Instance.IsWorkspaceInUse(p),   // hides Delete on the live workspace
+                IsInUse = WorkspaceManager.Instance.Runtimes?.HasWindows(p) == true,   // hides Delete on the live workspace
             };
             _editToOriginal[edit] = p;
             _editWorkspaces.Add(edit);
@@ -153,10 +153,10 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
             ordered.Add(original);
         }
 
-        // Remove workspaces the user deleted — but never one a live workspace is using, and never the last.
+        // Remove workspaces the user deleted — but never one a window shows, and never the last. One left dormant ends with it.
         foreach (var workspace in mgr.Workspaces.ToList())
-            if (!survivors.Contains(workspace) && !mgr.IsWorkspaceInUse(workspace))
-                mgr.RemoveWorkspace(workspace);
+            if (!survivors.Contains(workspace) && mgr.Runtimes?.HasWindows(workspace) != true && mgr.RemoveWorkspace(workspace))
+                mgr.Runtimes?.Close(workspace);
 
         // Sync the live Workspaces order to the edited order (drag-reorder), so the dropdown and the
         // persisted list match. SaveWorkspaces rebuilds Contexts from Workspaces, so order must live here.
@@ -252,7 +252,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
 
         // Cannot delete a workspace a live workspace is using (incl. the active one).
         if (_editToOriginal.TryGetValue(edit, out var original)
-            && WorkspaceManager.Instance.IsWorkspaceInUse(original))
+            && WorkspaceManager.Instance.Runtimes?.HasWindows(original) == true)
         {
             shell?.ShowErrorToast(Str.Get("Shell.Workspace.InUse"));
             return;

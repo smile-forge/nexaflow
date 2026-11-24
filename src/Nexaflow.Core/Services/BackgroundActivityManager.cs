@@ -19,7 +19,7 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
 {
     public ObservableCollection<BackgroundTask> Tasks { get; } = [];
 
-    /// <summary>The app UI dispatcher, captured at construction (built on the UI thread in App.InitializeApp).</summary>
+    /// <summary>The app UI dispatcher, captured at construction (built on the UI thread by ShellHost).</summary>
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
     private int _activeCount;

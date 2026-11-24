@@ -25,7 +25,7 @@ public static class JumpListService
     /// </summary>
     public static void Initialize()
     {
-        // Captured on the UI thread (this runs during App.InitializeApp); the workspace-list change can
+        // Captured on the UI thread (this runs as the app opens the session); the workspace-list change can
         // arrive on any thread, so marshal the rebuild back onto it.
         var ui = Dispatcher.CurrentDispatcher;
         WorkspaceManager.Instance.WorkspacesRefreshed += (_, _) => ui.Invoke(Refresh);
