@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using System.IO;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
@@ -24,11 +25,17 @@ public static class FolderViewletRegistry
         var vfs = registry.Vfs;
         string? realFolder = vfs.ResolveOnDisk(folderPath);
         bool fullyBacked = realFolder is not null && IsFolderHere(realFolder);
+        // A viewlet that changes files with Windows' own tools is not offered on a location, which changes only through itself;
+        // one whose tools run on the location's host is offered where that host runs programs, however the folder is named.
+        bool onLocation = vfs.IsOnLocation(folderPath);
+        bool hostRuns   = onLocation
+                          && (vfs.GetCapabilities(vfs.TryToVirtual(folderPath) ?? folderPath) & LocationCapabilities.Shell) != 0;
 
         var result = new List<IFolderViewlet>();
         foreach (var viewlet in registry.FolderViewlets)
         {
             if (!fullyBacked && viewlet.RequiresFullyBackedPath) continue;
+            if (onLocation && (viewlet.RequiresLocalFolder || (viewlet.RunsOnLocationHost && !hostRuns))) continue;
             if (isDrive && !viewlet.AppliesToDrives) continue;
             if (!FolderNameMatches(viewlet, folderPath)) continue;
             if (!ContentsMatch(viewlet, realFolder)) continue;

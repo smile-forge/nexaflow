@@ -40,7 +40,8 @@ public sealed class WorkspaceRuntime
     public LocationFileSystem Vfs { get; } = new(VirtualFileSystem.Instance);
 
     /// <summary>
-    /// The workspace's connections as this runtime has mounted them on <see cref="Vfs"/>, each with its live session from
+    /// The workspace's connections and the ones found on this machine (each WSL distro) as this runtime has mounted them on
+    /// <see cref="Vfs"/>, each with its live session from
     /// the runtime's own pool — signed in from what Credential Manager holds, with nobody to ask for anything more until
     /// the shell has a prompt.
     /// </summary>
@@ -57,7 +58,8 @@ public sealed class WorkspaceRuntime
     {
         Workspace = workspace;
         Locations = new RuntimeLocations(Vfs, new LocationSessionPool(LocationProviderRegistry.Instance,
-                                                                      new StoredCredentialSource(CredentialManagerStore.Default)));
+                                                                      new StoredCredentialSource(CredentialManagerStore.Default)),
+                                         DiscoveredLocations.Instance);
     }
 
     /// <summary>Convenience constructor for tests and defaults.</summary>

@@ -171,14 +171,6 @@ public sealed partial class FontItemViewModel : ObservableObject
     [RelayCommand]
     private void SelectFace(FontFaceViewModel? face) => SelectedFace = face;
 
-    /// <summary>Copies a glyph to the clipboard so it can be pasted (like Character Map).</summary>
-    [RelayCommand]
-    private void CopyGlyph(string? glyph)
-    {
-        if (string.IsNullOrEmpty(glyph)) return;
-        try { Clipboard.SetText(glyph); } catch { /* clipboard can be locked by another process */ }
-    }
-
     private List<DetailRow> BuildDetails()
     {
         var rows = new List<DetailRow>();

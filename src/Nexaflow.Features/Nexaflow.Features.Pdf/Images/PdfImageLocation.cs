@@ -78,8 +78,9 @@ internal sealed class PdfImageLocation : ILocationSession, ILocationSessionSourc
     public async ValueTask<Stream> OpenReadAsync(string path, ReadIntent intent, CancellationToken ct) =>
         new MemoryStream((await Existing(path, ct).ConfigureAwait(false)).File.Bytes, writable: false);
 
-    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, CancellationToken ct)
+    public async ValueTask<ILocationWrite> BeginWriteAsync(string path, WriteMode mode, LocationEntry? expected, UnixFileMode? permissions, CancellationToken ct)
     {
+        // A document's image is only ever replaced, so it keeps what it is; a picture holds no POSIX bits to carry.
         if (mode == WriteMode.Append)
             throw new LocationException(LocationError.AccessDenied, path, "A document's image is replaced whole, never added to.");
         if (Image(path) is null)

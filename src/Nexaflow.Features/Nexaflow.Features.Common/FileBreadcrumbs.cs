@@ -23,46 +23,32 @@ public static class FileBreadcrumbs
     /// </summary>
     public const string FileSystemPageKind = "FileSystem";
 
-    /// <summary>
-    /// What to title a tab showing <paramref name="directory"/>: the folder's own name, or the whole path when
-    /// it has no name of its own (a drive root such as <c>C:\</c>).
-    /// <para>
-    /// One rule in one place because the <c>label</c> page param is optional, so anything that opens a
-    /// file-explorer tab without one — a ribbon button, a restored session, a tab rebuilt after an options
-    /// save — needs the same answer. Deriving it per call site is how a tab ends up titled "Files".
-    /// </para>
-    /// </summary>
-    public static string DirectoryLabel(string directory)
-    {
-        if (string.IsNullOrEmpty(directory)) return string.Empty;
-        var leaf = Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        return string.IsNullOrEmpty(leaf) ? directory : leaf;
-    }
-
     /// <summary>A clickable crumb that opens (or focuses) a file-explorer tab rooted at <paramref name="directory"/>.
-    /// Its label is the full directory path; the opened tab is titled with the folder's own name.</summary>
+    /// It stands for the folder's whole path, which the shell draws as a person names it and shortens from the middle;
+    /// the opened tab names the folder itself, as its runtime's file system names it.</summary>
     public static BreadcrumbSegment ForDirectory(string directory) =>
         new()
         {
             Label            = directory,
             Path             = directory,
+            Content          = new PlaceContent(directory, PlaceNaming.WholePath),
             TargetPageKind   = FileSystemPageKind,
             TargetPageParams = new Dictionary<string, string>
             {
-                ["mode"]  = "path",
-                ["path"]  = directory,
-                ["label"] = DirectoryLabel(directory),
+                ["mode"] = "path",
+                ["path"] = directory,
             },
         };
 
     /// <summary>
     /// Replaces <paramref name="page"/>'s breadcrumbs with "[parent dir] › [leaf]" for a single file. The
     /// parent crumb is clickable and is omitted when <paramref name="filePath"/> has no directory.
-    /// <paramref name="leaf"/> defaults to the file name; pass the page title so the empty-path case still
-    /// shows a sensible label.
+    /// <paramref name="leaf"/> defaults to the file's own name, which the shell draws as a person names it; pass the
+    /// page title so the empty-path case still shows a sensible label — a leaf given is the page's own.
     /// </summary>
     public static void SetFileBreadcrumbs(this Page page, string filePath, string? leaf = null)
     {
+        var naming = leaf is null ? PlaceNaming.OwnName : PlaceNaming.PageLabel;
         leaf ??= string.IsNullOrEmpty(filePath) ? string.Empty : Path.GetFileName(filePath);
 
         // Derived content (a DICOM report, an archived doc extracted to a temp file) points back to the
@@ -71,12 +57,12 @@ public static class FileBreadcrumbs
         {
             page.Breadcrumbs.Clear();
             page.Breadcrumbs.Add(origin);
-            page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leaf, Path = filePath });
+            page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leaf, Path = filePath, Content = new PlaceContent(filePath, naming) });
             return;
         }
 
         var dir = string.IsNullOrEmpty(filePath) ? null : Path.GetDirectoryName(filePath);
-        SetBreadcrumbs(page, dir, leaf, string.IsNullOrEmpty(filePath) ? null : filePath);
+        SetBreadcrumbs(page, dir, leaf, string.IsNullOrEmpty(filePath) ? null : new PlaceContent(filePath, naming));
     }
 
     /// <summary>
@@ -122,11 +108,11 @@ public static class FileBreadcrumbs
         return dir;
     }
 
-    private static void SetBreadcrumbs(Page page, string? directory, string leafLabel, string? leafPath = null)
+    private static void SetBreadcrumbs(Page page, string? directory, string leafLabel, PlaceContent? leaf = null)
     {
         page.Breadcrumbs.Clear();
         if (!string.IsNullOrEmpty(directory))
             page.Breadcrumbs.Add(ForDirectory(directory));
-        page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leafLabel, Path = leafPath });
+        page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leafLabel, Path = leaf?.Path, Content = leaf });
     }
 }

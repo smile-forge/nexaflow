@@ -40,6 +40,12 @@ internal sealed class FakeShellServices : IShellServices
     public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) => throw new NotSupportedException();
     public Task RunOnUiAsync(Action action) => throw new NotSupportedException();
     public Task<T> RunOnUiAsync<T>(Func<Task<T>> action) => throw new NotSupportedException();
+
+    public IUiTimer CreateUiTimer(TimeSpan interval, Action tick, UiTimerPriority priority = UiTimerPriority.Background) => throw new NotSupportedException();
+
+    public IUiTimer CreateUiDelay(TimeSpan delay, Action elapsed, UiTimerPriority priority = UiTimerPriority.Background) => throw new NotSupportedException();
+
+    public IShellClipboard Clipboard => throw new NotSupportedException();
     public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null) => throw new NotSupportedException();
     public void ShowNotification(string message) => throw new NotSupportedException();
     public void ShowNotification(string message, Page tab) => throw new NotSupportedException();

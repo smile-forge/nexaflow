@@ -47,17 +47,17 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public async Task<bool> PerformActionAsync(string path, CancellationToken ct = default)
         {
-            path           = Services.ShellPath.RealForMutation(path);
+            path           = new Services.ShellPath(_vfs).RealForMutation(path);
             bool isDir     = await _vfs.IsDirectoryAsync(path, ct);
-            string dir     = Path.GetDirectoryName(path)!;
-            string oldName = Path.GetFileName(path);
+            string dir     = _vfs.GetParentPath(path) ?? Path.GetDirectoryName(path)!;
+            string oldName = _vfs.GetDisplayName(path);   // as the file system names it, not the segment standing for it
             string title   = isDir ? Str.Get("WindowsFileSystem.Rename.FolderTitle") : Str.Get("WindowsFileSystem.Rename.FileTitle");
 
             _shell.ShowPrompt(
                 title:        title,
                 label:        Str.Get("WindowsFileSystem.Rename.Label"),
                 initialValue: oldName,
-                onConfirm: newName => _ = RenameAsync(path, Path.Combine(dir, newName.Trim()), oldName, newName.Trim(), isDir),
+                onConfirm: newName => _ = RenameAsync(path, dir, oldName, newName.Trim(), isDir),
                 onCancel: () => { });
 
             return false;   // the rename waits on the prompt — refresh handled by RenameAsync
@@ -65,9 +65,17 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         /// <summary>The rename the prompt confirmed, its companions with it. A failure is shown rather than thrown, because
         /// nothing awaits a prompt's callback.</summary>
-        private async Task RenameAsync(string path, string dest, string oldName, string newName, bool isDir)
+        private async Task RenameAsync(string path, string folder, string oldName, string newName, bool isDir)
         {
             if (string.IsNullOrEmpty(newName) || newName == oldName) return;
+            if (!_vfs.CanName(folder, newName))
+            {
+                _shell.ShowError(Str.Format("WindowsFileSystem.Rename.FailedFormat", oldName,
+                                            Str.Format("WindowsFileSystem.Rename.CannotNameFormat", newName)));
+                return;
+            }
+
+            var dest = _vfs.ChildPath(folder, newName);
             try
             {
                 await _vfs.MoveAsync(path, dest, replace: false);

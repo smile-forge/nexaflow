@@ -15,6 +15,8 @@ public sealed class TerminalEnvScopeLabelConverter : IValueConverter
         EnvScope.Session => Str.Get("Terminal.EnvEdit.Scope.Session"),
         EnvScope.User    => Str.Get("Terminal.EnvEdit.Scope.User"),
         EnvScope.Machine => Str.Get("Terminal.EnvEdit.Scope.Machine"),
+        EnvScope.Live    => Str.Get("Terminal.EnvEdit.Scope.Live"),
+        EnvScope.Startup => Str.Get("Terminal.EnvEdit.Scope.Startup"),
         _                => value?.ToString() ?? "",
     };
 

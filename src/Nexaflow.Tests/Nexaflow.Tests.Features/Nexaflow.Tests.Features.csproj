@@ -39,11 +39,14 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Location.Memory\Nexaflow.IO.Location.Memory.csproj" />
 
     <ProjectReference Include="..\..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Terminal\Nexaflow.IO.Terminal.csproj" />
+    <!-- The console's live-shell tests run a distro's own shell, through the backend the app finds it by. -->
+    <ProjectReference Include="..\..\Nexaflow.IO.Location.Wsl\Nexaflow.IO.Location.Wsl.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj" />
@@ -65,6 +68,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Solver\Nexaflow.Features.Solver.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
+        <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Wsl\Nexaflow.Features.Wsl.csproj" />
   </ItemGroup>
 
   <ItemGroup>

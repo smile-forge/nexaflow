@@ -107,6 +107,22 @@ public interface IShellServices
     Task<T> RunOnUiAsync<T>(Func<Task<T>> action);
 
     /// <summary>
+    /// A timer that ticks <paramref name="tick"/> on this workspace's UI thread every <paramref name="interval"/>, made
+    /// stopped: for a view-model that polls, animates or debounces. Dispose it with its owner.
+    /// </summary>
+    IUiTimer CreateUiTimer(TimeSpan interval, Action tick, UiTimerPriority priority = UiTimerPriority.Background);
+
+    /// <summary>
+    /// A delay that runs <paramref name="elapsed"/> once on this workspace's UI thread, <paramref name="delay"/> after it is
+    /// started, and stops before it runs: a debounce, restarted at each change and run when they pause. Made stopped; start
+    /// it again to run it again. Dispose it with its owner.
+    /// </summary>
+    IUiTimer CreateUiDelay(TimeSpan delay, Action elapsed, UiTimerPriority priority = UiTimerPriority.Background);
+
+    /// <summary>The system clipboard: read in the kinds a drag is read in, and written as a <see cref="Nexaflow.Interaction.ComposedPayload"/>.</summary>
+    IShellClipboard Clipboard { get; }
+
+    /// <summary>
     /// Returns the first globally-open tab whose <see cref="Page.PageKind"/>
     /// matches and whose params are compatible (see param-matching rules), or null.
     /// </summary>
@@ -134,8 +150,7 @@ public interface IShellServices
 
     /// <summary>
     /// Runs <paramref name="query"/> through the AI pipeline as if it had been submitted in the input bar,
-    /// in the context of the active page. Used by the terminal's command/query routing: a line that isn't a
-    /// shell command is handed to the model (which can then run commands via the page's tools).
+    /// in the context of the active page, and routed as a line typed there is.
     /// </summary>
     void SubmitAiQuery(string query);
 

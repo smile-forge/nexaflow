@@ -33,7 +33,7 @@ public sealed class VideoTabRegistration : IPageRegistration
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = string.IsNullOrEmpty(path) ? Str.Get("Video.Page.Title") : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Video.Page.Title") : _vfs.GetDisplayName(path);
 
         var page = new Page
         {

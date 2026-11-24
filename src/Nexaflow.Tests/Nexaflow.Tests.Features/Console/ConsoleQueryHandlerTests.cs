@@ -7,6 +7,10 @@ using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Features.Console;
+using Nexaflow.Features.Console.ViewModels;
+using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Terminal.Shells;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -19,13 +23,10 @@ namespace Nexaflow.Tests.Features.Console;
 [CoversNode("console-gt-prefix")]
 public class ConsoleQueryHandlerTests
 {
-    private sealed class TestTerminal : TerminalViewModel
-    {
-        public TestTerminal() : base(new FakeTerminal(), Substitute.For<IShellServices>(), Substitute.For<IAIService>()) { }
-        protected override IReadOnlyList<TerminalEnvironment> Environments => [];
-        protected override string? FindBoundEnvName(string folderPath) => null;
-        protected override void PersistFolderBinding(string folderPath, string envName) { }
-    }
+    /// <summary>The Console's own terminal: cmd, with no process behind it.</summary>
+    private static CmdTerminalViewModel Cmd()
+        => new(new ConsoleConfig(), new FakeTerminal().AsCmd(), VirtualFileSystem.Instance,
+               Substitute.For<IShellServices>(), Substitute.For<IAIService>(), null);
 
     [TestMethod]
     public void Symbol_IsAngleBracket()
@@ -34,7 +35,7 @@ public class ConsoleQueryHandlerTests
     [TestMethod]
     public void CanProcess_RecognisedCommand_OnTerminal_HighScore()
     {
-        var score = new ConsoleQueryHandler().CanProcess("dir", false, new TestTerminal());
+        var score = new ConsoleQueryHandler().CanProcess("dir", false, Cmd());
         Assert.IsTrue(score > 0.8f, $"a recognised command should be a clear winner, got {score}");
     }
 
@@ -42,7 +43,7 @@ public class ConsoleQueryHandlerTests
     public void CanProcess_NaturalLanguage_OnTerminal_Zero()
     {
         // PR#95 regression: a plain question must fall through to the AI, not be run as a command.
-        var score = new ConsoleQueryHandler().CanProcess("what does this folder contain", false, new TestTerminal());
+        var score = new ConsoleQueryHandler().CanProcess("what does this folder contain", false, Cmd());
         Assert.AreEqual(0f, score);
     }
 
@@ -51,7 +52,7 @@ public class ConsoleQueryHandlerTests
     {
         // The ">" symbol is stripped before we're called; `prefixed` says the user typed it explicitly, so
         // route to the terminal regardless of the classifier (matching the handler's documented contract).
-        var score = new ConsoleQueryHandler().CanProcess("what does this folder contain", true, new TestTerminal());
+        var score = new ConsoleQueryHandler().CanProcess("what does this folder contain", true, Cmd());
         Assert.IsTrue(score > 0.8f, $"an explicit '>' prefix should route to the terminal, got {score}");
     }
 
@@ -65,11 +66,35 @@ public class ConsoleQueryHandlerTests
     [TestMethod]
     public async Task ProcessAsync_RunsCommandSilently()
     {
-        var vm = new TestTerminal();
+        var vm = Cmd();
 
         var result = await new ConsoleQueryHandler().ProcessAsync("dir", false, vm);
 
         Assert.IsNull(result, "running a command in the terminal produces no AI message");
         Assert.AreEqual("dir", vm.CommandHistory[0], "the command should have been sent to the terminal");
+    }
+
+    [TestMethod]
+    [DataRow("del the temp files")]
+    [DataRow("del temp files")]
+    [DataRow("yes")]
+    public void CanProcess_AnUnclearLine_ClaimsItWithoutWinning_SoAModelIsAsked(string line)
+    {
+        var score = new ConsoleQueryHandler().CanProcess(line, false, Cmd());
+        Assert.IsTrue(score is > 0f and < 0.8f, $"'{line}' should be put to the model, got {score}");
+    }
+
+    [TestMethod]
+    public void AnotherFeaturesTerminal_IsNotTheConsoles()
+    {
+        var distro = new FakeTerminal();
+        var files  = TerminalFiles.With(distro);
+        var other  = new Nexaflow.Features.Wsl.ViewModels.WslShellViewModel(
+            TerminalShellRoute.ForLocationShell(files, $@"{TerminalFiles.Distro}\home"), Substitute.For<IShellServices>(), Substitute.For<IAIService>());
+
+        Assert.AreEqual(0f, new ConsoleQueryHandler().CanProcess("ls", true, other), "a WSL shell's line is its own feature's");
+        Assert.IsFalse(new ConsoleKeyHandler().CanHandle(other));
+        Assert.IsFalse(new ConsoleDropHandler().CanHandle(other));
+        Assert.IsTrue(new ConsoleDropHandler().CanHandle(Substitute.For<IPageViewModel>()), "any other page still takes dropped paths");
     }
 }

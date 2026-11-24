@@ -499,8 +499,9 @@ internal sealed class PdfDocumentSession : IDisposable
     {
         var destination = target ?? Base.Path;
         // On this disk the document is written beside the file and swapped in; anywhere else it is written in the drafts
-        // and put in place through the file system, whole.
-        var real = _vfs.ResolveOnDisk(destination);
+        // and put in place through the file system, whole — on a location too, though Windows shows it as a folder: Windows
+        // cannot swap a file in there, and would not keep its permissions.
+        var real = _vfs.IsOnLocation(destination) ? null : _vfs.ResolveOnDisk(destination);
         var written = real is null
             ? System.IO.Path.Combine(Drafts(), $"saving-{Interlocked.Increment(ref _nextDraft)}.pdf")
             : real + ".nexatmp";

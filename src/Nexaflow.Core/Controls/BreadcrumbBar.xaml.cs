@@ -27,7 +27,24 @@ public partial class BreadcrumbBar : UserControl
         set => SetValue(SegmentsProperty, value);
     }
 
+    public static readonly DependencyProperty DisplayFiltersProperty =
+        DependencyProperty.Register(nameof(DisplayFilters),
+            typeof(IReadOnlyList<IBreadcrumbDisplayFilter>), typeof(BreadcrumbBar),
+            new PropertyMetadata(null, (d, _) => ((BreadcrumbBar)d).Refresh()));
+
+    /// <summary>The window's runtime's display filters, in stacking order: what restates each crumb before it is drawn
+    /// (<see cref="IBreadcrumbDisplayFilter"/>). Null draws every crumb as its page stated it.</summary>
+    public IReadOnlyList<IBreadcrumbDisplayFilter>? DisplayFilters
+    {
+        get => (IReadOnlyList<IBreadcrumbDisplayFilter>?)GetValue(DisplayFiltersProperty);
+        set => SetValue(DisplayFiltersProperty, value);
+    }
+
     private IReadOnlyList<BreadcrumbSegment> _segs = [];
+
+    /// <summary>How each of <see cref="_segs"/> reads, once the filters have restated it — composed once per change,
+    /// so laying out to fit only shortens.</summary>
+    private IReadOnlyList<BreadcrumbDisplay> _displays = [];
 
     public BreadcrumbBar()
     {
@@ -62,9 +79,11 @@ public partial class BreadcrumbBar : UserControl
     private void Refresh()
     {
         _segs = Segments?.ToList() ?? [];
+        var filters = DisplayFilters ?? [];
+        _displays = [.. _segs.Select(s => BreadcrumbDrawing.Compose(s, filters))];
         // Right-clicking the bar itself — a separator, the gap after the last crumb — answers with where you
         // are: the deepest crumb that names a location. Crumbs that name one of their own override this below.
-        ContextMenu = CopyPathMenu(_segs.LastOrDefault(s => !string.IsNullOrEmpty(s.Path))?.Path);
+        ContextMenu = CopyPathMenu(_displays.LastOrDefault(d => d.CopyText is not null)?.CopyText);
         ApplyLayout();
     }
 
@@ -72,8 +91,9 @@ public partial class BreadcrumbBar : UserControl
 
     /// <summary>
     /// Renders the crumbs, compressing them when they exceed the available width:
-    /// 1. shrink the currently-longest middle label (first/last are never shrunk) to its first
-    ///    3 letters + …, then 2, then 1, picking the longest remaining each step;
+    /// 1. shorten the currently-longest crumb that can be (<see cref="BreadcrumbDrawing.DeepestLevel"/>) one step —
+    ///    a middle part of a many-part crumb elided, or a middle crumb cut to 3, 2, then 1 letters — picking the
+    ///    longest remaining each step;
     /// 2. if it still doesn't fit, collapse the middle to
     ///    <c>[first] › (long path) › [second-last] › [last]</c> so the user can always jump to the
     ///    root or up one level even though "(long path)" itself isn't clickable.
@@ -84,7 +104,7 @@ public partial class BreadcrumbBar : UserControl
         if (n == 0) { CrumbPanel.Children.Clear(); return; }
 
         double available = AvailableWidth();
-        var levels    = new int[n];   // 0 = full; 1/2/3 = first 3/2/1 letters + …
+        var levels    = new int[n];   // 0 = whole; see BreadcrumbDrawing.Shortened
         bool collapsed = false;
 
         while (true)
@@ -95,8 +115,8 @@ public partial class BreadcrumbBar : UserControl
             if (MeasuredWidth() <= available) return;    // fits
             if (collapsed) return;                       // phase 2 is the final form
 
-            int pick = LongestShrinkableMiddle(levels);
-            if (pick >= 0) { levels[pick]++; continue; } // phase 1: shrink the longest middle crumb
+            int pick = LongestShrinkable(levels);
+            if (pick >= 0) { levels[pick]++; continue; } // phase 1: shorten the longest crumb that can be
             if (n >= 4)    { collapsed = true; continue; } // phase 2: collapse the middle
             return;                                      // nothing left to compress
         }
@@ -117,28 +137,23 @@ public partial class BreadcrumbBar : UserControl
         return total;
     }
 
-    /// <summary>Index of the longest middle crumb that can still be shortened, or -1 if none.</summary>
-    private int LongestShrinkableMiddle(int[] levels)
+    /// <summary>Index of the longest crumb that one more step would shorten, or -1 if none.</summary>
+    private int LongestShrinkable(int[] levels)
     {
         int best = -1, bestLen = -1;
-        for (int i = 1; i < _segs.Count - 1; i++)
+        for (int i = 0; i < _displays.Count; i++)
         {
-            string shown = Truncate(_segs[i].Label, levels[i]);
-            string next  = Truncate(_segs[i].Label, levels[i] + 1);
-            if (levels[i] < 3 && next.Length < shown.Length && shown.Length > bestLen)
+            var display = _displays[i];
+            if (levels[i] >= BreadcrumbDrawing.DeepestLevel(display, atEnd: i == 0 || i == _displays.Count - 1)) continue;
+            string shown = BreadcrumbDrawing.Shortened(display, levels[i]);
+            string next  = BreadcrumbDrawing.Shortened(display, levels[i] + 1);
+            if (next.Length < shown.Length && shown.Length > bestLen)
             {
                 bestLen = shown.Length;
                 best    = i;
             }
         }
         return best;
-    }
-
-    private static string Truncate(string label, int level)
-    {
-        if (level <= 0) return label;
-        int keep = 4 - level;                       // 1 → 3 letters, 2 → 2, 3 → 1
-        return label.Length <= keep ? label : label[..keep] + "…";
     }
 
     // ── Rendering ────────────────────────────────────────────────────────────
@@ -151,20 +166,20 @@ public partial class BreadcrumbBar : UserControl
         if (collapsed)
         {
             // [first] › (long path) › [second-last] › [last]
-            CrumbPanel.Children.Add(BuildCrumb(_segs[0], _segs[0].Label, isActive: false));
+            CrumbPanel.Children.Add(BuildCrumb(0, levels[0], isActive: false));
             AddSeparator();
-            CrumbPanel.Children.Add(BuildCollapsedPlaceholder(_segs.Skip(1).Take(n - 3)));
+            CrumbPanel.Children.Add(BuildCollapsedPlaceholder(_displays.Skip(1).Take(n - 3)));
             AddSeparator();
-            CrumbPanel.Children.Add(BuildCrumb(_segs[n - 2], _segs[n - 2].Label, isActive: false));
+            CrumbPanel.Children.Add(BuildCrumb(n - 2, levels[n - 2], isActive: false));
             AddSeparator();
-            CrumbPanel.Children.Add(BuildCrumb(_segs[n - 1], _segs[n - 1].Label, isActive: true));
+            CrumbPanel.Children.Add(BuildCrumb(n - 1, levels[n - 1], isActive: true));
             return;
         }
 
         for (int i = 0; i < n; i++)
         {
             if (i > 0) AddSeparator();
-            CrumbPanel.Children.Add(BuildCrumb(_segs[i], Truncate(_segs[i].Label, levels[i]), isActive: i == n - 1));
+            CrumbPanel.Children.Add(BuildCrumb(i, levels[i], isActive: i == n - 1));
         }
     }
 
@@ -179,7 +194,7 @@ public partial class BreadcrumbBar : UserControl
         });
 
     /// <summary>The non-clickable "(long path)" stand-in for the collapsed middle segments.</summary>
-    private UIElement BuildCollapsedPlaceholder(IEnumerable<BreadcrumbSegment> hidden) =>
+    private UIElement BuildCollapsedPlaceholder(IEnumerable<BreadcrumbDisplay> hidden) =>
         new TextBlock
         {
             Text       = Str.Get("Shell.Breadcrumb.LongPath"),
@@ -188,15 +203,19 @@ public partial class BreadcrumbBar : UserControl
             FontStyle  = FontStyles.Italic,
             Margin     = new Thickness(6, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            ToolTip    = string.Join("  ›  ", hidden.Select(h => h.Label))
+            ToolTip    = string.Join("  ›  ", hidden.Select(h => h.Text))
         };
 
-    private UIElement BuildCrumb(BreadcrumbSegment seg, string displayLabel, bool isActive)
+    /// <summary>The crumb at <paramref name="index"/>, its text shortened to <paramref name="level"/>.</summary>
+    private UIElement BuildCrumb(int index, int level, bool isActive)
     {
+        var seg         = _segs[index];
+        var display     = _displays[index];
+        var displayLabel = BreadcrumbDrawing.Shortened(display, level);
         var hasChildren = seg.Children.Count > 0;
 
-        // Label + optional chevron. Text is the (possibly truncated) display label; the tooltip
-        // always carries the full label so a shortened crumb is still legible on hover.
+        // Label + optional chevron. Text is the (possibly shortened) display label; the tooltip
+        // always carries the whole of it so a shortened crumb is still legible on hover.
         var inner = new StackPanel { Orientation = Orientation.Horizontal };
         inner.Children.Add(new TextBlock
         {
@@ -221,11 +240,11 @@ public partial class BreadcrumbBar : UserControl
             Content  = inner,
             Style    = (Style)FindResource("RibbonButton"),
             Padding  = new Thickness(6, 2, 6, 2),
-            ToolTip  = seg.Label
+            ToolTip  = display.ToolTip
         };
 
         // Null when the crumb names no location — the right-click then bubbles to the bar's own menu.
-        btn.ContextMenu = CopyPathMenu(seg.Path);
+        btn.ContextMenu = CopyPathMenu(display.CopyText);
 
         if (seg.TargetPageKind is { } pageKind)
         {

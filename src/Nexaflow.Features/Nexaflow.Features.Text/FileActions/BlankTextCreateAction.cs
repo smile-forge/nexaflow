@@ -25,7 +25,7 @@ public sealed class BlankTextCreateAction(IVirtualFileSystem vfs) : IFileCreateA
         if (string.IsNullOrWhiteSpace(folderPath) || string.IsNullOrWhiteSpace(fileName))
             return null;
 
-        var dest = Path.Combine(folderPath, fileName);
+        var dest = vfs.ChildPath(folderPath, fileName);
         await vfs.CreateFileAsync(dest, ReadOnlyMemory<byte>.Empty, ct);
         return dest;
     }

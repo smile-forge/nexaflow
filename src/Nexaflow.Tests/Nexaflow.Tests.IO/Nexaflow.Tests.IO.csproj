@@ -52,6 +52,7 @@
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Media\Nexaflow.Media.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Location.Memory\Nexaflow.IO.Location.Memory.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Location.Wsl\Nexaflow.IO.Location.Wsl.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.CompoundFile\Nexaflow.IO.CompoundFile.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Documents\Nexaflow.IO.Documents.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Hdf5\Nexaflow.IO.Hdf5.csproj" />

@@ -87,7 +87,7 @@ public sealed class AIService : IAIService
         // The call generate_video would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
         // It reads only its picture, and the clip opens as a draft for the user to save where they choose.
         var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([picture], [])));
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([picture], [], _workspace.Vfs.GetNameComparison)));
         var arguments = new JsonObject
         {
             ["prompt"]      = clip.Description,
@@ -142,7 +142,7 @@ public sealed class AIService : IAIService
         // The call generate_image would be given, run as the assistant's slow calls run — but the user's, so nothing is asked.
         // It saves only where the user named, and opens the picture once it is there unless whoever asked takes it in.
         var tool = new Generation.GenerateImageTool(ImageGenerator, HighQualityImageGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!]), picture.OpensWhenMade),
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!], _workspace.Vfs.GetNameComparison), picture.OpensWhenMade),
                                                     AllowsAdultContent, PictureCheck);
         var arguments = new JsonObject
         {
@@ -168,7 +168,7 @@ public sealed class AIService : IAIService
 
         // The call edit_image would be given, the user's: it reads only the pictures the user gave it and saves only where they named.
         string[] given = [.. edit.Sources, .. edit.Mask is { } stencil ? [stencil] : Array.Empty<string>()];
-        var tool = new Generation.EditImageTool(editor, Generation.GeneratedFiles.For(shell, new PathScope(given, [Path.GetDirectoryName(target)!]), edit.OpensWhenMade),
+        var tool = new Generation.EditImageTool(editor, Generation.GeneratedFiles.For(shell, new PathScope(given, [Path.GetDirectoryName(target)!], _workspace.Vfs.GetNameComparison), edit.OpensWhenMade),
                                                 PictureCheck);
         var arguments = new JsonObject
         {
@@ -217,7 +217,7 @@ public sealed class AIService : IAIService
 
         // The call generate_video would be given for a clip from a description, run as the user's: nothing is asked.
         var tool = new Generation.GenerateVideoTool(VideoGenerator, HighQualityVideoGenerator,
-                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!])));
+                                                    Generation.GeneratedFiles.For(shell, new PathScope([], [Path.GetDirectoryName(target)!], _workspace.Vfs.GetNameComparison)));
         var arguments = new JsonObject
         {
             ["prompt"]  = clip.Prompt,
@@ -259,7 +259,7 @@ public sealed class AIService : IAIService
         if (_jobs is not { } jobs) throw new InvalidOperationException("This workspace runs no background jobs.");
 
         var path = Path.GetFullPath(document.Path);
-        if (DocumentToolsFor(new PathScope([path], []), asked => string.Equals(asked, path, StringComparison.OrdinalIgnoreCase) ? document with { Path = path } : null) is not { } tools)
+        if (DocumentToolsFor(new PathScope([path], [], _workspace.Vfs.GetNameComparison), asked => string.Equals(asked, path, StringComparison.OrdinalIgnoreCase) ? document with { Path = path } : null) is not { } tools)
             throw new InvalidOperationException("This workspace has no model in its Documents row.");
 
         arguments[Documents.DocumentJob.DocumentParameter] = path;
@@ -402,7 +402,7 @@ public sealed class AIService : IAIService
 
         var pageContext = page?.GetContext() ?? "No specific context.";
         // Every tool that takes a path is held to what the user has shown the assistant: the page's files and folders.
-        var scope       = Agent.RunScope.Of(page);
+        var scope       = Agent.RunScope.Of(page, _workspace.Vfs);
         var tools       = new List<IClientTool>(page?.GetClientTools() ?? []);
 
         // A searchable page gets its search tools automatically — declaring ISearchable is the whole
@@ -671,24 +671,32 @@ public sealed class AIService : IAIService
             string EffectiveText,
             bool Prefixed)
         ScoreHandlers(string text, IPageViewModel? pageVm)
-    {
-        var allHandlers = FeatureManager.Instance.GetQueryHandlers(_workspace).ToList();
+        => RankHandlers(FeatureManager.Instance.GetQueryHandlers(_workspace).ToList(), text, pageVm);
 
-        // A leading Symbol character explicitly routes to the handler(s) that own it: narrow to them and
-        // strip the character. Every narrowed handler is then scored as "prefixed" on the stripped text.
-        // With no such prefix, every handler competes on the raw text (prefixed: false).
+    /// <summary>
+    /// <see cref="ScoreHandlers"/> over the handlers given. A leading symbol character routes to the handlers that own it,
+    /// scored as prefixed on the stripped text. When none of them claims the line the character was no prefix —
+    /// <c>/usr/bin/env</c> and <c>$HOME/bin/deploy</c> on a console — so whoever claims the line as typed has it.
+    /// </summary>
+    internal static (IReadOnlyList<(IQueryHandler Handler, float Score)> Scored,
+                     IQueryHandler? ClearWinner,
+                     string EffectiveText,
+                     bool Prefixed)
+        RankHandlers(IReadOnlyList<IQueryHandler> allHandlers, string text, IPageViewModel? pageVm)
+    {
         var symbolMatches = allHandlers
             .Where(h => h.Symbol is { Length: 1 } s && text.StartsWith(s))
             .ToList();
         var prefixed      = symbolMatches.Count > 0;
-        var considered    = prefixed ? symbolMatches : allHandlers;
         var effectiveText = prefixed ? text[1..].TrimStart() : text;
+        var scored        = Score(prefixed ? symbolMatches : allHandlers, effectiveText, prefixed);
 
-        var scored = considered
-            .Select(h => (Handler: h, Score: h.CanProcess(effectiveText, prefixed, pageVm)))
-            .Where(x => x.Score > 0f)
-            .OrderByDescending(x => x.Score)
-            .ToList();
+        if (prefixed && scored.Count == 0 && Score(allHandlers, text, false) is { Count: > 0 } asTyped)
+        {
+            scored        = asTyped;
+            prefixed      = false;
+            effectiveText = text;
+        }
 
         IQueryHandler? clearWinner = null;
         if (scored.Count > 0)
@@ -700,6 +708,12 @@ public sealed class AIService : IAIService
         }
 
         return (scored, clearWinner, effectiveText, prefixed);
+
+        List<(IQueryHandler Handler, float Score)> Score(IReadOnlyList<IQueryHandler> handlers, string line, bool asPrefixed)
+            => handlers.Select(h => (Handler: h, Score: h.CanProcess(line, asPrefixed, pageVm)))
+                       .Where(x => x.Score > 0f)
+                       .OrderByDescending(x => x.Score)
+                       .ToList();
     }
 
     public async Task<IQueryHandler?> DisambiguateToolSelection(

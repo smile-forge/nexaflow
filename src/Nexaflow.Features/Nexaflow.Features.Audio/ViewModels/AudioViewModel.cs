@@ -7,7 +7,6 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -46,7 +45,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     /// <summary>The current track as a file on this disk — asked once per track, by playback and the track's details alike.</summary>
     private Task<string>? _local;
     private readonly AudioConfig _config;
-    private readonly DispatcherTimer _renderTimer;
+    private readonly IUiTimer _renderTimer;
 
     private AudioPlaybackEngine? _engine;
     private string? _engineLoadedPath;
@@ -73,8 +72,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         _backgroundPlay = config.BackgroundPlay;
         _autoPlayPending = autoPlay && _paths.Count > 0;
 
-        _renderTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
-        _renderTimer.Tick += (_, _) => OnRenderTick();
+        _renderTimer = shell.CreateUiTimer(TimeSpan.FromMilliseconds(33), OnRenderTick, UiTimerPriority.Render);
 
         BuildPlaylist();
     }
@@ -360,7 +358,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         if (CurrentPath is not { } path) return;
 
         int token = ++_loadToken;
-        FileName = Path.GetFileName(path);
+        FileName = _vfs.GetDisplayName(path);
         Title = FileName;
         Artist = string.Empty;
         Album = string.Empty;
@@ -381,7 +379,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         Album = tags.Album;
         Duration = tags.Duration;
         AlbumArt = ImageHelpers.ToBitmap(tags.AlbumArt);
-        TagEditor = new TagEditorViewModel(tags, _shell, _vfs, SaveTagsAsync);
+        TagEditor = new TagEditorViewModel(tags, _shell, _vfs, SaveTagsAsync, canSave: !_vfs.IsOnLocation(path));
 
         await LoadLyricsAsync(path, tags, token);
         _ = LoadWaveformAsync(local, token);
@@ -755,7 +753,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     {
         if (!string.IsNullOrWhiteSpace(Title)) return Title;
         if (!string.IsNullOrWhiteSpace(FileName)) return FileName;
-        return CurrentPath is null ? "(no track)" : System.IO.Path.GetFileName(CurrentPath);
+        return CurrentPath is null ? "(no track)" : _vfs.GetDisplayName(CurrentPath);
     }
 
     /// <summary>read_now_playing body — a pure read of transport state (never mutates, so never marshals).</summary>
@@ -935,7 +933,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
 
         _mediatedHandle?.Dispose();   // remove the chrome remote if the tab is closed while backgrounded
         _mediatedHandle = null;
-        _renderTimer.Stop();
+        _renderTimer.Dispose();
         _engine?.Dispose();
         _engine = null;
 

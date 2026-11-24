@@ -61,8 +61,7 @@ public class CopyPathsTests
     {
         // Drives so the This PC list and the tree's drive nodes both carry it; not the open folder, whose
         // path the breadcrumb bar already offers — the action stands for the item you clicked.
-        var action = (IFolderAction)new CopyPaths();
-
+        var action = (IFolderAction)new CopyPaths(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
         Assert.IsTrue(action.AppliesToDrives);
         Assert.IsFalse(action.AppliesToRoot);
     }
@@ -93,4 +92,18 @@ public class CopyPathsTests
 
     private static List<string> Offered(FileSystemViewModel vm, FileSystemEntry entry)
         => vm.BuildContextActions([entry]).Select(a => a.DisplayName).ToList();
+
+    [TestMethod]
+    public void ADistrosPath_IsCopiedAsItsAddress_AnyOtherAsItIs()
+    {
+        var files = new Nexaflow.IO.Common.Locations.LocationFileSystem(VirtualFileSystem.Instance);
+        files.RegisterLocation(new Nexaflow.IO.Common.Locations.LocationMount(
+            new Nexaflow.IO.Common.Locations.ConnectionProfile("wsl-copyprobe", "wsl", "Copyprobe", "Copyprobe"),
+            Nexaflow.IO.Common.Locations.LocationCapabilities.SameMachine, null!));
+
+        Assert.AreEqual("wsl://Copyprobe/etc/a:b", CopyPaths.AsCopied(files, @"::wsl-copyprobe\etc\a%3Ab"),
+                        "the address Nexaflow reopens, each name as Linux has it");
+        Assert.AreEqual(@"C:\docs\notes.txt", CopyPaths.AsCopied(files, @"C:\docs\notes.txt"));
+        Assert.IsNull(CopyPaths.AsCopied(files, ""), "This PC names no path to copy");
+    }
 }

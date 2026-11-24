@@ -14,6 +14,8 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.Dotnet.ClientTools;
 using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.Features.Dotnet.Services;
+using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Dotnet.ViewModels;
@@ -28,6 +30,9 @@ public sealed partial class DotnetViewletViewModel : ObservableObject, IViewletA
 {
     private readonly IShellServices _shell;
     private readonly string _folderPath;
+
+    /// <summary>The location's host the folder is on, which runs every <c>dotnet</c> command; null for a folder of this PC.</summary>
+    private readonly IProgramHost? _host;
     private CancellationTokenSource? _nugetCts;
     private CancellationTokenSource? _verbCts;
 
@@ -84,12 +89,15 @@ public sealed partial class DotnetViewletViewModel : ObservableObject, IViewletA
     /// <summary>Count behind <see cref="HasUpdates"/>, surfaced in the AI context line.</summary>
     private int _outdatedCount;
 
-    public DotnetViewletViewModel(IShellServices shell, string folderPath)
+    /// <param name="files">The file system the folder is named in: a folder on a location is read through the Windows folder
+    /// showing it and built by the location's host.</param>
+    public DotnetViewletViewModel(IShellServices shell, IVirtualFileSystem files, string folderPath)
     {
         _shell = shell;
         _folderPath = folderPath;
+        _host = files.GetProgramHost(folderPath);
 
-        foreach (var t in DotnetTargetScanner.Scan(folderPath))
+        foreach (var t in DotnetTargetScanner.Scan(files.ResolveOnDisk(folderPath) ?? folderPath))
             Targets.Add(t);
 
         OnPropertyChanged(nameof(ShowTargetPicker));
@@ -214,7 +222,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject, IViewletA
         _verbCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         try
         {
-            var result = await DotnetCli.RunAsync(verb, target, _folderPath, progress, _verbCts.Token);
+            var result = await DotnetCli.RunAsync(verb, target, _folderPath, _host, progress, _verbCts.Token);
             if (result.Succeeded)
             {
                 StatusGlyph = "✓";
@@ -288,7 +296,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject, IViewletA
     public async Task<IReadOnlyList<NugetUpdateChecker.PackageUpdate>> CheckOutdatedAsync(CancellationToken ct)
     {
         if (SelectedTarget is not { } target) return [];
-        var result = await NugetUpdateChecker.CheckAsync(target, ct);
+        var result = await NugetUpdateChecker.CheckAsync(target, _host, ct);
         if (result.Checked)
             NugetCheckCache.Store(target.Path, result.Updates);
         return result.Updates;
@@ -336,7 +344,7 @@ public sealed partial class DotnetViewletViewModel : ObservableObject, IViewletA
         try { await Task.Delay(1500, token); }
         catch (OperationCanceledException) { return; }
 
-        var task = new NugetUpdateCheckTask(target);
+        var task = new NugetUpdateCheckTask(target, _host);
         _shell.QueueBackgroundTask(task, onComplete: _ =>
         {
             // onComplete runs on the UI thread; ignore a result whose target is no longer selected.

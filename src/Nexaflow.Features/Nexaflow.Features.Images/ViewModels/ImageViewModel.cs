@@ -11,6 +11,7 @@ using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.Views;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
@@ -25,7 +26,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
@@ -45,8 +45,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     // ── Image collection ──────────────────────────────────────────────────
 
     private readonly List<string> _paths;
-    private readonly IShellServices? _shell;
-    private readonly DispatcherTimer _autoTimer;
+    private readonly IShellServices _shell;
+    private readonly IUiTimer _autoTimer;
     private readonly CancellationTokenSource _cts = new();
     private bool _thumbsRequested;
     private bool _collageComputed;
@@ -55,7 +55,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     private readonly ImageEditingServices _editing;
     private readonly ImageSessionCache _sessions;
-    private readonly DispatcherTimer _thumbRefresh;
+    private readonly IUiTimer _thumbRefresh;
 
     [ObservableProperty] private int _currentIndex;
 
@@ -315,29 +315,57 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         ViewMode     = ImageViewMode.Carousel;
     }
 
-    /// <summary>Right-click → Delete: confirms, sends the image (and its edits) to the Recycle Bin, drops it from the view.</summary>
+    /// <summary>Deletes a picture, its edits with it, once asked. On this disk it goes to the Recycle Bin; on a location — a WSL
+    /// distro, though Windows shows it as a folder — there is none, so the question says it is for good and the file system
+    /// deletes it there.</summary>
     [RelayCommand]
-    [LocalDiskOnly("the Recycle Bin takes only a file on this disk, with the recipe sidecar beside it")]
     private async Task Delete(int index)
     {
         if (_shell is null || index < 0 || index >= _paths.Count) return;
 
-        var path = _paths[index];
-        var name = Path.GetFileName(path);
-        if (!await _shell.ConfirmAsync(Str.Get("Images.Delete.ConfirmTitle"), Str.Format("Images.Delete.ConfirmMessageFormat", name)))
+        var path     = _paths[index];
+        var files    = _editing.FileSystem;
+        bool forGood = files.IsOnLocation(path);
+        var name     = forGood ? files.GetDisplayName(path) : Path.GetFileName(path);
+        var asked    = forGood ? "Images.Delete.ConfirmForGoodFormat" : "Images.Delete.ConfirmMessageFormat";
+        if (!await _shell.ConfirmAsync(Str.Get("Images.Delete.ConfirmTitle"), Str.Format(asked, name)))
             return;
 
         // Closed first: closing writes any pending edit, which must land before the sidecar goes with the photo.
         CloseSession(path);
-        if (!RecycleBin.TryRecycle(path))
+        if (!(forGood ? await DeleteForGoodAsync(files, path) : Recycle(path)))
         {
             _shell.ShowError(Str.Format("Images.Delete.FailedFormat", name));
             if (index == CurrentIndex) LoadImage(index);
             return;
         }
+        RemoveAt(index);
+    }
+
+    /// <summary>The picture and its edits to the Recycle Bin, which only a file on this disk goes to.</summary>
+    [LocalDiskOnly("the Recycle Bin takes only a file on this disk, with the recipe sidecar beside it")]
+    private static bool Recycle(string path)
+    {
+        if (!RecycleBin.TryRecycle(path)) return false;
         var sidecar = ImageRecipeStore.SidecarPath(path);
         if (File.Exists(sidecar)) RecycleBin.TryRecycle(sidecar);
-        RemoveAt(index);
+        return true;
+    }
+
+    /// <summary>The picture and its edits deleted where they are, through the file system.</summary>
+    private static async Task<bool> DeleteForGoodAsync(IVirtualFileSystem files, string path)
+    {
+        try
+        {
+            await files.DeleteAsync(path, recursive: false);
+            var sidecar = ImageRecipeStore.SidecarPath(path);
+            if (await files.ExistsAsync(sidecar)) await files.DeleteAsync(sidecar, recursive: false);
+            return true;
+        }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException or Nexaflow.IO.Common.Locations.LocationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -358,8 +386,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         try
         {
             var png = await Task.Run(() => _editing.Exporter.ExportAsync(path, recipe, ImageContainer.Png, _cts.Token, made), _cts.Token);
-            PictureClipboard.CopyPng(png);
-            _shell?.ShowNotification(Str.Get("Images.Copy.Done"));
+            if (_shell.Clipboard.Write(ComposedPayload.OfImage(png))) _shell.ShowNotification(Str.Get("Images.Copy.Done"));
         }
         catch (OperationCanceledException)
         {
@@ -426,7 +453,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     /// <param name="selection">Picture selection, where the app has it: what removes the background a photo's recipe asks to.</param>
     /// <param name="erasing">Picture erasing, where the app has it: what fills what a photo's recipe erases.</param>
     /// <param name="editing">The editing engine the registration shares across its tabs; the viewer does not own it.</param>
-    public ImageViewModel(IReadOnlyList<string> paths, IShellServices? shell, ImageViewMode initialMode, ImageEditingServices editing,
+    public ImageViewModel(IReadOnlyList<string> paths, IShellServices shell, ImageViewMode initialMode, ImageEditingServices editing,
     IAIService? ai = null, IPictureTools? pictures = null, IPictureSelection? selection = null,
     IPageReading? reading = null, IPictureErasing? erasing = null)
     {
@@ -452,12 +479,10 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
         AddPictureItems();
 
-        _autoTimer = new DispatcherTimer(DispatcherPriority.Background);
-        _autoTimer.Tick += (_, _) => Advance();
+        _autoTimer = shell.CreateUiTimer(_autoIntervals[Math.Clamp(AutoSpeed, 0, 2)], Advance);
 
         // A thumbnail follows the edits once they pause, rather than at every slider tick.
-        _thumbRefresh = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(600) };
-        _thumbRefresh.Tick += (_, _) => { _thumbRefresh.Stop(); RefreshCurrentThumbnail(); };
+        _thumbRefresh = shell.CreateUiDelay(TimeSpan.FromMilliseconds(600), RefreshCurrentThumbnail);
 
         LoadImage(0);
 
@@ -475,7 +500,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
             {
                 Index    = i,
                 FilePath = _paths[i],
-                FileName = Path.GetFileName(_paths[i]),
+                FileName = _editing.FileSystem.GetDisplayName(_paths[i]),
                 IsSelected = i == 0,
             });
         }
@@ -565,7 +590,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (index < 0 || index >= _paths.Count) return;
 
         var path = _paths[index];
-        CurrentFileName = Path.GetFileName(path);
+        CurrentFileName = _editing.FileSystem.GetDisplayName(path);
 
         foreach (var dot in Dots)
             dot.IsCurrent = dot.Index == index;
@@ -615,8 +640,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         RotateNotify();
         FollowDetails();
 
-        _thumbRefresh.Stop();
-        _thumbRefresh.Start();
+        _thumbRefresh.Restart();
     }
 
     // ── Rendering ─────────────────────────────────────────────────────────
@@ -859,8 +883,8 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
 
     public void Dispose()
     {
-        _autoTimer.Stop();
-        _thumbRefresh.Stop();
+        _autoTimer.Dispose();
+        _thumbRefresh.Dispose();
         _cts.Cancel();
         Stage.Show(null);
         _sessions.Dispose();

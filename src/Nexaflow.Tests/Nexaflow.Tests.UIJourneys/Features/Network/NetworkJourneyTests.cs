@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
+using Nexaflow.Tests.Features.UI;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
@@ -27,15 +28,47 @@ namespace Nexaflow.Tests.Features.Network.UI;
 /// </remarks>
 [TestClass]
 [CoversNode("network")]
-public class NetworkJourneyTests : UiJourneyTestBase
+public class NetworkJourneyTests : OptionsOverlayJourney
 {
     /// <summary>Straight into the tab, rather than hunting the ribbon for a button that may not be on it.</summary>
     protected override string? LaunchTabKind => "Network";
 
+    /// <summary>Discovery and the panel that follows the selection, then the guard's switches under Options.</summary>
     [TestMethod]
     [CoversNode("network-discovery")]
     [CoversNode("network-page-list")]
-    public void Network_Discovers_AndTheePanelFollowsTheSelection()
+    [CoversNode("network-guard-options")]
+    public void Network_Journey()
+    {
+        RunStep("discovery, and the panel that follows the selection", DiscoverAndSelect);
+        RunStep("Options → Network: the kill switch and the limits", GuardOptions);
+        AssertJourney();
+    }
+
+    /// <summary>
+    /// Options → Network: the guard's switches, looked at and left alone. Cancel, never Save, and the sweep permission is
+    /// never ticked — a journey runs on somebody's real network, and one that left a machine allowed to ping every address on
+    /// it would be a test that did something.
+    /// </summary>
+    private void GuardOptions()
+    {
+        var list = OpenOptions("NetworkView");
+
+        try
+        {
+            SelectSection(list, "Network", "NetOpt_Enabled");
+
+            CheckPresent("the kill switch",    "NetOpt_Enabled", 10);
+            CheckPresent("the packet ceiling", "NetOpt_MaxPackets");
+            CheckPresent("the time ceiling",   "NetOpt_MaxSeconds");
+        }
+        finally
+        {
+            CancelOptions();
+        }
+    }
+
+    private void DiscoverAndSelect()
     {
         // Foreground first: Capture.Element grabs the screen region the window occupies, so a window
         // behind another photographs the other one — which is how the first attempt produced a picture of
@@ -93,8 +126,6 @@ public class NetworkJourneyTests : UiJourneyTestBase
                 }
             }
         }
-
-        AssertJourney();
     }
 
     private AutomationElement? Find(string automationId)

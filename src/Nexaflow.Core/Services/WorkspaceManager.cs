@@ -4,6 +4,7 @@ using Nexaflow.Core.Services.Agent;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Locations;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -587,6 +588,9 @@ public sealed class WorkspaceManager
         return folded;
     }
 
+    /// <summary>How long a runtime waits for the machine's first look for locations before mounting without it.</summary>
+    private static readonly TimeSpan DiscoveryPatience = TimeSpan.FromSeconds(2);
+
     /// <summary>
     /// Acquires a fresh provider set for <paramref name="ws"/>'s current configs and assigned grid
     /// columns, swaps it in (acquire-before-release, so unchanged instances stay and dropped ones are
@@ -624,8 +628,12 @@ public sealed class WorkspaceManager
             ws.RaiseProvidersChanged();
         }
 
-        // The workspace's connections, mounted on the runtime's file system from its own session pool.
+        // The workspace's connections, mounted on the runtime's file system from its own session pool, with what the
+        // backends find on this machine. The first look is let finish before mounting — a registry read for WSL — so the
+        // tabs reopened next find a saved distro's folder mounted; a look slower than DiscoveryPatience is mounted when it
+        // finishes instead, and every later look has already finished.
         FeatureManager.Instance.EnsureLocationProviders();
+        DiscoveredLocations.Instance.StartAsync().Wait(DiscoveryPatience);
         ws.Locations.Follow(workspace.Connections);
     }
 

@@ -589,6 +589,7 @@ public class ImageEditorTests
         var action = new RevertImageEditsAction(shell);
 
         Assert.AreEqual(ImageRecipeStore.Extension, action.RequiredCompanionSuffix, "offered only on an edited image");
+        Assert.IsTrue(((IFileAction)action).RequiresLocalFolder, "the sidecar is removed with Windows' own calls — not offered on a location");
         await action.PerformActionAsync(_photo);
 
         shell.Received().ShowConfirmation(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action>(), Arg.Any<Action>());

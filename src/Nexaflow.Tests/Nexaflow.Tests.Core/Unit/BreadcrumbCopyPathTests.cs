@@ -118,4 +118,31 @@ public class BreadcrumbCopyPathTests
 
         Assert.IsNull(CopyTarget(bar));
     });
+
+    /// <summary>Restates a place crumb as a location's address — what a location feature's filter does.</summary>
+    private sealed class Addressing : IBreadcrumbDisplayFilter
+    {
+        public int Order => 0;
+
+        public void Apply(BreadcrumbSegment crumb, BreadcrumbDisplay display)
+        {
+            if (crumb.Content is not PlaceContent) return;
+            display.Parts     = ["probe://", "etc"];
+            display.Separator = string.Empty;
+            display.CopyText  = "probe://etc";
+        }
+    }
+
+    [TestMethod]
+    public void AFilterThatKnowsTheCrumb_RestatesWhatItShowsAndCopies() => UiThread.Run(() =>
+    {
+        var bar = Bar(new BreadcrumbSegment { Label = @"::probe\etc", Path = @"::probe\etc", Content = new PlaceContent(@"::probe\etc", PlaceNaming.WholePath) });
+        bar.DisplayFilters = [new Addressing()];
+
+        var crumb = Crumbs(bar).Single();
+
+        Assert.AreEqual("probe://etc", ((TextBlock)((StackPanel)crumb.Content).Children[0]).Text);
+        Assert.AreEqual("probe://etc", CopyTarget(crumb), "the crumb copies what the filter says, not the file system's name");
+        Assert.AreEqual("probe://etc", CopyTarget(bar), "and so does the bar itself");
+    });
 }

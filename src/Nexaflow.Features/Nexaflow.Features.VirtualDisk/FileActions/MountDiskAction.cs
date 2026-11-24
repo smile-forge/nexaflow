@@ -36,4 +36,7 @@ public sealed class MountDiskAction(IShellServices shell) : IFileAction, ICachea
     // mount every one of them, and to return true for an empty selection having mounted nothing at all.
     public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default)
         => filePaths.FirstOrDefault() is { } first ? PerformActionAsync(first, ct) : Task.FromResult(false);
+
+    /// <summary>Windows attaches the image itself, read-write for a VHD — a change a location's file may not take.</summary>
+    public bool RequiresLocalFolder => true;
 }

@@ -111,7 +111,7 @@ public class VideoJourneyTests : UiJourneyTestBase
     /// </summary>
     private bool LeaveFullScreen()
     {
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
+        Keyboard.Type(VirtualKeyShort.ESCAPE);
         Wait.UntilInputIsProcessed();
         if (WaitForFs(() => FindInAppWindows("Video_FullscreenClickCatcher") is null, 3)) return true;
 

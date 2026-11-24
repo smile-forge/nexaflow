@@ -5,7 +5,7 @@ namespace Nexaflow.IO.Common.Locations;
 /// reports a missing file on <c>C:\</c> the way it reports one on a server. Anything without a common meaning — a
 /// sharing violation, a full disk — passes through unchanged.
 /// </summary>
-internal static class LocationFailures
+public static class LocationFailures
 {
     // ERROR_FILE_EXISTS, ERROR_ALREADY_EXISTS and ERROR_DIR_NOT_EMPTY, as the low word of an IOException's HResult.
     private const int FileExists    = 80;

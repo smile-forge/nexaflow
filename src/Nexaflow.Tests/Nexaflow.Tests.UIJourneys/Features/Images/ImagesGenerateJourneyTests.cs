@@ -23,15 +23,25 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [TestCategory("UI")]
 [TestCategory("OwnedModel")]
 [CoversNode("images-gen-image")]
-public class ImagesGenerateJourneyTests : UiJourneyTestBase
+public class ImagesGenerateJourneyTests : ImageEditJourneyBase
 {
+    /// <summary>A picture drawn from the New picker, then one drawn into a canvas on Artist's start screen: both by Z-Image Turbo, the workspace's alone.</summary>
+    [TestMethod]
+    [SecondLaunch(SecondLaunchReason.SecondState, "The workspace draws with Z-Image Turbo from the app's own model folder; without it the journey is inconclusive, and the Images journey runs without.")]
+    [CoversNode("images-start")]
+    public void ImagesGenerate_Journey()
+    {
+        RunStep("a picture drawn from the New picker lands in the folder under its name", APictureDrawnFromTheNewPickerLandsInTheFolderUnderItsName);
+        RunStep("a picture drawn into a canvas arrives as a layer, and Generate layer can be let go or stopped", () => { OpenArtistStartScreen(); CanvasGeneratesAsALayer(); });
+        AssertJourney();
+    }
     private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
     private string _folder = "";
 
     /// <summary>The first picture loads Z-Image's parts before it draws.</summary>
-    protected override TimeSpan JourneyBudget => TimeSpan.FromMinutes(5);
+    protected override TimeSpan JourneyBudget => TimeSpan.FromMinutes(6);
 
     protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
         new Dictionary<string, string> { ["NEXAFLOW_AI_DIR"] = _aiDir };
@@ -96,8 +106,7 @@ public class ImagesGenerateJourneyTests : UiJourneyTestBase
         try { if (Directory.Exists(_folder)) Directory.Delete(_folder, true); } catch { }
     }
 
-    [TestMethod]
-    public void APictureDrawnFromTheNewPicker_LandsInTheFolderUnderItsName()
+    private void APictureDrawnFromTheNewPickerLandsInTheFolderUnderItsName()
     {
         CheckDoes("New opens the picker", "NewMenuAction", () => WaitForId("CreateFileNameBox", 6) is not null, 10);
         CheckDoes("Gen Image shows what it draws with", "GenerateImageCreateAction", () => WaitForId("Images_GenerateOptions", 6) is not null);
@@ -119,7 +128,7 @@ public class ImagesGenerateJourneyTests : UiJourneyTestBase
         Check("The picture lands in the folder under its name", () =>
             WaitForFs(() => File.Exists(Path.Combine(_folder, "lighthouse.png")), Affordable(180)));
 
-        AssertJourney();
+        
     }
 
     /// <summary>Picks the shape at <paramref name="index"/> of the three Z-Image draws.</summary>
@@ -129,4 +138,25 @@ public class ImagesGenerateJourneyTests : UiJourneyTestBase
         var picked = shapes.Select(index);
         return WaitForFs(() => shapes.SelectedItem?.Name == picked.Name, 2);
     }
+
+    private void CanvasGeneratesAsALayer()
+    {
+        CheckPresent("The start screen shows", "Images_Start", 15);
+        Check("What to draw is described", () => TypeInto("Images_GeneratePrompt", "A lighthouse on a cliff at dusk, oil painting"));
+        CheckDoes("Generate opens the canvas, the picture shown drawing in its layers", "Images_StartGenerate",
+                  () => WaitForFs(() => Exists("Image_LayersPanel"), 15) && WaitForFs(() => Exists("Image_LayersPendingStop"), 5));
+        Check("The picture arrives as the canvas's first layer", () => WaitForFs(() => !Exists("Image_LayersPendingStop") && LayerCount() == 2, Affordable(240)));
+
+        CheckPresent("What is being generated shows in the layers panel, beneath its heading", "Image_LayersPictures");
+        CheckDoes("Generate layer is set up", "Image_LayersGenerate", () => WaitForFs(() => Exists("Image_LayersGenerateGo"), 3));
+        CheckDoes("and let go", "Image_LayersGenerateCancel", () => WaitForGone("Image_LayersGenerateGo", 3));
+        CheckDoes("Generate layer again", "Image_LayersGenerate", () => WaitForFs(() => Exists("Image_LayersGenerateGo"), 3));
+        Check("What to draw is described", () => TypeInto("Images_GeneratePrompt", "Gulls in flight"));
+        CheckDoes("Set going, it shows drawing", "Image_LayersGenerateGo", () => WaitForFs(() => Exists("Image_LayersPendingStop"), 5));
+        CheckDoes("Stopped, it goes, adding nothing", "Image_LayersPendingStop", () => WaitForGone("Image_LayersPendingStop", 10) && LayerCount() == 2);
+
+
+    }
+
+    private int LayerCount() => FindInAppWindows("Image_LayersList")?.AsListBox().Items.Length ?? -1;
 }

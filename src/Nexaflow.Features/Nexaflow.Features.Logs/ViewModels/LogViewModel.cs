@@ -10,10 +10,10 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Logs.ViewModels;
 
@@ -131,7 +131,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         _vfs   = vfs;
         _selectedEncoding = AvailableEncodings[0];
         FilePath = filePath;
-        FileName = Path.GetFileName(filePath);
+        FileName = vfs.GetDisplayName(filePath);
     }
 
     // ── Loading ───────────────────────────────────────────────────────────────
@@ -559,8 +559,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             })
             .Where(l => l.Length > 0);
 
-        try { Clipboard.SetText(string.Join(Environment.NewLine, lines)); }
-        catch { /* clipboard may be locked by another process */ }
+        _shell.Clipboard.Write(ComposedPayload.OfText(string.Join(Environment.NewLine, lines)));
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedLines))]
@@ -579,7 +578,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             })
             .Where(l => l.Length > 0);
 
-        Clipboard.SetText(string.Join(Environment.NewLine, lines));
+        _shell.Clipboard.Write(ComposedPayload.OfText(string.Join(Environment.NewLine, lines)));
     }
 
     private bool HasSelectedLines() => SelectedLineCount > 0;

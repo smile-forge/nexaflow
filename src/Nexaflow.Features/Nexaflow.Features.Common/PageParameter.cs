@@ -24,7 +24,8 @@ namespace Nexaflow.Features.Common;
 /// registration never declares is treated as identity too.
 /// </param>
 /// <param name="OnDisk">
-/// Whether the value names files or folders on disk — a full path, or several joined by <c>|</c>. When the assistant opens
+/// Whether the value names files or folders — a full path, on this disk or on a location (<c>::id\…</c>), or several joined
+/// by <c>|</c>. When the assistant opens
 /// the page, each must be inside what the user has given it: a file open in a tab, or in a folder open in one. A web
 /// address (http or https), where the page takes one, is no place on disk.
 /// </param>

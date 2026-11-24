@@ -40,6 +40,7 @@ Plays audio files, shows the waveform and lyrics, and edits the track's tags.
 - The Tags drawer holds title, artist, album, year, track number, genre and comment, with the cover art above them.
 - Edit a field, or [change the cover for a JPG, PNG or BMP, or remove it, then save](locate:Audio_TagsToggle,Audio_TagChangeArt,Audio_TagRemoveArt,Audio_TagSave).
 - Changes are written into the track file itself.
+- A track in a WSL distro shows its tags to read, and the drawer says so; they are changed on a track on this PC.
 - Saving during playback resumes from the same moment, with the new title and cover shown.
 - The same fields cover ID3 in MP3, Vorbis comments in FLAC and Ogg, and MP4 tags in M4A.
 

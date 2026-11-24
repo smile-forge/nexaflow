@@ -50,6 +50,8 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
             Assert.Inconclusive($"{AiDirVariable} names no folder of Nexaflow's own models on this machine.");
             return;
         }
+        OwnedModelFolder.RequireModel(aiDir, "gemma-4-e4b-it", AiDirVariable);
+        OwnedModelFolder.RequireModel(aiDir, "z-image-turbo", AiDirVariable);
         _aiDir  = aiDir;
         _folder = TestTemp.CreateSubdirectory("nexaflow-background-").FullName;
 
@@ -150,7 +152,7 @@ public class BackgroundTasksJourneyTests : UiJourneyTestBase
         Keyboard.Type(text);
         Wait.UntilInputIsProcessed();
         if (!InFront()) return false;
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        Keyboard.Type(VirtualKeyShort.RETURN);
         Wait.UntilInputIsProcessed();
         return WaitForFs(() => bar.AsTextBox().Text.Length == 0, 10);
     }

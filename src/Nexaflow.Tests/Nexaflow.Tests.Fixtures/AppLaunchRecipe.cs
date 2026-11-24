@@ -59,4 +59,22 @@ public static class AppLaunchRecipe
         }
         catch { return null; }
     }
+
+    /// <summary>The file, in the config root, where an app under <c>--uiTest</c> writes each binding error it reports.</summary>
+    public const string BindingErrorsFile = "binding-errors.log";
+
+    /// <summary>
+    /// The signatures of the binding errors the app reported under <paramref name="configDir"/>, one each, in the order first
+    /// reported; none when it reported none. The app writes them only under <c>--uiTest</c>.
+    /// </summary>
+    public static IReadOnlyList<string> ReadBindingErrors(string configDir)
+    {
+        try
+        {
+            var path = Path.Combine(configDir, BindingErrorsFile);
+            return File.Exists(path) ? File.ReadAllLines(path).Where(line => line.Length > 0).ToList() : [];
+        }
+        catch (IOException) { return []; }
+        catch (UnauthorizedAccessException) { return []; }
+    }
 }

@@ -63,4 +63,7 @@ public sealed class RevertImageEditsAction : IFileAction, ICacheable
 
             return Task.FromResult(false);   // the revert waits on the confirmation
         }
+
+    /// <summary>The edits sidecar is removed with Windows' own file calls, which a location's file may not be changed by.</summary>
+    public bool RequiresLocalFolder => true;
 }

@@ -84,6 +84,7 @@ public class ImagesMakeVideoJourneyTests : UiJourneyTestBase
     }
 
     [TestMethod]
+    [SecondLaunch(SecondLaunchReason.SecondState, "The workspace's video model is Wan2.2-TI2V-5B from the app's own model folder; without it the journey is inconclusive.")]
     public void AVideoMadeFromThePictureOnScreen_RunsAsABackgroundTask()
     {
         var file = Path.GetFileName(TestSampleData.Files("images").First());

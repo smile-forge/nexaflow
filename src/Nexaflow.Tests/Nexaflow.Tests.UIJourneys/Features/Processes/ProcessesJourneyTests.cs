@@ -9,11 +9,10 @@ using FlaUI.Core.Input;
 namespace Nexaflow.Tests.Features.Processes.UI;
 
 /// <summary>
-/// One-pass UI journey for the Processes (Process Explorer) toolbar/filter row. Complements
-/// <see cref="ProcessesViewTests"/> (which already covers opening the tab from the ribbon and opening
-/// a process-detail tab from the row context menu) by exercising the safe, non-destructive view
-/// controls in a single pass: the filter box, its clear button, the tree grouping toggle + expand /
-/// collapse, the live auto-refresh toggle, and refresh-now.
+/// The Processes (Process Explorer) journey: the page opens with the app, its list fills, the safe,
+/// non-destructive toolbar controls are exercised (the filter box, its clear button, the tree grouping
+/// toggle + expand / collapse, the live auto-refresh toggle, refresh-now), and a detail tab is opened
+/// from a row's context menu on a process the journey started itself.
 /// <para>
 /// Every control touched here is <b>read-only w.r.t. the system</b> — they re-shape or re-sample the
 /// on-screen list; none terminates or re-prioritises a process. The destructive kill / kill-tree /
@@ -28,9 +27,18 @@ public class ProcessesJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "Processes";
 
+    /// <summary>The Processes page and its detail tab, one launch: the toolbar and filter row, then a process this journey starts itself.</summary>
     [TestMethod]
     [CoversNode("processes-ui")]
-    public void Processes_ToolbarControls_RespondInOnePass()
+    [CoversNode("details-view")]
+    public void Processes_Journey()
+    {
+        RunStep("the toolbar and filter row, and the list filling", ToolbarControls);
+        RunStep("a process's detail tab, opened from its row", ProcessDetailControls);
+        AssertJourney();
+    }
+
+    private void ToolbarControls()
     {
         var view = WaitForId("ProcList", 15);
         Assert.IsNotNull(view, "ProcList did not open via --openTab Processes.");
@@ -49,6 +57,11 @@ public class ProcessesJourneyTests : UiJourneyTestBase
         CheckInvoke("Live toggle", "Proc_ToggleLive");
         CheckInvoke("Refresh now", "Proc_Refresh");
 
+        // A step leaves the page as it found it: the next one starts a process and needs the list to be live and
+        // grouped as it was at launch to see it arrive.
+        CheckInvoke("Live toggle back", "Proc_ToggleLive");
+        CheckInvoke("Tree toggle back", "Proc_ToggleTree");
+
         // ── Filter box — a read-only, in-memory name/PID/company/path filter. Typing mutates nothing on
         //    disk or in the OS; the clear (✕) button only appears once the box is non-empty. ──
         var filter = CheckPresent("Filter box", "Proc_Filter");
@@ -62,13 +75,9 @@ public class ProcessesJourneyTests : UiJourneyTestBase
         // ── Destructive controls (kill / kill-tree / set-priority) are NOT in the toolbar — they only
         //    exist in the per-row context menu and are intentionally untagged, so there is nothing safe
         //    to present-check here without right-clicking a real process row. Left uninvoked by design. ──
-
-        AssertJourney();
     }
 
-    [TestMethod]
-    [CoversNode("details-view")]
-    public void ProcessDetail_Controls_RespondInOnePass()
+    private void ProcessDetailControls()
     {
         Assert.IsNotNull(WaitForId("ProcList", 15), "ProcList did not open via --openTab Processes.");
 
@@ -119,8 +128,6 @@ public class ProcessesJourneyTests : UiJourneyTestBase
         {
             if (!target.HasExited) target.Kill();
         }
-
-        AssertJourney();
     }
 
     /// <summary>The list row whose cells include this PID — a PID filter is a substring match, so it can list more.</summary>

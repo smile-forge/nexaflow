@@ -137,7 +137,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         _templates              = templates;
         _initialTransformsJson  = initialTransformsJson;
         FilePath                = filePath;
-        FileName                = string.IsNullOrEmpty(filePath) ? "Tabular" : Path.GetFileName(filePath);
+        FileName                = string.IsNullOrEmpty(filePath) ? "Tabular" : vfs.GetDisplayName(filePath);
         if (!string.IsNullOrEmpty(filePath))
         {
             _ready = LoadAsync();

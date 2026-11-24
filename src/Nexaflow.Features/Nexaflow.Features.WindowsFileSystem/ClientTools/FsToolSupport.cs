@@ -102,6 +102,11 @@ internal static class FsTool
             return false;
         }
 
+        // A location's names are its own — 'notes.' is not 'notes', 'A.txt' is not 'a.txt' — so a path there is worked out
+        // as the location's, never as the Windows folder that may show it.
+        if (!string.IsNullOrEmpty(vm.CurrentPath) && vm.Vfs.IsOnLocation(vm.CurrentPath))
+            return TryResolveOnLocation(vm, nameOrPath.Trim('\r', '\n', '\t'), out full, out error);
+
         var grant = vm.GetContextGrant();
         var scope = new PathScope(grant.Files, grant.Folders);
         if (scope.IsEmpty)
@@ -141,6 +146,48 @@ internal static class FsTool
 
         full = inside;
         return true;
+    }
+
+    /// <summary>
+    /// <see cref="TryResolve"/> for a tab on a location: the folder it shows and what is under it, compared as the location
+    /// compares names. A name is taken as a listing gives it (<c>notes%2E</c>) or as it is (<c>notes.</c>); a path as the
+    /// file system, the address bar, the location itself (<c>/home/adam</c>) or its Windows folder writes it.
+    /// </summary>
+    private static bool TryResolveOnLocation(FileSystemViewModel vm, string asked, out string full, out string error)
+    {
+        full  = string.Empty;
+        error = string.Empty;
+
+        var vfs  = vm.Vfs;
+        var here = vfs.TryToVirtual(vm.CurrentPath) ?? vm.CurrentPath;
+        string candidate;
+        if (asked.StartsWith(VirtualMount.Prefix, StringComparison.Ordinal)) candidate = asked;
+        else if (vfs.TryParseDisplayPath(asked) is { Length: > 0 } byAddress) candidate = byAddress;
+        else if (vfs.IsOnLocation(asked) && vfs.TryToVirtual(asked) is { Length: > 0 } byFolder) candidate = byFolder;
+        else if (asked.StartsWith('/')) candidate = Under(vfs.GetBreadcrumbs(here)[0].Path, asked);
+        else if (Path.IsPathFullyQualified(asked))
+        {
+            error = "That path is outside this tab's folder (its security context).";
+            return false;
+        }
+        else candidate = Under(here, asked);
+
+        if (new PathScope([], [here], vfs.GetNameComparison).Resolve(candidate) is not { } inside)
+        {
+            error = "That path is outside this tab's folder (its security context).";
+            return false;
+        }
+        full = inside;
+        return true;
+
+        static string Under(string folder, string relative)
+            => string.Join('\\', relative.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries).Select(Segment).Prepend(folder));
+
+        // A segment a listing gave is kept; any other name is encoded as a listing would give it.
+        static string Segment(string name)
+            => name is "." or ".." || LocationPath.EncodeSegment(LocationPath.DecodeSegment(name)) == name
+                ? name
+                : LocationPath.EncodeSegment(name);
     }
 
     /// <summary>Path display relative to the current folder, falling back to the file name.</summary>

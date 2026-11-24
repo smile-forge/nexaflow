@@ -1,0 +1,39 @@
+# Nexaflow's shell integration for zsh: hands ZDOTDIR back to the user, runs their .zshrc (their .zlogin follows from
+# their own folder), then marks each prompt, command and its end (OSC 133) and reports the working folder (OSC 7).
+# Nexaflow takes the folder from Linux itself, never from this report, which any output can imitate.
+# At each prompt it also writes the shell's variables (`env -0`) to the file Nexaflow names, for its Environment panel.
+
+ZDOTDIR="$NEXAFLOW_ZDOTDIR"
+unset NEXAFLOW_ZDOTDIR
+__nexaflow_environment="$NEXAFLOW_ENVIRONMENT"
+unset NEXAFLOW_ENVIRONMENT
+[[ -f "$ZDOTDIR/.zshrc" ]] && source "$ZDOTDIR/.zshrc"
+
+__nexaflow_urlpath() {
+    local LC_ALL=C s="$1" out="" c i
+    for (( i = 1; i <= ${#s}; i++ )); do
+        c="${s[i]}"
+        case "$c" in
+            [a-zA-Z0-9/._~-]) out+="$c" ;;
+            *) out+=$(printf '%%%02X' "'$c") ;;
+        esac
+    done
+    print -rn -- "$out"
+}
+
+__nexaflow_precmd() {
+    local code=$?
+    [[ -n "$__nexaflow_environment" ]] && env -0 >| "$__nexaflow_environment" 2>/dev/null
+    printf '\e]133;D;%s\e\\' "$code"
+    printf '\e]7;file://%s%s\e\\' "${HOST:-localhost}" "$(__nexaflow_urlpath "$PWD")"
+    printf '\e]133;A\e\\'
+}
+
+__nexaflow_preexec() {
+    printf '\e]133;C\e\\'
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd __nexaflow_precmd
+add-zsh-hook preexec __nexaflow_preexec
+PROMPT="${PROMPT}%{"$'\e]133;B\e\\'"%}"

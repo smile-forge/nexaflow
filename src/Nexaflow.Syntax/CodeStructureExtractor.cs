@@ -86,6 +86,11 @@ public sealed class CodeStructureExtractor
         return Search(Extract(grammarId, text, baseDir), astPath);
     }
 
+    /// <summary>The span <paramref name="astPath"/> names in an outline already extracted: several paths in one file, asked
+    /// one at a time, would parse it once each.</summary>
+    public static (int Line, int EndLine)? ResolveSpan(CodeOutline outline, string astPath) =>
+        string.IsNullOrEmpty(astPath) ? null : Search(outline, astPath);
+
     /// <summary>
     /// Every element's span, keyed by AST path - one parse answering every lookup, for a caller resolving many
     /// paths in the same file (a whole-file grep) or asking where the declaration <i>around</i> a line stops.

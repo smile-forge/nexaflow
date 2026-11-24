@@ -8,6 +8,12 @@ namespace Nexaflow.IO.Common.Terminal;
 public interface ITerminalLauncher
 {
     ValueTask<ITerminalTransport> LaunchAsync(TerminalLaunch launch, CancellationToken ct);
+
+    /// <summary>The programs the shells this launcher starts run by name, as their host has them — what tells a command
+    /// from a request where this computer's PATH says nothing. Empty when the launcher cannot say. A launcher that wraps
+    /// another passes it on.</summary>
+    ValueTask<IReadOnlySet<string>> ListCommandsAsync(CancellationToken ct)
+        => new(System.Collections.Frozen.FrozenSet<string>.Empty);
 }
 
 /// <summary>What a shell starts with.</summary>

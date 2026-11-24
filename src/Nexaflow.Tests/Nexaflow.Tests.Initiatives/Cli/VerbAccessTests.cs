@@ -32,6 +32,13 @@ public class VerbAccessTests
     }
 
     [TestMethod]
+    public void AProjectBuild_WaitsForNoTurn()
+    {
+        // It changes no graph; two builds of one tree are kept apart by the build pool, not by the tree's turn.
+        Assert.AreEqual(VerbAccess.Reads, Program.AccessOf(["build", "a.csproj", "--project", "b.csproj"]));
+    }
+
+    [TestMethod]
     public void EditsAndBuilds_WriteTheirTree()
     {
         foreach (var args in new string[][]

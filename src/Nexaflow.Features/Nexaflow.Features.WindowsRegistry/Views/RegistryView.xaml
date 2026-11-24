@@ -162,7 +162,7 @@
                     <ControlTemplate TargetType="ListViewItem">
                         <Border x:Name="RowBg" Background="Transparent" CornerRadius="4" Margin="2,1">
                             <GridViewRowPresenter
-                                Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                Columns="{TemplateBinding GridView.ColumnCollection}"
                                 Content="{TemplateBinding Content}"/>
                         </Border>
                         <ControlTemplate.Triggers>

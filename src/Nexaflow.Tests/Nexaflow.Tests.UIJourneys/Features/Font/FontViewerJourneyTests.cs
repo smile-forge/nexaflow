@@ -21,10 +21,20 @@ public class FontViewerJourneyTests : UiJourneyTestBase
 {
     protected override string? LaunchTabKind => "Font";
 
+    /// <summary>The compare tab the app opens into, then a font opened from a file — a raw .ttf, and a .woff through the in-app decode.</summary>
     [TestMethod]
     [CoversNode("font-compare")]
     [CoversNode("font-picker")]
-    public void Font_Controls_RespondInOnePass()
+    [CoversNode("font-open")]
+    public void Font_Journey()
+    {
+        RunStep("the compare tab: picker, preview, size, glyph map", CompareControls);
+        RunStep("a .ttf opens in the font viewer with its details", () => FileOpensInFontView("nexaflow-test.ttf"));
+        RunStep("a .woff opens in the font viewer with its details", () => FileOpensInFontView("nexaflow-test.woff"));
+        AssertJourney();
+    }
+
+    private void CompareControls()
     {
         var view = WaitForId("FontView", 15);
         Assert.IsNotNull(view, "FontView did not open via --openTab Font.");
@@ -84,11 +94,30 @@ public class FontViewerJourneyTests : UiJourneyTestBase
                   () => WaitForFs(() => WaitForId("FontGlyphPrevPage", 1) is { IsEnabled: false }, 3));
 
         // Copy name only writes the clipboard. Copy path is hidden for an installed font, which has no file —
-        // FontFileOpenUiTests asserts it for a font opened from disk.
+        // the steps that open a font from disk assert it shown.
         CheckInvoke("Copy name", "FontCopyName");
         Check("Copy path is hidden for an installed font", () => WaitForId("FontCopyPath", 1) is null);
+    }
 
-        AssertJourney();
+    /// <summary>
+    /// Double-clicks a real font sample in the file browser and requires it to open preloaded in <c>FontView</c> with its
+    /// family name rendered in the details. A .woff exercises the in-app WOFF → sfnt decode path the compare tab does not.
+    /// </summary>
+    private void FileOpensInFontView(string fileName)
+    {
+        NavigateFileBrowserTo(TestSampleData.Path("font"));
+
+        var row = WaitForName(fileName, 8);
+        Assert.IsNotNull(row, $"File '{fileName}' not found in the file list.");
+        row!.DoubleClick();
+        Wait.UntilInputIsProcessed();
+
+        Assert.IsNotNull(WaitForId("FontView", 15), $"{fileName} did not open in FontView.");
+        Assert.IsNotNull(WaitForName("Nexaflow Test", 8),
+            $"The font's family name / details did not render for {fileName}.");
+        // Only a font that came from a file has a path to copy.
+        Assert.IsNotNull(WaitForId("FontCopyPath", 5), $"Copy path is not offered for {fileName}, which has a file.");
+        Assert.IsFalse(App.HasExited, $"App crashed opening {fileName}.");
     }
 
     /// <summary>Opens the picker, filters to <paramref name="search"/>, and picks the first matching row.</summary>

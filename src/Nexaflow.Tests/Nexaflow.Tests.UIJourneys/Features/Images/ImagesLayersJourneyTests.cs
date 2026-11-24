@@ -27,11 +27,34 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
     /// <summary>Every layers control and its effect: more than the usual budget.</summary>
     protected override TimeSpan JourneyBudget => TimeSpan.FromSeconds(200);
 
-    [TestInitialize]
-    public void MakeFolder()
+    /// <summary>
+    /// The scenarios' own empty folder, made fresh for each — what one writes into it is not there for the next to open.
+    /// </summary>
+    private void FreshFolder()
     {
+        RemoveFolder();
         _folder = Path.Combine(TestTemp.Root, "nexaflow_layers_journey_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_folder);
+    }
+
+    /// <summary>The layers panel, the editor's layers toolbar, and the layered formats, one launch: it would take the Images journey past two minutes.</summary>
+    [TestMethod]
+    [SecondLaunch(SecondLaunchReason.OverTwoMinutes, "The layers scenarios take about 80 s on a desktop; with the rest of the Images journey they would pass two minutes.")]
+    [CoversNode("images-layers-panel")]
+    [CoversNode("images-layers")]
+    [CoversNode("images-ora")]
+    [CoversNode("images-psd")]
+    [CoversNode("images-paint")]
+    public void ImagesLayers_Journey()
+    {
+        RunStep("a canvas from the New picker is taken through every layers control", () => { FreshFolder(); NewPickerCanvasThroughItsLayers(); });
+        RunStep("a photo becomes layers from the editor's toolbar", () => { FreshFolder(); PhotoBecomesLayers(); });
+        RunStep("a photo's annotations go on a markup layer made for them", () => { FreshFolder(); AnnotationsGoOnAMarkupLayer(); });
+        RunStep("a layer no reader draws is edited on its saved look", () => { FreshFolder(); UndrawableLayerIsEditedOnItsSavedLook(); });
+        RunStep("and keeps its layers when they are edited", () => { FreshFolder(); UndrawableLayerKeepsItsLayersWhenEdited(); });
+        RunStep("a Photoshop file opens on its layers, is held at 32 bits and saved back as Photoshop", () => { FreshFolder(); PhotoshopFileOpensOnItsLayers(); });
+        RunStep("a canvas is painted on, its layer moved and transformed, and print set up", () => { FreshFolder(); CanvasIsPaintedOn(); });
+        AssertJourney();
     }
 
     [TestCleanup]
@@ -40,9 +63,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         try { if (Directory.Exists(_folder)) Directory.Delete(_folder, true); } catch { }
     }
 
-    [TestMethod]
-    [CoversNode("images-layers-panel")]
-    public void ACanvasFromTheNewPicker_IsMadeOpenedAndTakenThroughItsLayers()
+    private void NewPickerCanvasThroughItsLayers()
     {
         NavigateFileBrowserTo(_folder);
 
@@ -144,12 +165,10 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckDoes("Flatten every layer into one", "Image_LayersFlatten", () => LayersBecome(1));
         Check("The canvas is saved back to its file", () => WaitForFs(() => File.GetLastWriteTimeUtc(poster) > made, 10));
 
-        AssertJourney();
+        
     }
 
-    [TestMethod]
-    [CoversNode("images-layers")]
-    public void APhoto_BecomesLayersFromTheEditorsToolbar()
+    private void PhotoBecomesLayers()
     {
         var sample = TestSampleData.Files("images").First(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
         File.Copy(sample, Path.Combine(_folder, "photo.png"));
@@ -168,12 +187,10 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckInvoke("Copy what shows", "Image_SelectCopyMerged");
         CheckDoes("Paste as layer adds what was copied", "Image_EditPasteLayer", () => LayersBecome(3));
 
-        AssertJourney();
+        
     }
 
-    [TestMethod]
-    [CoversNode("images-layers")]
-    public void APhotosAnnotations_GoOnAMarkupLayerMadeForThem()
+    private void AnnotationsGoOnAMarkupLayer()
     {
         var sample = TestSampleData.Files("images").First(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
         File.Copy(sample, Path.Combine(_folder, "photo.png"));
@@ -189,12 +206,10 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckInvoke("Delete the selected annotation", "Image_EditDeleteMarkup");
         CheckInvoke("Clear every annotation", "Image_EditClearMarkup");
 
-        AssertJourney();
+        
     }
 
-    [TestMethod]
-    [CoversNode("images-ora")]
-    public void AFileHoldingALayerNoReaderDraws_IsEditedOnItsSavedLook()
+    private void UndrawableLayerIsEditedOnItsSavedLook()
     {
         WriteOpenRasterWithAFilterLayer(Path.Combine(_folder, "look.ora"));
         OpenEditorOnTheFolder();
@@ -203,12 +218,10 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckDoes("Use the saved look: one layer made from it, and the bar goes", "Image_SavedLookUse",
                   () => WaitForGone("Image_SavedLookUse", 5) && LayersBecome(1));
 
-        AssertJourney();
+        
     }
 
-    [TestMethod]
-    [CoversNode("images-ora")]
-    public void AFileHoldingALayerNoReaderDraws_KeepsItsLayersWhenTheyAreEdited()
+    private void UndrawableLayerKeepsItsLayersWhenEdited()
     {
         WriteOpenRasterWithAFilterLayer(Path.Combine(_folder, "look.ora"));
         OpenEditorOnTheFolder();
@@ -217,12 +230,10 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         CheckDoes("Edit the layers: the bar goes, and the layer it cannot draw stays in the list", "Image_SavedLookEditLayers",
                   () => WaitForGone("Image_SavedLookEditLayers", 5) && LayersBecome(2));
 
-        AssertJourney();
+        
     }
 
-    [TestMethod]
-    [CoversNode("images-psd")]
-    public void APhotoshopFile_OpensOnItsLayers_IsHeldAt32Bits_AndIsSavedBackAsPhotoshop()
+    private void PhotoshopFileOpensOnItsLayers()
     {
         var path = Path.Combine(_folder, "art.psd");
         WritePhotoshop(path, 64, 48, [("Sky", 40, 90, 200), ("Ground", 120, 80, 30)]);
@@ -244,7 +255,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         Check("A stroke is painted", () => FitCanvas() && DragOnCanvas(-20, -5, 20, 5));
         Check("The file is saved back at 32 bits", () => WaitForFs(() => HeaderOf(path) is ("8BPS", 32), 10));
 
-        AssertJourney();
+        
     }
 
     /// <summary>A Photoshop file's signature and bits a channel, read from its header; empty while it cannot be read.</summary>
@@ -314,9 +325,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         foreach (byte value in new[] { top.R, top.G, top.B }) stream.Write(Enumerable.Repeat(value, plane).ToArray());
     }
 
-    [TestMethod]
-    [CoversNode("images-paint")]
-    public void ACanvas_IsPaintedOn_ItsLayerMovedAndTransformed_AndPrintIsSetUp()
+    private void CanvasIsPaintedOn()
     {
         WriteCanvas(Path.Combine(_folder, "canvas.ora"));
         OpenEditorOnTheFolder();
@@ -367,7 +376,7 @@ public class ImagesLayersJourneyTests : ImageEditJourneyBase
         Check("Print… chooses the printer", () => Enabled("Image_PrintGo"));
         CheckDoes("Close puts the options away", "Image_PrintClose", () => WaitForFs(() => FindInAppWindows("Image_PrintFit") is null, 3));
 
-        AssertJourney();
+        
     }
 
     /// <summary>A small OpenRaster canvas: one layer of the sample picture's pixels, and its merged image.</summary>

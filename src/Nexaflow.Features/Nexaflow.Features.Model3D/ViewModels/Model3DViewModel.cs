@@ -39,7 +39,7 @@ public sealed partial class Model3DViewModel : ObservableObject, IPageViewModel,
     private readonly IVirtualFileSystem _vfs;
 
     public string FilePath { get; }
-    public string FileName => Path.GetFileName(FilePath);
+    public string FileName => _vfs.GetDisplayName(FilePath);
 
     /// <summary>Distinct colours used to tint materials the file doesn't colour itself. The view sets this
     /// from the theme's <c>Swatch.*</c> bank before loading; defaults to a literal fallback for tests.</summary>

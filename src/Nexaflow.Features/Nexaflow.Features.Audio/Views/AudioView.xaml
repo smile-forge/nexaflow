@@ -345,17 +345,21 @@
                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                                 <Image Source="{Binding ArtPreview}" Stretch="UniformToFill"/>
                             </Border>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <TextBlock Text="{loc:Str Audio.Tags.ReadOnlyOnLocation}" TextWrapping="Wrap" Margin="0,0,0,12"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12"
+                                        Visibility="{Binding CanSave, Converter={StaticResource BoolToVis}}">
                                 <Button Style="{StaticResource TbBtn}" Content="{loc:Str Audio.Tags.ChangeArt}" AutomationProperties.AutomationId="Audio_TagChangeArt" Command="{Binding PickArtCommand}"/>
                                 <Button Style="{StaticResource TbBtn}" Content="{loc:Str Audio.Tags.RemoveArt}" AutomationProperties.AutomationId="Audio_TagRemoveArt" Command="{Binding RemoveArtCommand}"/>
                             </StackPanel>
 
                             <TextBlock Text="{loc:Str Audio.Tags.Field.Title}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                            <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}" Margin="0,0,0,8"/>
                             <TextBlock Text="{loc:Str Audio.Tags.Field.Artist}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Artist, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                            <TextBox Text="{Binding Artist, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}" Margin="0,0,0,8"/>
                             <TextBlock Text="{loc:Str Audio.Tags.Field.Album}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Album, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                            <TextBox Text="{Binding Album, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}" Margin="0,0,0,8"/>
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -364,22 +368,23 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="{loc:Str Audio.Tags.Field.Year}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,2"/>
-                                    <TextBox Text="{Binding Year, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Text="{Binding Year, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Text="{loc:Str Audio.Tags.Field.Track}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,2"/>
-                                    <TextBox Text="{Binding Track, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Text="{Binding Track, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}"/>
                                 </StackPanel>
                             </Grid>
                             <TextBlock Text="{loc:Str Audio.Tags.Field.Genre}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Genre, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                            <TextBox Text="{Binding Genre, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}" Margin="0,0,0,8"/>
                             <TextBlock Text="{loc:Str Audio.Tags.Field.Comment}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,2"/>
-                            <TextBox Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}"
                                      AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48" Margin="0,0,0,12"/>
 
                             <Button Style="{StaticResource TbBtn}" Content="{loc:Str Audio.Tags.Save}" HorizontalAlignment="Right"
                                     AutomationProperties.AutomationId="Audio_TagSave"
-                                    Command="{Binding SaveCommand}" IsEnabled="{Binding IsDirty}"/>
+                                    Command="{Binding SaveCommand}" IsEnabled="{Binding IsDirty}"
+                                    Visibility="{Binding CanSave, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </ScrollViewer>
 

@@ -168,6 +168,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Nexaflow.Features.WindowsSearch.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Wsl/Nexaflow.Features.Wsl.csproj">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/Nexaflow.Providers/">
     <Project Path="src/Nexaflow.Providers/Nexaflow.Providers.AiHost/Nexaflow.Providers.AiHost.csproj">
@@ -362,6 +365,12 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.IO.Location.Wsl/Nexaflow.IO.Location.Wsl.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.WslHelper/Nexaflow.WslHelper.csproj">
     <Platform Project="x64" />
   </Project>
   <!-- Subfeature metadata ([Subfeature] + ISubfeatureHandle<T>). Dependency-free by design so a plugin

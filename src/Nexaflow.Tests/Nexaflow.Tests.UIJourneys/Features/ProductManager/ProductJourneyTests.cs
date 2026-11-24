@@ -211,7 +211,7 @@ public class ProductJourneyTests : UiJourneyTestBase
         Keyboard.Type(text);
         Wait.UntilInputIsProcessed();
         if (!bar.AsTextBox().Text.Contains(text, StringComparison.Ordinal)) return false;
-        Keyboard.Press(VirtualKeyShort.RETURN);
+        Keyboard.Type(VirtualKeyShort.RETURN);
         Wait.UntilInputIsProcessed();
         return true;
     }

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Terminal;
+using Nexaflow.Visuals.Terminal.Shells;
 
 namespace Nexaflow.Tests.Features.Console;
 
@@ -53,13 +55,19 @@ internal sealed class FakeTerminal : ITerminalLauncher, ITerminalTransport
 
     public void TerminateForeground() => ForegroundEnds++;
 
-    /// <summary>Where the host says the shell is; null when it cannot say.</summary>
+    /// <summary>Where the host says the shell is, as it names folders; null when it cannot say.</summary>
     public string? WorkingDirectory { get; set; }
 
     public ValueTask<string?> GetWorkingDirectoryAsync(CancellationToken ct) => ValueTask.FromResult(WorkingDirectory);
+
+    /// <summary>The shell's environment as its host knows it; null for this computer's own shell.</summary>
+    public IShellEnvironment? ShellEnvironment { get; set; }
 
     /// <summary>The shell writes <paramref name="bytes"/>.</summary>
     public void Emit(params byte[] bytes) => _output.Raise(bytes);
 
     public void Dispose() => Disposed = true;
+
+    /// <summary>This shell as cmd, started in <paramref name="folder"/>.</summary>
+    public TerminalShellRoute AsCmd(string? folder = null) => new(this, new CmdShellDialect(), folder, VirtualFileSystem.Instance);
 }

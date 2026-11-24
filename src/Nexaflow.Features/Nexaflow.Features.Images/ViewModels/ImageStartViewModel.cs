@@ -8,6 +8,7 @@ using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Services;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.OpenRaster;
 using Nexaflow.Visuals.Common.Drafts;
@@ -37,12 +38,12 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
     internal const int RecentKept = 8;
 
     private readonly ArtistViewModel _viewer;
-    private readonly IShellServices? _shell;
+    private readonly IShellServices _shell;
     private readonly IAIService? _ai;
     private readonly ImageEditingServices _editing;
     private readonly ImagesConfig _config;
 
-    internal ImageStartViewModel(ArtistViewModel viewer, IShellServices? shell, IAIService? ai, ImageEditingServices editing, ImagesConfig config)
+    internal ImageStartViewModel(ArtistViewModel viewer, IShellServices shell, IAIService? ai, ImageEditingServices editing, ImagesConfig config)
     {
         _viewer  = viewer;
         _shell   = shell;
@@ -84,7 +85,7 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
     /// <summary>Looks again at what may have changed while the screen was away: the clipboard, the canvases still there, the models.</summary>
     public async Task RefreshAsync()
     {
-        ClipboardHoldsPicture = PictureClipboard.HoldsPicture();
+        ClipboardHoldsPicture = _shell.Clipboard.Read().Contains(DragKinds.Image);
         OnPropertyChanged(nameof(OffersGeneration));
         var recent = new List<RecentCanvas>();
         foreach (var path in _config.RecentCanvases)
@@ -165,7 +166,7 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanPaste))]
     private async Task Paste()
     {
-        if (PictureClipboard.ReadPng() is not { } png) return;
+        if (_shell.Clipboard.Read().Image() is not { } png) return;
         using var bitmap = SKBitmap.Decode(png);
         if (bitmap is null || bitmap.Width > LayeredPicture.MaxSide || bitmap.Height > LayeredPicture.MaxSide) return;
         var canvas = LayeredPicture.Blank(bitmap.Width, bitmap.Height, LayerBackground.Transparent, Str.Get("Images.Layers.PastedName"));

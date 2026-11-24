@@ -23,7 +23,7 @@ public sealed class RtfTabRegistration(IShellServices shell, IVirtualFileSystem 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null)
     {
         var path = pageParams?.GetValueOrDefault("path") ?? string.Empty;
-        var title = Path.GetFileName(path);
+        var title = vfs.GetDisplayName(path);
 
         var page = new Page
         {

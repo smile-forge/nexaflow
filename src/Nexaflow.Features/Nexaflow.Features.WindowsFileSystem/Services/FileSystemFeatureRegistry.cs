@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Nexaflow.Features.WindowsFileSystem.Operations;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
@@ -212,6 +213,8 @@ public sealed class FileSystemFeatureRegistry
                 args[i] = _ai;
             else if (pt == typeof(IVirtualFileSystem))
                 args[i] = Vfs;
+            else if (pt == typeof(ILocationDirectory) && Vfs is ILocationDirectory locations)
+                args[i] = locations;   // the runtime's file system lists its locations; a bare one has none to list
             else if (typeof(IFileOperationHost).IsAssignableFrom(pt))
                 // The file browser is what shows a progress row, so it is what supplies one to the actions it
                 // builds. An action that asks for this outside a browser simply does not get one.
@@ -232,8 +235,9 @@ public sealed class FileSystemFeatureRegistry
     /// Finds an <see cref="IFileAction"/> by its concrete type's full or short name.
     /// First checks the cached set; if that misses and <paramref name="reinitParams"/>
     /// is supplied, locates the type and invokes its
-    /// <c>public static IFileAction Rehydrate(Dictionary&lt;string,string&gt;)</c>
-    /// factory — the pattern runtime-constructed types (e.g. <c>ShellVerbAction</c>) use.
+    /// <c>public static IFileAction Rehydrate(Dictionary&lt;string,string&gt;, IVirtualFileSystem)</c>
+    /// factory — the pattern runtime-constructed types (e.g. <c>ShellVerbAction</c>) use — with this registry's
+    /// file system, so a rebuilt action reaches the workspace's locations as the one it was pinned from did.
     /// </summary>
     public IFileAction? FindFileAction(string typeName, Dictionary<string, string>? reinitParams = null)
     {
@@ -262,11 +266,11 @@ public sealed class FileSystemFeatureRegistry
             "Rehydrate",
             BindingFlags.Public | BindingFlags.Static,
             binder: null,
-            types: [typeof(Dictionary<string, string>)],
+            types: [typeof(Dictionary<string, string>), typeof(IVirtualFileSystem)],
             modifiers: null);
         if (factory is null) return null;
 
-        try { return factory.Invoke(null, [reinitParams]) as IFileAction; }
+        try { return factory.Invoke(null, [reinitParams, Vfs]) as IFileAction; }
         catch { return null; }
     }
 }

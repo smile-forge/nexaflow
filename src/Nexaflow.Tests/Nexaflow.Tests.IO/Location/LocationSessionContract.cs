@@ -44,7 +44,7 @@ public abstract class LocationSessionContract
 
     private async Task WriteAsync(string path, byte[] bytes, WriteMode mode = WriteMode.Replace, LocationEntry? expected = null)
     {
-        await using var write = await _session.BeginWriteAsync(path, mode, expected, CancellationToken.None);
+        await using var write = await _session.BeginWriteAsync(path, mode, expected, null, CancellationToken.None);
         await write.Content.WriteAsync(bytes);
         await write.CommitAsync(CancellationToken.None);
     }
@@ -137,7 +137,7 @@ public abstract class LocationSessionContract
     {
         await WriteAsync(At("doc.md"), "first");
 
-        await using (var write = await _session.BeginWriteAsync(At("doc.md"), WriteMode.Replace, null, CancellationToken.None))
+        await using (var write = await _session.BeginWriteAsync(At("doc.md"), WriteMode.Replace, null, null, CancellationToken.None))
         {
             await write.Content.WriteAsync(Encoding.UTF8.GetBytes("second"));
             Assert.AreEqual("first", await ReadAsync(At("doc.md")));

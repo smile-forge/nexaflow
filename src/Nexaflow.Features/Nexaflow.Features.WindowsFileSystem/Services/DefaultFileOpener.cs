@@ -22,9 +22,15 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 public sealed class DefaultFileOpener
 {
     private readonly FileActionManager _actions;
+    private readonly IVirtualFileSystem _files;
+    private readonly ShellPath _paths;
 
     public DefaultFileOpener(FileSystemFeatureRegistry registry)
-        => _actions = new FileActionManager(registry);
+    {
+        _actions = new FileActionManager(registry);
+        _files   = registry.Vfs;
+        _paths   = new ShellPath(_files);
+    }
 
     /// <summary>The bundled experiences whose formats browse <b>in place</b> as a folder: real archives
     /// (<c>/archive</c>) and virtual-disk images (<c>/disk</c>, and its descendants like
@@ -100,7 +106,7 @@ public sealed class DefaultFileOpener
         {
             try
             {
-                Process.Start(new ProcessStartInfo(RealizeForShell(filePath))
+                Process.Start(new ProcessStartInfo(await _paths.RealizeAsync(filePath))
                 {
                     Verb            = shellOpenVerb.Verb,
                     UseShellExecute = true
@@ -171,16 +177,11 @@ public sealed class DefaultFileOpener
         return (best, bestSpec);
     }
 
-    /// <summary>A real, launchable path for the shell. A virtual (in-archive) path — e.g. a PDF opened from
-    /// an email or a zip — has no real file, so <see cref="Process.Start(ProcessStartInfo)"/> would silently
-    /// fail; materialise it to a temp copy first. Real and mounted paths pass straight through.</summary>
-    private static string RealizeForShell(string path) => ShellPath.Realize(path);
-
     /// <summary>
     /// Runs an explicit Default Actions override. Not handled (so the caller falls back to automatic resolution) when the
     /// target no longer applies: a removed viewer/app or a shell verb that failed.
     /// </summary>
-    private static async Task<(bool Handled, bool RequiresRefresh)> TryPerformOverrideAsync(
+    private async Task<(bool Handled, bool RequiresRefresh)> TryPerformOverrideAsync(
         DefaultActionOverride ov, string filePath, IReadOnlyList<IFileAction> internalActions)
     {
         switch (ov.Kind)
@@ -195,13 +196,13 @@ public sealed class DefaultFileOpener
             case DefaultActionKind.ExternalApp:
                 var def = ExternalAppRegistry.Instance.FindById(ov.TargetId);
                 if (def is null) return (false, false);
-                await new CustomAction(def).PerformActionAsync(RealizeForShell(filePath));
+                await new CustomAction(def, _files).PerformActionAsync(filePath);
                 return (true, false);
 
             case DefaultActionKind.WindowsVerb:
                 try
                 {
-                    Process.Start(new ProcessStartInfo(RealizeForShell(filePath)) { Verb = ov.TargetId, UseShellExecute = true });
+                    Process.Start(new ProcessStartInfo(await _paths.RealizeAsync(filePath)) { Verb = ov.TargetId, UseShellExecute = true });
                     return (true, false);
                 }
                 catch { return (false, false); }

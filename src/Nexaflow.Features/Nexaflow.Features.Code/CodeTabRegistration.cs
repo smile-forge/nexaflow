@@ -25,7 +25,7 @@ public sealed class CodeTabRegistration(CodeEditorConfig config, IShellServices 
     {
         var path  = pageParams?.GetValueOrDefault("path") ?? string.Empty;
         var ast   = pageParams?.GetValueOrDefault("ast");
-        var title = string.IsNullOrEmpty(path) ? Str.Get("Code.Page.Title") : Path.GetFileName(path);
+        var title = string.IsNullOrEmpty(path) ? Str.Get("Code.Page.Title") : vfs.GetDisplayName(path);
 
         var page = new Page
         {

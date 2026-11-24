@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Nexaflow.Services.Initiatives.Cli.Building;
 using Nexaflow.Services.Initiatives.Cli.Daemon;
 using Nexaflow.Services.Initiatives.Graph;
 
@@ -11,9 +12,9 @@ namespace Nexaflow.Services.Initiatives.Cli;
 /// <summary>
 /// <c>nfi test</c>: build the suites that exercise a node and run only the tests that do.
 /// <para>
-/// Choosing the tests is a question about the graph, so it is asked of the resident process (<c>test … --plan</c>).
-/// Building and running them is not, and runs here, in the caller's own process: a test run takes minutes, and holding
-/// the tree's lock for that long would stop every query behind it — while a Ctrl+C here ends the run the way it should.
+/// Choosing the tests is a question about the graph, so it is asked of the resident process (<c>test … --plan</c>), and
+/// building them is asked of its build pool (<c>build … --json</c>), which every caller's builds share. Running them is
+/// neither, and runs here, in the caller's own process: a test run takes minutes, and a Ctrl+C here has to end it.
 /// </para>
 /// </summary>
 internal static class TestRunner
@@ -41,7 +42,9 @@ internal static class TestRunner
         }
         else
         {
-            var reply = DaemonClient.Capture([.. args.Where(a => a != "--no-build"), "--plan"], productRoot, codeRoot);
+            // Unless nothing is to be built, the resident process starts on the node's own project while it chooses.
+            string[] ahead = noBuild ? [] : ["--build-ahead"];
+            var reply = DaemonClient.Capture([.. args.Where(a => a != "--no-build"), "--plan", .. ahead], productRoot, codeRoot);
             Console.Error.Write(reply.Error);
             if (reply.ExitCode != 0)
             {
@@ -65,20 +68,23 @@ internal static class TestRunner
         Console.WriteLine($"tests: {suites.Sum(s => s.Filters.Count)} filter(s) in {suites.Count} suite(s) — "
                         + string.Join(", ", suites.Select(s => Path.GetFileNameWithoutExtension(s.Project))));
 
+        var projects = suites.Select(s => Path.GetFullPath(Path.Combine(root, s.Project.Replace('/', Path.DirectorySeparatorChar)))).ToList();
+        if (Build(projects, noBuild, productRoot, codeRoot) is not { } built) return 1;
+
         var failures = new List<Failed>();
         var broken   = false;
-        foreach (var suite in suites)
+        foreach (var (suite, project) in suites.Zip(projects))
         {
-            var project = Path.Combine(root, suite.Project.Replace('/', Path.DirectorySeparatorChar));
-            var name    = Path.GetFileNameWithoutExtension(project);
-
-            if (!noBuild && !Build(project, name))
+            var name = Path.GetFileNameWithoutExtension(project);
+            if (built.Projects.FirstOrDefault(p => string.Equals(p.Project, project, StringComparison.OrdinalIgnoreCase))
+                is not { Succeeded: true, Outputs: [var assembly, ..] })
             {
+                Console.WriteLine($"run:   {name} — not built, so not run");
                 broken = true;
                 continue;
             }
 
-            var outcome = Execute(project, name, suite.Filters);
+            var outcome = Execute(project, name, assembly, suite.Filters);
             if (outcome is null)
             {
                 broken = true;
@@ -93,28 +99,34 @@ internal static class TestRunner
         return broken || count > 0 ? 1 : 0;
     }
 
-    private static bool Build(string project, string name)
+    /// <summary>
+    /// Every suite built in one request to the resident process's build pool — side by side, so what they share is built
+    /// once — or, with <c>--no-build</c>, only asked where each one's assembly is. Null, having said why, when there is no
+    /// report to run from.
+    /// </summary>
+    private static BuildReport? Build(List<string> projects, bool noBuild, string productRoot, string? codeRoot)
     {
-        var clock = Stopwatch.StartNew();
-        var (code, output) = Capture("dotnet", ["build", project, "-v", "q", "-nologo", "-clp:NoSummary"]);
-        if (code == 0)
+        string[] only = noBuild ? ["--target", "GetTargetPath", "--no-restore"] : [];
+        var reply = DaemonClient.Capture(["build", projects[0], .. projects.Skip(1).SelectMany(p => (string[])["--project", p]), "--json", .. only],
+                                         productRoot, codeRoot);
+        Console.Error.Write(reply.Error);
+
+        var report = reply.Out.TrimStart().StartsWith('{') ? JsonSerializer.Deserialize<BuildReport>(reply.Out) : null;
+        if (report is null)
         {
-            Console.WriteLine($"build: {name} ({clock.Elapsed.TotalSeconds:F1}s)");
-            return true;
+            Console.Out.Write(reply.Out);
+            return null;
         }
 
-        Console.WriteLine($"build: {name} FAILED ({clock.Elapsed.TotalSeconds:F1}s)");
-        foreach (var line in output.Split('\n').Where(l => l.Contains(": error ", StringComparison.Ordinal))
-                                   .Select(l => Regex.Replace(l.Trim(), @"\s*\[[^\]]+\.csproj\]$", "")).Distinct().Take(15))
-            Console.WriteLine($"  {line}");
-        return false;
+        if (!noBuild || !report.Succeeded) BuildCommand.Print(report, projects, all: false);
+        return report.Problem is null ? report : null;
     }
 
     private sealed record Outcome(List<string> Failed);
 
-    private static Outcome? Execute(string project, string name, IReadOnlyList<string> filters)
+    private static Outcome? Execute(string project, string name, string assembly, IReadOnlyList<string> filters)
     {
-        if (TargetPath(project) is not { } assembly)
+        if (!File.Exists(assembly))
         {
             Console.WriteLine($"run:   {name} — its output could not be found; build it first.");
             return null;
@@ -169,14 +181,6 @@ internal static class TestRunner
     private static int? Count(IEnumerable<string> lines, string label) =>
         lines.Select(l => Regex.Match(l, $@"^\s+{label}:\s+(\d+)\s*$")).FirstOrDefault(m => m.Success) is { } m
             ? int.Parse(m.Groups[1].Value) : null;
-
-    /// <summary>The assembly a project builds to, as MSBuild evaluates it — which is where its test runner is.</summary>
-    private static string? TargetPath(string project)
-    {
-        var (code, output) = Capture("dotnet", ["msbuild", project, "-getProperty:TargetPath", "-nologo"]);
-        var path = output.Trim().Split('\n').LastOrDefault()?.Trim();
-        return code == 0 && path is { Length: > 0 } && File.Exists(path) ? path : null;
-    }
 
     private static (int Code, string Output) Capture(string file, IEnumerable<string> arguments)
     {

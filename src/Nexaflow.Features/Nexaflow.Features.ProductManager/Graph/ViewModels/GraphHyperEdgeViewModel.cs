@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.ProductManager.Graph.Converters;
@@ -47,15 +46,10 @@ public sealed partial class GraphHyperEdgeViewModel : ObservableObject
     [ObservableProperty] private bool _lodVisible = true;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Center))]
     private double _centerX;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Center))]
     private double _centerY;
-
-    /// <summary>The glyph centre as a point (bound by the connector's <c>EllipseGeometry.Center</c>).</summary>
-    public Point Center => new(CenterX, CenterY);
 
     /// <summary>Recompute the centroid from the (possibly just-moved) endpoint centres. Called each tween frame.</summary>
     public void UpdateCentre()

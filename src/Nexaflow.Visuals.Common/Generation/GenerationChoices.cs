@@ -4,7 +4,11 @@ using System.Globalization;
 namespace Nexaflow.Visuals.Common.Generation;
 
 /// <summary>One choice in a list of what a picture or clip model offers: what it says, and what it asks for — null for the model's own.</summary>
-public sealed record GenerationChoice(string Label, string? Value);
+public sealed record GenerationChoice(string Label, string? Value)
+{
+    /// <summary>The label: what a list shows for the choice, and what assistive technology reads out for it — not the record's own dump.</summary>
+    public override string ToString() => Label;
+}
 
 /// <summary>The lists a person sets a picture or a clip up with, filled from what a model offers, and the seed they type.</summary>
 public static class GenerationChoices

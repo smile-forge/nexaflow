@@ -8,6 +8,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Font.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Tests.Features.Font;
 
@@ -308,13 +309,17 @@ public class FontViewModelTests
     [TestMethod]
     [TestCategory("Unit")]
     [CoversNode("copy-glyph")]
-    public void CopyGlyph_IgnoresAnEmptyCell()
+    public void CopyGlyph_PutsTheCellOnTheClipboard_AndIgnoresAnEmptyOne()
     {
-        var item = Item();
+        var shell = Substitute.For<IShellServices>();
+        var vm = new FontViewModel([], shell, VirtualFileSystem.Instance);
 
-        // Guarded before it reaches the clipboard; the real copy needs an interactive desktop (journey).
-        item.CopyGlyphCommand.Execute(null);
-        item.CopyGlyphCommand.Execute(string.Empty);
+        vm.CopyGlyphCommand.Execute(null);
+        vm.CopyGlyphCommand.Execute(string.Empty);
+        shell.Clipboard.DidNotReceiveWithAnyArgs().Write(default!);
+
+        vm.CopyGlyphCommand.Execute("\u00C4");
+        shell.Clipboard.Received(1).Write(Arg.Is<IDragPayload>(p => p.Text() == "\u00C4"));
     }
 
     // ── Context preview (font-ai-preview) ─────────────────────────────────

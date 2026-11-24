@@ -34,7 +34,7 @@ public sealed class TabularPageRegistration : IPageRegistration
     {
         var path       = pageParams?.GetValueOrDefault("path")       ?? string.Empty;
         var transforms = pageParams?.GetValueOrDefault("transforms");
-        var title      = string.IsNullOrEmpty(path) ? "Tabular" : Path.GetFileName(path);
+        var title      = string.IsNullOrEmpty(path) ? "Tabular" : _vfs.GetDisplayName(path);
 
         var page = new Page
         {

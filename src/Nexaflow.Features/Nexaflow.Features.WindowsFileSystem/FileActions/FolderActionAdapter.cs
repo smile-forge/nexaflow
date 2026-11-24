@@ -33,6 +33,8 @@ public sealed class FolderActionAdapter : IFileAction
     public string?      Tooltip               => Inner.Tooltip;
     public bool         IsRibbonPinnable      => Inner.IsRibbonPinnable;
 
+    public bool RequiresLocalFolder => Inner.RequiresLocalFolder;
+
     public Task<bool> PerformActionAsync(string filePath, CancellationToken ct = default) => Inner.PerformActionAsync(filePath, ct);
 
     public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, CancellationToken ct = default) => Inner.PerformActionAsync(filePaths, ct);

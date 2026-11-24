@@ -101,6 +101,7 @@
   "Images.Copy.FailedFormat": "Couldn't copy '{0}'.",
   "Images.Delete.ConfirmTitle": "Delete image",
   "Images.Delete.ConfirmMessageFormat": "Send '{0}' to the Recycle Bin?",
+  "Images.Delete.ConfirmForGoodFormat": "Delete '{0}' for good? Where it is, there is no Recycle Bin.",
   "Images.Delete.FailedFormat": "Couldn't delete '{0}'.",
 
   "Images.FullScreen.Hint": "Esc exit · Space / → next · ← previous · click to navigate",

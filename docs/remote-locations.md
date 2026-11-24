@@ -32,12 +32,12 @@ The groundwork is real but synchronous and Windows-path shaped, so the first job
 | Piece | Where | What it gives | What stops it carrying remote |
 | --- | --- | --- | --- |
 | `IVirtualFileSystem` | `IO.Common/IVirtualFileSystem.cs` | Transparent over archives, `::{id}` mounts and connected locations; async, cancellable members beside the sync ones; breadcrumbs, parent paths, display names and display forms | Features and the shared visuals open, save, list and probe through the async members, and what reads this disk directly is marked `[LocalDiskOnly]`; This PC's own probe of its rows is the one place still reported (`NXIO002`) |
-| `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location | A remote path has no materialised copy until the content cache lands, so an action needing a native path is suppressed |
+| `VirtualBacking` | `IO.Common/VirtualMount.cs` | Actions ask how a path's bytes are obtained before handing it to a process; `Remote` marks a path on a location, and a location this machine also reaches as Windows folders (WSL) is `PassThrough` | A path on any other location has no materialised copy until the content cache lands, so an action needing a native path is suppressed there |
 | `LocationEntry` | `IO.Common/Locations/LocationEntry.cs` | Name, size, modified, hidden and read-only, symlink target, POSIX mode, owner, group, content hash, archive extras | — |
-| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete | Dragging out of a location hands Windows a path it cannot open until the content cache lands |
+| WindowsFileSystem feature | `Features.WindowsFileSystem` | The browser, This PC, file actions, transfers. Browsing, the tree, the address bar, create, rename and the assistant's file tools go through the runtime's async VFS; file actions are awaitable; copy, move and delete go through the engine, and what the Recycle Bin cannot hold is offered as a permanent delete. A location's rows show each name as it holds it (`FileSystemEntry.ShownName`) and a link's target after its name; Copy path, from a row or a breadcrumb, gives its address (`wsl://Ubuntu/etc`); a distro is a Linux row in This PC. What hands a file to Windows — dragging out, the clipboard, Open With, shell verbs, external programs — asks the runtime's file system for a path Windows opens (`ShellPath`), so a distro's file leaves by its `\\wsl.localhost` path, while a change keeps the location's path | A file on a location Windows cannot reach as a folder has nothing to hand over until the content cache lands |
 | `FileTransferEngine` | `IO.Common` | Progress, throughput, ETA, cancel. An item whose ends are both real paths on this disk takes the disk's own path; one with an end only the file system reaches (an archive, a location) goes through `FileTransferRequest.FileSystem` with the same promises | Free-space parking only where the destination is on this disk. Within one location that declares `ServerSideCopy` an unverified copy asks the server (`CopyWithinAsync`) and moves no bytes |
 | `IThisPcItemProvider` | `Features.Common/ThisPc` | Every row of This PC is a provider's: the volumes (the file browser's own provider), OneDrive's sync folders; each provider describes its own rows, and connections use the same seam | — |
-| `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open | Normalises Windows paths only |
+| `PathScope` | `IO.Common/PathScope.cs` | Assistant reach equals what the user has open; a location's path (`::{id}\…`) is made full within its root and compared as the file system holding it says | The file browser's own tools work in location paths; every other tool gets the browser's grant on a distro as the Windows folder showing it, its names compared as the distro compares them (`GetNameComparison` knows that folder as the location's). A terminal's grant is the folder its shell's host says the shell is in |
 | `PseudoConsoleHostService` + `TerminalScreen` | `IO.Terminal` | The ConPTY transport for cmd/pwsh, started by `PseudoConsoleLauncher`, and a VT100 screen buffer sized to the console the shell is shown in | The view is a scrolling list of finished lines, so full-screen programs (vim, htop, tmux) are not drawn |
 | `ProtectedData` | `Core/ConfigManager.cs` | DPAPI protects stored secrets | Per-file, not a credential store with per-host entries |
 
@@ -53,15 +53,34 @@ carry it unchanged; what changes is that a mount can be backed by a provider rat
 - **Segment escaping.** POSIX names may hold `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|` or control characters, or end in a
   dot or space. `LocationPath` percent-encodes exactly those characters in a segment — and `%` itself, so decoding is
   never ambiguous — and decodes them at the provider boundary, so the round trip is lossless. A listing through the VFS
-  names each entry by its segment, so it combines into a path with `\`; `GetDisplayName` gives the name back as people
-  read it.
+    names each entry by its segment, so it combines into a path with `\`; `GetDisplayName` gives the name back as people
+    read it.
+  - **Names that are no UTF-8.** A POSIX name is bytes: `caf` and a stray `0xE9` is a name Linux holds. `PosixNames` holds
+    it in a .NET string with each stray byte as the lone surrogate U+DC80 + byte, as Python's `surrogateescape` does, so
+    every byte comes back. The WSL helper's wire carries names this way, and every syscall the helper makes is given the
+    exact bytes (`PosixPathMarshaller`): it reads folders with `getdents64` and copies through descriptors, never through
+    .NET's file APIs, which decode as UTF-8 and lose them. A segment carries a stray byte as `%uDCE9`, so a path holding one
+    is plain text that tab sets and JSON keep. People read it as `caf\xE9.txt`, as `ls -b` shows it, and the display form
+    writes it so — with a backslash in a name as `\\` — and reads it back exactly. WSL's file server shows such a name with
+    U+FFFD and cannot open it, so it has no native path: it is read and written through the helper (`WslOp.Read`,
+    `WslOp.Write`). A program the helper runs gets its folder and arguments as `printf %b` escapes that an `sh` trampoline
+    makes exact again, a shell starts in such a folder the same way, and a dropped file is typed as the shell's own
+    `printf` of its name, since no keystroke types a stray byte.
 - **Case.** Each provider declares whether its names are case-sensitive. Comparisons (selection, `PathScope`, dedup of
   open tabs) ask the location, never `StringComparison.OrdinalIgnoreCase` directly.
 - **Display form.** People and the assistant see a URI: `sftp://adam@nas/home/adam/notes.md`, `wsl://Ubuntu/home/adam`,
   `smb://nas/share/docs`. `IVirtualFileSystem.GetDisplayPath` produces it, `TryParseDisplayPath` reads it back for the
   address bar, so typing or pasting one opens it, and `GetDisplayName` / `GetBreadcrumbs` label each segment by its name.
-- **WSL and SMB need no escaping when Windows can already reach them.** `\\wsl.localhost\Ubuntu\…` and `\\nas\share\…`
-  are real paths; their providers add what Windows lacks (POSIX metadata, a native shell, faster listing), not a new name.
+  A viewer is titled by `GetDisplayName`. A crumb says which place it stands for (`PlaceContent`), and the shell draws it
+  through the runtime's display filters (`IBreadcrumbDisplayFilter`), each restating the places it knows: this computer's
+  in `Features.WindowsFileSystem`, a distro's in `Features.Wsl` (`wsl://Ubuntu/etc`, each name as Linux has it, copied as
+  that address). A backend with a display form of its own brings its filter with its feature.
+- **A location Windows can already reach keeps its Windows path too.** A provider that implements
+  `ILocationNativePaths` names the folders its root is reachable as — `\\wsl.localhost\Ubuntu` and `\\wsl$\Ubuntu` for
+  `::wsl-ubuntu`. Typed or pasted, such a path opens the location (`TryToVirtual`); a file there is fully on disk
+  (`PassThrough`), so a reader that needs a path of its own is handed the Windows one with no copy; and a name Windows
+  cannot hold maps to the one the share shows. The provider adds what Windows lacks — POSIX metadata, a native shell,
+  faster listing — not a second name.
 
 ## The provider contract
 
@@ -109,6 +128,14 @@ public interface ILocationSessionSource                          // the pool, pe
     and each backend registers in `LocationProviderRegistry` as its assembly activates, or when a runtime asks for them
     before it mounts its connections. A connection no backend reaches is mounted nowhere, and says why.
 
+- **Some locations are found, not saved.** A backend that implements `ILocationDiscovery` lists the locations on this
+  machine — WSL lists each installed distro from the `Lxss` registry key and watches it. `DiscoveredLocations` keeps
+  what every such backend finds, and each runtime mounts it beside its workspace's saved connections; a saved one keeps
+  its id, and nothing found is written to a workspace.
+- **Pages see locations through `ILocationDirectory`**: the mounted locations — id, label, kind, root, capabilities,
+  display form — and the connections that could not be mounted, with why, read without touching the network. This PC
+  lists them through `LocationThisPcProvider`.
+
 - **Async first, all the way down.** Every member takes a `CancellationToken`. Listing is an `IAsyncEnumerable` so a
   50,000-entry folder paints its first rows at once, as Windows Search hits stream.
 - **Sync members refuse a remote path.** `IVirtualFileSystem`'s sync IO members keep serving real, mounted and archive
@@ -122,8 +149,9 @@ public interface ILocationSessionSource                          // the pool, pe
     has the detail.
   - **A reader that needs a path of its own asks for one.** `MaterializeFileAsync` hands a reader that can only open a file
     by path — video and audio playback, 3D models, fonts, the Executable inspector, Open with — a path on this disk holding
-    the file's bytes: a real or mounted path as it is, an archive entry extracted to a temp copy. A file on a location has
-    no copy on this disk until the content cache lands, and is refused with `NotSupportedException`. `ResolveOnDisk`
+  the file's bytes: a real or mounted path as it is, an archive entry extracted to a temp copy, a file on a location
+    this machine reaches as Windows folders by that path. A file on any other location has no copy on this disk until the
+    content cache lands, and is refused with `NotSupportedException`. `ResolveOnDisk`
     answers without IO where on this disk a file wholly is, or null — what a sidecar, a content probe or a Windows API is
     given.
 - **What is offered on a location is decided by name.** The action strip, a context menu and the folder viewlets are
@@ -136,8 +164,15 @@ public interface ILocationSessionSource                          // the pool, pe
 - **Writes are atomic where the protocol allows.** `BeginWriteAsync` writes to a sibling temp name and renames on
   commit, so a dropped connection never leaves half a file; without a rename it commits as one whole upload. `WriteMode`
   distinguishes create, replace and append. A write given the entry it read refuses to commit with `Conflict` when the
-  target is no longer that version — the check behind conflict-checked saves. Inside an archive the bytes are gathered
-  and the archive rewritten in one piece at commit.
+    target is no longer that version — the check behind conflict-checked saves. Inside an archive the bytes are gathered
+    and the archive rewritten in one piece at commit.
+  - **A write carries permission bits to a file it makes.** `BeginWriteAsync` takes the bits a new file is given, and a
+    transfer fills them from the source's `LocationEntry.Mode`, so a file copied between locations keeps its own — a
+    private key stays private, a script runnable. They are on the hidden temp before its first byte, with only the
+    owner's write added while it is written, and exact before the rename, so the file is never readable wider than asked.
+    A file the write replaces keeps its own bits, as a save over it does, and so does a server-side copy over one. Only
+    the bits travel: owner and group are the copier's, since users differ from one machine to the next. This disk and an
+    archive keep none, so a file from them takes the location's defaults.
 - **`LocationEntry` carries more than `VirtualEntry`:** POSIX mode, owner and group, symlink target, hidden and read-only
   flags, and an optional content hash when the server offers one. `VirtualEntry` stays the archive model; an archive
   entry listed through the async VFS carries its archive facts in `LocationEntry.Archive`.
@@ -146,8 +181,23 @@ public interface ILocationSessionSource                          // the pool, pe
   `VirtualBacking` hides actions for archive entries.
 - **`VirtualBacking.Remote`.** An action that would hand the path to an external process gets a materialised copy
   or is suppressed — the rule that protects archive entries, read through `IsFullyOnDisk`. Until the content cache
-  lands such an action is suppressed, and a remote file is not browsed as an archive: archive work runs over local
-  bytes, so the archive members refuse a remote path.
+    lands such an action is suppressed, and a remote file is not browsed as an archive: archive work runs over local
+    bytes, so the archive members refuse a remote path.
+  - **An archive on a location Windows reaches as a folder** is browsed, read and described through that folder. Every
+    change to one — an entry written, files added, the archive made or remade — is made on a local copy and put in place
+    through the location, so it keeps its permissions. What is extracted into a location is written through it entry by
+    entry (`ArchiveEntryPlacement`), each under the archive's own name, and an archive made of a location's files names each
+    as the location does, though Windows shows a name it cannot hold mapped. An entry is not removed, moved or made a folder
+    inside an archive, there as on this PC.
+  - **A change made with Windows' own tools is not offered on a location.** `PassThrough` says where a file's bytes can be
+    read, not that Windows may change them there. A file action, folder action or viewlet that changes files with Windows'
+    own calls or tools — mounting a disk image, removing an image's edits, the AI summary — declares
+    `RequiresLocalFolder` and is not offered on a location, named by its path or by its Windows folder's. A viewlet whose
+    tools can run on the location's own host — Git, .NET — declares `RunsOnLocationHost` instead, and is offered on a
+    location whose host runs programs ([Folder viewlets work remotely](#viewers-search-and-the-assistant)). A page that writes
+    with a Windows library shows what it reads and offers no change there: an audio file's tags are read-only in a distro.
+    An image edited in a distro keeps its edits while it is open, with no sidecar to hold them, and Save writes them into
+    the file.
 - **Errors are one typed family** (`LocationException` with `NotFound`, `AccessDenied`, `Disconnected`, `AuthFailed`,
   `HostKeyChanged`, `Conflict`), so every page reports a dropped share the same way.
 
@@ -185,12 +235,12 @@ Manager; none of this needs admin rights.
 
 ## Backends
 
-Each backend is its own assembly, `Nexaflow.IO.Location.<Kind>`, referencing `IO.Common` only, as the Compressed codec
-backends do. Package choices are to be confirmed against NuGet in phase 0.
+Each backend is its own assembly, `Nexaflow.IO.Location.<Kind>`, referencing `IO.Common` — and `IO.Terminal` where its
+shell runs in this computer's ConPTY, as WSL's does — and its own packages, as the Compressed codec backends do.
 
 | Backend | Phase | Built on | Ranged read | Watch | Shell | Main risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| WSL | 1 | `\\wsl.localhost` for bytes; a small helper run with `wsl.exe -d <distro>` for POSIX metadata and inotify | yes | inotify via the helper | `wsl.exe` in ConPTY | 9P listing is slow on big folders, so the helper also lists |
+| WSL | 1 | `\\wsl.localhost` for bytes; `Nexaflow.WslHelper`, run with `wsl.exe -d <distro> --exec`, for listings, POSIX metadata, renames, inotify and programs | yes | inotify via the helper | `wsl.exe` in ConPTY, bash and zsh through a shim that marks prompts (OSC 133), links the shell's `/proc/<pid>/cwd` for the helper to read and writes its variables at each prompt | 9P listing is slow on big folders, so the helper lists |
 | SMB | 1 | Windows' SMB client through UNC paths | yes | `ReadDirectoryChangesW` over SMB | none | Credentials, This PC rows and the async path |
 | SFTP | 2 | SSH.NET (MIT) | yes | polling, adaptive | SSH shell on the same session | Polling cost on busy folders |
 | FTP / FTPS | 3 | FluentFTP (MIT) | yes, `REST` | polling | none | Servers that lie about listings; `MLSD` first, `LIST` parsing as fallback |
@@ -205,6 +255,10 @@ rows without a new protocol. SFTP is the headline and lands second.
 The terminal opens a shell on whatever host the current folder lives on, through one transport contract, and draws
 full-screen programs, because over SSH that is half of what people run.
 
+- **The console is the console; the AI bar is judged.** A line typed in a terminal is always the shell's. A line typed in
+  the AI bar over one is a command (runs, no model), a request (the assistant's) or unclear (the Disambiguation model is
+  asked, and it runs only on its yes) — `CommandClassifier.JudgeLine`. What a shell runs by name is its launcher's to
+  say (`ITerminalLauncher.ListCommandsAsync`): WSL reads the distro's login PATH, and a wrapping launcher passes it on.
 - **`ITerminalTransport`** (`IO.Common/Terminal`, beside the location contracts that hand one out) sits under the
   terminal view-model: bytes in, bytes out, resize, interrupt, end the foreground program, exit. What a transport
   raises before anyone listens is held for the first listener, so the shell's first words are never lost. An
@@ -215,15 +269,37 @@ full-screen programs, because over SSH that is half of what people run.
 - **Shell profiles are discovered, not configured.** cmd, Windows PowerShell, `pwsh` if installed, each WSL distro from
   `wsl.exe --list`, each saved SSH connection and each `Host` in `~/.ssh/config`. A profile can set its starting folder,
   environment and colours.
-- **"Open terminal here" follows the folder.** On `::{sftp-nas}\srv\app` it opens an SSH shell on `nas` at `/srv/app`; on
-  a WSL path, that distro at that path.
-- **Shell integration keeps browser and terminal in step.** OSC 7 reports the working folder and OSC 133 marks prompts and
-  command output, so `cd` can move a linked browser, and the assistant can be given one command's output rather than the
-  scrollback.
+- **Each host's shell is its own feature.** They share the terminal (`Visuals.Terminal`: `TerminalViewModel`, the view,
+  the dialects, `TerminalShellRoute`), never a page: the Console is cmd on this computer
+  (`TerminalShellRoute.ForThisComputer`, Cmd Here, offered on no location), the WSL shell (`Features.Wsl`) a distro's
+  own (`ForLocationShell`, Shell Here, offered on a mounted distro), and an SSH shell will be a feature of its own. Each
+  feature's AI-bar handlers serve only its own terminal (`TerminalQueryHandler`, `TerminalKeyHandler`).
+- **Shell integration keeps browser and terminal in step.** OSC 133 marks prompts and command output, so the assistant
+  can be given one command's output rather than the scrollback. Where the shell is, is asked of its host
+  (`ITerminalTransport.GetWorkingDirectoryAsync`): cmd's own current folder, read from its process, and a distro shell's
+  `/proc/<pid>/cwd`, read by the helper. Output is only the cue to ask, with a heartbeat for output that swallows the
+    prompt, so `cd` can move a linked browser and sets what the assistant may reach. OSC 7 and the folder in a prompt are
+    never believed: any file printed can carry them.
+  - **A shell's page describes the machine the shell runs on.** The path bar shows the folder as the shell names it
+    (`TerminalShellDialect.ShowPath` — `/home/adam` in a distro), the Files tab lists it through the runtime's file system,
+    and a file dropped on the terminal or its AI bar is given as the shell's own path (`FormatPathWord`). Its variables are
+    its host's (`ITerminalTransport.ShellEnvironment`): in a distro the shim writes `env -0` to a file beside its folder link
+    at each prompt (Live), and the user's login shell is started on its own to print a new shell's (Startup). An edit is an
+    `export` in the running shell, or a line kept for new shells in the startup file that login shell reads, between
+    Nexaflow's own marks and written through the location. cmd's are this computer's, kept for the session, the Windows user
+    or the machine.
 - **Full-screen programs get a grid view (2.0, phase 2).** `TerminalScreen` keeps a correct VT100 grid; when a program
   switches to the alternate screen buffer (vim, htop, less, tmux), the view draws that grid with cursor, colours and mouse
   reporting, and returns to the line view when it leaves. This is the largest single piece of new UI in 2.0.
 - **PowerShell remoting rides SSH.** `pwsh` over SSH is an SSH profile whose command is `pwsh`; WinRM is out of scope.
+- **A shell's host runs programs too, with no terminal.** `ILocationShell.RunProgramAsync` runs one program to its end —
+  found on the host's login `PATH`, its arguments handed over whole with no shell reading them, nothing on its stdin — and
+  streams what it writes, stdout and stderr apart, through `ProgramOutput`, so every backend reports the same lines;
+  cancelling ends it and what it started. A feature reaches it through `IVirtualFileSystem.GetProgramHost(folder)`, read
+  without the network, which takes the file system's paths — the location's or the Windows folder's — and maps them with
+  `HostPathOf` and `PathOnLocation`; a folder of this PC gets none, and runs its own. WSL runs programs in its helper
+  (`WslOp.Run`), in the environment a login `sh` sets, skipping the Windows folders WSL appends under `/mnt`, so `git`
+  is always the distro's.
 
 ## Viewers, search and the assistant
 
@@ -241,8 +317,17 @@ and grants do the rest.
 - **`?` search on a remote folder** runs on the server where it can — `grep -rn` or `find` over the SSH or WSL shell,
   streamed back as hits. Where it cannot (FTP, SMB without an index), Nexaflow walks and reads files itself, the fallback
   used for unindexed local folders, with the same offer-first prompt.
-- **Folder viewlets work remotely.** Git and .NET detection runs through the VFS; `git` runs over the remote shell when
-  there is one, so status is the server's answer, not a slow walk of `.git`.
+- **Folder viewlets work remotely.** Git and .NET are found by a folder's name and contents, read through the Windows
+  folder a location is shown as, and are offered by either name of the folder on a location whose host runs programs
+  (`LocationCapabilities.Shell`) — `IFolderViewlet.RunsOnLocationHost` says so, and the registry asks the location, so the
+  next backend with a shell gets them unchanged. There the viewlet takes the folder's `IProgramHost` and runs the host's
+  own `git` and `dotnet` on the host's paths: status is git's answer there, so a script committed runnable reads clean;
+  pull, switching branch, restore, build, run, test and clean write as the host writes; removing a worktree moves its folder
+  aside and deletes its registration through the location, and the host's git deletes its branch. `IGitWorkingCopy` is the
+  seam — `LocalGitWorkingCopy` on this PC, `HostGitWorkingCopy` on a location. The assistant there gets what the host's git
+  answers — status, diffs and worktrees — and not the history tools, which read a repository in process: LibGit2Sharp
+  refuses one another account owns, as a distro's is to Windows. A pull on a location uses the host's own credentials, and
+  is never offered a token for Windows' store.
 - **Assistant grants are location-aware.** `PathScope` compares through the location, so case sensitivity and escaping are
   the provider's, and a grant on `::{nas}\srv\app` never reaches `::{nas}\srv`. Pages holding a remote path add the host
   to the high-risk check that asks before context leaves the PC, so a folder on a work server is not sent to a cloud
@@ -287,8 +372,8 @@ Each phase is usable on its own, so the 2.0 date can slip phase 2 without strand
   delete, conflict, cancel, reconnect), run against each backend, so a new protocol is proven by the same bar.
 - **Real servers in containers** — OpenSSH, vsftpd, Samba and an NFS server, with latency injected — in a
   `Tests.IO.Locations` suite. They are the fixtures; WSL is the dogfood location. WSL tests run on Windows runners only.
-- **`ArchitectureRulesTests.Location_backends_reference_only_IO_Common`** holds every `Nexaflow.IO.Location.*`
-  assembly to `IO.Common` and its own packages. A backend in the tree that the architecture suite does not reference
+- **`ArchitectureRulesTests.Location_backends_reference_only_IO_Common_and_IO_Terminal`** holds every
+  `Nexaflow.IO.Location.*` assembly to `IO.Common`, `IO.Terminal` and its own packages. A backend in the tree that the architecture suite does not reference
   fails the rule, and with no backend at all it reports that nothing was checked.
 - **Journeys** for connect, browse, open, edit and save, open terminal here, and a dropped connection, so every new
   AutomationId is named by one.
@@ -299,6 +384,14 @@ beneath `iocommon-vfs`, with a node per backend and the grid view added as each 
 `ioterm-transport` under `io-terminal`. The use cases — connect, browse, open terminal here — get a
 `locations` node under `features` with the first backend a person can reach. Each is snaplinked to its code as it lands
 and committed in the branch's pending file.
+
+## Changes go through the location
+
+A native path is for readers: a save, copy, move or delete of a location's file goes through the location, whether it is
+named by the location's path or by the Windows folder showing it (a paste from Explorer, a cut from here, an editor that
+opened it by that folder) — Windows replaces no file there, and a file it moves over another takes none of its
+permissions. The Recycle Bin is never offered for one, and a name Windows would trim, or one that is no UTF-8, has no
+native path.
 
 ## Decisions
 

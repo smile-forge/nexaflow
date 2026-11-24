@@ -92,7 +92,7 @@ public sealed partial class PicturePrinting : ObservableObject
     public bool PrintsLandscape => PictureSize is { } size && PicturePrintLayout.Landscape(size, Options);
 
     /// <summary>What the print job is called: the picture's file name.</summary>
-    public string Title => Path.GetFileName(_stage.CurrentDocument?.Path ?? _stage.CurrentSession?.Path ?? string.Empty);
+    public string Title => _editing.FileSystem.GetDisplayName(_stage.CurrentDocument?.Path ?? _stage.CurrentSession?.Path ?? string.Empty);
 
     /// <summary>
     /// The pages to print on a printable area of <paramref name="printable"/> device-independent pixels at

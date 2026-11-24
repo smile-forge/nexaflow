@@ -9,6 +9,7 @@ using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.Services;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Formatting;
@@ -266,7 +267,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         _vfs     = vfs;
         _config  = config;
         _publisher = publisher;
-        FileName = Path.GetFileName(path);
+        FileName = vfs.GetDisplayName(path);
         Conversion = new PageConversion(reading, ai, shell);
         Conversion.TextRead += () => _readPages = _askedPages;
         Conversion.PropertyChanged += (_, e) =>
@@ -569,7 +570,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private void OnMoved(string path)
     {
         _path    = path;
-        FileName = Path.GetFileName(path);
+        FileName = _vfs.GetDisplayName(path);
         _ = DescribeFileAsync();
         OnPropertyChanged(nameof(FileName));
         Moved?.Invoke(path);
@@ -859,8 +860,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private void CopyAllProperties()
     {
         if (Properties.Count == 0) return;
-        try { System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, Properties)); }
-        catch { _shell.ShowError(Str.Get("Pdf.Error.Clipboard")); }
+        CopyOrSay(string.Join(Environment.NewLine, Properties));
     }
 
     /// <summary>Copies the whole table of contents, indentation and page numbers included.</summary>
@@ -870,16 +870,20 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         if (Contents.Count == 0) return;
         var text = string.Join(Environment.NewLine,
             Contents.Select(c => new string(' ', c.Level * 2) + c.CopyWithPage));
-        try { System.Windows.Clipboard.SetText(text); }
-        catch { _shell.ShowError("Couldn't copy to the clipboard."); }
+        CopyOrSay(text);
     }
 
     [RelayCommand]
     private void CopyText(string? text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        try { System.Windows.Clipboard.SetText(text); }
-        catch { _shell.ShowError("Couldn't copy to the clipboard."); }
+        CopyOrSay(text);
+    }
+
+    /// <summary>Puts <paramref name="text"/> on the clipboard, or says it could not while another application holds it.</summary>
+    private void CopyOrSay(string text)
+    {
+        if (!_shell.Clipboard.Write(ComposedPayload.OfText(text))) _shell.ShowError(Str.Get("Pdf.Error.Clipboard"));
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────

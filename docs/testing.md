@@ -13,10 +13,29 @@ Functionality / AI backbone, panels and state nodes, concerns by role, granulari
 Two tiers, matching the two node roles:
 
 1. **One UI journey per feature**, tagged `[CoversNode("<the feature's UI node>")]`. It launches the app once
-   (amortising the ~20 s start) and drives the interactive controls in a single pass — the *integration* test
-   at the UI level. See `TextJourneyTests` and `UiJourneyTestBase` (soft `CheckPresent`/`CheckInvoke`/`Check`
-   so one broken control doesn't hide the rest). Interactive-desktop only (`TestCategory=UI`), and it lives in
-   `Nexaflow.Tests.UIJourneys`.
+   (a launch and its teardown cost about 20 s, which is most of a small journey) and drives the interactive
+   controls in a single pass — the *integration* test at the UI level. Its job is to poke every control and show
+   that nothing crashes, so one `[TestMethod]` per feature is made of **steps**: `RunStep("<what it shows>", body)`
+   runs one scenario in the app that is already up, records a failed assertion, an exception or an
+   `Assert.Inconclusive` under the step's name and goes on to the next, gives each step its own `JourneyBudget`, and
+   brings the app back to where the journey began (`ReturnToBaseline`: the modal question answered, Options closed,
+   popups dismissed, the tabs the step opened closed). A feature's other pages open inside the same app
+   (`OpenPageViaSlash`) rather than in a journey of their own. See `TextJourneyTests`, `SystemInfoJourneyTests` and
+   `UiJourneyTestBase` (soft `CheckPresent`/`CheckInvoke`/`Check` so one broken control doesn't hide the rest).
+   A key is tapped with `Keyboard.Type(key)`: FlaUI's `Keyboard.Press(key)` sends only the key going down, which leaves it held
+   in the operating system after the run — a held Escape cancels every drag begun afterwards, in this run and the next
+   (`JourneyKeyboardRulesTests`).
+   Interactive-desktop only (`TestCategory=UI`), and it lives in `Nexaflow.Tests.UIJourneys`.
+
+   **A feature gets a second launch only when** (a) its steps together take longer than 120 s, or (b) there is a
+   genuinely second complete state to check — projects enabled and disabled, the models present and absent. Anything
+   else is a step of the feature's one journey. The second launch's test method carries
+   `[SecondLaunch(SecondLaunchReason.OverTwoMinutes | SecondLaunchReason.SecondState, "what makes it so")]`
+   (`Nexaflow.Tests.Fixtures`), and `JourneyLaunchRulesTests` (in `Tests.Features.Architecture`) enforces it: a
+   `[TestMethod]` is a launch, so is each `[DataRow]`, a feature is its folder under `Features\`, and a launch past the
+   first without the attribute fails. Features not yet folded are listed in `journey-launches-still-to-fold.txt` with
+   the launches they still owe — a ratchet, like the automation-id one, that can only shrink. The shell (`Core\`) is
+   not a feature: its handful of general journeys is held to `ShellJourneyLaunches`, changed on purpose.
 2. **One unit test per leaf control**, tagged `[CoversNode("<leaf-id>")]`, driving the **view-model** command
    or state behind the control (NOT a UI test). One method may cover several leaves — tag each. This is where
    the real per-control assertions live; the journey just proves the wiring holds end-to-end.
@@ -58,11 +77,11 @@ usually a few lines and leaves the control thinner:
   bitmap. `Visuals.Common`'s `ViewportFit` holds fit, actual-size and cursor-anchored zoom for both. Its tests
   are about the edges: fit letterboxes rather than crops, 1:1 lets oversized content overflow rather than being
   clamped, and a viewport layout has not measured yet yields the identity instead of an infinite scale.
-- **Where a typed line goes when you press Enter** — the terminal's one genuinely consequential decision. Its
-  inputs are trivial (is the cursor on a prompt, what was typed, what this shell calls a built-in), so
-  `TerminalEnterRouting.Decide` takes them directly instead of reading state only a live pseudo-console sets.
-  The third case is the one worth having a test for — mid-program there is no prompt, and the line belongs to
-  whatever is reading stdin whatever it looks like.
+- **What a typed line is** — two decisions, both pure. In the console Enter is always the shell's, so
+  `TerminalEnterRouting.Decide` takes only what was typed at a prompt, if at one, instead of reading state only a live
+  pseudo-console sets. In the AI bar `CommandClassifier.JudgeLine` takes the line and what the shell knows by name, and
+  its corpus is the test: a sentence must never come out a command, nor a command carrying a secret anything else.
+  What only a real shell proves — clearing a half-typed line, the output the assistant is given — is `LiveShellTests`.
 - **A panel's listing order** — the terminal's Files panel deliberately lists files *before* folders, the
   opposite of Explorer, because the panel exists to drag a path onto the console. That inversion is the kind
   of thing a later "fix" quietly reverts, so it is pinned in `TerminalFileList.Enumerate`.
@@ -239,7 +258,7 @@ the feature stays with the feature.
 
 ```powershell
 # Build + run a project's tests (MSTest runner exe):
-dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj
+& $nfi build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj
 $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.exe"
 
 & $exe --filter "TestCategory!=Desktop&TestCategory!=Interactive"   # what CI runs
@@ -247,6 +266,15 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 & $exe --filter "TestCategory=Interactive"               # calls real OS services — dev machines only
 & $exe --filter "FullyQualifiedName~SampleFileDetection" # one class
 ```
+
+`nfi build` is `dotnet build` on a shared pool: every session's builds run on one set of MSBuild workers that nfi's
+resident process keeps — half the machine's cores, reused from build to build, let go after ten idle minutes — where
+each `dotnet build` starts a set the size of the machine and leaves it running for a quarter of an hour. With several
+sessions at work, that is the difference between one set of build processes and dozens. Several `--project` entries
+build side by side, so what they share is built once, and an entry is restored only when something its restore reads
+— a project file in its closure, what those import, a `Directory.*`, `NuGet.config` or `global.json` above them — has
+changed since it last restored. The compile host's design-time builds, which edit checks wait on, run on a second,
+two-worker pool, so they never queue behind a long build of the same tree.
 
 ### Fast inner loop
 
@@ -259,7 +287,7 @@ by subject, so editing a viewer test rebuilds only its own suite. `nfi test <nod
 After any change touching `Nexaflow.Core`, run its unit tests before committing:
 
 ```powershell
-dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
+& $nfi build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
 src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
 ```
 
@@ -506,7 +534,13 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
   COM interop: the interop declarations are a hand-transcribed vtable, and only a real call can prove
   the layout is right — a wrong slot is an access violation, not a failed assertion. Such a test
   asserts on the *contract* (a clause came back naming the property asked for), never on what happens
-  to be indexed, and calls `Assert.Inconclusive` when the service isn't running.
+    to be indexed, and calls `Assert.Inconclusive` when the service isn't running.
+  - **`TestCategory("Wsl")`**, always beside `Interactive` — the WSL backend against this machine's default
+    distro: the location contract (`WslLocationContractTests`, working under `/tmp/nexaflow-contract`, since the
+    contract works at the root), owners read by name, a change made inside Linux reaching a watch, a save keeping a
+    script runnable, and the shell reporting its folder (`WslDistroTests`). Starting the distro is what they cost; they
+    are `Assert.Inconclusive` where WSL has no distro. Run them alone with `--filter "TestCategory=Wsl"`. Journeys
+    cannot reach WSL — Windows Sandbox has none — so this is where a real distro is proven.
 
 ### Reference corpora and snapshots (opt-in, never in CI)
 
@@ -802,6 +836,29 @@ Two gates, at opposite ends of the same rule:
 An id whose value is a markup extension (`{Binding AutomationId}`) is skipped by both: the real id is computed
 at run time, so there is no literal for a journey to name.
 
+### Binding errors (`BindingErrorLog` / `known-binding-errors.txt`)
+
+WPF reports a binding it cannot resolve — a member the bound object does not have, an ancestor that is not
+there — only to a debugger, and leaves the target at its default: a card that should show options is simply
+empty, and every check that does not look inside it passes. Under `--uiTest` the app writes each such error
+once, as a signature without WPF's per-object hash codes, to `binding-errors.log` in its config root
+(`Core/Services/BindingErrorLog.cs`). `UITestBase`'s teardown fails the journey on any signature
+`Tests.UIJourneys/Infrastructure/known-binding-errors.txt` does not list, prints the signatures, and keeps the
+log with the journey's other logs. The sandbox's `close` reports them too.
+
+The baseline is a **ratchet** in the same spirit as the one above: each entry says why it stays, a fixed one is
+a deleted line, and a new error fails the journey that made it. A signature is copied from the failure exactly.
+
+### View-models that name WPF (`ViewModelWpfRatchetTests`)
+
+A view-model that names WPF has to be rewritten, not reused, when the views move to another UI toolkit.
+`ViewModelWpfRatchetTests` (in `Tests.Features.Architecture`) counts them: any C# file under
+`src/Nexaflow.Features` or a `src/Nexaflow.Visuals.*` library that sits in a `ViewModels` folder or whose name
+says `ViewModel`, and mentions `System.Windows` in its code — a `using` or a type written out in full; comments
+and string literals are not code. The ones that still do are listed in `Architecture/view-models-on-wpf.txt`:
+a new one fails, and a listed one that no longer names WPF fails until its line is deleted, so the count is the
+work left and only goes down. The UI thread, timers and the clipboard are reached through `IShellServices`.
+
 ## Conformance suites — one contract, every implementor
 
 Two contracts are written once in `Nexaflow.Tests.Features.Common` and inherited per implementor, rather
@@ -1039,11 +1096,11 @@ Every sample file is opened through the real shell and asserted to load in the e
 `SampleFileViewerTests` drives that off `ViewerMap.BySet`, so adding a fixture automatically adds its
 coverage — no per-file wiring.
 
-It runs as **three** tests, not one per file and not one for the lot: `MarkdownSamples_…`,
-`ImageSamples_…` and `OtherSamples_…`. One app launch per test amortises the whole corpus (a test per
-file would pay a launch per file), while the two heaviest families — markdown at a third
-of the corpus, images at a fifth — are pulled out so the suite has no single multi-minute block, a
-failure names which group broke, and a crash in one group leaves the others' results intact.
+It runs as **two** tests, not one per file and not one for the lot: `MarkdownSamples_…` and `OtherSamples_…`.
+One app launch per test amortises the whole corpus (a test per file would pay a launch per file). Together the
+families take about three and a half minutes, past the two a journey may take, so the heaviest — markdown, a third
+of the corpus — is pulled out: no test is a multi-minute block, a failure names which group broke, and a crash in
+one group leaves the other's results intact.
 
 A family with its own test must also be listed in `SampleFileViewerTests.OwnTest`, which is what
 excludes it from the tail; `Only(...)` refuses to sweep a family missing from that list, so the two
@@ -1087,7 +1144,7 @@ for that family. Writing the log is best-effort and can never fail a test.
 
 The dataset directory holds more folders than that table lists, on purpose. The `code`, `notebook` and
 `archive` sample sets exist for unit/feature tests but route through their feature's own UI tests
-(`CodeViewUiTests`, `NotebookViewUiTests`, `CompressedJourneyTests`), not the `SampleFileViewerTests` map
+(`CodeJourneyTests`, `NotebookViewUiTests`, `CompressedJourneyTests`), not the `SampleFileViewerTests` map
 above — so they have no `ViewerMap` row. And `ui/` is not a sample set at all: it is `UiFixtures.Root`,
 where the suite that owns each format leaves the material the journeys open. Counting up:
 `TestSampleData.Sets` has one entry per family, `ViewerMap.BySet` has a row only for the families whose

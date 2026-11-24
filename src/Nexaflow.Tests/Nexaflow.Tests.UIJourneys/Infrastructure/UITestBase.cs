@@ -173,13 +173,22 @@ public abstract class UITestBase
         // handler marks it handled so the app stays up, making the log the only trail. Opening/clicking
         // around the app must not trigger one — surface it as a test failure rather than a silent log.
         var crash = AppLaunchRecipe.ReadCrashLogs(_configDir);
-        if (crash is not null || TestContext?.CurrentTestOutcome is not UnitTestOutcome.Passed) KeepLogsOfFailure();
+
+        // So must a binding WPF could not resolve: it leaves its target at a default and says so only to a debugger.
+        var bindings = KnownBindingErrors.Unknown(AppLaunchRecipe.ReadBindingErrors(_configDir));
+        if (crash is not null || bindings.Count > 0 || TestContext?.CurrentTestOutcome is not UnitTestOutcome.Passed) KeepLogsOfFailure();
 
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
 
         if (!string.IsNullOrWhiteSpace(crash))
             Assert.Fail("The app logged an unhandled exception during this UI test — opening/clicking " +
                         $"triggered a crash:{Environment.NewLine}{crash}");
+
+        if (bindings.Count > 0)
+            Assert.Fail($"The app reported {bindings.Count} binding error(s) during this UI test that "
+                      + $"{Path.GetFileName(KnownBindingErrors.BaselineFile)} does not know — a binding names what its "
+                      + $"object does not have, or looks for what is not there:{Environment.NewLine}  "
+                      + string.Join(Environment.NewLine + "  ", bindings));
     }
 
     /// <summary>The shell's config, written before launch, with its safety log on and this build's what's-new already seen.</summary>
@@ -199,7 +208,7 @@ public abstract class UITestBase
     }
 
     /// <summary>
-    /// What the app wrote of a journey that failed — its crash logs, and its logs folder, the AI host's log among them where
+    /// What the app wrote of a journey that failed — its crash logs, its binding errors, and its logs folder, the AI host's log among them where
     /// <see cref="KeepsAppLog"/> — copied to <c>TestResults\journey-logs\&lt;test&gt;-&lt;time&gt;</c> before the isolated folder
     /// is deleted, so a failure seen once, in the sandbox or on CI, can be read after rather than guessed at.
     /// </summary>
@@ -209,6 +218,7 @@ public abstract class UITestBase
         {
             if (!Directory.Exists(_configDir)) return;
             var logs = Directory.EnumerateFiles(_configDir, "crash*.log")
+                .Concat(Directory.EnumerateFiles(_configDir, AppLaunchRecipe.BindingErrorsFile))
                 .Concat(Directory.Exists(Path.Combine(_configDir, "local", "logs")) ? Directory.EnumerateFiles(Path.Combine(_configDir, "local", "logs")) : [])
                 .ToList();
             if (logs.Count == 0) return;
@@ -318,7 +328,7 @@ public abstract class UITestBase
                 aiBox.Click();
                 System.Threading.Thread.Sleep(200);
                 Keyboard.Type(aiInputFallback);
-                Keyboard.Press(VirtualKeyShort.RETURN);
+                Keyboard.Type(VirtualKeyShort.RETURN);
                 System.Threading.Thread.Sleep(1500);
 
                 var found = MainWindow.FindFirstDescendant(

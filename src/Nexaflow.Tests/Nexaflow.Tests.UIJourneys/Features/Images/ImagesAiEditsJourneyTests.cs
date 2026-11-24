@@ -57,6 +57,7 @@ public class ImagesAiEditsJourneyTests : ImageEditJourneyBase
             return;
         }
         OwnedModelFolder.RequirePictureCheck(aiDir, AiDirVariable);
+        OwnedModelFolder.RequireModel(aiDir, "flux2-klein-4b", AiDirVariable);
         _aiDir = aiDir;
         var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
         var abilities = Path.Combine(configDir, "Contexts", "Default", "ai-abilities");
@@ -83,8 +84,10 @@ public class ImagesAiEditsJourneyTests : ImageEditJourneyBase
     }
 
     [TestMethod]
+    [SecondLaunch(SecondLaunchReason.SecondState, "The workspace's image model is FLUX.2 [klein] 4B from the app's own model folder; each image model is a workspace of its own, and without it the journey is inconclusive.")]
     public void APhoto_IsExpandedChangedFilledAndGrown_EachWhereItsEditLives_EachANewLayer()
     {
+
         Check("The photo opens in the Artist, on Reshape", () => WaitForId("ImageEditView", 15) is not null && WaitForId("Image_GroupCropExpand", 10) is not null);
         Check("Generate the new area lets the frame past the photo's edge", () => SetToggle("Image_EditCropGenerate", true) && WaitForFs(() => Exists("Image_EditCropGeneratePrompt"), 3));
         Check("Generate waits for the frame to reach past it", () => WaitForFs(() => !Enabled("Image_EditCropGenerateGo"), 2));

@@ -13,6 +13,7 @@ using Nexaflow.Features.Images.Services;
 using Nexaflow.Visuals.Common.Formatting;
 using Nexaflow.Visuals.Common.Localization;
 using SkiaSharp;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
@@ -26,7 +27,7 @@ public sealed partial class LayersViewModel : ObservableObject
 {
     /// <summary>The longest side a thumbnail is drawn at.</summary>
     public const int ThumbnailSide = 48;
-    private readonly IShellServices? _shell;
+    private readonly IShellServices _shell;
     private readonly Func<Action, Task> _runOnUi;
     private readonly Func<LayeredPicture, SKColorF> _colour;
     private LayeredSession? _document;
@@ -37,7 +38,7 @@ public sealed partial class LayersViewModel : ObservableObject
 
     /// <param name="colour">The colour a fill lays down: the colour chosen for markup.</param>
     /// <param name="colour">The colour a fill lays down, in a picture's values.</param>
-    public LayersViewModel(IShellServices? shell, Func<Action, Task> runOnUi, Func<LayeredPicture, SKColorF> colour)
+    public LayersViewModel(IShellServices shell, Func<Action, Task> runOnUi, Func<LayeredPicture, SKColorF> colour)
     {
         _shell = shell;
         _runOnUi = runOnUi;
@@ -741,7 +742,7 @@ public sealed partial class LayersViewModel : ObservableObject
         var kept = pixels.KeptWhere(selected);
         if (kept.Bounds is not { IsEmpty: false } area) return false;
         var png = ClipboardPng(kept, area);
-        PictureClipboard.CopyPng(png);
+        if (!_shell.Clipboard.Write(ComposedPayload.OfImage(png))) return false;
         _copied = (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png)), area, kept);
         return true;
     }
@@ -773,7 +774,7 @@ public sealed partial class LayersViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(HasDocumentNow))]
     private void Paste()
     {
-        if (_document is not { } document || PictureClipboard.ReadPng() is not { } png) return;
+        if (_document is not { } document || _shell.Clipboard.Read().Image() is not { } png) return;
         var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png));
         var name = Str.Get("Images.Layers.PastedName");
         // The picture copied here last comes back as deep as it was held, where it lay.

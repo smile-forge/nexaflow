@@ -71,7 +71,7 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
     public Task<bool> PerformActionAsync(IEnumerable<string> filePaths, bool force, CancellationToken ct = default)
     {
         // Delete what the row points at, not a temp copy of it — see ShellPath.RealForMutation.
-        var paths = new List<string>(Services.ShellPath.RealForMutation(filePaths));
+        var paths = new List<string>(new Services.ShellPath(_vfs).RealForMutation(filePaths));
         if (paths.Count == 0) return Task.FromResult(false);
 
         var queue = Operations.FileOperationQueue.For(_shell, _vfs);

@@ -197,12 +197,15 @@ The contract layer. Every feature depends on this; nothing else does.
 | File | Responsibility |
 |------|----------------|
 | `Page.cs` | Observable page/tab state: `Title`, `Icon`, `IsActive`, `Breadcrumbs`, `PageKind`, `PageParams`, `ViewModelFactory` delegate, the made `ViewModel`, `Reinitialize`, `Closed` event. Holds nothing of the view |
-| `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind` |
+| `BreadcrumbSegment.cs` | One crumb: label, drop-down children, same-tab `Navigate` action, or cross-tab `TargetPageKind`; the path it copies and the `Content` it stands for |
+| `BreadcrumbContent.cs` · `BreadcrumbDisplay.cs` · `IBreadcrumbDisplayFilter.cs` | What a crumb stands for (`PlaceContent`), how it reads (parts, separator, copy text, tooltip), and the per-runtime filters, stacked by `Order`, that restate the content each knows before the shell shortens it |
 | `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
 | `IPageViewModel.cs` | What a page is, implemented by its view-model: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`), `Reinitialize` (shown again with parameters) |
 | `PlaceholderViewModel.cs` | A page that only says why it is empty (a missing feature, nothing to open) |
-| `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`), `WatchFolder(path, onChanged)` (a folder's own entries through the shell's change notifications, sync providers' included → `FolderChange`, one registration per folder, torn down with the workspace) and `RunOnUiAsync(...)` (marshal work to the workspace UI thread). Features use these instead of `Application.Current.Dispatcher` |
+| `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`), `WatchFolder(path, onChanged)` (a folder's own entries through the shell's change notifications, sync providers' included → `FolderChange`, one registration per folder, torn down with the workspace), `RunOnUiAsync(...)` (marshal work to the workspace UI thread), `CreateUiTimer` / `CreateUiDelay` (a timer that repeats, or a delay that runs once each time it is started, ticking on the UI thread → `IUiTimer`) and `Clipboard` (→ `IShellClipboard`). Features use these instead of `Application.Current.Dispatcher`, `DispatcherTimer` and `System.Windows.Clipboard`, so a view-model names no UI toolkit |
 | `IFileWatch.cs` (under `Services/`) | Handle from `WatchFile`: `Enabled` (hold + coalesce while false, flush on re-enable), `Dispose` to unwatch |
+| `IUiTimer.cs`, `UiTimerPriority.cs` (under `Services/`) | Handle from `CreateUiTimer` / `CreateUiDelay`: `Interval` (changeable while running), `Start`/`Stop`, `Restart` (a debounce, with a delay), `Dispose` (never ticks again). `Background` priority for polls and debounces, `Render` for a tick that draws every frame |
+| `IShellClipboard.cs` (under `Services/`) | The clipboard: `Read()` gives what it holds as an `IDragPayload`, read with the same kinds and readers as a drop (`Text()`, `Image()`, `Files()`, `DragKinds.FilesCut`); `Write(payload)` puts a `ComposedPayload` (`OfText`, `OfImage`, `OfFiles`, `With`) there; `Clear()`. A write or clear returns false while another application holds the clipboard open — nothing throws. UI thread only. Windows' formats are written by `Visuals.Common`'s `WindowsDataObject`, as `WindowsDragPayload` reads them |
 | `IAIService.cs` | Per-`WorkspaceRuntime` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
 | `IBackgroundTask.cs` | Self-contained background work (`Description` + `RunAsync`) handed to `IShellServices.QueueBackgroundTask` |
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
@@ -343,7 +346,9 @@ BreadcrumbSegment
   ├── Children: List<string>          (drop-down picker items)
   ├── Navigate: Action?               (same-tab navigation)
   ├── TargetPageKind: string?         (cross-tab: shell opens/focuses that page kind)
-  └── TargetPageParams: Dict?
+  ├── TargetPageParams: Dict?
+  ├── Path: string?                   (what Copy path copies, unless a display filter restates it)
+  └── Content: BreadcrumbContent?     (what it stands for, read by the display filters)
 
 RibbonItem
   ├── Kind: Button | HalfGroup | Separator
@@ -464,8 +469,11 @@ Implement to handle typed input before it reaches the LLM. Handlers are **auto-d
 `FeatureCatalog` index and built per `WorkspaceRuntime` — there is **no registration step**. Scope is
 expressed inside `CanProcess`: the active page's ViewModel is passed in, so a page-scoped handler is
 just a type check returning 0 for pages it doesn't own, while an app-wide handler scores on the input
-alone. `Symbol` claims a single-character prefix for exact routing; otherwise scores compete and
-`IAIService.DisambiguateToolSelection` breaks ties.
+alone. `Symbol` claims a single-character prefix for exact routing, and when none of its owners claims the line the
+character was no prefix: whoever claims the line as typed has it (`/usr/bin/env` on a console). Otherwise scores
+compete. At 0.8 or more, clear of the next by 0.2, a handler wins with no model seeing the line; anything lower is the
+handler saying it is unsure, and `IAIService.DisambiguateToolSelection` decides, as it breaks ties — the console scores
+a line that could be a command or a request 0.5 for exactly that.
 
 ```csharp
 public sealed class MyQueryHandler : IQueryHandler

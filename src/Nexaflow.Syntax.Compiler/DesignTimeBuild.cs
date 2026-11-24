@@ -10,20 +10,18 @@ namespace Nexaflow.Syntax.Compiler;
 /// reference, analyzer, define and switch, resolved exactly as <c>dotnet build</c> would resolve them.
 /// <para>
 /// Asked for with <c>-getItem:CscCommandLineArgs</c> on the <c>Compile</c> target with compiler execution skipped,
-/// which is the same request an IDE makes to populate IntelliSense — so it writes nothing a build would not, and
-/// runs in about a second. The answer is kept on disk against the files that decide it (the project, its
-/// restore output, the <c>Directory.Build.*</c> files above it), so a fresh process does not pay for it again.
+/// which is the same request an IDE makes to populate IntelliSense — so it writes nothing a build would not. Who runs it
+/// is the caller's <see cref="IDesignTimeBuilder"/>: on warm workers it takes a quarter of a second, in an MSBuild of its
+/// own about a second. The answer is kept on disk against the files that decide it (the project, its restore output,
+/// the <c>Directory.Build.*</c> files above it), so a fresh process does not pay for it again.
 /// </para>
 /// </summary>
 internal static class DesignTimeBuild
 {
-    /// <summary>How long one project's design-time build may take before it counts as not loadable.</summary>
-    private static readonly TimeSpan Deadline = TimeSpan.FromMinutes(2);
-
     internal sealed record Arguments(IReadOnlyList<string> Args, string Stamp);
 
     /// <summary>The project's compiler arguments, from the cache when nothing that decides them has changed.</summary>
-    public static (Arguments? Arguments, string? Error) For(string csproj, CancellationToken cancellation)
+    public static (Arguments? Arguments, string? Error) For(string csproj, IDesignTimeBuilder builder, CancellationToken cancellation)
     {
         var stamp = StampOf(csproj);
         var cache = CacheFileFor(csproj);
@@ -37,7 +35,7 @@ internal static class DesignTimeBuild
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { }
 
-        var (args, error) = Run(csproj, cancellation);
+        var (args, error) = builder.CommandLineOf(csproj, cancellation);
         if (args is null) return (null, error);
 
         var answer = new Arguments(args, stamp);
@@ -50,71 +48,6 @@ internal static class DesignTimeBuild
 
         return (answer, null);
     }
-
-    private static (IReadOnlyList<string>? Args, string? Error) Run(string csproj, CancellationToken cancellation)
-    {
-        var info = new ProcessStartInfo("dotnet")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            UseShellExecute        = false,
-            CreateNoWindow         = true,
-            WorkingDirectory       = Path.GetDirectoryName(csproj)!,
-        };
-        foreach (var arg in new[]
-                 {
-                     "msbuild", csproj, "-t:Compile", "-getItem:CscCommandLineArgs", "-nologo", "-v:q",
-                     // No node reuse: a node left behind by the resident process would outlive it, holding files.
-                     "-nodeReuse:false",
-                     "-p:DesignTimeBuild=true", "-p:SkipCompilerExecution=true", "-p:ProvideCommandLineArgs=true",
-                     "-p:BuildProjectReferences=false",
-                     // CoreCompile is skipped when its outputs look current, and a skipped target hands out no command line. An input
-                     // that can never exist makes it always run - the same property the compiler's own workspace sets for this.
-                     @"-p:NonExistentFile=__NonExistentSubDir__\__NonExistentFile__",
-                 })
-            info.ArgumentList.Add(arg);
-        info.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
-        info.Environment["DOTNET_NOLOGO"] = "1";
-
-        using var process = Process.Start(info);
-        if (process is null) return (null, "dotnet could not be started");
-
-        var output = process.StandardOutput.ReadToEndAsync(cancellation);
-        var errors = process.StandardError.ReadToEndAsync(cancellation);
-
-        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        stop.CancelAfter(Deadline);
-        try { process.WaitForExitAsync(stop.Token).GetAwaiter().GetResult(); }
-        catch (OperationCanceledException)
-        {
-            try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-            return (null, cancellation.IsCancellationRequested ? "cancelled" : $"its design-time build took over {Deadline.TotalMinutes:F0} minutes");
-        }
-
-        var json = output.GetAwaiter().GetResult();
-        var start = json.IndexOf('{');
-        if (process.ExitCode != 0 || start < 0)
-            return (null, FirstError(json + "\n" + errors.GetAwaiter().GetResult())
-                          ?? $"its design-time build failed (exit {process.ExitCode})");
-
-        try
-        {
-            using var document = JsonDocument.Parse(json[start..]);
-            var items = document.RootElement.GetProperty("Items").GetProperty("CscCommandLineArgs");
-            var args  = items.EnumerateArray().Select(item => item.GetProperty("Identity").GetString() ?? "")
-                             .Where(arg => arg.Length > 0).ToList();
-            return args.Count > 0 ? (args, null) : (null, "its design-time build produced no compiler command line");
-        }
-        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
-        {
-            return (null, $"its design-time build's answer could not be read ({ex.Message})");
-        }
-    }
-
-    /// <summary>The first line of MSBuild output that says what went wrong — usually a missing restore.</summary>
-    private static string? FirstError(string output) =>
-        output.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Contains(": error ", StringComparison.Ordinal))
-            is { } line ? line : null;
 
     /// <summary>
     /// What the compiler arguments are a function of, as write times: the project, what restore produced for it, and

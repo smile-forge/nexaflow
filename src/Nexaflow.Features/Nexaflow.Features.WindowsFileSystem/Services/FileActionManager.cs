@@ -102,11 +102,15 @@ list.AddRange(TemplatedCreateRegistry.Instance.BuildCreateActions(_registry.Vfs)
         bool fullyBacked = selected.All(e =>
             Vfs.GetBacking(e.FullPath).IsFullyOnDisk());
 
+        // An action that changes files with Windows' own calls is not offered on a location, which changes only through itself.
+        bool onLocation = selected.Any(e => Vfs.IsOnLocation(e.FullPath));
+
         var filtered = new List<IFileAction>();
         for (int i = 0; i < file.Count; i++)
         {
             if (!canPerform[i]) continue;
             if (!fullyBacked && file[i].RequiresFullyBackedPath) continue;
+            if (onLocation && file[i].RequiresLocalFolder) continue;
             if (!HasRequiredCompanions(file[i], selected, _registry.Vfs)) continue;
             if (FileMatches(file[i], selected, anyDrives, multipleFiles, includeOptional))
                 filtered.Add(file[i]);
@@ -144,6 +148,10 @@ list.AddRange(TemplatedCreateRegistry.Instance.BuildCreateActions(_registry.Vfs)
         bool emptySelection = selected.Count == 0;
         bool anyDrives      = selected.Any(e => e.IsThisPcItem);
         bool multipleItems  = selected.Count > 1;
+        // An action that changes folders with Windows' own calls is not offered on a location, which changes only through itself.
+        bool onLocation     = emptySelection
+            ? currentFolderPath is not null && Vfs.IsOnLocation(currentFolderPath)
+            : selected.Any(e => Vfs.IsOnLocation(e.FullPath));
 
         var filtered = new List<IFileAction>();
         for (int i = 0; i < folder.Count; i++)
@@ -154,6 +162,7 @@ list.AddRange(TemplatedCreateRegistry.Instance.BuildCreateActions(_registry.Vfs)
             if (emptySelection && !action.AppliesToRoot) continue;
             if (!emptySelection && anyDrives && !action.AppliesToDrives) continue;
             if (multipleItems && !action.SupportsMultipleFiles) continue;
+            if (onLocation && action.RequiresLocalFolder) continue;
 
             if (!emptySelection)
             {

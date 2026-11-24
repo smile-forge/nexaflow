@@ -10,5 +10,11 @@ public enum EnvScope
     User,
 
     /// <summary>The machine-wide environment (HKLM). Applied via the elevated privilege bridge.</summary>
-    Machine
+    Machine,
+
+    /// <summary>A shell on another machine — a WSL distro's — as it runs: an <c>export</c> typed into it, as Session is.</summary>
+    Live,
+
+    /// <summary>That shell's startup file, so every new shell starts with the variable.</summary>
+    Startup
 }

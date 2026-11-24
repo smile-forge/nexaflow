@@ -1,12 +1,23 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
+using FlaUI.Core.WindowsAPI;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
+using Point = System.Drawing.Point;
 
 namespace Nexaflow.Tests.Features.Images.UI;
 
@@ -56,6 +67,19 @@ public abstract class ImageEditJourneyBase : UiJourneyTestBase
         Wait.UntilInputIsProcessed();
         Thread.Sleep(200);
         return true;
+    }
+
+    /// <summary>
+    /// Drags a rectangle, five wide to three high, centred on the canvas and reaching <paramref name="fraction"/> of its shorter
+    /// side either way. A number of pixels is a different amount of the picture on every screen: the sample photo is thirty-two
+    /// pixels across, fitted to a canvas a thousand pixels tall, and a marquee of forty screen pixels is three of its own.
+    /// </summary>
+    protected bool DragOnCanvasAcross(double fraction)
+    {
+        var canvas = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Image_EditCanvas"));
+        if (canvas is null) return false;
+        var reach = (int)(Math.Min(canvas.BoundingRectangle.Width, canvas.BoundingRectangle.Height) * fraction);
+        return DragOnCanvas(-reach, -reach * 3 / 5, reach, reach * 3 / 5);
     }
 
     /// <summary>Traces through <paramref name="points"/>, offsets from the canvas's centre, with the left button held — an
@@ -119,5 +143,17 @@ public abstract class ImageEditJourneyBase : UiJourneyTestBase
         if (FindInAppWindows(automationId)?.Patterns.ExpandCollapse.PatternOrDefault is not { } fold) return false;
         if (fold.ExpandCollapseState.Value != FlaUI.Core.Definitions.ExpandCollapseState.Expanded) fold.Expand();
         return WaitForFs(() => fold.ExpandCollapseState.Value == FlaUI.Core.Definitions.ExpandCollapseState.Expanded, 2);
+    }
+
+    /// <summary>
+    /// A new Artist tab from the ribbon, which shows the start screen while it holds no picture — the app opens into the draft's tab,
+    /// so a scenario that begins on the start screen opens its own.
+    /// </summary>
+    protected void OpenArtistStartScreen()
+    {
+        if (WaitForId("Ribbon_Artist", 10) is not { } artist) return;
+        if (artist.Patterns.Invoke.PatternOrDefault is { } invoke) invoke.Invoke();
+        else artist.Click();
+        Wait.UntilInputIsProcessed();
     }
 }

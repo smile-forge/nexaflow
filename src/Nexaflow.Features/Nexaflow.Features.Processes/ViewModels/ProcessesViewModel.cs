@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
@@ -10,6 +8,7 @@ using Nexaflow.Features.Processes.Models;
 using Nexaflow.Visuals.Common.Converters;
 using Nexaflow.Features.Processes.Services;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Processes.ViewModels;
 
@@ -25,7 +24,7 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
 
     private readonly IShellServices _shell;
     private readonly IProcessSource _source;
-    private readonly DispatcherTimer _timer;
+    private readonly IUiTimer _timer;
     private readonly Dictionary<int, ProcessRowViewModel> _rowsByPid = [];
     private readonly List<ProcessRowViewModel> _roots = [];
     private readonly List<double> _cpuBuf = [];
@@ -64,8 +63,7 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
     {
         _shell  = shell;
         _source = source;
-        _timer  = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += (_, _) => TriggerRefresh();
+        _timer  = shell.CreateUiTimer(TimeSpan.FromSeconds(1), TriggerRefresh);
         // The live 1s polling starts on activation (the view's Loaded) — no point polling a tab that isn't
         // visible. But take one bootstrap sample now, off the UI thread, so the page reports IsContextReady
         // even when it's only pinned as an AI context item and never shown (its view never Loads). Guarded
@@ -426,10 +424,7 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
         Copy(row.Path);
     }
 
-    private static void Copy(string text)
-    {
-        try { Clipboard.SetText(text); } catch { /* clipboard busy */ }
-    }
+    private void Copy(string text) => _shell.Clipboard.Write(ComposedPayload.OfText(text));
 
     // ── Hooks used by the AI tools ────────────────────────────────────────────────────────────────
     internal IReadOnlyList<ProcessRowViewModel> RowsSnapshot() => _rowsByPid.Values.ToList();
@@ -489,7 +484,7 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
 
     public void Dispose()
     {
-        _timer.Stop();
+        _timer.Dispose();
         (_source as IDisposable)?.Dispose();
     }
 }

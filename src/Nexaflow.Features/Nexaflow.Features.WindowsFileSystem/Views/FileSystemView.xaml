@@ -27,6 +27,32 @@
             </GridViewColumn.CellTemplate>
         </GridViewColumn>
 
+
+        <!-- ── POSIX columns: a location's permissions, owner and group ──
+             Placed after Modified, on a location that reports them only, by the view (PlacePosixColumns). -->
+        <GridViewColumn x:Key="PermissionsColumn" Width="96" Header="{loc:Str WindowsFileSystem.Columns.Permissions}">
+            <GridViewColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                    <TextBlock Text="{Binding PermissionsLabel}" FontFamily="Consolas"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                </DataTemplate>
+            </GridViewColumn.CellTemplate>
+        </GridViewColumn>
+        <GridViewColumn x:Key="OwnerColumn" Width="90" Header="{loc:Str WindowsFileSystem.Columns.Owner}">
+            <GridViewColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                    <TextBlock Text="{Binding Owner}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                </DataTemplate>
+            </GridViewColumn.CellTemplate>
+        </GridViewColumn>
+        <GridViewColumn x:Key="GroupColumn" Width="90" Header="{loc:Str WindowsFileSystem.Columns.Group}">
+            <GridViewColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                    <TextBlock Text="{Binding Group}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                </DataTemplate>
+            </GridViewColumn.CellTemplate>
+        </GridViewColumn>
+
         <!-- ── Define-New wizard local styles ──────────────────────────── -->
         <Style x:Key="WzInput" TargetType="TextBox">
             <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
@@ -423,6 +449,29 @@
                                     </Canvas>
                                 </Viewbox>
 
+                                <!-- A Linux beside Windows — a WSL distro: a penguin, tinted on its stroke. -->
+                                <Viewbox Width="13" Height="13"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Viewbox.Style>
+                                        <Style TargetType="Viewbox">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Kind}" Value="Drive"/>
+                                                        <Condition Binding="{Binding DriveIconType}" Value="Linux"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Viewbox.Style>
+                                    <Canvas Width="24" Height="24">
+                                        <Path Stroke="{StaticResource Drive.Linux}" StrokeThickness="1.6"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Data="M12,2.6 C9.7,2.6 8.4,4.4 8.4,6.7 C8.4,8 8.8,8.9 8.5,10.1 C8.1,11.6 6.5,12.9 6.1,15.2 C5.7,17.7 6.8,20 8.9,20.8 L15.1,20.8 C17.2,20 18.3,17.7 17.9,15.2 C17.5,12.9 15.9,11.6 15.5,10.1 C15.2,8.9 15.6,8 15.6,6.7 C15.6,4.4 14.3,2.6 12,2.6 Z M10.2,12.2 C9.3,13.8 9.1,15.9 9.7,17.6 C10.3,19.1 13.7,19.1 14.3,17.6 C14.9,15.9 14.7,13.8 13.8,12.2 M11,8.4 L13,8.4 L12,9.6 Z M10.7,6.2 L10.7,6.6 M13.3,6.2 L13.3,6.6 M7.6,21.2 L10.6,21.2 M13.4,21.2 L16.4,21.2"/>
+                                    </Canvas>
+                                </Viewbox>
                                 <!-- Drive status badge -->
                                 <TextBlock FontSize="7" HorizontalAlignment="Right" VerticalAlignment="Top">
                                     <TextBlock.Style>
@@ -636,6 +685,25 @@
                                                 </Canvas>
                                             </Viewbox>
 
+                                            <!-- A Linux beside Windows — a WSL distro: a penguin, tinted on its stroke. -->
+                                            <Viewbox Width="15" Height="15"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Viewbox.Style>
+                                                    <Style TargetType="Viewbox">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DriveIconType}" Value="Linux">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Viewbox.Style>
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Stroke="{StaticResource Drive.Linux}" StrokeThickness="1.6"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                                          Data="M12,2.6 C9.7,2.6 8.4,4.4 8.4,6.7 C8.4,8 8.8,8.9 8.5,10.1 C8.1,11.6 6.5,12.9 6.1,15.2 C5.7,17.7 6.8,20 8.9,20.8 L15.1,20.8 C17.2,20 18.3,17.7 17.9,15.2 C17.5,12.9 15.9,11.6 15.5,10.1 C15.2,8.9 15.6,8 15.6,6.7 C15.6,4.4 14.3,2.6 12,2.6 Z M10.2,12.2 C9.3,13.8 9.1,15.9 9.7,17.6 C10.3,19.1 13.7,19.1 14.3,17.6 C14.9,15.9 14.7,13.8 13.8,12.2 M11,8.4 L13,8.4 L12,9.6 Z M10.7,6.2 L10.7,6.6 M13.3,6.2 L13.3,6.6 M7.6,21.2 L10.6,21.2 M13.4,21.2 L16.4,21.2"/>
+                                                </Canvas>
+                                            </Viewbox>
                                             <!-- Drive status badge -->
                                             <TextBlock FontSize="8" HorizontalAlignment="Right" VerticalAlignment="Top">
                                                 <TextBlock.Style>
@@ -744,14 +812,29 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <!-- The shell's icon for the row, as Explorer draws it; its glyph until that arrives. -->
-                                        <vcc:FileIcon Width="20" Height="20" Margin="0,0,6,0" VerticalAlignment="Center"
-                                                      Path="{Binding FullPath}" IsFolder="{Binding IsDirectory}"
-                                                      NameOnly="{Binding InContainer}" Stamp="{Binding Modified}"/>
-                                        <TextBlock Text="{Binding Name}"
+                                        <!-- The shell's icon for the row, as Explorer draws it; its glyph until that arrives.
+                                             A link carries an arrow in its corner. -->
+                                        <Grid Width="20" Height="20" Margin="0,0,6,0" VerticalAlignment="Center">
+                                            <vcc:FileIcon Path="{Binding FullPath}" IsFolder="{Binding IsDirectory}"
+                                                          NameOnly="{Binding InContainer}" Stamp="{Binding Modified}"/>
+                                            <Border Width="10" Height="10" CornerRadius="5" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                                    Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                                                    Visibility="{Binding IsLink, Converter={StaticResource BoolToVis}}">
+                                                <Path Stroke="{StaticResource AccentBrush}" StrokeThickness="1.2" StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="None"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Data="M0,5 L5,0 M1.8,0 L5,0 L5,3.2"/>
+                                            </Border>
+                                        </Grid>
+                                        <TextBlock Text="{Binding ShownName}"
                                                    Foreground="{StaticResource TextBrush}"
                                                    FontSize="13" VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"/>
+                                        <!-- A link's target, after its name as ls -l shows it. -->
+                                        <TextBlock Text="{Binding LinkTargetLabel}" ToolTip="{Binding SymlinkTarget}"
+                                                   Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                                                   Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   Visibility="{Binding IsLink, Converter={StaticResource BoolToVis}}"/>
                                         <!-- A companion's badge: the file has one beside it (an edited photo's recipe). -->
                                         <TextBlock Text="{Binding Companion.Badge}" ToolTip="{Binding Companion.BadgeTooltip}"
                                                    Foreground="{StaticResource AccentBrush}" FontSize="12"
@@ -834,6 +917,27 @@
                     <TextBlock Text="{loc:Str WindowsFileSystem.List.Loading}"
                                Foreground="{StaticResource TextBrush}"
                                FontSize="13" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+    <!-- ── Listing failure: why the folder could not be read through, and a way to try again ── -->
+            <Border Grid.Row="1" Grid.Column="0"
+                    Panel.ZIndex="5"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MaxWidth="520"
+                    Background="{StaticResource Surface2Brush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8" Padding="18,12"
+                    Visibility="{Binding HasListingFailure, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding ListingFailureText}" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextBrush}" FontSize="13"/>
+                    <Button Content="{loc:Str WindowsFileSystem.List.Retry}"
+                            Style="{StaticResource WzSecondaryBtn}"
+                            Command="{Binding RetryListingCommand}"
+                            HorizontalAlignment="Right" Margin="0,10,0,0"
+                            AutomationProperties.AutomationId="FileListRetryButton"/>
                 </StackPanel>
             </Border>
 
