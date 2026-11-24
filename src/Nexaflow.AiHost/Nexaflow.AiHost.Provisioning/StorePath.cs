@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Nexaflow.AiHost.Provisioning;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace Nexaflow.AiHost.Provisioning;
 public static class StorePath
 {
     /// <summary>Whether <paramref name="relative"/> is a plain path inside a store.</summary>
-    public static bool IsPlain(string? relative)
+    public static bool IsPlain([NotNullWhen(true)] string? relative)
         => !string.IsNullOrWhiteSpace(relative) && !Path.IsPathRooted(relative) && !relative.Contains(':')
            && !relative.Split('/', '\\').Any(segment => segment is ".." or "." or "");
 
