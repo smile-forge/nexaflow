@@ -100,6 +100,11 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
         Assert.AreEqual(0, Run("msiexec", ["/i", _msi, "/qn", "/l*v", Path.Combine(_logs, "install.log")]).Exit, "the service's MSI installed");
         Assert.IsTrue(Until(() => Run("sc", ["query", Service]).Output.Contains("RUNNING"), TimeSpan.FromMinutes(2)), "the service runs once installed");
 
+        // What the service costs the machine with no app using it — Nexaflow is started after this: its supervisor alone, no worker
+        // holding a runtime.
+        RecordIdleFootprint();
+        Check("with no app using it, the service runs no worker", () => Process.GetProcessesByName("Nexaflow.AiHost").Length == 1);
+
         var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
         var abilities = Path.Combine(configDir, "Contexts", "Default", "ai-abilities");
         Directory.CreateDirectory(abilities);
@@ -124,10 +129,6 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
     [TestMethod]
     public void TheAiHostService_ServesNexaflowAndAnotherApp_OutlivesItsWorker_SaysWhenItCannotRun_AndGivesTheStoreBack()
     {
-        // What the service costs the machine with no app using it: its supervisor alone, no worker holding a runtime.
-        RecordIdleFootprint();
-        Check("with no app using it, the service runs no worker", () => Process.GetProcessesByName("Nexaflow.AiHost").Length == 1);
-
         // Installed: with the machine, as its own account, keeping the store that the earlier models were moved into.
         string config = Run("sc", ["qc", Service]).Output;
         Check("the service starts with the machine, whoever is signed in", () => config.Contains("AUTO_START"));
@@ -195,7 +196,7 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
     /// compute processes as its driver lists them — to <c>idle-footprint.txt</c> in the journey's results: a reading, not a check.</summary>
     private void RecordIdleFootprint()
     {
-        System.Threading.Thread.Sleep(TimeSpan.FromSeconds(15));   // the worker started and settled
+        System.Threading.Thread.Sleep(TimeSpan.FromSeconds(15));   // the service settled after starting, a worker it began by mistake there to be seen
         var lines = Process.GetProcessesByName("Nexaflow.AiHost")
                            .Select(p => $"process {p.Id}: working set {p.WorkingSet64 >> 20} MiB, private {p.PrivateMemorySize64 >> 20} MiB")
                            .ToList();
