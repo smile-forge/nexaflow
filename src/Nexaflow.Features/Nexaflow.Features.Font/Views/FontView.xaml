@@ -313,7 +313,7 @@
                                                 <Border Width="34" Height="34" Margin="2"
                                                         Background="{StaticResource Surface2Brush}" CornerRadius="4"
                                                         Cursor="Hand" ToolTip="{loc:Str Font.Glyphs.CopyTip}"
-                                                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                                     <Border.ContextMenu>
                                                         <ContextMenu>
                                                             <MenuItem Header="{loc:Str Font.Glyphs.Copy}"

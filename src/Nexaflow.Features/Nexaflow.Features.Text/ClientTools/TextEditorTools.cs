@@ -23,8 +23,9 @@ internal static class TextEditorTools
             ToolSafety.SafeOperation,
             (_, _) =>
             {
-                System.Windows.Clipboard.SetText(vm.GetVisibleText());
-                return Task.FromResult(ToolResult.Ok("copied", "Copied the visible text to the clipboard."));
+                return Task.FromResult(vm.CopyVisibleText()
+                    ? ToolResult.Ok("copied", "Copied the visible text to the clipboard.")
+                    : ToolResult.Error("clipboard busy", "Another application held the clipboard open, so nothing was copied."));
             }),
 
         new DelegateClientTool(

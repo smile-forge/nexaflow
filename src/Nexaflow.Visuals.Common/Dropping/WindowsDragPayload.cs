@@ -16,6 +16,9 @@ public sealed class WindowsDragPayload : IDragPayload
     private const string Descriptors = "FileGroupDescriptorW";
     private const string Png = "PNG";
 
+    /// <summary>How Windows says whether files on the clipboard were cut or copied: a little-endian <see cref="DragDropEffects"/>.</summary>
+    internal const string PreferredDropEffect = "Preferred DropEffect";
+
     private static readonly string[] LinkFormats = ["UniformResourceLocatorW", "UniformResourceLocator", "text/x-moz-url"];
 
     private readonly Dictionary<string, bool> _contains = new(StringComparer.Ordinal);
@@ -40,6 +43,7 @@ public sealed class WindowsDragPayload : IDragPayload
         return _contains[kind] = kind switch
         {
             DragKinds.Files        => Files().Length > 0,
+            DragKinds.FilesCut     => Files().Length > 0 && Cut(),
             DragKinds.FileContents => Contents().Count > 0,
             DragKinds.Link         => Link() is not null,
             DragKinds.Text         => Present(DataFormats.UnicodeText) || Present(DataFormats.Text),
@@ -56,6 +60,7 @@ public sealed class WindowsDragPayload : IDragPayload
         return kind switch
         {
             DragKinds.Files        => Files(),
+            DragKinds.FilesCut     => true,
             DragKinds.FileContents => Contents(),
             DragKinds.Link         => Link(),
             DragKinds.Text         => Text(),
@@ -67,6 +72,15 @@ public sealed class WindowsDragPayload : IDragPayload
 
     private string[] Files()
         => _files ??= Present(DataFormats.FileDrop) && Get(DataFormats.FileDrop) is string[] paths ? paths : [];
+
+    /// <summary>Whether the source said its files are to be moved where they land: Explorer's cut, and ours.</summary>
+    private bool Cut()
+    {
+        if (!Present(PreferredDropEffect) || Get(PreferredDropEffect) is not MemoryStream effect) return false;
+        var bytes = new byte[4];
+        effect.Position = 0;
+        return effect.Read(bytes, 0, 4) == 4 && ((DragDropEffects)BitConverter.ToInt32(bytes, 0)).HasFlag(DragDropEffects.Move);
+    }
 
     private IReadOnlyList<CarriedFile> Contents()
     {

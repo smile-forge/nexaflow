@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Solver.Palette;
 using Nexaflow.Features.Solver.Solving;
+using Nexaflow.Interaction;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -720,16 +721,8 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
 
     private void CopyToClipboard(string text)
     {
-        try
-        {
-            System.Windows.Clipboard.SetText(text);
-            _shell.ShowNotification(Str.Get("Solver.Result.Copied"));
-        }
-        catch (Exception)
-        {
-            // The clipboard is shared with every other process and can genuinely be locked. Losing
-            // a copy is not worth an error dialog.
-        }
+        // Another application can hold the clipboard for a moment; losing a copy is not worth an error dialog.
+        if (_shell.Clipboard.Write(ComposedPayload.OfText(text))) _shell.ShowNotification(Str.Get("Solver.Result.Copied"));
     }
 
     /// <summary>Pulls the LaTeX body out of a <c>$$…$$</c> block.</summary>

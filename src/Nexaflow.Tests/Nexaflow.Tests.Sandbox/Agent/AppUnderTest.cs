@@ -46,14 +46,19 @@ internal sealed class AppUnderTest(UIA3Automation automation) : IDisposable
         _app.Dispose();
         _app = null;
 
-        var crash = _configDir is null ? null : AppLaunchRecipe.ReadCrashLogs(_configDir);
+        var crash    = _configDir is null ? null : AppLaunchRecipe.ReadCrashLogs(_configDir);
+        var bindings = _configDir is null ? [] : AppLaunchRecipe.ReadBindingErrors(_configDir);
         try { if (_configDir is not null) Directory.Delete(_configDir, recursive: true); }
         catch (IOException) { /* TestTemp clears it when the agent exits */ }
         _configDir = null;
 
-        return crash is null
+        var said = crash is null
             ? "Closed Nexaflow. It logged no crash."
             : $"Closed Nexaflow. It logged an unhandled exception:{Environment.NewLine}{crash}";
+        return bindings.Count == 0
+            ? said
+            : $"{said}{Environment.NewLine}It reported {bindings.Count} binding error(s):{Environment.NewLine}  "
+              + string.Join(Environment.NewLine + "  ", bindings);
     }
 
     /// <summary>The shell window, AutomationId <c>MainWindow</c>; with <c>--uiTest</c> no wizard comes before it.</summary>

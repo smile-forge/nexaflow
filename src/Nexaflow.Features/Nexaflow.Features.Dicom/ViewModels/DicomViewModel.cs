@@ -5,7 +5,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FellowOakDicom;
@@ -33,7 +32,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     /// <summary>How the instances are read — through the runtime's file system, on disk, in an archive or on a location.</summary>
     private readonly DicomIo _io;
     private readonly Dictionary<string, string> _originParams;   // params that re-open THIS tab
-    private readonly DispatcherTimer _cineTimer;
+    private readonly IUiTimer _cineTimer;
     private readonly List<string> _tempReports = [];             // extracted report temp files, cleaned on dispose
     private readonly CancellationTokenSource _cts = new();
 
@@ -102,8 +101,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
         _io    = new DicomIo(vfs);
         _originParams = originParams;
 
-        _cineTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(100) };
-        _cineTimer.Tick += (_, _) => AdvanceFrame();
+        _cineTimer = shell.CreateUiTimer(TimeSpan.FromMilliseconds(100), AdvanceFrame);
 
         _ = LoadAsync();
     }
@@ -659,7 +657,7 @@ public sealed partial class DicomViewModel : ObservableObject, IPageViewModel, I
     {
         _cts.Cancel();
         _renderCts?.Cancel();
-        _cineTimer.Stop();
+        _cineTimer.Dispose();
         DeleteReports();
     }
 

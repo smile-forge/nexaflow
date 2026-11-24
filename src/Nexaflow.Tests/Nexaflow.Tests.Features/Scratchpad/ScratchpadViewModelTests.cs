@@ -35,7 +35,7 @@ public class ScratchpadViewModelTests
             Directory.Delete(_root, recursive: true);
     }
 
-    private ScratchpadViewModel NewVm(IShellServices? shell = null) => new(_config, _store, shell);
+    private ScratchpadViewModel NewVm(IShellServices? shell = null) => new(_config, _store, shell ?? Substitute.For<IShellServices>());
 
     /// <summary>A shell whose confirmation overlay auto-answers (confirm or cancel).</summary>
     private static IShellServices ShellWithConfirm(bool confirm)

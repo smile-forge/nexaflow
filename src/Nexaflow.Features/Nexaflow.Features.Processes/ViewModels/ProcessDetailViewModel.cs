@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Data;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.Models;
 using Nexaflow.Features.Processes.Services;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Converters;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -24,7 +24,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
 
     private readonly IShellServices _shell;
     private readonly IProcessSource _source;
-    private readonly DispatcherTimer _timer;
+    private readonly IUiTimer _timer;
     private readonly List<double> _cpuBuf = [];
     private int _pid;
     private bool _refreshing;
@@ -87,8 +87,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
         ThreadsView.Filter = o => PassesSearch(Sections.Threads, o);
         HandlesView.Filter = o => PassesSearch(Sections.Handles, o);
         ApplyModuleSort();
-        _timer  = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += (_, _) => TriggerRefresh();
+        _timer  = shell.CreateUiTimer(TimeSpan.FromSeconds(1), TriggerRefresh);
         // First read happens on activation (the view's Loaded), not at construction.
     }
 
@@ -282,7 +281,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     private void CopyText(string? text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        try { System.Windows.Clipboard.SetText(text); } catch { /* clipboard busy */ }
+        _shell.Clipboard.Write(ComposedPayload.OfText(text));
     }
 
     private static void Push(List<double> buf, double v)
@@ -350,7 +349,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
 
     public void Dispose()
     {
-        _timer.Stop();
+        _timer.Dispose();
         (_source as IDisposable)?.Dispose();
     }
 }

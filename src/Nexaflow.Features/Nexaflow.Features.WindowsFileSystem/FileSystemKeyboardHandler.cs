@@ -29,7 +29,7 @@ public sealed class FileSystemKeyboardHandler : IKeyboardHandler
         {
             (ConsoleKey.C, KeyModifiers.Control) => HasSelection,
             (ConsoleKey.X, KeyModifiers.Control) => HasSelection,
-            (ConsoleKey.V, KeyModifiers.Control) => NativeMethods.ClipboardHasFiles(),
+            (ConsoleKey.V, KeyModifiers.Control) => _viewModel.ClipboardHoldsFiles,
             (ConsoleKey.Delete, KeyModifiers.None)  => HasSelection,
             (ConsoleKey.Delete, KeyModifiers.Shift) => HasSelection,
             // Shift+Enter opens the selected entry — the keyboard equivalent of double-clicking its row.

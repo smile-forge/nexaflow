@@ -1,0 +1,147 @@
+{
+  "branch": "claude/viewmodel-wpf-ratchet",
+  "nodes": {
+    "binding-error-log": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/BindingErrorLog.cs",
+          "class": "BindingErrorLog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Infrastructure/KnownBindingErrors.cs",
+          "class": "KnownBindingErrors"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BindingErrorLogTests.cs",
+            "class": "BindingErrorLogTests"
+          }
+        ]
+      }
+    },
+    "images-copy": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "CopyPicture"
+        }
+      ]
+    },
+    "copy-glyph": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Font/ViewModels/FontViewModel.cs",
+          "class": "FontViewModel",
+          "method": "CopyGlyph"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Font/FontViewModelTests.cs",
+            "class": "FontViewModelTests",
+            "method": "CopyGlyph_PutsTheCellOnTheClipboard_AndIgnoresAnEmptyOne"
+          }
+        ]
+      }
+    },
+    "shell-ui-timers": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Services/IUiTimer.cs",
+          "class": "IUiTimer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/DispatcherUiTimer.cs",
+          "class": "DispatcherUiTimer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/DispatcherUiTimerTests.cs",
+            "class": "DispatcherUiTimerTests"
+          }
+        ]
+      }
+    },
+    "shell-clipboard": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Services/IShellClipboard.cs",
+          "class": "IShellClipboard"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellClipboard.cs",
+          "class": "ShellClipboard"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Dropping/WindowsDataObject.cs",
+          "class": "WindowsDataObject"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/ComposedPayload.cs",
+          "class": "ComposedPayload"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Dropping/WindowsDataObjectTests.cs",
+            "class": "WindowsDataObjectTests"
+          }
+        ]
+      }
+    },
+    "interaction": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/IDropTarget.cs",
+          "class": "IDropTarget"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/IDragPayload.cs",
+          "class": "IDragPayload"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/KeyModifiers.cs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/ComposedPayload.cs",
+          "class": "ComposedPayload"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 10,
+  "touched_nodes": [
+    "binding-error-log",
+    "copy-glyph",
+    "images-copy",
+    "interaction",
+    "shell-clipboard",
+    "shell-ui-timers"
+  ]
+}

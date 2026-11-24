@@ -1756,7 +1756,7 @@
                                           CommandParameter="{Binding}"/>
                         </Border.InputBindings>
                         <GridViewRowPresenter
-                            Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
+                            Columns="{TemplateBinding GridView.ColumnCollection}"
                             Content="{TemplateBinding Content}"/>
                     </Border>
                     <ControlTemplate.Triggers>

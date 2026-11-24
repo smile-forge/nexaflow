@@ -12,6 +12,7 @@ using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.SceneDepth;
 using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Features.Images.Services;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.OpenRaster;
 using Nexaflow.Visuals.Common.Drafts;
@@ -26,7 +27,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 
 namespace Nexaflow.Features.Images.ViewModels;
 
@@ -42,11 +42,11 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     /// <summary>A layered picture this many pixels, layers counted, or more, saves among the workspace's jobs, with its progress.</summary>
     private const long LargeDocumentPixels = 64L * 1024 * 1024;
 
-    private readonly IShellServices? _shell;
+    private readonly IShellServices _shell;
     private readonly ImageEditingServices _editing;
     private readonly ImagesConfig _config;
     private readonly CancellationTokenSource _cts = new();
-    private readonly DispatcherTimer _documentSave;
+    private readonly IUiTimer _documentSave;
 
     /// <summary>What the assistant can do here.</summary>
     private readonly ArtistTools _tools;
@@ -63,7 +63,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     /// <param name="selection">Picture selection, where the app has it: what Cut out and Erase pick things out with.</param>
     /// <param name="erasing">Picture erasing, where the app has it: Erase's AI fill.</param>
     /// <param name="editing">The editing engine the registration shares across its tabs; the page does not own it.</param>
-    public ArtistViewModel(string? path, IShellServices? shell, ImageEditingServices editing, IAIService? ai = null,
+    public ArtistViewModel(string? path, IShellServices shell, ImageEditingServices editing, IAIService? ai = null,
                            IPictureTools? pictures = null, IPictureSelection? selection = null, IPictureErasing? erasing = null,
                            ImagesConfig? config = null)
     {
@@ -81,8 +81,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
         Stage.Decoded         += OnDecoded;
         Stage.LayerToolMade   += ScheduleDocumentSave;
 
-        _documentSave = new DispatcherTimer(DispatcherPriority.Background) { Interval = DocumentSaveDelay };
-        _documentSave.Tick += (_, _) => { _documentSave.Stop(); SaveDocument(); };
+        _documentSave = shell.CreateUiDelay(DocumentSaveDelay, SaveDocument);
 
         var runOnUi = Stage.RunOnUi;
         Cutter = new PictureCutter(editing, selection, shell, runOnUi, Stage.Models);
@@ -446,7 +445,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     [RelayCommand(CanExecute = nameof(HasSession))]
     private void PasteAsLayer()
     {
-        if (!PictureClipboard.HoldsPicture() || MakeLayered() is null) return;
+        if (!_shell.Clipboard.Read().Contains(DragKinds.Image) || MakeLayered() is null) return;
         Layers.PasteCommand.Execute(null);
     }
 
@@ -490,7 +489,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private void CloseDocument()
     {
         if (CurrentDocument is not { } document) return;
-        if (_documentSave.IsEnabled)
+        if (_documentSave.IsRunning)
         {
             _documentSave.Stop();
             SaveDocument();
@@ -506,8 +505,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     private void ScheduleDocumentSave()
     {
         if (CurrentDocument is null) return;
-        _documentSave.Stop();
-        _documentSave.Start();
+        _documentSave.Restart();
     }
 
     /// <summary>
@@ -766,7 +764,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     {
         Cutter.Close();
         CloseDocument();
-        _documentSave.Stop();
+        _documentSave.Dispose();
         _cts.Cancel();
         Stage.Show(null);
         _session?.Dispose();

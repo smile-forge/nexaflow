@@ -24,7 +24,6 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Data;
-using System.Windows.Threading;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Shell;
@@ -32,6 +31,7 @@ using Nexaflow.IO.Common.Cloud;
 using Nexaflow.IO.Common.Listing;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Icons;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -103,7 +103,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     // Debounce timer — action strip is only rebuilt after input has been idle
     // for a short interval, so rapid selection changes (including double-clicks)
     // never stall the UI thread.
-    private readonly DispatcherTimer _actionDebounceTimer = new(DispatcherPriority.Background);
+    private readonly IUiTimer _actionDebounceTimer;
     private IReadOnlyList<FileSystemEntry> _pendingSelection = [];
 
     // ── Multi-selection (forwarded from view) ─────────────────────────────────
@@ -722,10 +722,8 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     /// Fires on the UI (STA) thread after input has been idle for 150 ms.
     /// Does the clipboard check and rebuilds the action strip.
     /// </summary>
-    private async void OnActionDebounceTimer(object? sender, EventArgs e)
+    private async void OnActionDebounceTimer()
     {
-        _actionDebounceTimer.Stop();
-
         var selected = _pendingSelection;
 
         // Snapshot CanPerformAction here on the STA UI thread (OLE clipboard).
@@ -984,7 +982,6 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
                                IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
         : this(shell, ai, configs, vfs)
     {
-        InitDebounceTimer();
         _rootPath = targetDirectory;
         BuildDirectoryTree(targetDirectory);
         BrowseToAsync(targetDirectory);
@@ -996,7 +993,6 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     {
         using var _t = Timing.Measure("ThisPC.CreateThisPc (total, UI thread)");
         var vm = new FileSystemViewModel(shell, ai, configs, vfs);
-        vm.InitDebounceTimer();
         vm._rootPath     = string.Empty;
         vm._isThisPcMode = true;
         vm.CurrentPath   = string.Empty;
@@ -1156,6 +1152,8 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
                                 IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
     {
         _shell          = shell;
+        // The action strip is rebuilt once the selection settles.
+        _actionDebounceTimer = shell.CreateUiDelay(TimeSpan.FromMilliseconds(150), OnActionDebounceTimer);
         _ai             = ai;
         Vfs             = vfs;
         Registry        = FileSystemFeatureRegistry.For(shell, ai, configs, vfs);
@@ -1179,12 +1177,6 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
         => inContainer
             ? actions.Where(a => a is not FolderActionAdapter fa || fa.Inner.AppliesInsideArchive).ToList()
             : actions;
-
-    private void InitDebounceTimer()
-    {
-        _actionDebounceTimer.Tick    += OnActionDebounceTimer;
-        _actionDebounceTimer.Interval = TimeSpan.FromMilliseconds(150);
-    }
 
     // ── Tree ─────────────────────────────────────────────────────────────────
 
@@ -2227,5 +2219,8 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
         if (IsLoadingEntries) { _resortPending = true; return; }
         ResortEntries();
     }
+
+    /// <summary>Whether the clipboard holds files a paste here would bring in.</summary>
+    public bool ClipboardHoldsFiles => _shell.Clipboard.Read().Contains(DragKinds.Files);
 
 }

@@ -7,7 +7,6 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -46,7 +45,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
     /// <summary>The current track as a file on this disk — asked once per track, by playback and the track's details alike.</summary>
     private Task<string>? _local;
     private readonly AudioConfig _config;
-    private readonly DispatcherTimer _renderTimer;
+    private readonly IUiTimer _renderTimer;
 
     private AudioPlaybackEngine? _engine;
     private string? _engineLoadedPath;
@@ -73,8 +72,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
         _backgroundPlay = config.BackgroundPlay;
         _autoPlayPending = autoPlay && _paths.Count > 0;
 
-        _renderTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
-        _renderTimer.Tick += (_, _) => OnRenderTick();
+        _renderTimer = shell.CreateUiTimer(TimeSpan.FromMilliseconds(33), OnRenderTick, UiTimerPriority.Render);
 
         BuildPlaylist();
     }
@@ -935,7 +933,7 @@ public sealed partial class AudioViewModel : ObservableObject, IPageViewModel, I
 
         _mediatedHandle?.Dispose();   // remove the chrome remote if the tab is closed while backgrounded
         _mediatedHandle = null;
-        _renderTimer.Stop();
+        _renderTimer.Dispose();
         _engine?.Dispose();
         _engine = null;
 

@@ -9,6 +9,7 @@ using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Features.Images.Services;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Theming;
 using SkiaSharp;
@@ -40,7 +41,7 @@ public partial class ImageEditorViewModel : ObservableObject
     private const double MinShape = 4;
 
     private readonly ArtistViewModel _viewer;
-    private readonly IShellServices? _shell;
+    private readonly IShellServices _shell;
     private readonly ImageEditingServices _services;
 
     private readonly PhotoRestorer _restorer;
@@ -248,8 +249,7 @@ public partial class ImageEditorViewModel : ObservableObject
         {
             if (await Cutter.CutOutAsync(MarkedRegion, CancellationToken.None) is { } png)
             {
-                PictureClipboard.CopyPng(png);
-                _shell?.ShowNotification(Str.Get("Images.CutOut.Copied"));
+                if (_shell.Clipboard.Write(ComposedPayload.OfImage(png))) _shell.ShowNotification(Str.Get("Images.CutOut.Copied"));
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or InvalidDataException or System.Runtime.InteropServices.ExternalException)
@@ -436,7 +436,7 @@ public partial class ImageEditorViewModel : ObservableObject
         if (CutOutWay == CutOutMarkWay.Distance && !DepthModels.IsReady) CutOutWay = CutOutMarkWay.Marquee;
     }
 
-    internal ImageEditorViewModel(ArtistViewModel viewer, IShellServices? shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
+    internal ImageEditorViewModel(ArtistViewModel viewer, IShellServices shell, ImageEditingServices services, PhotoRestorer restorer, BackgroundRemover remover,
                                   PictureCutter cutter, PhotoEraser eraser, PictureModels models, ModelsGate picking, ModelsGate erasing, ModelsGate restoring,
                                   ModelsGate depth)
     {
