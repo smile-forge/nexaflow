@@ -92,6 +92,17 @@ internal sealed class OwnedModelRuntime(IBackgroundActivityManager activities, I
     /// <summary>It has a build for this machine, and that build's files are here and verified.</summary>
     public bool IsHere(HostedEntry model) => model.RunsOn(ExecutionProvider) && CatalogOf(model).Files.All(assets.Has);
 
+    /// <summary>Whether this app's models can run now: the host they run in can be reached (<see cref="IAiHost.Unreachable"/>) — the
+    /// machine's AI host service, where it is installed, is running and this app's to use.</summary>
+    public bool Reachable => host.Unreachable is null;
+
+    /// <summary>Raised when the host becomes reachable or unreachable: whether each model can run follows it.</summary>
+    public event EventHandler? ReachabilityChanged
+    {
+        add => host.ReachabilityChanged += value;
+        remove => host.ReachabilityChanged -= value;
+    }
+
     /// <summary>Everything the model needs to run here is here: its files, and the CUDA pack where it suits the machine.</summary>
     public bool IsReady(HostedEntry model) => IsHere(model) && (!CudaRuntimePack.Applies(hardware) || CudaRuntimePack.IsIn(assets));
 

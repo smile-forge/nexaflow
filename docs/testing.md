@@ -449,12 +449,16 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
       and back. `NEXAFLOW_TEST_MEASUREMENTS` names a file their numbers are appended to.
     - **The AI host service, installed** *(`AiHostServiceJourneyTests` in `Tests.UIJourneys`, `TestCategory("Machine")`)* —
       installs the built `aihostSetup` MSI, so it runs only in Windows Sandbox and is inconclusive anywhere else; build the
-      solution and `aihostSetup` first. From the outside, as a machine gets it: the service runs with the machine under its
-      own account and keeps the store, every user reading; the SDK's sample, given no host of its own, joins it, has it fetch
-      its model and answers; a worker killed under it is replaced and the sample joins the next; with the service stopped, the
-      sample has no host — none of its own in the service's place — and says why; and uninstalling gives the store back to every
-      user, the sample's own host then running what the store holds. The sample's model
-      is fetched in the sandbox the first time, a few GB. What each step ran writes to `TestResults\aihost-service\`.
+      solution and `aihostSetup` first, and name the test store, `NEXAFLOW_TEST_STORE`, holding Gemma 4 26B A4B and the CUDA
+      pack. From the outside, as a machine gets it: the model and the pack, copied into the sandbox user's earlier model
+      folder, are moved into the service's store as it installs; the service runs with the machine under its own account and
+      keeps the store, every user reading; Nexaflow — started as a journey's app, yet joining the service
+      (`NEXAFLOW_TEST_JOIN_SERVICE=1`) — answers from it, and Settings show the service's memory share, read-only; the SDK's
+      sample, given no host of its own, answers from the same service; a worker killed under them is replaced; with the
+      service stopped, the AI's line says Nexaflow's own models cannot run, and why (`AiBar_LocalAiNotice`), and the sample
+      has no host — none of its own in the service's place; back, the line clears and Nexaflow answers again; and
+      uninstalling gives the store back to every user, an app's own host then running what the store holds. What each tool it
+      ran said is written to `TestResults\aihost-service\`.
 - **`ImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host drawing with Z-Image Turbo's real
   graphs, `z-image-turbo` from the test store, on the CUDA pack there — the model is built for the GPU only. They assert a
   drawing's shape: its

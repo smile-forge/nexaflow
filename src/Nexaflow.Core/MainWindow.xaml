@@ -667,7 +667,12 @@
         </ControlTemplate>
     </Button.Template>
 </Button>
-                        <vcc:TailClip Margin="8,0" VerticalAlignment="Center">
+<!-- With nothing else to say: why the workspace's models of Nexaflow's own cannot run — their host out of reach. -->
+<TextBlock AutomationProperties.AutomationId="AiBar_LocalAiNotice" Margin="8,0" VerticalAlignment="Center" FontSize="13"
+           Text="{Binding LocalAiNotice}" ToolTip="{Binding LocalAiNotice}" TextTrimming="CharacterEllipsis"
+           Foreground="{StaticResource WarningBrush}"
+           Visibility="{Binding ShowsLocalAiNotice, Converter={StaticResource BoolVis}}"/>
+<vcc:TailClip Margin="8,0" VerticalAlignment="Center">
 <TextBlock AutomationProperties.AutomationId="AiBar_VoiceReply" FontSize="13">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">

@@ -83,6 +83,23 @@ public class OwnedLlmProviderTests
     }
 
     [TestMethod]
+    public void TheModel_IsUnavailableWhileItsHostIsOutOfReach_SayingSoAsItGoesAndComes()
+    {
+        var host = new FakeAiHost();
+        var provider = Provider(new FakeModelStore(Gemma.Files), host);
+        int changes = 0;
+        provider.AvailabilityChanged += (_, _) => changes++;
+        Assert.IsTrue(provider.IsAvailable);
+
+        host.Unreachable = "The AI host service is installed but not running.";
+        Assert.IsFalse(provider.IsAvailable, "its files are here, but nothing can run it");
+
+        host.Unreachable = null;
+        Assert.IsTrue(provider.IsAvailable);
+        Assert.AreEqual(2, changes, "told as it went, and as it came back");
+    }
+
+    [TestMethod]
     public async Task AConversation_GoesToTheHostWhole_AndItsReplyStreamsBack()
     {
         var host = new FakeAiHost();

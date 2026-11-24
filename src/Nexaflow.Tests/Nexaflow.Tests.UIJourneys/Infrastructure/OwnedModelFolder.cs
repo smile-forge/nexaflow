@@ -34,24 +34,30 @@ public static class OwnedModelFolder
     /// </summary>
     public static void RequireModel(string aiDir, string modelId, string variable, params string[] loras)
     {
-        var catalogue = Path.Combine(Nexaflow.Tests.Fixtures.TestSampleData.RepoRoot, "src", "Nexaflow.Providers", "Nexaflow.Providers.AiHost", "owned-models.json");
+        var missing = FilesOf(modelId, loras)
+                           .Where(path => !File.Exists(Path.Combine(aiDir, path)) || !File.Exists(Path.Combine(aiDir, path) + ".verified"))
+                           .ToList();
+        if (missing.Count > 0)
+            Assert.Inconclusive($"{variable} holds {modelId} as an older build kept it: {missing.Count} file(s) this build's catalogue lists are not there or "
+                              + $"not verified (first: {missing[0]}). A journey's app downloads nothing; the app fetches them into its own store when a picture is made with it.");
+    }
+
+    /// <summary>The files the AI host's catalogue lists for <paramref name="modelId"/>, and for each of its LoRAs <paramref name="loras"/>
+    /// names — a LoRA is listed beside the model, not among its files — each by its path in a store.</summary>
+    /// <exception cref="InvalidOperationException">The catalogue lists no such model.</exception>
+    public static IReadOnlyList<string> FilesOf(string modelId, params string[] loras)
+    {
+        var catalogue = Path.Combine(Nexaflow.Tests.Fixtures.TestSampleData.RepoRoot, "src", "Nexaflow.AiHost", "Nexaflow.AiHost.Catalog", "models.json");
         using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(catalogue));
         var model = document.RootElement.GetProperty("models").EnumerateArray()
                             .FirstOrDefault(m => m.GetProperty("id").GetString() == modelId);
         if (model.ValueKind != System.Text.Json.JsonValueKind.Object)
             throw new InvalidOperationException($"The catalogue lists no model '{modelId}'.");
 
-        // The model's own files, and those of each LoRA the journey draws with: a LoRA is listed beside the model, not among its files.
         var wanted = model.GetProperty("files").EnumerateArray().Concat(
             model.TryGetProperty("loras", out var all)
                 ? all.EnumerateArray().Where(lora => loras.Contains(lora.GetProperty("id").GetString())).SelectMany(lora => lora.GetProperty("files").EnumerateArray())
                 : []);
-        var missing = wanted
-                           .Select(file => file.GetProperty("path").GetString()!.Replace('/', Path.DirectorySeparatorChar))
-                           .Where(path => !File.Exists(Path.Combine(aiDir, path)) || !File.Exists(Path.Combine(aiDir, path) + ".verified"))
-                           .ToList();
-        if (missing.Count > 0)
-            Assert.Inconclusive($"{variable} holds {modelId} as an older build kept it: {missing.Count} file(s) this build's catalogue lists are not there or "
-                              + $"not verified (first: {missing[0]}). A journey's app downloads nothing; the app fetches them into its own store when a picture is made with it.");
+        return [.. wanted.Select(file => file.GetProperty("path").GetString()!.Replace('/', Path.DirectorySeparatorChar))];
     }
 }

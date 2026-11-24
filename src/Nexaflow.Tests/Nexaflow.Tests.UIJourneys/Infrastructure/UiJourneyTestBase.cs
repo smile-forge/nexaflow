@@ -188,6 +188,21 @@ public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
         return el;
     });
 
+    /// <summary>Types <paramref name="text"/> into the AI bar once it takes input, checks it arrived whole, and sends it: true once the box
+    /// has emptied, the request taken.</summary>
+    protected bool AskTheAiBar(string text)
+    {
+        var bar = WaitForId("AiInputBox", 10);
+        if (bar is null || !WaitForFs(() => bar.IsEnabled, 30)) return false;
+        bar.Click();
+        Keyboard.Type(text);
+        Wait.UntilInputIsProcessed();
+        if (!bar.AsTextBox().Text.Contains(text, StringComparison.Ordinal) || !InFront()) return false;
+        Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.RETURN);
+        Wait.UntilInputIsProcessed();
+        return WaitForFs(() => bar.AsTextBox().Text.Length == 0, 10);
+    }
+
     /// <summary>Runs an arbitrary check, recording a failure if it throws or returns false.</summary>
     protected void Check(string label, Func<bool> assertion) => Timed(label, () =>
     {

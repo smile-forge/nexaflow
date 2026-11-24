@@ -474,8 +474,10 @@ public partial class App : Application
                                                  memoryShare: memoryShare,
                                                  logDirectory: () => ShellSafetyLog.Instance.Folder,
                                                  downloads: !UiTest);
-        // A run on a store of its own, or under a UI test, keeps to a host of its own: the service's store is the machine's.
-        _aiHost = new AiHostClient(launcher, app: "Nexaflow", service: testStore is null && !UiTest ? AiHostService.Machine : null);
+        // A run on a store of its own, or under a UI test, keeps to a host of its own: the service's store is the machine's. A journey of
+        // the service itself joins it as the app does.
+        bool joins = testStore is null && !UiTest || Environment.GetEnvironmentVariable("NEXAFLOW_TEST_JOIN_SERVICE") == "1";
+        _aiHost = new AiHostClient(launcher, app: "Nexaflow", service: joins ? AiHostService.Machine : null);
         // A host's end is recorded only while the user keeps logs; the request it took down fails on its own.
         _aiHost.HostExited += (_, e) => ShellSafetyLog.Instance.AiHostEnded(e);
         return _aiHost;

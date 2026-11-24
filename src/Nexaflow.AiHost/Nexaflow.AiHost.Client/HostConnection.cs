@@ -198,6 +198,10 @@ internal sealed class HostConnection : IAsyncDisposable
     /// may be starting — after a crash, or to take up a new runtime.</summary>
     private static readonly TimeSpan WelcomeTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>Why an app on a machine whose AI host service is stopped has no host.</summary>
+    internal const string ServiceNotRunning = "The AI host service is installed but not running. Start the Smile-forge AI host service, "
+                                              + "or uninstall it for this app to run models itself.";
+
     /// <summary>
     /// Joins the machine's AI host service, which is installed: connects to its pipe, checks the process that answers is the service's own
     /// — so nothing that took the pipe's name is ever spoken to — and says hello as <paramref name="app"/>. An app on a machine with the
@@ -208,9 +212,7 @@ internal sealed class HostConnection : IAsyncDisposable
     public static async Task<HostConnection> JoinAsync(IAiHostService service, string app, AiHostTimings timings, TimeProvider time,
                                                        EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
     {
-        if (service.RunningProcessId() is not { } processId)
-            throw Unavailable("The AI host service is installed but not running. Start the Smile-forge AI host service, or uninstall it for "
-                              + "this app to run models itself.");
+    if (service.RunningProcessId() is not { } processId) throw Unavailable(ServiceNotRunning);
         // The host reads which account this app runs as from the pipe itself: the app lets it identify that account, and no more. It asks
         // to read and write, and no more: the service's pipe grants a client nothing else.
         var pipe = new NamedPipeClientStream(".", service.PipeName, PipeAccessRights.ReadWrite, PipeOptions.Asynchronous,

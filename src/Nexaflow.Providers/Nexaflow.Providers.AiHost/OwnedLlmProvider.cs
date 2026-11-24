@@ -36,6 +36,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
         _model   = OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
         _runtime.MadeWayChanged += OnMadeWayChanged;
+        _runtime.ReachabilityChanged += (_, _) => AvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public string Name => ProviderName;
@@ -57,7 +58,7 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
         => OwnedModels.OfKind(ModelKind.Language).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
     /// <summary>Its files are here and verified.</summary>
-    public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
+    public bool IsAvailable => _model is not null && _runtime.Reachable && _runtime.IsHere(_model);
 
     public bool IsMakingWay => _model is not null && _runtime.IsMakingWay(_model);
 

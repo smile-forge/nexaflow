@@ -539,6 +539,9 @@ public sealed class AIService : IAIService
             => provider is ILocalModelCatalog local && local.Catalog.FirstOrDefault(m => m.Id == model) is { } entry ? entry.DisplayName : model;
     }
 
+    /// <summary>Whether the workspace's ability grid names any model of Nexaflow's own — what the host being out of reach takes away.</summary>
+    public bool UsesOwnModels => OwnedModelsInUse().Count > 0;
+
     public Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default)
     => ProviderManager.Instance.Service<HostHolds>() is { } holds
     ? LocalAiSetupReader.DescribeAsync(holds, OwnedModelsInUse(),

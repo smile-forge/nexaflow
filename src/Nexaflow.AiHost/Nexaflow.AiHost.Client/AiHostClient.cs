@@ -40,6 +40,7 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
         _app      = app ?? System.Diagnostics.Process.GetCurrentProcess().ProcessName;
         _timings  = timings ?? AiHostTimings.Default;
         _time     = time ?? TimeProvider.System;
+        if (service is not null) _watching = Task.Run(() => WatchServiceAsync(service));
     }
 
     /// <summary>A host this app started exited without being asked to — crashed, killed by a watchdog, or ended by its own error.
@@ -143,7 +144,17 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
             // service is installed it is the only host: one that cannot be joined is no host, saying why, and none is started in its place.
             if (_service is { } service && service.IsInstalled())
             {
-                var joined = await Task.Run(() => HostConnection.JoinAsync(service, _app, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
+                HostConnection joined;
+                try
+                {
+                    joined = await Task.Run(() => HostConnection.JoinAsync(service, _app, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
+                }
+                catch (AiHostException ex)
+                {
+                    Reach(ex.Message);
+                    throw;
+                }
+                Reach(null);
                 _joinedLast = true;
                 if (joined.Memory is { } served) Volatile.Write(ref _serviceMemory, served);
                 return Keep(joined);
@@ -159,6 +170,49 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
             return Keep(own);
         }
         finally { _starting.Release(); }
+    }
+
+    /// <summary>
+    /// Why this app's models cannot run now: the machine's AI host service, which is installed and so the only host, is stopped, does not
+    /// answer, is not what answers, speaks another protocol, or turned this app away. Null where they can — the service joined, or none
+    /// installed and this app starting a host of its own. Kept current without a request: an app says its models cannot run before the
+    /// user asks one to.
+    /// </summary>
+    public string? Unreachable => Volatile.Read(ref _unreachable);
+
+    /// <summary>Raised when <see cref="Unreachable"/> changes. Raised on a pool thread.</summary>
+    public event EventHandler? ReachabilityChanged;
+
+    private string? _unreachable;
+    private Task _watching = Task.CompletedTask;
+
+    private void Reach(string? why)
+    {
+        if (string.Equals(Interlocked.Exchange(ref _unreachable, why), why, StringComparison.Ordinal)) return;
+        ReachabilityChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Looks at the service every <see cref="AiHostTimings.ServiceCheck"/>: stopped, its models cannot run, said at once; running
+    /// again while they cannot, it is joined — a connection the app keeps until it retires for standing idle — and they can, or it says why
+    /// not; uninstalled, this app starts a host of its own.</summary>
+    private async Task WatchServiceAsync(IAiHostService service)
+    {
+        using var timer = new PeriodicTimer(_timings.ServiceCheck, _time);
+        try
+        {
+            do
+            {
+                if (!service.IsInstalled()) Reach(null);
+                else if (service.RunningProcessId() is null) Reach(HostConnection.ServiceNotRunning);
+                else if (Unreachable is not null && _connection is not { IsAlive: true })
+                {
+                    try { await ConnectAsync(_life.Token).ConfigureAwait(false); }
+                    catch (AiHostException) { }   // said, in Unreachable
+                }
+            }
+            while (await timer.WaitForNextTickAsync(_life.Token).ConfigureAwait(false));
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException && _life.IsCancellationRequested) { }
     }
 
     /// <summary>Whether <paramref name="connection"/> serves requests made for <paramref name="environment"/>: the service serves every
@@ -231,7 +285,8 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
         if (_disposed) return;
         _disposed = true;
         _life.Cancel();
-        await _retiring.ConfigureAwait(false);
+    await _retiring.ConfigureAwait(false);
+        await _watching.ConfigureAwait(false);
         if (_connection is { } connection) await connection.DisposeAsync().ConfigureAwait(false);
         _starting.Dispose();
         _life.Dispose();

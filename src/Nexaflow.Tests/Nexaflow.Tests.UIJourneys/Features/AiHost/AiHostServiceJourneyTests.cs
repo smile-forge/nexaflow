@@ -1,41 +1,66 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.UIJourneys.Infrastructure;
 
-namespace Nexaflow.Tests.UIJourneys.Features.AiHost;
+namespace Nexaflow.Tests.Features.UI;
 
 /// <summary>
-/// The AI host service as a machine gets it, end to end and from the outside: the built MSI installed as an administrator installs
-/// it, the service starts with the machine under its own account and keeps the model store, every user reading. An app with no host
-/// of its own — the SDK's sample, given no host to start — joins it, has it fetch a model and answers with it; a worker killed
-/// under it is replaced, and the app joins the next; with the service stopped, an app has no host — none of its own in the service's
-/// place — and says why; and uninstalling gives the store back to every user, whose app's own host then runs what the store holds,
-/// fetching nothing. It installs a Windows service, so it runs only in Windows
-/// Sandbox (<c>Nexaflow.Tests.Sandbox</c>); build the solution and <c>aihostSetup</c> first. The sample's model is fetched from the
-/// network the first time: a few GB.
+/// The AI host service as a machine gets it, end to end and from the outside. The built MSI, installed as an administrator, moves this
+/// user's models from an earlier Nexaflow into the service's store and installs the service, which starts with the machine under its
+/// own account and keeps the store, every user reading. Nexaflow, started with no host of its own, answers from the service on the
+/// model moved in, and Settings show the share of memory the service's models may hold as the service's, not the user's to change
+/// there. Another app — the SDK's sample, given no host of its own — answers from the same service. A worker killed under them is
+/// replaced and the apps join the next. With the service stopped, the AI's line says Nexaflow's own models cannot run, and why, rather
+/// than each request failing, and the other app has no host — none of its own in the service's place; once the service is back, the
+/// line clears and Nexaflow answers again. Uninstalling gives the store back to every user, and an app's own host then runs what the
+/// store holds, fetching nothing.
+/// <para>
+/// It installs a Windows service, so it runs only in Windows Sandbox (<c>Nexaflow.Tests.Sandbox</c>); build the solution and
+/// <c>aihostSetup</c> first. <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding Gemma 4 26B A4B and the CUDA pack, copied
+/// into the sandbox user's earlier model folder for the installer to move in; without it the journey is inconclusive. What each tool
+/// it runs said is written to <c>TestResults\aihost-service\</c>.
+/// </para>
 /// </summary>
 [TestClass]
+[TestCategory("UI")]
+[TestCategory("OwnedModel")]
 [TestCategory("Machine")]
-public class AiHostServiceJourneyTests
+[CoversNode("ai-host-service")]
+public class AiHostServiceJourneyTests : OptionsOverlayJourney
 {
+    private const string StoreVariable = "NEXAFLOW_TEST_STORE";
     private const string Service = "SmileForgeAiHost";
-    private static readonly TimeSpan Answering = TimeSpan.FromMinutes(30);
+    private const string Model = "gemma-4-26b-a4b-it";
+    private const string Question = "Name the three primary colours of light, in one line.";
 
-    public TestContext TestContext { get; set; } = null!;
+    private static readonly SecurityIdentifier Users = new(WellKnownSidType.BuiltinUsersSid, null);
 
-    /// <summary>The configuration this suite was built in, which the MSI and the sample are taken from too.</summary>
+    private string _msi = "";
+    private string _logs = "";
+    private string _earlier = "";
+
+    /// <summary>The service's worker loads the model on the first request, and the other app loads it again after the worker is
+    /// replaced and once the service is gone.</summary>
+    protected override TimeSpan JourneyBudget => TimeSpan.FromMinutes(25);
+
+    /// <summary>Started as a journey's app is, yet joining the machine's service as the app does outside a test.</summary>
+    protected override IReadOnlyDictionary<string, string> LaunchEnvironment =>
+        new Dictionary<string, string> { ["NEXAFLOW_TEST_JOIN_SERVICE"] = "1" };
+
     private static string Configuration
         => AppContext.BaseDirectory.Contains(@"\Release\", StringComparison.OrdinalIgnoreCase) ? "Release" : "Debug";
-
-    private static string Msi => Path.Combine(TestSampleData.RepoRoot, "aihostSetup", "bin", "x64", Configuration, "en-US", "aihostSetup.msi");
 
     private static string Sample
         => Path.Combine(TestSampleData.RepoRoot, "src", "Nexaflow.AiHost", "Nexaflow.AiHost.Sample", "bin", "x64", Configuration, "net10.0-windows",
                         "Nexaflow.AiHost.Sample.exe");
 
-    /// <summary>The host the app starts for itself once no service is installed: the build's own.</summary>
+    /// <summary>The host an app starts for itself once no service is installed: the build's own.</summary>
     private static string BuiltHost
         => Path.Combine(TestSampleData.RepoRoot, "src", "Nexaflow.AiHost", "Nexaflow.AiHost", "bin", "x64", Configuration, "net10.0-windows", "win-x64",
                         "Nexaflow.AiHost.exe");
@@ -43,66 +68,115 @@ public class AiHostServiceJourneyTests
     private static string Store
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Smile-Forge", "Models");
 
-    private static readonly SecurityIdentifier Users = new(WellKnownSidType.BuiltinUsersSid, null);
-
-    [TestMethod]
-    public async Task TheAiHostService_ServesAnApp_OutlivesItsWorker_IsTheOnlyHostWhileInstalled_AndGivesTheStoreBack()
+    /// <summary>The model and the CUDA pack, from the test store into this user's earlier model folder; the service installed, moving
+    /// them in; and a workspace that converses on the model.</summary>
+    protected override void SeedConfig(string configDir)
     {
         if (!string.Equals(Environment.UserName, "WDAGUtilityAccount", StringComparison.OrdinalIgnoreCase))
             Assert.Inconclusive("It installs a Windows service, so it runs only in Windows Sandbox (Nexaflow.Tests.Sandbox).");
-        string msi = Path.GetFullPath(Msi);
-        if (!File.Exists(msi)) Assert.Inconclusive($"{msi} is not built: dotnet build aihostSetup/aihostSetup.wixproj -c {Configuration} -p:Platform=x64");
-        if (!File.Exists(Sample)) Assert.Inconclusive($"{Sample} is not built: build the solution.");
-
-        string logs = Path.Combine(TestSampleData.RepoRoot, "TestResults", "aihost-service", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-        Directory.CreateDirectory(logs);
-        try
+        var store = Environment.GetEnvironmentVariable(StoreVariable);
+        if (string.IsNullOrEmpty(store) || !Directory.Exists(store))
         {
-            // Installed, it runs with the machine as its own account, and the store is its, every user reading.
-            Assert.AreEqual(0, (await RunAsync("msiexec", ["/i", msi, "/qn", "/l*v", Path.Combine(logs, "install.log")], TimeSpan.FromMinutes(10))).Exit);
-            string config = (await RunAsync("sc", ["qc", Service], TimeSpan.FromSeconds(30))).Output;
-            StringAssert.Contains(config, "AUTO_START", "started with the machine, whoever is signed in");
-            StringAssert.Contains(config, $@"NT SERVICE\{Service}", "as its own account");
-            await UntilAsync(async () => (await RunAsync("sc", ["query", Service], TimeSpan.FromSeconds(30))).Output.Contains("RUNNING"));
-            Assert.AreEqual(FileSystemRights.ReadAndExecute, UsersRights() & ~FileSystemRights.Synchronize, "every user reads the store, none writes it");
-
-            // An app given no host of its own joins the service, which fetches the model into its store, and answers with it.
-            var answer = await RunAsync(Sample, [], Answering, Path.Combine(logs, "sample-joined.log"));
-            Assert.AreEqual(0, answer.Exit, answer.Errors);
-            Assert.IsFalse(string.IsNullOrWhiteSpace(answer.Output), "the sample wrote the model's answer");
-            Assert.IsTrue(Directory.EnumerateFiles(Store, "*", SearchOption.AllDirectories).Any(f => !f.EndsWith(".verified", StringComparison.Ordinal)),
-                          "the model was fetched into the service's store");
-
-            // The worker dies; the supervisor starts another, and the app joins it.
-            int supervisor = await ServiceProcessAsync();
-            var worker = Process.GetProcessesByName("Nexaflow.AiHost").Single(p => p.Id != supervisor);
-            Process.EnterDebugMode();   // the worker runs as the service's account
-            worker.Kill();
-            await UntilAsync(() => Task.FromResult(Process.GetProcessesByName("Nexaflow.AiHost").Any(p => p.Id != supervisor && p.Id != worker.Id)));
-            var again = await RunAsync(Sample, [], Answering, Path.Combine(logs, "sample-after-the-worker.log"));
-            Assert.AreEqual(0, again.Exit, again.Errors);
-
-            // The service stopped, an app has no host: none of its own in the service's place, even given one to start.
-            Assert.AreEqual(0, (await RunAsync("sc", ["stop", Service], TimeSpan.FromSeconds(60))).Exit);
-            await UntilAsync(async () => (await RunAsync("sc", ["query", Service], TimeSpan.FromSeconds(30))).Output.Contains("STOPPED"));
-            var stopped = await RunAsync(Sample, ["--host", BuiltHost], Answering, Path.Combine(logs, "sample-service-stopped.log"));
-            Assert.AreNotEqual(0, stopped.Exit, "with the service installed, it is the only host");
-            StringAssert.Contains(stopped.Errors, "not running", "and the app is told why");
-
-            // Uninstalled, the service is gone and the store is every user's again: an app's own host runs the model the service fetched.
-            Assert.AreEqual(0, (await RunAsync("msiexec", ["/x", msi, "/qn", "/l*v", Path.Combine(logs, "uninstall.log")], TimeSpan.FromMinutes(10))).Exit);
-            Assert.AreNotEqual(0, (await RunAsync("sc", ["query", Service], TimeSpan.FromSeconds(30))).Exit, "the service is gone");
-            Assert.AreEqual(FileSystemRights.FullControl, UsersRights() & FileSystemRights.FullControl, "every user has full control of the store again");
-            var own = await RunAsync(Sample, ["--host", BuiltHost], Answering, Path.Combine(logs, "sample-own-host.log"));
-            Assert.AreEqual(0, own.Exit, own.Errors);
-            StringAssert.DoesNotMatch(own.Errors, new System.Text.RegularExpressions.Regex("fetching"), "it fetched nothing: the store held the model");
+            Assert.Inconclusive($"{StoreVariable} names no folder of Nexaflow's own models on this machine.");
+            return;
         }
-        finally
-        {
-            if ((await RunAsync("sc", ["query", Service], TimeSpan.FromSeconds(30))).Exit == 0)
-                await RunAsync("msiexec", ["/x", msi, "/qn"], TimeSpan.FromMinutes(10));
-        }
+        OwnedModelFolder.RequireModel(store, Model, StoreVariable);
+        _msi = Path.Combine(TestSampleData.RepoRoot, "aihostSetup", "bin", "x64", Configuration, "en-US", "aihostSetup.msi");
+        if (!File.Exists(_msi)) Assert.Inconclusive($"{_msi} is not built: dotnet build aihostSetup/aihostSetup.wixproj -c {Configuration} -p:Platform=x64");
+        if (!File.Exists(Sample) || !File.Exists(BuiltHost)) Assert.Inconclusive("The SDK's sample and the host are not built: build the solution.");
+        _logs = Path.Combine(TestSampleData.RepoRoot, "TestResults", "aihost-service", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+        Directory.CreateDirectory(_logs);
+
+        _earlier = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Smile", "nexaflow", "ai");
+        foreach (var file in OwnedModelFolder.FilesOf(Model))
+            foreach (var each in new[] { file, file + ".verified" })
+                Copy(Path.Combine(store, each), Path.Combine(_earlier, each));
+        foreach (var pack in Directory.EnumerateDirectories(Path.Combine(store, "runtime"), "cuda-*"))
+            foreach (var file in Directory.EnumerateFiles(pack, "*", SearchOption.AllDirectories))
+                Copy(file, Path.Combine(_earlier, Path.GetRelativePath(store, file)));
+
+        Assert.AreEqual(0, Run("msiexec", ["/i", _msi, "/qn", "/l*v", Path.Combine(_logs, "install.log")]).Exit, "the service's MSI installed");
+        Assert.IsTrue(Until(() => Run("sc", ["query", Service]).Output.Contains("RUNNING"), TimeSpan.FromMinutes(2)), "the service runs once installed");
+
+        var version = FileVersionInfo.GetVersionInfo(BuiltOutput.App).FileVersion ?? "1.0.0.0";
+        var abilities = Path.Combine(configDir, "Contexts", "Default", "ai-abilities");
+        Directory.CreateDirectory(abilities);
+        File.WriteAllText(Path.Combine(abilities, $"config_{version}.json"), $$"""
+            {
+              "ConfigName": "ai-abilities",
+              "FriendlyName": "AI",
+              "Columns": [
+                { "Id": "chat", "ProviderName": "Nexaflow", "Model": "{{Model}}", "Kind": "Language", "AssemblyFileName": "Nexaflow.Providers.AiHost.dll" }
+              ],
+              "Assignments": { "GeneralIntelligence": [ "chat" ], "Disambiguation": [ "chat" ] }
+            }
+            """);
     }
+
+    [TestCleanup]
+    public void Uninstall()
+    {
+        if (_msi.Length > 0 && File.Exists(_msi) && Run("sc", ["query", Service]).Exit == 0) Run("msiexec", ["/x", _msi, "/qn"]);
+    }
+
+    [TestMethod]
+    public void TheAiHostService_ServesNexaflowAndAnotherApp_OutlivesItsWorker_SaysWhenItCannotRun_AndGivesTheStoreBack()
+    {
+        // Installed: with the machine, as its own account, keeping the store that the earlier models were moved into.
+        string config = Run("sc", ["qc", Service]).Output;
+        Check("the service starts with the machine, whoever is signed in", () => config.Contains("AUTO_START"));
+        Check("as its own account", () => config.Contains($@"NT SERVICE\{Service}"));
+        Check("every user reads the store, and none writes it", () => (UsersRights() & ~FileSystemRights.Synchronize) == FileSystemRights.ReadAndExecute);
+        string model = OwnedModelFolder.FilesOf(Model)[0];
+        Check("the earlier model was moved into the service's store", () => File.Exists(Path.Combine(Store, model)) && !File.Exists(Path.Combine(_earlier, model)));
+
+        // Nexaflow, on the service.
+        Check("Nexaflow's request is typed and sent", () => InFront() && AskTheAiBar(Question));
+        Check("the service answers it, on the model moved in", () => Answered(Affordable(600)));
+        var sections = OpenOptions();
+        SelectSection(sections, "Local models", "cfg_MemoryForModelsPercent");
+        Check("the share of memory the service's models may hold is the service's, not the user's to change here",
+              () => WaitForId("cfg_MemoryForModelsPercent", 10) is { IsEnabled: false });
+        CancelOptions();
+
+        // Another app, on the same service.
+        Check("another app, given no host of its own, answers from the same service, fetching nothing", () =>
+            Run(Sample, ["--model", Model], "sample-joined.log") is { Exit: 0 } ran && ran.Output.Trim().Length > 0 && !ran.Errors.Contains("fetching"));
+
+        // The worker dies; the supervisor starts another, and the apps join it.
+        int supervisor = int.Parse(Run("sc", ["queryex", Service]).Output.Split('\n').Single(l => l.TrimStart().StartsWith("PID", StringComparison.Ordinal))
+                                       .Split(':')[1].Trim(), System.Globalization.CultureInfo.InvariantCulture);
+        var worker = Process.GetProcessesByName("Nexaflow.AiHost").Single(p => p.Id != supervisor);
+        Process.EnterDebugMode();   // the worker runs as the service's account
+        worker.Kill();
+        Check("a worker that dies is replaced", () => Until(() => Process.GetProcessesByName("Nexaflow.AiHost").Any(p => p.Id != supervisor && p.Id != worker.Id),
+                                                            TimeSpan.FromMinutes(2)));
+        Check("and the other app joins the next", () => Run(Sample, ["--model", Model], "sample-after-the-worker.log").Exit == 0);
+
+        // Stopped: nothing in its place, and said.
+        Check("the service stops", () => Run("sc", ["stop", Service]).Exit == 0);
+        Check("the AI's line says Nexaflow's own models cannot run, and why", () =>
+            Until(() => WaitForId("AiBar_LocalAiNotice", 1)?.Name?.Contains("not running", StringComparison.OrdinalIgnoreCase) == true, TimeSpan.FromSeconds(30)));
+        Check("the other app has no host — none of its own in the service's place — and says why", () =>
+            Run(Sample, ["--host", BuiltHost, "--model", Model], "sample-service-stopped.log") is { Exit: not 0 } ran && ran.Errors.Contains("not running"));
+
+        // Back: the line clears, and Nexaflow answers again.
+        Check("the service starts again", () => Run("sc", ["start", Service]).Exit == 0);
+        Check("back, the AI's line clears", () => Until(() => WaitForId("AiBar_LocalAiNotice", 1) is null, TimeSpan.FromSeconds(60)));
+        Check("Nexaflow's request is typed and sent again", () => InFront() && AskTheAiBar(Question));
+        Check("and the service answers again", () => Answered(Affordable(300)));
+
+        // Uninstalled: the store is every user's again, and an app's own host runs what it holds.
+        Check("the service uninstalls", () => Run("msiexec", ["/x", _msi, "/qn", "/l*v", Path.Combine(_logs, "uninstall.log")]).Exit == 0);
+        Check("and is gone", () => Run("sc", ["query", Service]).Exit != 0);
+        Check("every user has full control of the store again", () => (UsersRights() & FileSystemRights.FullControl) == FileSystemRights.FullControl);
+        Check("an app's own host runs the model the store holds, fetching nothing", () =>
+            Run(Sample, ["--host", BuiltHost, "--model", Model], "sample-own-host.log") is { Exit: 0 } ran && !ran.Errors.Contains("fetching"));
+    }
+
+    /// <summary>A reply naming the colours, within <paramref name="seconds"/>.</summary>
+    private bool Answered(int seconds)
+        => Until(() => WaitForId("AiBar_Reply", 1)?.Name?.Contains("red", StringComparison.OrdinalIgnoreCase) == true, TimeSpan.FromSeconds(seconds));
 
     /// <summary>What every user may do in the store, as its folder's rules say.</summary>
     private static FileSystemRights UsersRights()
@@ -110,47 +184,37 @@ public class AiHostServiceJourneyTests
                .Where(r => r.IdentityReference == Users && r.AccessControlType == AccessControlType.Allow)
                .Aggregate((FileSystemRights)0, (all, r) => all | r.FileSystemRights);
 
-    /// <summary>The service's own process — its supervisor — as the service manager names it.</summary>
-    private async Task<int> ServiceProcessAsync()
-    {
-        string output = (await RunAsync("sc", ["queryex", Service], TimeSpan.FromSeconds(30))).Output;
-        string line = output.Split('\n').Single(l => l.TrimStart().StartsWith("PID", StringComparison.Ordinal));
-        return int.Parse(line[(line.IndexOf(':') + 1)..].Trim(), System.Globalization.CultureInfo.InvariantCulture);
-    }
-
-    private static async Task UntilAsync(Func<Task<bool>> condition)
-    {
-        var until = DateTime.UtcNow + TimeSpan.FromMinutes(2);
-        while (!await condition())
-        {
-            if (DateTime.UtcNow > until) Assert.Fail("It never came to pass.");
-            await Task.Delay(500);
-        }
-    }
-
     private sealed record Ran(int Exit, string Output, string Errors);
 
-    /// <summary>Runs <paramref name="file"/>, its output kept — and written to <paramref name="log"/> where one is named.</summary>
-    private async Task<Ran> RunAsync(string file, IReadOnlyList<string> arguments, TimeSpan limit, string? log = null)
+    /// <summary>Runs <paramref name="file"/>, what it said kept — and written to <paramref name="log"/> in the journey's results where one is named.</summary>
+    private Ran Run(string file, IReadOnlyList<string> arguments, string? log = null)
     {
         var start = new ProcessStartInfo(file) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         using var process = Process.Start(start)!;
         var output = process.StandardOutput.ReadToEndAsync();
         var errors = process.StandardError.ReadToEndAsync();
-        using var cancel = new CancellationTokenSource(limit);
-        try
-        {
-            await process.WaitForExitAsync(cancel.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            throw new AssertFailedException($"{Path.GetFileName(file)} {string.Join(' ', arguments)} ran past {limit.TotalMinutes:0} minutes.");
-        }
-        var ran = new Ran(process.ExitCode, await output, await errors);
-        if (log is not null) await File.WriteAllTextAsync(log, $"exit {ran.Exit}\n--- output\n{ran.Output}\n--- errors\n{ran.Errors}");
-        TestContext.WriteLine($"{Path.GetFileName(file)} {string.Join(' ', arguments)} → {ran.Exit}");
+        if (!process.WaitForExit(TimeSpan.FromMinutes(15))) process.Kill(entireProcessTree: true);
+        process.WaitForExit();
+        var ran = new Ran(process.ExitCode, output.Result, errors.Result);
+        if (log is not null && _logs.Length > 0) File.WriteAllText(Path.Combine(_logs, log), $"exit {ran.Exit}\n--- output\n{ran.Output}\n--- errors\n{ran.Errors}");
         return ran;
+    }
+
+    private static void Copy(string from, string to)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+        File.Copy(from, to, overwrite: true);
+    }
+
+    private static bool Until(Func<bool> condition, TimeSpan limit)
+    {
+        var until = DateTime.UtcNow + limit;
+        while (!condition())
+        {
+            if (DateTime.UtcNow > until) return false;
+            System.Threading.Thread.Sleep(250);
+        }
+        return true;
     }
 }

@@ -19,4 +19,8 @@ public sealed record AiHostTimings(TimeSpan HeartbeatInterval, TimeSpan Heartbea
         CrashLimit:        3,
         CrashWindow:       TimeSpan.FromMinutes(5),
         ExitWait:          TimeSpan.FromSeconds(5));
+
+    /// <summary>How often the machine's AI host service is looked at where it is installed — stopped, or back — so an app knows its
+    /// models cannot run before it asks one to.</summary>
+    public TimeSpan ServiceCheck { get; init; } = TimeSpan.FromSeconds(5);
 }

@@ -25,6 +25,7 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
         _runtime = new OwnedModelRuntime(activities, assets, host, holds, hardware);
         _model   = OwnedModels.OfKind(ModelKind.SpeechToText).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
+        _runtime.ReachabilityChanged += (_, _) => AvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public string Name => OwnedLlmProvider.ProviderName;
@@ -42,7 +43,7 @@ public sealed class OwnedSpeechToTextProvider : ISpeechToTextProvider, ILocalMod
     public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)
         => OwnedModels.OfKind(ModelKind.SpeechToText).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
-    public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
+    public bool IsAvailable => _model is not null && _runtime.Reachable && _runtime.IsHere(_model);
 
     public event EventHandler? AvailabilityChanged;
 

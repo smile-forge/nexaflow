@@ -23,6 +23,12 @@ public interface IAiHost
     /// <inheritdoc cref="AiHostClient.IsRunning"/>
     bool IsRunning { get; }
 
+    /// <inheritdoc cref="AiHostClient.Unreachable"/>
+    string? Unreachable { get; }
+
+    /// <inheritdoc cref="AiHostClient.ReachabilityChanged"/>
+    event EventHandler? ReachabilityChanged;
+
     /// <inheritdoc cref="AiHostClient.ModelFilesChanged"/>
     event EventHandler<IReadOnlyList<string>>? ModelFilesChanged;
 }

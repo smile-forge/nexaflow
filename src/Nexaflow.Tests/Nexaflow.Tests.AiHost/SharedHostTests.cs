@@ -90,6 +90,44 @@ public class SharedHostTests
     }
 
     [TestMethod]
+    public async Task AnInstalledServiceStopped_IsSaidUnreachable_BeforeAnyRequest_AndIsJoinedAgainOnceBack()
+    {
+        await using var service = new FakeService { Running = false };
+        var host = new FakeHost();
+        await using var client = new AiHostClient(host, Fast with { ServiceCheck = TimeSpan.FromMilliseconds(50) }, service: service);
+        bool toldBack = false;
+        client.ReachabilityChanged += (_, _) => toldBack |= client.Unreachable is null;
+
+        await UntilAsync(() => client.Unreachable is not null);
+        StringAssert.Contains(client.Unreachable, "not running", "said before anything was asked of it");
+
+        service.Running = true;
+        await UntilAsync(() => client.Unreachable is null);
+
+        Assert.AreEqual(1, service.Joins, "joined again on its own once it was back");
+        Assert.IsTrue(toldBack, "and whoever listens was told");
+        Assert.AreEqual(0, host.Starts);
+    }
+
+    [TestMethod]
+    public async Task WithNoServiceInstalled_TheAppsModelsAreInReach()
+    {
+        await using var service = new FakeService { Installed = false };
+        await using var client = new AiHostClient(new FakeHost(), Fast with { ServiceCheck = TimeSpan.FromMilliseconds(50) }, service: service);
+
+        await Task.Delay(200);
+
+        Assert.IsNull(client.Unreachable, "a host of the app's own is started when one is asked for");
+    }
+
+    private static async Task UntilAsync(Func<bool> condition)
+    {
+        var until = DateTime.UtcNow + Generous;
+        while (!condition() && DateTime.UtcNow < until) await Task.Delay(20);
+        Assert.IsTrue(condition(), "it never came to pass");
+    }
+
+    [TestMethod]
     public async Task APipeAnsweredByAProcessNotTheService_IsNeverSpokenTo_AndIsNoHost()
     {
         await using var service = new FakeService { ReportsProcessId = System.Environment.ProcessId + 1 };

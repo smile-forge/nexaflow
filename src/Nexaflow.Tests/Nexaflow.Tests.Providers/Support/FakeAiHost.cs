@@ -30,6 +30,21 @@ internal sealed class FakeAiHost : IAiHost
 
     public AiHostEnvironment Environment { get; set; } = AiHostEnvironment.Cpu;
 
+    /// <summary>Why its models cannot run: reachable until a test says otherwise, which tells whoever listens.</summary>
+    public string? Unreachable
+    {
+        get => _unreachable;
+        set
+        {
+            _unreachable = value;
+            ReachabilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private string? _unreachable;
+
+    public event EventHandler? ReachabilityChanged;
+
     /// <summary>Whether its host is running: so until a test says it has gone.</summary>
     public bool IsRunning { get; set; } = true;
 

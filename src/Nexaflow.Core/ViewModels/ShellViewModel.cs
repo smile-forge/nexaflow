@@ -17,6 +17,7 @@ using Nexaflow.Core.Localization;
 using Nexaflow.Core.Help;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Interaction;
+using Nexaflow.AiHost.Client;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -256,7 +257,32 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>Whether the AI bar gives its top line to the assistant: in a voice conversation, while a response is in the bar,
     /// and while the workspace has background tasks, whose pill sits at the line's end.</summary>
-    public bool ShowsAiLine => Voice.IsActive || Ai.InBar || WorkspaceTasks.Any;
+    public bool ShowsAiLine => Voice.IsActive || Ai.InBar || WorkspaceTasks.Any || LocalAiNotice is not null;
+
+    /// <summary>Why the workspace's models of Nexaflow's own cannot run — the host they run in is out of reach, the machine's AI host
+    /// service stopped, say — where the workspace uses any; null otherwise. The AI's line says it while it has nothing else to say, and
+    /// a request that needs one is answered with it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsLocalAiNotice))]
+    private string? _localAiNotice;
+
+    /// <summary>The AI's line shows <see cref="LocalAiNotice"/>: it has one, and nothing else to say.</summary>
+    public bool ShowsLocalAiNotice => LocalAiNotice is not null && !Voice.IsActive && !Ai.InBar;
+
+    partial void OnLocalAiNoticeChanged(string? value) => RecheckAiLine();
+
+    private void RecomputeLocalAiNotice()
+    {
+        LocalAiNotice = ProviderManager.Instance.Service<IAiHost>() is { Unreachable: { } why } && CurrentRuntime.AiService is { UsesOwnModels: true }
+            ? Str.Format("Shell.AiBar.LocalAiUnreachable", why)
+            : null;
+    }
+
+    private void OnHostReachabilityChanged(object? sender, EventArgs e) => _ui.InvokeAsync(() =>
+    {
+        RecomputeLocalAiNotice();
+        RecomputeVoiceAvailable();
+    });
 
     /// <summary>Whether the AI's line was shown when last told: its coming and going is animated, so it is told only when it changes.</summary>
     private bool _aiLineShown;
@@ -677,13 +703,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         PropertyChanged    += OnShellPropertyChangedForOverlay;
         Ai.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ShellAIResponseHandler.InBar)) RecheckAiLine();
+        if (e.PropertyName == nameof(ShellAIResponseHandler.InBar))
+            {
+                RecheckAiLine();
+                OnPropertyChanged(nameof(ShowsLocalAiNotice));
+            }
             if (e.PropertyName is nameof(ShellAIResponseHandler.InBar) or nameof(ShellAIResponseHandler.ContextUse))
                 OnPropertyChanged(nameof(AiContextUse));
         };
         Voice.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive)) RecheckAiLine();
+        if (e.PropertyName == nameof(VoiceConversationViewModel.IsActive))
+            {
+                RecheckAiLine();
+                OnPropertyChanged(nameof(ShowsLocalAiNotice));
+            }
             if (e.PropertyName is nameof(VoiceConversationViewModel.IsActive) or nameof(VoiceConversationViewModel.ContextUse))
                 OnPropertyChanged(nameof(AiContextUse));
         };
@@ -714,6 +748,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // ── Voice input availability + transcription wiring ──────────────────
         // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away.
         workspace.ProvidersChanged += (_, _) => _ui.InvokeAsync(RecomputeVoiceAvailable);
+        // What the workspace's own models need is the host they run in: out of reach, the AI's line says so.
+        workspace.ProvidersChanged += (_, _) => _ui.InvokeAsync(RecomputeLocalAiNotice);
+        if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged += OnHostReachabilityChanged;
 
 
 
@@ -738,6 +775,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         };
 
         RecomputeVoiceAvailable();
+        RecomputeLocalAiNotice();
 
         // ── Shared inbox: keep this window's unread badge + toasts in sync ──
         // The store is shared across windows, but UnreadCount is derived, so recompute on both
@@ -752,7 +790,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>Detaches shared-store handlers so a closed window's view-model can be collected.</summary>
     public void Detach()
     {
-        MessageCenter.Instance.MessagePosted -= OnMessagePosted;
+    MessageCenter.Instance.MessagePosted -= OnMessagePosted;
+        // The host outlives its windows: unhooked, or this window stays rooted by it.
+        if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged -= OnHostReachabilityChanged;
         Notifications.CollectionChanged -= OnInboxChanged;
         foreach (var m in Notifications) m.PropertyChanged -= OnMessageItemChanged;
 
@@ -1608,10 +1648,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         if (response is null)
         {
-            // Nothing assigned to answer: said in the reply's place, rather than the request vanishing.
+            // Nothing to answer: said in the reply's place, rather than the request vanishing — why the workspace's own models cannot
+            // run where that is why, else that nothing is assigned.
             if (!token.IsCancellationRequested && !svc.StatusOf(AiAbility.GeneralIntelligence).IsUsable)
             {
-                handler.ShowFinal(Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
+                handler.ShowFinal(LocalAiNotice ?? Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
                 return TurnOutcome.Completed;
             }
             handler.Abort();
