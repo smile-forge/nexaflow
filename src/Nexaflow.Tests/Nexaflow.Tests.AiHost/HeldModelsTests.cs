@@ -23,13 +23,13 @@ public class HeldModelsTests
     private static readonly (HostedModel Model, HostedPart Part) Chat
         = HostCatalog.Models.Where(m => m.Kind == HostedKind.Language && m.RunsOn(Runtime))
                             .Select(m => (m, m.PartsFor(Runtime).First(p => p.Role == HostedRoles.Chat)))
-                            .First(c => c.Item2.Adapter is null);
+                            .First();
 
     /// <summary>A held part with no context that holds room on a GPU — a speech model's.</summary>
     private static readonly (HostedModel Model, HostedPart Part) Speech
         = HostCatalog.Models.Where(m => !m.LoadsOnDemand && m.Kind != HostedKind.Language && m.RunsOn(Runtime))
                             .SelectMany(m => PlacementNeeds.Held(m, Runtime).Select(p => (m, p)))
-                            .Where(c => c.p.BytesPerToken == 0 && c.p.MemoryBytes > 0 && c.p.Adapter is null)
+                            .Where(c => c.p.BytesPerToken == 0 && c.p.MemoryBytes > 0)
                             .OrderByDescending(c => c.p.MemoryBytes)
                             .First();
 
@@ -130,7 +130,7 @@ public class HeldModelsTests
         var runners = new Runners();
         var store = new Store();
         var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-held-").FullName);
-        var registry = new ModelRegistry(gpus, new ModelAdapters([]), runners.All(), log, store);
+        var registry = new ModelRegistry(gpus, runners.All(), log, store);
         return new Host(new HeldModels(registry, store, runtime ?? Runtime, () => runtime == HostCatalog.Cpu ? [] : [gpus.Gpu(0)], HostMemory.Unbounded, log), registry, runners, store);
     }
 
@@ -272,7 +272,7 @@ public class HeldModelsTests
     public async Task ACpuBuildThePlacementNeeds_IsFetchedFirst_ForAModelThatIsHere()
     {
         var (entry, gpuPart, cpuPart) = HostCatalog.Models.Concat<HostedEntry>(HostCatalog.Tools)
-            .SelectMany(e => e.Parts.Where(p => p.ExecutionProvider == Runtime && p.MemoryBytes > 0 && p.Adapter is null && p.BytesPerToken == 0
+            .SelectMany(e => e.Parts.Where(p => p.ExecutionProvider == Runtime && p.MemoryBytes > 0 && p.BytesPerToken == 0
                                                 && p.Streamed is null && p.Tiled is null)
                                     .Select(p => (e, p, Cpu: e.Parts.FirstOrDefault(c => c.Name == p.Name && c.ExecutionProvider == HostCatalog.Cpu))))
             .First(c => c.Cpu is not null && c.Cpu.Folder != c.p.Folder);
@@ -298,7 +298,7 @@ public class HeldModelsTests
         var told = new Told();
         await using var hold = await host.Held.HoldAsync(Hold(1, RequestPriority.Interactive, RefOf(Chat)), told.Reply, default);
 
-        var picture = new ModelSpec("picture/denoiser", Chat.Part.Runner, "models/picture", null, null, budget, 0, Device: 0);
+        var picture = new ModelSpec("picture/denoiser", Chat.Part.Runner, "models/picture", null, budget, 0, Device: 0);
         using (var room = host.Held.BorrowRoom())
         using (await host.Registry.AcquireAsync(picture, resident: false, Quiet, default, room))
         {

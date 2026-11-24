@@ -45,7 +45,7 @@ public class CutBackModelTests
         if (_client is null || _hold is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
         var text = new StringBuilder();
         GenerationEnded? ended = null;
-        await foreach (var reply in _client!.SendAsync(id => new Generate(id, Chat, turns, 48, RequestPriority.Interactive, Thinks: false),
+        await foreach (var reply in _client!.SendAsync(id => new Generate(id, Chat, turns, 48, RequestPriority.Interactive, Thinks: false, Conversation: "cut back"),
                                                        TimeSpan.FromMinutes(5)))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);

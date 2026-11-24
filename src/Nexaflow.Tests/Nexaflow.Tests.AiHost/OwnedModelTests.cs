@@ -59,7 +59,7 @@ public class OwnedModelTests
         var text = new StringBuilder();
         var calls = new List<ChatToolCall>();
         GenerationEnded? ended = null;
-        await foreach (var reply in client.SendAsync(id => new Generate(id, model, turns, maxNew, RequestPriority.Interactive, tools, Sampling: sampling),
+        await foreach (var reply in client.SendAsync(id => new Generate(id, model, turns, maxNew, RequestPriority.Interactive, tools, Sampling: sampling, Conversation: "the conversation"),
                                                      TimeSpan.FromMinutes(2), ct))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);

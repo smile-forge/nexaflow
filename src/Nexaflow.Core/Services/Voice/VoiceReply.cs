@@ -308,6 +308,9 @@ internal sealed class VoiceReply : IAIResponseHandler
 
     public void BeginResponse(string userText) { }
 
+    /// <summary>The conversation of whatever shows the reply: the session's in the bar, the page's on a page that holds its own.</summary>
+    public string? ConversationName => _shown.ConversationName;
+
     public void ReportProgress(string message) => _shown.ReportProgress(message);
 
     public void ReportContextUse(int tokens, int window) => _shown.ReportContextUse(tokens, window);

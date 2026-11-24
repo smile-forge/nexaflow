@@ -14,12 +14,15 @@ namespace Nexaflow.AiHost.Generation;
 /// </summary>
 internal sealed class ChatLane : IDisposable
 {
-    public ChatLane(ChatModel model, int contextTokens, int sequences, int batch, bool perConversation)
+    /// <param name="replies">How many replies it writes at once: the sequences it has, and — where its conversations share one cache —
+    /// one more for each opening it may hold (<see cref="ModelSpec.OpeningSequences"/>).</param>
+    public ChatLane(ChatModel model, int contextTokens, int replies, int batch, bool perConversation)
     {
+        Replies = replies;
         // Its own lane holds the expert cache its spec gives; the lane for work nobody is watching is made only beside a model wholly on
         // its GPU, which keeps none.
-        Context = new LlamaContext(model.Model, contextTokens, sequences, batch, model.Spec.ContextCache, perConversation,
-                                   perConversation ? 0 : model.Spec.ExpertCacheBytes);
+        Context = new LlamaContext(model.Model, contextTokens, perConversation ? replies : replies + ModelSpec.OpeningSequences, batch,
+                                   model.Spec.ContextCache, perConversation, perConversation ? 0 : model.Spec.ExpertCacheBytes);
         Checkpoints = perConversation || !Context.HoldsPartialState ? 0 : model.Spec.Checkpoints;
         try
         {
@@ -34,6 +37,9 @@ internal sealed class ChatLane : IDisposable
         }
     }
 
+    /// <summary>How many replies it writes at once: the turns to answer it gives.</summary>
+    public int Replies { get; }
+
     public LlamaContext Context { get; }
 
     /// <summary>The prompts being read in its conversations, read together.</summary>
@@ -44,7 +50,8 @@ internal sealed class ChatLane : IDisposable
 
     public ConversationLog Conversations { get; }
 
-    /// <summary>How many sequences its cache has: replies written at once, and conversations kept while fewer are.</summary>
+    /// <summary>How many sequences its cache has: one for each reply written at once — a conversation kept while fewer are — and one for
+    /// each opening it may hold.</summary>
     public int Sequences => Context.Sequences;
 
     /// <summary>Whether each conversation has a slice of the cache of its own.</summary>

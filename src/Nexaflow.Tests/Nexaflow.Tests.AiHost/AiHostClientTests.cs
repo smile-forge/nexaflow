@@ -82,15 +82,39 @@ public class AiHostClientTests
     }
 
     [TestMethod]
-    public async Task AHostWithTheWrongToken_IsRefused()
+    public async Task TheApp_SaysHelloWithTheTokenItStartedTheHostWith_AndItsName()
     {
-        var host = new FakeHost { WrongToken = new string('0', 64) };
+        var host = new FakeHost();
+        await using var client = new AiHostClient(host, Fast, app: "a test app");
+
+        await Describe(client);
+
+        var (hello, token) = host.Greeted!.Value;
+        Assert.AreEqual((token, AiHostProtocol.Version, "a test app"), (hello.Token, hello.ProtocolVersion, hello.App));
+    }
+
+    [TestMethod]
+    public async Task AnAnswerFromAProcessTheAppDidNotStart_IsRefused()
+    {
+        var host = new FakeHost { WelcomesAs = 9999 };
         await using var client = new AiHostClient(host, Fast);
 
         var ex = await Assert.ThrowsExactlyAsync<AiHostException>(() => Describe(client));
 
         Assert.AreEqual(AiHostFailure.Unavailable, ex.Failure);
         Assert.IsTrue(host.Last!.WasKilled, "a host that cannot prove itself is not left running");
+    }
+
+    [TestMethod]
+    public async Task AHostThatTurnsTheAppAway_IsUnavailable_SayingWhy()
+    {
+        var host = new FakeHost { RefusesWith = "it speaks another protocol" };
+        await using var client = new AiHostClient(host, Fast);
+
+        var ex = await Assert.ThrowsExactlyAsync<AiHostException>(() => Describe(client));
+
+        Assert.AreEqual(AiHostFailure.Unavailable, ex.Failure);
+        StringAssert.Contains(ex.Message, "it speaks another protocol");
     }
 
     [TestMethod]

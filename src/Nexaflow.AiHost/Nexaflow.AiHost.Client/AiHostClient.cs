@@ -14,6 +14,7 @@ namespace Nexaflow.AiHost.Client;
 public sealed class AiHostClient : IAiHost, IAsyncDisposable
 {
     private readonly IAiHostLauncher _launcher;
+    private readonly string _app;
     private readonly AiHostTimings _timings;
     private readonly TimeProvider _time;
     private readonly SemaphoreSlim _starting = new(1, 1);
@@ -24,9 +25,12 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     private readonly CancellationTokenSource _life = new();
     private Task _retiring = Task.CompletedTask;
 
-    public AiHostClient(IAiHostLauncher launcher, AiHostTimings? timings = null, TimeProvider? time = null)
+    /// <param name="app">The app's name for itself, which the host keeps this app's conversations apart by — its process's name
+    /// where it gives none.</param>
+    public AiHostClient(IAiHostLauncher launcher, AiHostTimings? timings = null, TimeProvider? time = null, string? app = null)
     {
         _launcher = launcher;
+        _app      = app ?? System.Diagnostics.Process.GetCurrentProcess().ProcessName;
         _timings  = timings ?? AiHostTimings.Default;
         _time     = time ?? TimeProvider.System;
     }
@@ -39,6 +43,7 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
     /// a pool thread.</summary>
     public event EventHandler<IReadOnlyList<string>>? ModelFilesChanged;
 
+    /// <summary>Whether a host is running for this app now: what one that is not keeps — held models, kept conversations — is gone with it.</summary>
     public bool IsRunning => _connection is { IsAlive: true };
 
     /// <summary>What the next host is started with. A host already running with something else serves out the
@@ -122,7 +127,7 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
                     $"The AI host stopped unexpectedly {recent} times in {_timings.CrashWindow.TotalMinutes:0.#} minutes; it is not restarted until that eases.");
 
             // Started off the caller's thread: launching the process and waiting on its handshake is no work for a UI thread.
-            _connection = await Task.Run(() => HostConnection.StartAsync(_launcher, environment, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
+            _connection = await Task.Run(() => HostConnection.StartAsync(_launcher, environment, _app, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
             _connection.FilesChanged += (_, paths) => ModelFilesChanged?.Invoke(this, paths);
             return _connection;
         }

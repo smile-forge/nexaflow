@@ -26,7 +26,7 @@ internal sealed class InProcessHost : IDisposable
     {
         var store  = new HostModelStore(root, [], MachineCards.Probe(), downloadsAllowed: false);
         var memory = HostMemory.Of(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, AiHostProtocol.DefaultMemoryShare);
-        Models = new ModelRegistry(gpus, ModelAdapters.Default, ModelRunners.Default, _log, store, memory);
+        Models = new ModelRegistry(gpus, ModelRunners.Default, _log, store, memory);
         Held   = new HeldModels(Models, store, runtime, gpusNow, memory, _log);
     }
 

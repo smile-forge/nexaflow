@@ -22,7 +22,7 @@ public class HostChannelTests
 
         HostMessage[] sent =
         [
-            new Hello("ab12", AiHostProtocol.Version, 7), new Welcome(), new Ping(3), new Pong(3), new CancelRequest(9),
+            new Hello("ab12", AiHostProtocol.Version, "Nexaflow"), new Welcome(7), new HelloRefused("another protocol"), new Ping(3), new Pong(3), new CancelRequest(9),
             new DescribeHost(1), new Progress(1, "loading", 5, 10), new Completed(1),
             new Failed(2, HostErrorKind.Refused, "over budget"),
         ];

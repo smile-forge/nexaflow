@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Nexaflow.AiHost.Catalog;
@@ -24,6 +25,9 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
 
     private readonly OwnedModelRuntime _runtime;
     private readonly HostedModel?       _model;
+
+    /// <summary>The conversations this provider has named to the host, which the host may keep: only these are its to forget.</summary>
+    private readonly ConcurrentDictionary<string, byte> _named = new(StringComparer.Ordinal);
 
     public OwnedLlmProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds,
                             MachineCards hardware, ProviderModel model)
@@ -95,10 +99,17 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
                                                         CancellationToken ct = default)
         => StreamAsync(messages, tools, urgency, LlmThinking.Allowed, ct);
 
-    /// <summary>The same, the model reasoning first or not as <paramref name="thinking"/> says. A reply may be as long as
-    /// the model's context leaves room for; it ends with why it ended, and how full the context now is.</summary>
+    /// <summary>The same, the model reasoning first or not as <paramref name="thinking"/> says: work that is no conversation,
+    /// which the host reads afresh and keeps for nothing.</summary>
     public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
                                                         LlmThinking thinking, CancellationToken ct = default)
+        => StreamAsync(messages, tools, urgency, thinking, conversation: null, ct);
+
+    /// <summary>The same, as a turn of <paramref name="conversation"/>: the host keeps what the model read and wrote under that
+    /// name for its next turn, which then costs only what is new. A reply may be as long as the model's context leaves room for;
+    /// it ends with why it ended, and how full the context now is.</summary>
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
+                                                        LlmThinking thinking, string? conversation, CancellationToken ct = default)
     {
         if (_model is null) throw new LlmProviderException($"{ProviderName} has no model to answer with.");
         var request = Turns(messages, _model);
@@ -107,23 +118,38 @@ public sealed class OwnedLlmProvider : ILlmProvider, ILocalModelCatalog, IHostMo
             : null;
         var priority = urgency == LlmUrgency.Background ? RequestPriority.Background : RequestPriority.Interactive;
         return LlmStreamRunner.RunAsync(_runtime.Activities, $"{ProviderName} ({_model.Catalog.DisplayName})…", ProviderName,
-            token => Events(_model, request, offered, priority, thinking == LlmThinking.Allowed, token), ct);
+            token => Events(_model, request, offered, priority, thinking == LlmThinking.Allowed, conversation, token), ct);
+    }
+
+    /// <summary>Has the host let go of what it keeps of <paramref name="conversation"/>, on every model keeping it. A conversation
+    /// this provider never named to the host is none of its keeping, and the host is not asked; a host that is gone kept nothing.</summary>
+    public async Task ForgetConversationAsync(string conversation, CancellationToken ct = default)
+    {
+        // Only a name it gave the host, and only a host still running: one started since keeps nothing of it.
+        if (!_named.TryRemove(conversation, out _) || !_runtime.Host.IsRunning) return;
+        try
+        {
+            await foreach (var _ in _runtime.Host.SendAsync(id => new ForgetConversation(id, conversation), OwnedModelRuntime.StallLimit, ct)) { }
+        }
+        catch (AiHostException) { }
     }
 
     /// <summary>The reply as the host writes it. A host lost before a word of it — it crashed, and the next request
     /// starts another — is asked once more; after a word, the reader has seen part of a reply and it is not.</summary>
     private async IAsyncEnumerable<LlmStreamEvent> Events(HostedModel model, IReadOnlyList<ChatTurn> turns, IReadOnlyList<ChatTool>? tools,
-                                                          RequestPriority priority, bool thinks, [EnumeratorCancellation] CancellationToken ct)
+                                                          RequestPriority priority, bool thinks, string? conversation,
+                                                          [EnumeratorCancellation] CancellationToken ct)
     {
         using var use = await _runtime.ModelUse.BeginAsync(ct);
         var host = _runtime.Host;
         host.Environment = _runtime.Environment;
         var spec = await _runtime.PlacedAsync(model, HostedRoles.Chat, ct);
+        if (conversation is not null) _named.TryAdd(conversation, 0);
         for (int attempt = 0; ; attempt++)
         {
             bool written = false;
             using var shared = await host.ShareMediaAsync(turns, ct);   // made again for a host started afresh: a section is its connection's
-            await using var replies = host.SendAsync(id => new Generate(id, spec, shared.Turns, MaxNewTokens: null, priority, tools, thinks, SamplingOf(model, thinks)), OwnedModelRuntime.StallLimit, ct)
+            await using var replies = host.SendAsync(id => new Generate(id, spec, shared.Turns, MaxNewTokens: null, priority, tools, thinks, SamplingOf(model, thinks), Conversation: conversation), OwnedModelRuntime.StallLimit, ct)
                                           .GetAsyncEnumerator(ct);
             while (true)
             {

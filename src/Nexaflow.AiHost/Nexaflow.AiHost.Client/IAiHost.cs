@@ -20,6 +20,9 @@ public interface IAiHost
     /// <inheritdoc cref="AiHostClient.Memory"/>
     HostMemory Memory { get; }
 
+    /// <inheritdoc cref="AiHostClient.IsRunning"/>
+    bool IsRunning { get; }
+
     /// <inheritdoc cref="AiHostClient.ModelFilesChanged"/>
     event EventHandler<IReadOnlyList<string>>? ModelFilesChanged;
 }

@@ -117,6 +117,59 @@ public class OwnedLlmProviderTests
     }
 
     [TestMethod]
+    public async Task ATurnOfAConversation_IsNamedToTheHost_AndWorkThatIsNoConversationIsNot()
+    {
+        var host = new FakeAiHost();
+        var provider = Provider(new FakeModelStore(Gemma.Files), host);
+
+        await ReadAsync(provider.StreamAsync([new(LlmRole.User, "Hi")], [], LlmUrgency.Interactive, LlmThinking.Allowed, "chat-7"));
+        await ReadAsync(provider.StreamAsync([new(LlmRole.User, "Analyse this page.")], [], LlmUrgency.Background, LlmThinking.Allowed));
+
+        CollectionAssert.AreEqual(new[] { "chat-7", null }, host.Requests.OfType<Generate>().Select(g => g.Conversation).ToArray());
+    }
+
+    [TestMethod]
+    public async Task ForgettingAConversation_TellsTheHost_OnlyOfOneItNamed_AndOnce()
+    {
+        var host = new FakeAiHost();
+        var provider = Provider(new FakeModelStore(Gemma.Files), host);
+        await ReadAsync(provider.StreamAsync([new(LlmRole.User, "Hi")], [], LlmUrgency.Interactive, LlmThinking.Allowed, "chat-7"));
+
+        await provider.ForgetConversationAsync("chat-7");
+        await provider.ForgetConversationAsync("chat-7");
+        await provider.ForgetConversationAsync("never-named");
+
+        Assert.AreEqual("chat-7", host.Requests.OfType<ForgetConversation>().Single().Conversation);
+    }
+
+    [TestMethod]
+    public async Task ForgettingOnAHostThatIsGone_IsNoFailure_ItKeptNothing()
+    {
+        var host = new FakeAiHost();
+        var answer = host.Reply;
+        host.Reply = (r, attempt) => r is ForgetConversation ? throw new AiHostException(AiHostFailure.Lost, "crashed") : answer(r, attempt);
+        var provider = Provider(new FakeModelStore(Gemma.Files), host);
+        await ReadAsync(provider.StreamAsync([new(LlmRole.User, "Hi")], [], LlmUrgency.Interactive, LlmThinking.Allowed, "chat-7"));
+
+        await provider.ForgetConversationAsync("chat-7");
+
+        Assert.AreEqual(1, host.Requests.OfType<ForgetConversation>().Count());
+    }
+
+    [TestMethod]
+    public async Task ForgettingWhereNoHostRuns_StartsNone_ToTellItNothing()
+    {
+        var host = new FakeAiHost();
+        var provider = Provider(new FakeModelStore(Gemma.Files), host);
+        await ReadAsync(provider.StreamAsync([new(LlmRole.User, "Hi")], [], LlmUrgency.Interactive, LlmThinking.Allowed, "chat-7"));
+        host.IsRunning = false;   // retired for standing idle: what it kept went with it
+
+        await provider.ForgetConversationAsync("chat-7");
+
+        Assert.AreEqual(0, host.Requests.OfType<ForgetConversation>().Count());
+    }
+
+    [TestMethod]
     public async Task ARequestTheHostRefuses_IsAProviderFailure()
     {
         var host = new FakeAiHost { Reply = (r, _) => throw new AiHostException(AiHostFailure.Request, "over budget", HostErrorKind.Refused) };

@@ -83,6 +83,28 @@ public interface ILlmProvider : IAiProvider
         => StreamAsync(messages, tools, urgency, ct);
 
     /// <summary>
+    /// The same, as a turn of the conversation the app names <paramref name="conversation"/>. A provider that keeps what a
+    /// conversation has read between its turns keeps it under that name, so the next turn of it costs only what is new, until
+    /// <see cref="ForgetConversationAsync"/> lets it go; one that keeps nothing reads the turn as any other — the default. Null is
+    /// work that is no conversation — an analysis, a judgement, a repair — read afresh and kept for nothing.
+    /// </summary>
+    IAsyncEnumerable<LlmStreamEvent> StreamAsync(
+        IReadOnlyList<LlmMessage> messages,
+        IReadOnlyList<LlmTool>    tools,
+        LlmUrgency                urgency,
+        LlmThinking               thinking,
+        string?                   conversation,
+        CancellationToken         ct = default)
+        => StreamAsync(messages, tools, urgency, thinking, ct);
+
+    /// <summary>
+    /// Lets go of what the provider keeps of the conversation it was told was <paramref name="conversation"/>: the app has closed
+    /// it. A provider that keeps nothing has nothing to let go — the default. It fails only when cancelled: where what it kept
+    /// can no longer be reached, nothing of it is kept.
+    /// </summary>
+    Task ForgetConversationAsync(string conversation, CancellationToken ct = default) => Task.CompletedTask;
+
+    /// <summary>
     /// Returns metadata about the bound model (context window etc.), or null if the provider doesn't
     /// know. Default implementation returns null.
     /// </summary>

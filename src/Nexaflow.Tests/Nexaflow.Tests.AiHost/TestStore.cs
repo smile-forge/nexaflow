@@ -97,7 +97,7 @@ internal static class TestStore
         var runtime = device is null ? HostCatalog.Cpu : HostCatalog.Cuda;
         var built = entry.PartsFor(runtime).FirstOrDefault(p => p.Name == part) ?? entry.Parts.FirstOrDefault(p => p.Name == part)
                     ?? throw new ArgumentException($"'{model}' has no part '{part}'.", nameof(part));
-        return new ModelSpec($"{model}/{part}", built.Runner, built.Folder, built.File, built.Adapter, memoryBytes ?? built.MemoryBytes, contextTokens,
+        return new ModelSpec($"{model}/{part}", built.Runner, built.Folder, built.File, memoryBytes ?? built.MemoryBytes, contextTokens,
                              built.CudaOptions, built.Projector, device);
     }
 

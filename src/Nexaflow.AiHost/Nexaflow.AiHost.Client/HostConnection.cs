@@ -111,15 +111,18 @@ internal sealed class HostConnection : IAsyncDisposable
         }
     }
 
-    /// <summary>Opens a pipe only this user can reach, starts a host on it and waits for its token.</summary>
+    /// <summary>Starts a host on a pipe of its own under a name only this call knows, connects to it once it has opened the pipe, and
+    /// says hello with the token it was started with: the host welcomes this app, the process it is the one started.</summary>
+    /// <param name="app">The app's name for itself, which the host keeps its conversations apart by.</param>
     /// <param name="onEnded">Attached before anything can end the connection: a host that dies straight after the
     /// handshake must still be counted.</param>
-    public static async Task<HostConnection> StartAsync(IAiHostLauncher launcher, AiHostEnvironment environment, AiHostTimings timings,
+    public static async Task<HostConnection> StartAsync(IAiHostLauncher launcher, AiHostEnvironment environment, string app, AiHostTimings timings,
                                                         TimeProvider time, EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
     {
         string pipeName = "nexaflow-aihost-" + Guid.NewGuid().ToString("N");
         string token    = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        var pipe = CreatePipe(pipeName);
+        // The host reads which account this app runs as from the pipe itself: the app lets it identify that account, and no more.
+        var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous, TokenImpersonationLevel.Identification);
 
         IAiHostProcess? process = null;
         try
@@ -128,27 +131,35 @@ internal sealed class HostConnection : IAsyncDisposable
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(AiHostProtocol.ConnectTimeout);
 
-            var connected = pipe.WaitForConnectionAsync(timeout.Token);
+            // The host opens its pipe once its runtime is up: connecting waits for it, or for the host to have exited instead.
+            var connected = pipe.ConnectAsync(timeout.Token);
             if (await Task.WhenAny(connected, process.Exited).ConfigureAwait(false) != connected)
             {
                 timeout.Cancel();
                 try { await connected.ConfigureAwait(false); } catch (OperationCanceledException) { }
                 int code = await process.Exited.ConfigureAwait(false);
-                throw new AiHostException(AiHostFailure.Unavailable, $"The AI host exited before connecting, with {DescribeExit(code, process.LastErrors)}.");
+                throw new AiHostException(AiHostFailure.Unavailable, $"The AI host exited before it took this app, with {DescribeExit(code, process.LastErrors)}.");
             }
             await connected.ConfigureAwait(false);
 
             HostChannel? opened = null;
             var sections = new ClientSections(message => opened!.SendAsync(message));
             var channel = opened = new HostChannel(pipe, sections);
-            if (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false) is not Hello hello
-                || hello.ProtocolVersion != AiHostProtocol.Version
-                || !TokensMatch(hello.Token, token))
+            await channel.SendAsync(new Hello(token, AiHostProtocol.Version, app), timeout.Token).ConfigureAwait(false);
+            switch (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false))
             {
-                await channel.DisposeAsync().ConfigureAwait(false);
-                throw new AiHostException(AiHostFailure.Unavailable, "The AI host did not identify itself.");
+                case Welcome welcome when welcome.ProcessId == process.Id:
+                    break;
+                case HelloRefused refused:
+                    await channel.DisposeAsync().ConfigureAwait(false);
+                    throw new AiHostException(AiHostFailure.Unavailable, $"The AI host turned this app away: {refused.Reason}.");
+                case null:
+                    await channel.DisposeAsync().ConfigureAwait(false);
+                    throw new AiHostException(AiHostFailure.Unavailable, "The AI host closed its pipe without welcoming this app.");
+                default:
+                    await channel.DisposeAsync().ConfigureAwait(false);
+                    throw new AiHostException(AiHostFailure.Unavailable, "What answered on the AI host's pipe is not the host this app started.");
             }
-            await channel.SendAsync(new Welcome(), timeout.Token).ConfigureAwait(false);
 
             var connection = new HostConnection(process, environment, channel, sections, timings, time);
             connection.Ended += onEnded;
@@ -167,22 +178,6 @@ internal sealed class HostConnection : IAsyncDisposable
             throw new AiHostException(AiHostFailure.Unavailable, $"The AI host could not be reached: {ex.Message}");
         }
     }
-
-    private static bool TokensMatch(string offered, string expected)
-        => offered.Length == expected.Length
-        && CryptographicOperations.FixedTimeEquals(System.Text.Encoding.ASCII.GetBytes(offered), System.Text.Encoding.ASCII.GetBytes(expected));
-
-    /// <summary>A pipe only this user can open, buffered both ways: unbuffered, every write would wait for the other
-    /// end to read it, and a heartbeat could queue behind a slow read.</summary>
-    private static NamedPipeServerStream CreatePipe(string name)
-    {
-        var security = new PipeSecurity();
-        security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User!, PipeAccessRights.FullControl, AccessControlType.Allow));
-        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
-                                               PipeOptions.Asynchronous, PipeBuffer, PipeBuffer, security);
-    }
-
-    private const int PipeBuffer = SharedBytes.InlineLimit;
 
     /// <summary>Sends the request <paramref name="create"/> makes; null when the connection is retiring and the request
     /// belongs on the next host.</summary>

@@ -92,7 +92,7 @@ internal sealed class HeldModels : IDisposable
         var parts = request.Models.Select(PartOf).DistinctBy(p => p.Ref.Id).ToList();
         foreach (var entry in parts.Select(p => p.Entry).Distinct()) EnsureHere(entry);
 
-        var hold = new Hold(parts, request.Priority, reply, request.RequestId);
+        var hold = new Hold(parts, ClientIdentity.Current.Granted(request.Priority), reply, request.RequestId);
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
         await _planning.WaitAsync(ct);
         try

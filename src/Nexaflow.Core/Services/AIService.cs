@@ -624,8 +624,14 @@ public sealed class AIService : IAIService
             _conversations.RemoveAll(c => c.Id == conversationId);
         }
         catch { /* never crash on delete failures */ }
-        return Task.CompletedTask;
+        return ForgetConversationAsync(conversationId);
     }
+
+    /// <summary>Has every language model of the workspace let go of what it keeps of the conversation: its turns may have gone
+    /// to any model its row routes to, the larger one a run was handed over to among them. A model that keeps nothing, or never kept
+    /// this conversation, has nothing to let go.</summary>
+    public Task ForgetConversationAsync(string conversationId)
+        => Task.WhenAll(_providers.Values.OfType<ILlmProvider>().Distinct().ToList().Select(model => model.ForgetConversationAsync(conversationId)));
 
     public async Task SaveConversationArtifactAsync(string conversationId, string name, string json)
     {
@@ -926,7 +932,7 @@ public sealed class AIService : IAIService
 
     public Task<AiResponse?> RunAgentAsync(IPageViewModel? page, string input, bool includeContext, IAIResponseHandler approval,
                                           CancellationToken ct = default)
-        => RunAgentAsync(page, input, includeContext, approval, AgentRunOptions.Typed, ct);
+        => RunAgentAsync(page, input, includeContext, approval, AgentRunOptions.Typed with { Conversation = approval.ConversationName }, ct);
 
     /// <summary>
     /// Runs a request through the agent loop on the model its row routes it to (<see cref="RouteAsync"/>). The machine's model,
@@ -1077,7 +1083,7 @@ public sealed class AIService : IAIService
                 var exposed = await chooser.ChooseAsync(ct);
                 messages[0] = new(LlmRole.System, BuildSystemPrompt(page, context, protocol.Instructions(exposed), options.ReplyStyle));
 
-                var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, options.Thinking, ct);
+                var taken = await protocol.StepAsync(provider, messages, exposed, toolNames, approval, options.Thinking, options.Conversation, ct);
                 transcript?.Step(messages, exposed, taken.Written);
                 if (taken.Ended?.ContextTokens is { } used && window is { } read) approval.ReportContextUse(used, read);
 

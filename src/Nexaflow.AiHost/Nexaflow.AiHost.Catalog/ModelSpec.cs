@@ -3,8 +3,8 @@ using Nexaflow.AiHost.Contracts;
 namespace Nexaflow.AiHost.Catalog;
 
 /// <summary>
-/// A part of a model as the host runs it: its files, prepared in <see cref="Folder"/> by the adapter its catalog names, the runner
-/// that loads them, where it runs and what it costs there. The host makes it from its catalog and its placement of the part
+/// A part of a model as the host runs it: its files, in <see cref="Folder"/>, the runner that loads them, where it runs and what
+/// it costs there. The host makes it from its catalog and its placement of the part
 /// (<see cref="ModelPlacement"/>); a request names the part (<see cref="ModelRef"/>), never how it runs.
 /// </summary>
 /// <param name="Id">Unique among the models the host holds: the catalog id, with its part for a model made of several.</param>
@@ -12,7 +12,7 @@ namespace Nexaflow.AiHost.Catalog;
 /// <param name="Folder">Its folder in the host's model store, as the store names it (<c>models/kokoro-82m</c>): where that lies on
 /// disk is the host's to know, and a path that leaves the store is refused.</param>
 /// <param name="File">The file it is — a language model's GGUF, a single graph; null for a model whose runner reads several files from its folder.</param>
-/// <param name="Adapter">What turns the downloaded files into what the runner reads; null when they are used as downloaded.</param>
+
 /// <param name="MemoryBytes">Memory it holds loaded where <see cref="Device"/> places it, with its context — what
 /// admission counts: on a GPU against that GPU's budget, on the CPU against the host's share of this machine's
 /// memory (<see cref="HostMemory"/>).</param>
@@ -49,7 +49,7 @@ namespace Nexaflow.AiHost.Catalog;
 /// most recently read kept there (llama.cpp's expert cache); 0 for none.</param>
 /// <param name="TileCells">For a decoder, the side of the squares of latent cells it decodes a latent in, each alone and blended
 /// back where they overlap, so it holds one tile's work at a time; 0 decodes the whole latent at once.</param>
-public sealed record ModelSpec(string Id, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
+public sealed record ModelSpec(string Id, string Runner, string Folder, string? File, long MemoryBytes, int ContextTokens,
                                IReadOnlyDictionary<string, string>? CudaOptions = null, string? Projector = null, int? Device = null,
                                int BatchTokens = ModelSpec.DefaultBatch, ContextCache ContextCache = ContextCache.F16, int? GpuLayers = null,
                                int Sequences = ModelSpec.DefaultSequences, int BackgroundSequences = 0, int BackgroundTokens = 0, long BackgroundBytes = 0,
@@ -68,6 +68,11 @@ public sealed record ModelSpec(string Id, string Runner, string Folder, string? 
     /// <summary>The sequences a language model's context holds where nothing gives it room for more: as many as the catalog's figures
     /// were measured holding.</summary>
     public const int DefaultSequences = 8;
+
+    /// <summary>The sequences a language model's context holds beside those its replies are written in, one for each opening it holds
+    /// at once — the cells of a prompt's start several prompts share, read once. Counted in what it holds
+    /// (<see cref="PlacementNeed.BytesAt"/>); a context with a slice for each conversation shares no openings, and holds none.</summary>
+    public const int OpeningSequences = 2;
 
     /// <summary>The tokens a language model reads in a step where nothing gives it more room: llama.cpp's own.</summary>
     public const int DefaultBatch = 512;

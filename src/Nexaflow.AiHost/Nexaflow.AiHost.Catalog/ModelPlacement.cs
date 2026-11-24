@@ -47,11 +47,14 @@ public sealed record PlacementNeed(ModelSpec OnGpu, ModelSpec? OnCpu = null, lon
     public long CheckpointBytes => Checkpoints * StateBytes;
 
     /// <summary>What it holds on a GPU with <paramref name="context"/> tokens of context, <paramref name="layers"/> of its layers
-    /// there — all of them, when null — reading <paramref name="batch"/> tokens a step, and holding <paramref name="sequences"/>. Cut,
+    /// there — all of them, when null — reading <paramref name="batch"/> tokens a step, and writing <paramref name="sequences"/> replies
+    /// at once, its openings' sequences beside them (<see cref="ModelSpec.OpeningSequences"/>). Cut,
     /// the GPU holds its layers' share of the weights and of the context, and everything else whole.</summary>
     public long BytesAt(int context, int? layers = null, int batch = ModelSpec.DefaultBatch, int sequences = ModelSpec.DefaultSequences)
     {
-        long more = BatchBytesPerToken * Math.Max(0, batch - ModelSpec.DefaultBatch) + BytesPerSequence * Math.Max(0, sequences - ModelSpec.DefaultSequences);
+        // Its context holds a sequence for each opening beside one for each reply.
+        long more = BatchBytesPerToken * Math.Max(0, batch - ModelSpec.DefaultBatch)
+                    + BytesPerSequence * Math.Max(0, sequences + ModelSpec.OpeningSequences - ModelSpec.DefaultSequences);
         return layers is { } some
             ? OnGpu.MemoryBytes - WeightsBytes + (WeightsBytes + BytesPerToken * context) * some / Layers + more
             : OnGpu.MemoryBytes + BytesPerToken * context + more;

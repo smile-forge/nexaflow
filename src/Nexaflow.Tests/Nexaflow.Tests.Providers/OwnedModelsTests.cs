@@ -19,7 +19,7 @@ public class OwnedModelsTests
         var chat  = gemma.Part(HostedRoles.Chat, OwnedModels.Cuda);
 
         Assert.AreEqual((ModelKind.Language, "llama-chat", "models/gemma-4-e4b-it-qat"), (gemma.ModelKind, chat.Runner, chat.Folder));
-        Assert.IsTrue(chat is { MemoryBytes: > 0, ContextTokens: > 0, Adapter: null } && gemma is { Images: true, Audio: true, ToolCalls: true });
+        Assert.IsTrue(chat is { MemoryBytes: > 0, ContextTokens: > 0 } && gemma is { Images: true, Audio: true, ToolCalls: true });
         Assert.AreEqual(chat, gemma.Part(HostedRoles.Chat, OwnedModels.Cpu), "one build runs on both");
         CollectionAssert.AreEquivalent(new[] { $"{chat.Folder}/{chat.File}", $"{chat.Folder}/{chat.Projector}" },
                                        gemma.Catalog.Files.Select(f => f.RelativePath).ToArray(), "the GGUF and the projector it sees and hears through");

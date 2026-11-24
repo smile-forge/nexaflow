@@ -468,7 +468,8 @@ public partial class App : Application
                                                              adoptFrom: testStore is null ? [LocalAiFolder.Root()] : [],
                                                              memoryShare: memoryShare,
                                                              logDirectory: () => ShellSafetyLog.Instance.Folder,
-                                                             downloads: !UiTest));
+                              downloads: !UiTest),
+                                                             app: "Nexaflow");
         // A host's end is recorded only while the user keeps logs; the request it took down fails on its own.
         _aiHost.HostExited += (_, e) => ShellSafetyLog.Instance.AiHostEnded(e);
         return _aiHost;

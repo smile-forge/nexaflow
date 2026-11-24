@@ -69,7 +69,7 @@ public static partial class HostCatalog
                                   Editing? Editing);
     private sealed record Editing(int Sources, bool Masks);
     private sealed record Voice(string? Language, string? Part, string? File, string? Lexicon);
-    private sealed record Part(string? Role, string? Runner, string? Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
+    private sealed record Part(string? Role, string? Runner, string? Folder, string? File, long MemoryBytes, int ContextTokens,
                                Dictionary<string, string>? CudaOptions, string? ExecutionProvider, string? Name, string? Projector, long BytesPerToken,
                                bool RunsOnCpu, bool LoadsOnDemand, int Layers = 0, long BatchBytesPerToken = 0,
                                long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0, long ExpertBytes = 0,
@@ -286,7 +286,7 @@ public static partial class HostCatalog
         if (p.LoadsOnDemand && (language || onDemand))
             throw new InvalidDataException($"{what} '{id}' loads its {p.Role} on demand, which only a part of a model kept loaded can.");
 
-        return new HostedPart(p.Role, p.Runner, p.Folder, p.File, p.Adapter, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
+        return new HostedPart(p.Role, p.Runner, p.Folder, p.File, p.MemoryBytes, p.ContextTokens, p.CudaOptions, p.ExecutionProvider,
                               p.Name ?? p.Role, p.Projector, p.BytesPerToken, p.LoadsOnDemand, p.Layers, p.BatchBytesPerToken, p.BytesPerSequence, p.BackgroundBytes,
                               p.StateBytes, p.ExpertBytes, p.Streamed is { } s ? new HostedStreamedBuild(s.File!, s.MemoryBytes, s.HostBytes) : null,
                               p.Tiled is { } t ? new HostedTiledBuild(t.Cells, t.MemoryBytes, t.HostBytes) : null);

@@ -15,6 +15,13 @@ public interface IAIResponseHandler
     /// <summary>A new request started: echo the user's prompt and show a "considering" placeholder.</summary>
     void BeginResponse(string userText);
 
+    /// <summary>
+    /// The conversation this handler holds, by the name its runs are turns of: a model that keeps what a conversation read between
+    /// its turns keeps it under this name, and the holder forgets it (<see cref="IAIService.ForgetConversationAsync"/>) once it is
+    /// closed. Default: null — a handler that holds no conversation, whose every run is read afresh.
+    /// </summary>
+    string? ConversationName => null;
+
     /// <summary>Updates the single live activity line while tools run (overwrites).</summary>
     void ReportProgress(string message);
 

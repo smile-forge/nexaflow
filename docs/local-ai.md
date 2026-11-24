@@ -244,8 +244,10 @@ flowchart LR
 ### One host process on one stack
 
 Local models run in `Nexaflow.AiHost`, a helper executable beside the app, as `Nexaflow.PrivilegeBridge` is. The app's
-`AiHostClient` starts it on the first request for a model, speaks to it over a named pipe only the user can open, and
-binds it to a kill-on-close job object of the SDK's own (`HostProcessJob`) so it dies with the app. The SDK and the
+`AiHostClient` starts it on the first request for a model, under a pipe name and a token only it knows, and binds it to a
+kill-on-close job object of the SDK's own (`HostProcessJob`) so it dies with the app. The host opens the pipe, only its own
+account may open it, and serves every client that connects with the token (`HostListener`), each in a session of its own
+(`HostServer`); it ends once the last has gone. The SDK and the
 host keep their logs with one writer compiled into each (`AiHostLogFile`), and the host executable references nothing
 of Nexaflow's but its contracts. Another app runs a host of its own the same way, through the SDK alone —
 `Nexaflow.AiHost.Sample` is the shortest one, and `StandaloneSdkTests` holds the SDK to referencing nothing else of
@@ -303,6 +305,24 @@ Layout: `src/Nexaflow.AiHost/` — `Nexaflow.AiHost.Contracts` (the pipe's messa
 (the app's side, and the CUDA pack's manifest) and `Nexaflow.AiHost` (the executable); the provider is
 `Nexaflow.Providers.AiHost`, which takes the client by constructor injection like any app-wide service.
 
+**Several clients, one host.** A client connects at identification level, so the host reads which account it runs as from
+the pipe itself, and says hello with the protocol it speaks, its token and its app's name; the host welcomes it naming its
+own process — which the app that started it checks — or turns it away saying why (`HelloRefused`). Each request is served
+as its client (`ClientIdentity`: the account, and the app), and what clients leave behind is theirs alone: a model's kept
+conversations and the openings it shares are partitioned by client, each with a fair share of the room, so one client can
+neither continue another's conversation nor push it out while within its share. Turns on a device go round the clients
+waiting at each priority, and admission takes requests in the order they came. What a session sends goes out through an
+outbox of its own (`SessionOutbox`): answers to heartbeats and section messages go ahead of replies, and replies queue at
+most 256 deep, so the reading loop never waits on a send and a client slow to read holds back only its own requests — a
+reply whose client's queue is full stands aside from the token rounds it shares with other clients' replies until there is
+room (`TokenRounds.Member.StandAside`). A client that sends what cannot be read ends its own session, never the host.
+
+**The host's policy** is a file of the machine's administrator, `%ProgramData%\Smile-Forge\AiHost\host.json`
+(`HostPolicy`): the share of memory models on the CPU may hold, the folder the host logs to, how long a model nothing holds
+stays loaded once idle, and the highest priority each account — or one app of an account — may ask for, a request asking
+above it served at it. What the file leaves out is the host's default, and what an app that starts a host for itself
+passes on its command line comes before the file.
+
 The client watches the host three ways: a heartbeat answered on the host's reading loop, so a frozen process shows
 however busy its requests are; a stall limit per request, so a request that stops replying is taken for a hang; and
 a grace after a cancellation, so a request that will not stop is one. Any of them kills the host; the next request
@@ -326,9 +346,8 @@ while that is off. While it is on:
 
 Models are loaded as published. A speech export is read through the config it is published with
 (`genai_config.native.json`, in onnxruntime-genai's format): its graphs' files, their inputs and outputs layer by layer,
-its features and its decoding limits. A language model's GGUF and projector go to llama.cpp as they are. An export that
-needs its files turned into what its runner reads names an adapter in its catalog entry (`IModelAdapter`), which
-prepares its folder once per adapter version.
+its features and its decoding limits. A language model's GGUF and projector go to llama.cpp as they are. Every file a
+runner reads is published as it reads it: nothing is converted on the user's machine.
 
 ### Capabilities instead of one text contract
 
@@ -480,11 +499,16 @@ drifts from a re-read, it is greedy decoding branching on that rounding.
   started on, then the turns.
 - **Changes are appended, never edited.** Moving to another page appends an event carrying the new page's context;
   tool results and audio are appended like any other turn.
+- **A conversation is kept by its name.** A turn names the conversation it is of (`Generate.Conversation`) — Nexaflow's
+  chats by their id, a voice conversation by its own — and the host keeps what the model read and wrote under that name
+  for the next turn, one state a name, until the app forgets it (`ForgetConversation`, when a chat is closed or deleted)
+  or the room is wanted. A turn with no name — page analysis, triage, ranking, a judgement — is a one-off: read afresh,
+  let go when its reply ends, and never taking or pushing out what a conversation kept.
 - **Appending is how a conversation goes on.** A barge-in cancels generation and appends what the user actually heard
   as a note; a conversation cut short is dropped, and the next request reads it afresh.
 - **A prompt that parts from what was read is read from where it parts.** An edited last turn, a reply whose reasoning
-  the template leaves out of what was answered: the kept conversation sharing the longest start with the prompt — 256
-  tokens or more — is cut back to it, and only the rest is read. A model whose sequences are their cells alone is cut
+  the template leaves out of what was answered: the conversation of the turn's name, where it shares 256 tokens or more
+  with the prompt, is cut back to where they part, and only the rest is read. A model whose sequences are their cells alone is cut
   back where the two part. One holding more — a recurrent layer's state (Qwen 3.5's gated DeltaNet), a sliding window's
   cells (Gemma 4) — is cut back to where that state was saved: at the end of each turn it read, and where each prompt
   ends, eight saves kept across its conversations (`ModelPlacement.Checkpoints`) and counted in the host's memory share
@@ -507,9 +531,11 @@ drifts from a re-read, it is greedy decoding branching on that rounding.
 
 The cache is allocated once per model, as long as its context, and its conversations share it, each a sequence in one
 cache: 8 of them, as the catalog's figures were measured holding, or 16 where a model's catalog says what each more costs
-and its GPU has the room left (Gemma 4 26B: 204 MB each in 16 bits, 110 MB in 8). As many replies are written at once as
-the cache has sequences; the conversations kept between requests and the openings below take the rest, and are let go when
-a reply needs their sequence. A request past them waits for a reply to end, and one whose prompt finds no room waits for room
+and its GPU has the room left (Gemma 4 26B: 204 MB each in 16 bits, 110 MB in 8), and two more, one for each opening below
+(`ModelSpec.OpeningSequences`), counted in what the model holds. As many replies are written at once as the cache has
+sequences for replies; the conversations kept between requests and the openings take the rest, a kept conversation let go
+when a reply needs its sequence. An opening takes only a free sequence, and only where every reply that could still begin
+finds one — free, or given up by a kept conversation or an opening nobody holds: no conversation is let go to make one. A request past them waits for a reply to end, and one whose prompt finds no room waits for room
 rather than being turned away; its room is held for it from the moment it is let in, so prompts arriving together are never
 let into the same room. The kept conversations go first, oldest first, when room is needed. For E4B a 16k cache is under a
 gigabyte.

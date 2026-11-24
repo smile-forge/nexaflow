@@ -71,7 +71,6 @@ public enum HostedToolKind
 /// <param name="Runner">What in the host loads and runs it.</param>
 /// <param name="Folder">Where its files are, relative to the model store.</param>
 /// <param name="File">The file it is, for a model that is a single graph.</param>
-/// <param name="Adapter">What prepares its files for the runner, if they need it.</param>
 /// <param name="MemoryBytes">GPU memory it holds loaded — a language model's with no context, its projector at work
 /// included; 0 for a part that runs on the CPU.</param>
 /// <param name="ContextTokens">The conversation a language model is given where its GPU has the room.</param>
@@ -101,7 +100,7 @@ public enum HostedToolKind
 /// <param name="Streamed">The same part built to be streamed — its weights in this machine's memory, brought to the GPU a group at a
 /// time — for a GPU whose budget does not hold it whole; null where it has no such build.</param>
 /// <param name="Tiled">How the part — a decoder — runs in tiles for a GPU whose budget does not hold it whole; null where it does not.</param>
-public sealed record HostedPart(string Role, string Runner, string Folder, string? File, string? Adapter, long MemoryBytes, int ContextTokens,
+public sealed record HostedPart(string Role, string Runner, string Folder, string? File, long MemoryBytes, int ContextTokens,
                                 IReadOnlyDictionary<string, string>? CudaOptions, string? ExecutionProvider, string Name, string? Projector = null,
                                 long BytesPerToken = 0, bool LoadsOnDemand = false, int Layers = 0, long BatchBytesPerToken = 0,
                                 long BytesPerSequence = 0, long BackgroundBytes = 0, long StateBytes = 0, long ExpertBytes = 0,

@@ -57,6 +57,6 @@ public static class PlacementNeeds
 
     /// <summary>A part as the catalog describes it, placed nowhere yet: its folder the store's name for it.</summary>
     private static ModelSpec Unplaced(HostedEntry entry, HostedPart part)
-        => new(PartId(entry, part), part.Runner, part.Folder, part.File, part.Adapter, part.MemoryBytes, part.ContextTokens, part.CudaOptions,
+        => new(PartId(entry, part), part.Runner, part.Folder, part.File, part.MemoryBytes, part.ContextTokens, part.CudaOptions,
                part.Projector, ContextCache: part.BytesPerToken > 0 ? ContextCache.Q8 : ContextCache.F16);
 }

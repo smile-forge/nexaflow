@@ -268,8 +268,99 @@
           "type": "code",
           "status": "done",
           "doc": "src/Nexaflow.Providers/Nexaflow.Providers.Local/Nexaflow.Providers.Local.csproj"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/HostListener.cs",
+          "class": "HostListener"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/SessionOutbox.cs",
+          "class": "SessionOutbox"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/ClientIdentity.cs",
+          "class": "ClientIdentity"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/HostPolicy.cs",
+          "class": "HostPolicy"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ClientShares.cs",
+          "class": "ClientShares"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ModelRegistryTests.cs",
+            "class": "ModelRegistryTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/GpuSchedulerTests.cs",
+            "class": "GpuSchedulerTests",
+            "method": "AJobPastItsFirstMoments_RunsAlongside_TakingNoTurn"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/CircleWatchTests.cs",
+            "class": "CircleWatchTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/OwnedModelTests.cs",
+            "class": "OwnedModelTests",
+            "method": "AReplySampledAsGoogleRecommends_DiffersBySeed_AndOneSeedOnAFreshHostDrawsTheSame"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/LlamaScoresTests.cs",
+            "class": "LlamaScoresTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HostListenerTests.cs",
+            "class": "HostListenerTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SessionOutboxTests.cs",
+            "class": "SessionOutboxTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HostPolicyTests.cs",
+            "class": "HostPolicyTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ClientSharesTests.cs",
+            "class": "ClientSharesTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ClientConversationsTests.cs",
+            "class": "ClientConversationsTests"
+          }
+        ]
+      }
     },
     "local-ai-setup": {
       "links": [
@@ -351,14 +442,52 @@
           "method": "Load"
         }
       ]
+    },
+    "conversation-cut-back": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationMatch.cs",
+          "class": "ConversationMatch",
+          "method": "CutPoint"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationLog.cs",
+          "class": "ConversationLog",
+          "method": "TakeCutBackFor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationLog.cs",
+          "class": "LiveConversation",
+          "method": "CutBack"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/local-ai.md",
+          "title_path": [
+            "Local AI \u2014 voice conversation, on-device models, media generation",
+            "Architecture",
+            "The context as a log"
+          ]
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Models/ModelHandlers.cs",
+          "class": "ForgetConversationHandler"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 11,
+  "changed_sets": 13,
   "touched_nodes": [
     "ai-host",
     "ai-model-assets",
     "ai-tools",
+    "conversation-cut-back",
     "experts-in-host",
     "local-ai-setup",
     "owned-images-moss-loras",

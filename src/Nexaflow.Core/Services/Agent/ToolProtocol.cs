@@ -35,10 +35,11 @@ internal abstract class ToolProtocol
     public abstract string? Instructions(IReadOnlyList<IClientTool> tools);
 
     /// <summary>One step of the model on the conversation so far, reasoning first or not as <paramref name="thinking"/>
-    /// says: its prose streamed to the handler as a draft, and the step read.</summary>
+    /// says, as a turn of <paramref name="conversation"/> (null for work that is no conversation): its prose streamed to the
+    /// handler as a draft, and the step read.</summary>
     public abstract Task<AgentStep> StepAsync(ILlmProvider provider, IReadOnlyList<LlmMessage> messages, IReadOnlyList<IClientTool> tools,
                                               IReadOnlyCollection<string> toolNames, IAIResponseHandler handler, LlmThinking thinking,
-                                              CancellationToken ct);
+                                              string? conversation, CancellationToken ct);
 
     /// <summary>The step as the conversation remembers it.</summary>
     public abstract LlmMessage Said(AgentStep step);

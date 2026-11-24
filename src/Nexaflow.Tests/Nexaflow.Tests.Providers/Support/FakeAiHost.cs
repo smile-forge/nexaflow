@@ -30,6 +30,9 @@ internal sealed class FakeAiHost : IAiHost
 
     public AiHostEnvironment Environment { get; set; } = AiHostEnvironment.Cpu;
 
+    /// <summary>Whether its host is running: so until a test says it has gone.</summary>
+    public bool IsRunning { get; set; } = true;
+
     /// <summary>The share of memory its host's models may hold: none unless a test sets one.</summary>
     public HostMemory Memory { get; set; } = HostMemory.Unbounded;
 

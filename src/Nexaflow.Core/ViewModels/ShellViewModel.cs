@@ -1592,8 +1592,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         AiResponse? response;
         try
         {
-            // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly.
-            var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed;
+            // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly;
+            // answered on a page that holds a conversation, it is a turn of that conversation.
+            var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed with { Conversation = handler.ConversationName };
             response = await svc.RunAgentAsync(pageVm, input, includeContext, handler, options, token);
         }
         catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }

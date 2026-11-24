@@ -3,6 +3,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.AiHost.Catalog;
+using static Nexaflow.Tests.AiHost.TestClients;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -24,16 +25,35 @@ public class ModelRegistryTests
         public long BudgetNow(int device, long heldBytes) => Gpu(device).BudgetBytes - Taken;
     }
 
-    /// <summary>A model that holds nothing but its spec, and counts its loads.</summary>
+    /// <summary>A model that holds nothing but its spec, and counts its loads; a load held (<see cref="Hold"/>) takes until it is
+    /// let go.</summary>
     private sealed class Runner : IModelRunner
     {
         public readonly List<string> Loads = [];
+        private readonly Dictionary<string, ManualResetEventSlim> _held = [];
         public string Id => "fake";
+
+        /// <summary>Keeps the next load of <paramref name="id"/> from finishing until the returned event is set; it is counted as
+        /// it starts.</summary>
+        public ManualResetEventSlim Hold(string id)
+        {
+            var hold = new ManualResetEventSlim();
+            lock (_held) _held[id] = hold;
+            return hold;
+        }
 
         public IHostModel Load(ModelSpec spec)
         {
             lock (Loads) Loads.Add(spec.Id);
+            ManualResetEventSlim? hold;
+            lock (_held) _held.Remove(spec.Id, out hold);
+            hold?.Wait();
             return new Model(spec);
+        }
+
+        public bool Started(string id)
+        {
+            lock (Loads) return Loads.Contains(id);
         }
 
         private sealed record Model(ModelSpec Spec) : IHostModel
@@ -42,7 +62,7 @@ public class ModelRegistryTests
         }
     }
 
-    private static ModelSpec Spec(string id, double gb, int? device = 0) => new(id, "fake", @"C:\models\" + id, null, null, (long)(gb * GB), 0, Device: device);
+    private static ModelSpec Spec(string id, double gb, int? device = 0) => new(id, "fake", @"C:\models\" + id, null, (long)(gb * GB), 0, Device: device);
 
     private static readonly Func<string, Task> Quiet = _ => Task.CompletedTask;
 
@@ -50,7 +70,7 @@ public class ModelRegistryTests
     {
         var runner = new Runner();
         var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-registry-").FullName);
-        return (new ModelRegistry(gpus ?? new TwoGpus(), new ModelAdapters([]), new ModelRunners([runner]), log, new StoreRoot(), memory), runner);
+        return (new ModelRegistry(gpus ?? new TwoGpus(), new ModelRunners([runner]), log, new StoreRoot(), memory), runner);
     }
 
     [TestMethod]
@@ -209,6 +229,69 @@ public class ModelRegistryTests
                                   "the cut model's CPU layers took the share, so speech made way for them and was loaded again, past it, while they are in use");
     }
 
+    [TestMethod]
+    public async Task ModelsNotLoaded_LoadInTheOrderTheyWereAskedFor_WhicheverClientAsks()
+    {
+        var (registry, runner) = Registry();
+        using var loading = runner.Hold("first");
+        var first = As(Notes, () => registry.AcquireAsync(Spec("first", 1), resident: false, Quiet, default));
+        await WaitFor(() => runner.Started("first"));
+
+        var asked = new[] { (Mail, "mail-1"), (Notes, "notes-2"), (Mail, "mail-2"), (Notes, "notes-3") }
+            .Select(a => As(a.Item1, () => registry.AcquireAsync(Spec(a.Item2, 1), resident: false, Quiet, default)))
+            .ToList();
+        loading.Set();
+
+        foreach (var lease in await Task.WhenAll(asked.Prepend(first))) lease.Dispose();
+        CollectionAssert.AreEqual(new[] { "first", "mail-1", "notes-2", "mail-2", "notes-3" }, runner.Loads.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ARequestWaitingForRoom_KeepsItsPlace_SoALaterOneDoesNotTakeTheRoomWhenItComes()
+    {
+        var (registry, runner) = Registry();
+        var reply = await registry.AcquireAsync(Spec("chat", 6), resident: true, Quiet, default);
+        using var room = registry.BorrowRoom();
+        var stages = new List<string>();
+        var drawing = As(Notes, () => registry.AcquireAsync(Spec("denoiser", 9), resident: false,
+                                                              s => { lock (stages) stages.Add(s); return Task.CompletedTask; }, default, room));
+        await WaitFor(() => { lock (stages) return stages.Contains("waiting"); });
+
+        reply.Dispose();   // the room comes, and another client asks for it straight away
+        var later = As(Mail, () => registry.AcquireAsync(Spec("upscaler", 9), resident: false, Quiet, default, room));
+
+        using (await drawing.WaitAsync(TimeSpan.FromSeconds(5)))
+        {
+            await Task.Delay(Soon);
+            Assert.IsFalse(later.IsCompleted, "the later request waits for the room the earlier one was given");
+            CollectionAssert.AreEqual(new[] { "chat", "denoiser" }, runner.Loads.ToArray());
+        }
+        using var upscaler = await later.WaitAsync(TimeSpan.FromSeconds(5));
+        CollectionAssert.AreEqual(new[] { "chat", "denoiser", "upscaler" }, runner.Loads.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ARequestThatStopsWaitingInLine_LeavesIt_AndTheOneBehindItLoads()
+    {
+        var (registry, runner) = Registry();
+        using var loading = runner.Hold("first");
+        var first = registry.AcquireAsync(Spec("first", 1), resident: false, Quiet, default);
+        await WaitFor(() => runner.Started("first"));
+
+        using var gone = new CancellationTokenSource();
+        var dropped = As(Notes, () => registry.AcquireAsync(Spec("dropped", 1), resident: false, Quiet, gone.Token));
+        var behind = As(Mail, () => registry.AcquireAsync(Spec("behind", 1), resident: false, Quiet, default));
+        gone.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => dropped);
+
+        loading.Set();
+        using var held = await first;
+        using var loaded = await behind.WaitAsync(TimeSpan.FromSeconds(5));
+        CollectionAssert.AreEqual(new[] { "first", "behind" }, runner.Loads.ToArray(), "the request that stopped waiting was never loaded");
+    }
+
+    private static readonly TimeSpan Soon = TimeSpan.FromMilliseconds(200);
+
     private static async Task WaitFor(Func<bool> condition)
     {
         for (int i = 0; i < 200 && !condition(); i++) await Task.Delay(25);
@@ -219,5 +302,22 @@ public class ModelRegistryTests
     private sealed class StoreRoot : Nexaflow.AiHost.Store.IModelFiles
     {
         public string PathOf(string relative) => relative;
+    }
+
+    [TestMethod]
+    public async Task AModelNothingHolds_IsLetGoOnceItHasStoodIdle_AndAHeldOneStays()
+    {
+        var (registry, runner) = Registry();
+        (await registry.AcquireAsync(Spec("held", 2), resident: true, Quiet, default)).Dispose();
+        (await registry.AcquireAsync(Spec("asked", 2), resident: false, Quiet, default)).Dispose();
+        using (await registry.AcquireAsync(Spec("in use", 2), resident: false, Quiet, default))
+        {
+            registry.UnloadIdle(TimeSpan.Zero);
+
+            (await registry.AcquireAsync(Spec("held", 2), resident: true, Quiet, default)).Dispose();
+            (await registry.AcquireAsync(Spec("asked", 2), resident: false, Quiet, default)).Dispose();
+            CollectionAssert.AreEqual(new[] { "held", "asked", "in use", "asked" }, runner.Loads.ToArray(),
+                                      "the model nothing held went and loaded again; the held one and the one in use stayed");
+        }
     }
 }

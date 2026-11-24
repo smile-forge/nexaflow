@@ -175,7 +175,7 @@ public class SharedHostMeasurements
         TimeSpan? firstWord = null, sentence = null;
         string? said = null;
         List<ChatTurn> turns = [new(TurnRole.System, "You are a voice assistant. Answer in two short spoken sentences."), new(TurnRole.User, question)];
-        await foreach (var reply in host.SendAsync(id => new Generate(id, model, turns, 120, RequestPriority.Voice, Thinks: false), StallLimit))
+        await foreach (var reply in host.SendAsync(id => new Generate(id, model, turns, 120, RequestPriority.Voice, Thinks: false, Conversation: "voice"), StallLimit))
         {
             if (reply is not TextDelta delta) continue;
             firstWord ??= watch.Elapsed;
@@ -222,7 +222,7 @@ public class SharedHostMeasurements
             };
             try
             {
-                await foreach (var reply in host.SendAsync(id => new Generate(id, model, turns, most, RequestPriority.Background, tools, thinks), StallLimit, stop))
+                await foreach (var reply in host.SendAsync(id => new Generate(id, model, turns, most, RequestPriority.Background, tools, thinks, Conversation: i % 3 == 1 ? "aria" : null), StallLimit, stop))
                     if (reply is GenerationEnded ended) tokens += ended.GeneratedTokens;
                 calls++;
             }
@@ -325,7 +325,7 @@ public class SharedHostMeasurements
                 var text = new StringBuilder();
                 GenerationEnded? ended = null;
                 var calls = new List<ChatToolCall>();
-                await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, AriaTools, Thinks: false), StallLimit))
+                await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, AriaTools, Thinks: false, Conversation: "aria"), StallLimit))
                 {
                     if (reply is TextDelta delta) { firstWord ??= watch.Elapsed; text.Append(delta.Text); }
                     if (reply is ToolCallMade made) { firstWord ??= watch.Elapsed; calls.Add(made.Call); }
@@ -359,7 +359,7 @@ public class SharedHostMeasurements
 
         var turns = new List<ChatTurn> { new(TurnRole.System, "Be brief."), new(TurnRole.User, "A train leaves at 14:10 and arrives at 16:45. How long is it?") };
         var (text, reasoning) = (new StringBuilder(), new StringBuilder());
-        await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, SendsReasoning: true), StallLimit))
+        await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, SendsReasoning: true, Conversation: "reasoning given back"), StallLimit))
         {
             if (reply is TextDelta delta) text.Append(delta.Text);
             if (reply is ReasoningDelta thought) reasoning.Append(thought.Text);
@@ -374,7 +374,7 @@ public class SharedHostMeasurements
         turns.Add(new ChatTurn(TurnRole.Assistant, text.ToString()) { Reasoning = reasoning.ToString() });
         turns.Add(new ChatTurn(TurnRole.User, "And in minutes?"));
         var again = new StringBuilder();
-        await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background), StallLimit))
+        await foreach (var reply in host.SendAsync(id => new Generate(id, aria, turns, 2048, RequestPriority.Background, Conversation: "reasoning given back"), StallLimit))
             if (reply is TextDelta delta) again.Append(delta.Text);
         Assert.IsFalse(string.IsNullOrWhiteSpace(again.ToString()), "a conversation given its reasoning back goes on");
     }

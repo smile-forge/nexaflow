@@ -3,8 +3,9 @@ using System.Text.Json.Serialization;
 namespace Nexaflow.AiHost.Contracts;
 
 /// <summary>
-/// One value on the AI host's pipe. The app opens the pipe and the host connects; the host speaks first
-/// (<see cref="Hello"/>) and the app answers <see cref="Welcome"/>. After that, any number of requests run at once:
+/// One value on the AI host's pipe. The host opens the pipe and every client — an app — connects to it; the client speaks first
+/// (<see cref="Hello"/>) and the host answers <see cref="Welcome"/>, or turns it away (<see cref="HelloRefused"/>). After that,
+/// any number of requests run at once:
 /// each carries an id, every reply names it, and each request ends in exactly one <see cref="Completed"/> or
 /// <see cref="Failed"/>. A request may also take input while it runs (<see cref="RequestInput"/>) — audio to hear,
 /// text to speak — until the app sends <see cref="InputEnd"/>.
@@ -12,6 +13,7 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$m")]
 [JsonDerivedType(typeof(Hello), "hello")]
 [JsonDerivedType(typeof(Welcome), "welcome")]
+[JsonDerivedType(typeof(HelloRefused), "hello-refused")]
 [JsonDerivedType(typeof(Ping), "ping")]
 [JsonDerivedType(typeof(Pong), "pong")]
 [JsonDerivedType(typeof(CancelRequest), "cancel")]
@@ -32,6 +34,7 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(ModelsAway), "models-away")]
 [JsonDerivedType(typeof(ModelsBack), "models-back")]
 [JsonDerivedType(typeof(Generate), "generate")]
+[JsonDerivedType(typeof(ForgetConversation), "forget-conversation")]
 [JsonDerivedType(typeof(TextDelta), "delta")]
 [JsonDerivedType(typeof(ReasoningDelta), "reasoning-delta")]
 [JsonDerivedType(typeof(ToolCallMade), "tool-call")]
@@ -72,11 +75,18 @@ namespace Nexaflow.AiHost.Contracts;
 [JsonDerivedType(typeof(ModelFilesChanged), "model-files-changed")]
 public abstract record HostMessage;
 
-/// <summary>The host's first message: the token it was given on its standard input, and the protocol it speaks.</summary>
-public sealed record Hello(string Token, int ProtocolVersion, int ProcessId) : HostMessage;
+/// <summary>A client's first message: the protocol it speaks, the app it is, and — for a host its app started for itself — the token
+/// the host was started with, which it read on its standard input. Who the client is the host reads from the pipe, never from this.</summary>
+/// <param name="Token">The host's token; null for a host whose account alone admits a client.</param>
+/// <param name="App">The app's name for itself: what tells apart two apps of one account, whose conversations the host keeps apart.</param>
+public sealed record Hello(string? Token, int ProtocolVersion, string App) : HostMessage;
 
-/// <summary>The app's answer to a valid <see cref="Hello"/>; a host that hears anything else exits.</summary>
-public sealed record Welcome : HostMessage;
+/// <summary>The host's answer to a <see cref="Hello"/> it takes: the client's session has begun.</summary>
+/// <param name="ProcessId">The host's process — for a client that started it, the one it started.</param>
+public sealed record Welcome(int ProcessId) : HostMessage;
+
+/// <summary>The host's answer to a <see cref="Hello"/> it turns away — another protocol, another token — before it closes the pipe.</summary>
+public sealed record HelloRefused(string Reason) : HostMessage;
 
 /// <summary>The app's heartbeat. The host answers on the thread that reads the pipe, never behind a running request,
 /// so a missing <see cref="Pong"/> means the process itself has stopped answering.</summary>

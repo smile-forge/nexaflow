@@ -109,9 +109,18 @@ public sealed record ChatTurn(TurnRole Role, string Text, IReadOnlyList<ChatMedi
 /// <param name="Decoding">How the model's makers have it write beyond choosing each token; none for most models.</param>
 /// <param name="SendsReasoning">Send the model's reasoning as it is written (<see cref="ReasoningDelta"/>), for an app that keeps it;
 /// otherwise it is read and never sent, and its progress alone is told.</param>
+/// <param name="Conversation">The app's name for the conversation this turn is of. Named, the host keeps what the model read and wrote
+/// for the next turn under that name — one state a name, the latest — continuing from it while the turns still match it and cutting
+/// it back where they part, until the app forgets it (<see cref="ForgetConversation"/>) or the room is wanted; unnamed, the turn is a
+/// one-off, read afresh and let go when its reply ends, taking nothing another conversation kept.</param>
 public sealed record Generate(long RequestId, ModelRef Model, IReadOnlyList<ChatTurn> Turns, int? MaxNewTokens,
                               RequestPriority Priority, IReadOnlyList<ChatTool>? Tools = null, bool Thinks = true,
-                              TokenSampling? Sampling = null, ReplyDecoding? Decoding = null, bool SendsReasoning = false) : HostRequest(RequestId);
+                              TokenSampling? Sampling = null, ReplyDecoding? Decoding = null, bool SendsReasoning = false,
+                              string? Conversation = null) : HostRequest(RequestId);
+
+                              /// <summary>Lets go of what the host keeps of the conversation the app named <see cref="Conversation"/>, on every model keeping it:
+                              /// the app has closed it. A turn of it still being answered is let go when it ends.</summary>
+                              public sealed record ForgetConversation(long RequestId, string Conversation) : HostRequest(RequestId);
 
 /// <summary>
 /// How a reply chooses each token from the model's scores, as the model's makers recommend for it: the

@@ -130,11 +130,22 @@ internal sealed class RecordingModel(ILlmProvider inner) : ILlmProvider
         => StreamAsync(messages, [], urgency, ct);
 
     /// <summary>The reply, recorded as the model wrote it: its prose, then each call it made in its own protocol.</summary>
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
+                                                        CancellationToken ct = default)
+        => StreamAsync(messages, tools, urgency, LlmThinking.Allowed, null, ct);
+
+    public IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
+                                                        LlmThinking thinking, CancellationToken ct = default)
+        => StreamAsync(messages, tools, urgency, thinking, null, ct);
+
+    /// <summary>The reply, recorded as the model wrote it: its prose, then each call it made in its own protocol — asked as it was
+    /// asked, with its thinking and the conversation it is a turn of.</summary>
     public async IAsyncEnumerable<LlmStreamEvent> StreamAsync(IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmTool> tools, LlmUrgency urgency,
+                                                              LlmThinking thinking, string? conversation,
                                                               [EnumeratorCancellation] CancellationToken ct = default)
     {
         var answer = new StringBuilder();
-        await foreach (var e in inner.StreamAsync(messages, tools, urgency, ct))
+        await foreach (var e in inner.StreamAsync(messages, tools, urgency, thinking, conversation, ct))
         {
             if (e is LlmTextDelta delta) answer.Append(delta.Text);
             if (e is LlmToolCallRequested call) answer.Append($"\n[call {call.Call.Name} {call.Call.Arguments.ToJsonString()}]");
@@ -142,6 +153,8 @@ internal sealed class RecordingModel(ILlmProvider inner) : ILlmProvider
         }
         Turns.Add(([.. messages], answer.ToString()));
     }
+
+    public Task ForgetConversationAsync(string conversation, CancellationToken ct = default) => inner.ForgetConversationAsync(conversation, ct);
 
     /// <summary>Turns where the harness had to tell the model its tool block could not be read.</summary>
     public int MalformedBlocks => Turns.Count(t => t.Asked[^1].Text.Contains("Fix the block and try again"));

@@ -6,8 +6,9 @@ using Nexaflow.AiHost.Contracts;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// A host that runs in the test process: it connects to the client's pipe and speaks the protocol, and can be told to
-/// misbehave — miss heartbeats, ignore cancellations, crash after the handshake, give the wrong token.
+/// A host that runs in the test process: it opens the pipe it is started on, takes the client's hello and speaks the protocol, and
+/// can be told to misbehave — miss heartbeats, ignore cancellations, crash after the handshake, turn the client away, or answer as
+/// a process the client did not start.
 /// </summary>
 internal sealed class FakeHost : IAiHostLauncher
 {
@@ -18,7 +19,14 @@ internal sealed class FakeHost : IAiHostLauncher
     public bool AnswerPings { get; set; } = true;
     public bool HonourCancel { get; set; } = true;
     public bool CrashAfterHandshake { get; set; }
-    public string? WrongToken { get; set; }
+    /// <summary>The process its welcome names, in place of the one started — as something else answering on the pipe would.</summary>
+    public int? WelcomesAs { get; set; }
+
+    /// <summary>Turns the client away, saying this.</summary>
+    public string? RefusesWith { get; set; }
+
+    /// <summary>The last client's hello, and the token the host was started with.</summary>
+    public (Hello Hello, string Token)? Greeted { get; private set; }
 
     /// <summary>Dies as a native fault kills a host once a request arrives: the pipe goes with the process, and the exit —
     /// this code, and these last lines of error output — is seen <see cref="ExitSeenAfter"/> later, as a real exit waits
@@ -54,7 +62,7 @@ internal sealed class FakeHost : IAiHostLauncher
         Environments.Enqueue(environment);
         var process = new FakeProcess();
         Last = process;
-        _ = RunAsync(pipeName, WrongToken ?? token, process);
+        _ = RunAsync(pipeName, token, process);
         return process;
     }
 
@@ -70,13 +78,21 @@ internal sealed class FakeHost : IAiHostLauncher
     {
         try
         {
-            var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-            await pipe.ConnectAsync(5000);
+            var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            await pipe.WaitForConnectionAsync(process.Killed);
             var channel = new HostChannel(pipe);
             process.Channel = channel;
 
-            await channel.SendAsync(new Hello(token, AiHostProtocol.Version, 4242));
-            if (await channel.ReceiveAsync(process.Killed) is not Welcome) { process.Exit(3); return; }
+            if (await channel.ReceiveAsync(process.Killed) is not Hello hello) { process.Exit(3); return; }
+            Greeted = (hello, token);
+            string? refusal = RefusesWith ?? (hello.Token == token && hello.ProtocolVersion == AiHostProtocol.Version ? null : "not the token or protocol it was started with");
+            if (refusal is not null)
+            {
+                await channel.SendAsync(new HelloRefused(refusal));
+                process.Exit(3);
+                return;
+            }
+            await channel.SendAsync(new Welcome(WelcomesAs ?? process.Id));
             if (CrashAfterHandshake) { process.Exit(1); return; }
 
             while (await channel.ReceiveAsync(process.Killed) is { } message)
