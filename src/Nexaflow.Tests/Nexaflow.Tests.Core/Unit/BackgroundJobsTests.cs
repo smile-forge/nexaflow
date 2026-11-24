@@ -106,18 +106,14 @@ public class BackgroundJobsTests
     /// <summary>One workspace's assistant, its jobs listed in <paramref name="tasks"/> and its notifications in <paramref name="told"/>.</summary>
     private static (AIService Service, WorkspaceRuntime Workspace) Assistant(BackgroundActivityManager tasks, List<NotificationItem> told, Model model)
     {
-        var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, TestTemp.Root, new BackgroundJobs(tasks, ws, told.Add));
-        Set(nameof(WorkspaceRuntime.AiService), svc);
-        Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
+        var ws  = TestRuntimes.FactoryWith(tasks, told.Add).CreateUnstarted(new Workspace());
+        var svc = ws.AiService;
         svc.Register("c1", model);
         var config = new AiConfig { Columns = [new ProviderModelPair { Id = "c1", ProviderName = "Claude", Model = "m" }] };
         config.Assignments["GeneralIntelligence"] = AbilityChain.Of("c1");
         svc.LoadAbilityConfig(config);
         return (svc, ws);
 
-        void Set(string property, object value) =>
-            typeof(WorkspaceRuntime).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(ws, [value]);
     }
 
     [TestMethod]

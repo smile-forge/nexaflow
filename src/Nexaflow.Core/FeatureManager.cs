@@ -74,15 +74,6 @@ public sealed class FeatureManager
     /// <summary>Pack URIs of every feature-contributed theme <c>ResourceDictionary</c> activated so far.
     /// Re-applied below the active theme on a theme switch (see ShellServices).</summary>
     public IReadOnlyList<Uri> ThemeContributionUris { get { lock (_themeLock) return _themeContributionUris.ToList(); } }
-
-    // ── Per-(Type, Workspace) instance cache ────────────────────────────
-    private readonly Dictionary<WorkspaceRuntime, Dictionary<Type, object>> _cache = new();
-    private readonly object _cacheLock = new();
-
-    /// <summary>The <see cref="FeatureServiceAttribute"/> types being built, so one that needs itself is a defect rather than
-    /// endless recursion. Guarded by <see cref="_cacheLock"/>, under which every build runs.</summary>
-    private readonly HashSet<Type> _servicesBuilding = [];
-
     // ── Registration ──────────────────────────────────────────────────────
 
     /// <summary>Builds the (cached) discovery index. No feature assemblies are loaded on the cache-hit path.</summary>
@@ -223,61 +214,21 @@ public sealed class FeatureManager
     // ── Instantiation ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates (or returns a cached) instance of <paramref name="targetType"/> with constructor args
-    /// resolved from <paramref name="workspace"/> and the registered global config instances.
+    /// The instance of <paramref name="targetType"/> built for <paramref name="workspace"/> — built the first time, from
+    /// constructor args resolved from the runtime and the registered global config instances, and kept in its
+    /// <see cref="WorkspaceRuntime.Features"/> until the runtime renews its services or ends.
     /// <para>
     /// <b>Never returns null — it throws.</b> Every way this can fail is a wiring defect: an unknown
     /// constructor parameter, a global config that never registered, a scoped config whose load threw, a
-    /// constructor that threw, or a runtime handed over before <c>BootstrapServices</c> wired it. Returning
-    /// null for any of those is how a feature silently disappears — the caller enumerating implementations
-    /// just skips it, nothing logs, and the symptom surfaces months later as "that never worked".
-    /// </para>
-    /// <para>
-    /// In particular a missing <see cref="IShellServices"/> or <c>IAIService</c> is <b>not</b> a tolerable
-    /// state. <c>WorkspaceManager.BootstrapServices</c> creates both unconditionally — an
-    /// <c>AIService</c> exists whether or not the user configured a provider, and answers accordingly — so by
-    /// the time any runtime reaches a feature they are present. Null means pre-bootstrap or post-teardown,
-    /// and a feature built then would misbehave in ways far harder to trace than an exception here.
+    /// constructor that threw, or a runtime that has already ended. Returning null for any of those is how a
+    /// feature silently disappears — the caller enumerating implementations just skips it, nothing logs, and the
+    /// symptom surfaces months later as "that never worked".
     /// </para>
     /// </summary>
-    /// <exception cref="InvalidOperationException">The type has no public constructor, or no constructor
-    /// whose parameters can be satisfied.</exception>
+    /// <exception cref="InvalidOperationException">The type has no public constructor, no constructor whose parameters can be
+    /// satisfied, or the runtime has ended.</exception>
     public object Instantiate(Type targetType, WorkspaceRuntime workspace)
-    {
-        lock (_cacheLock)
-        {
-            if (!_cache.TryGetValue(workspace, out var ctxCache))
-            {
-                ctxCache = new Dictionary<Type, object>();
-                _cache[workspace] = ctxCache;
-            }
-
-            if (ctxCache.TryGetValue(targetType, out var cached))
-                return cached;
-
-            var instance = BuildOrThrow(targetType, workspace);
-            ctxCache[targetType] = instance;
-            return instance;
-        }
-    }
-
-    /// <summary>
-    /// Drops all cached feature/handler instances built for <paramref name="workspace"/>. Called when a
-    /// Workspace is reconfigured (its AIService/providers were replaced) or disposed, so the next request
-    /// rebuilds handlers against the live services. See WorkspaceManager.
-    /// </summary>
-    public void EvictWorkspace(WorkspaceRuntime workspace)
-    {
-        Dictionary<Type, object>? evicted;
-        lock (_cacheLock)
-            if (!_cache.Remove(workspace, out evicted)) return;
-
-        // A feature's own services end with the instances that captured the runtime's services, the runtime's tabs already gone:
-        // what they hold is let go — a store's pending writes written.
-        foreach (var (type, instance) in evicted)
-            if (type.IsDefined(typeof(FeatureServiceAttribute), inherit: false) && instance is IDisposable disposable)
-                try { disposable.Dispose(); } catch { /* teardown must not break a workspace closing */ }
-    }
+        => workspace.Features.GetOrBuild(targetType, () => BuildOrThrow(targetType, workspace));
 
     private object BuildOrThrow(Type t, WorkspaceRuntime workspace)
     {
@@ -315,9 +266,8 @@ public sealed class FeatureManager
     /// <summary>
     /// The constructor arguments, or null with <paramref name="defect"/> describing why none could be found.
     /// <para>
-    /// Every failure here is a defect rather than a tolerable state, including a missing
-    /// <see cref="IShellServices"/> / <c>IAIService</c>: <c>WorkspaceManager.BootstrapServices</c> builds both
-    /// unconditionally, so a runtime that reaches a feature always carries them.
+    /// Every failure here is a defect rather than a tolerable state. A runtime is built with its
+    /// <see cref="IShellServices"/> and <c>IAIService</c>, so a feature always finds both.
     /// </para>
     /// </summary>
     private object?[]? TryResolveArgs(ConstructorInfo ctor, WorkspaceRuntime workspace, out string? defect)
@@ -337,20 +287,11 @@ public sealed class FeatureManager
             }
             else if (typeof(IShellServices).IsAssignableFrom(pt))
             {
-                if (workspace.ShellServices is null)
-                    return Defect(out defect, $"parameter '{name}' needs IShellServices, but this "
-                        + "WorkspaceRuntime has none — it was handed over before BootstrapServices wired it, "
-                        + "or after its last window closed");
                 args[i] = workspace.ShellServices;
             }
             else if (typeof(IAIService).IsAssignableFrom(pt))
             {
-                // Not "the user has no AI provider" — that workspace still gets an AIService, which answers
-                // that it has none. A null here means the runtime itself isn't live.
-                if (workspace.AiService is null)
-                    return Defect(out defect, $"parameter '{name}' needs IAIService, but this "
-                        + "WorkspaceRuntime has none — it was handed over before BootstrapServices wired it, "
-                        + "or after its last window closed");
+                // A workspace with no AI provider still has an AIService, which answers that it has none.
                 args[i] = workspace.AiService;
             }
             else if (pt == typeof(IVirtualFileSystem))
@@ -378,10 +319,10 @@ public sealed class FeatureManager
             {
                 // A feature's own service: the runtime's one instance, from the cache its registrations come from, built with
                 // the same injection the first time something asks for it.
-                if (!_servicesBuilding.Add(pt))
+                if (!workspace.Features.BeginService(pt))
                     return Defect(out defect, $"the feature service '{pt.Name}' required by parameter '{name}' needs itself to be built");
                 try { args[i] = Instantiate(pt, workspace); }
-                finally { _servicesBuilding.Remove(pt); }
+                finally { workspace.Features.EndService(pt); }
             }
             else if (pt == typeof(IReadOnlyDictionary<Type, IFeatureConfig>))
             {

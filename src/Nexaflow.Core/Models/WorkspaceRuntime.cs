@@ -1,20 +1,23 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
-using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Core.Models;
 
 /// <summary>
-/// A runtime workspace: a group of one-or-more window frames (<see cref="MainWindow"/>) all running
-/// ONE <see cref="Workspace"/>. Owns the per-Workspace live services — the window/tab registry
-/// (<see cref="ShellServices"/>), the agent loop + conversation session (<see cref="AIService"/>),
-/// and an acquired set of provider instances (deduplicated process-wide by
-/// <see cref="ProviderManager"/>). Created fresh on every app/IPC launch; disposed when its last
-/// window closes. Switching the dropdown reconfigures this object in place (see WorkspaceManager).
+/// A live workspace: the one or more window frames (<see cref="MainWindow"/>) running one <see cref="Workspace"/>, and the
+/// services they share — the window and tab registry (<see cref="ShellServices"/>), the assistant (<see cref="AiService"/>),
+/// the provider instances it acquired from the session's pool (deduplicated process-wide by <see cref="ProviderManager"/>),
+/// its file system and locations, and the feature instances built for it (<see cref="Features"/>). Built and started by
+/// <see cref="WorkspaceRuntimeFactory"/>; <see cref="DisposeAsync"/> ends it, letting go of everything it holds in order.
 /// </summary>
-public sealed class WorkspaceRuntime
+public sealed class WorkspaceRuntime : IAsyncDisposable
 {
+    /// <summary>The session's side of this runtime: the pools it acquires from and returns to.</summary>
+    private readonly WorkspaceRuntimeFactory _session;
+
+    private bool _ended;
+
     public Workspace Workspace { get; private set; }
 
     public string Name  => Workspace.Name;
@@ -27,25 +30,33 @@ public sealed class WorkspaceRuntime
     /// <summary>The workspace's assistant persona (name + system prompt).</summary>
     public AiPersonaConfig Persona => Workspace.Persona;
 
-    /// <summary>Provider instances acquired from the global pool; released on dispose/reconfigure.</summary>
-    public ProviderSet?   Providers     { get; internal set; }
-    public AIService?     AiService     { get; internal set; }
-    public ShellServices? ShellServices { get; internal set; }
+    /// <summary>Provider instances acquired from the session's pool for the workspace's configs and assigned columns; null
+    /// before the runtime starts and after it ends.</summary>
+    public ProviderSet? Providers { get; private set; }
+
+    /// <summary>The workspace's assistant, registered with <see cref="Providers"/>' execution instances. Built anew when the
+    /// runtime's services are renewed.</summary>
+    public AIService AiService { get; private set; }
+
+    /// <summary>The window and tab registry this runtime's windows share.</summary>
+    public ShellServices ShellServices { get; }
 
     /// <summary>
-    /// This runtime's file system: the shared <see cref="VirtualFileSystem"/> plus the remote locations this runtime
+    /// This runtime's file system: the shared <see cref="IO.Common.VirtualFileSystem"/> plus the remote locations this runtime
     /// has connected, which the process-wide instance cannot see. Features are given it as
-    /// <see cref="IVirtualFileSystem"/>.
+    /// <see cref="IO.Common.IVirtualFileSystem"/>.
     /// </summary>
-    public LocationFileSystem Vfs { get; } = new(VirtualFileSystem.Instance);
+    public LocationFileSystem Vfs { get; }
 
     /// <summary>
     /// The workspace's connections and the ones found on this machine (each WSL distro) as this runtime has mounted them on
-    /// <see cref="Vfs"/>, each with its live session from
-    /// the runtime's own pool — signed in from what Credential Manager holds, with nobody to ask for anything more until
-    /// the shell has a prompt.
+    /// <see cref="Vfs"/>, each with its live session from the runtime's own pool — signed in from what Credential Manager
+    /// holds, with nobody to ask for anything more until the shell has a prompt.
     /// </summary>
     public RuntimeLocations Locations { get; }
+
+    /// <summary>The feature instances built for this runtime, let go of when its services are renewed and when it ends.</summary>
+    public FeatureScope Features { get; }
 
     /// <summary>
     /// True while this runtime stands ready for a launch that has not come yet (<see cref="StandbyWindow"/>): its window is
@@ -54,18 +65,106 @@ public sealed class WorkspaceRuntime
     /// </summary>
     public bool IsStandby { get; internal set; }
 
-    public WorkspaceRuntime(Workspace workspace)
+    internal WorkspaceRuntime(Workspace workspace, WorkspaceRuntimeFactory session, bool standby)
     {
-        Workspace = workspace;
-        Locations = new RuntimeLocations(Vfs, new LocationSessionPool(LocationProviderRegistry.Instance,
-                                                                      new StoredCredentialSource(CredentialManagerStore.Default)),
-                                         DiscoveredLocations.Instance);
+        Workspace     = workspace;
+        _session      = session;
+        IsStandby     = standby;
+        Vfs           = new LocationFileSystem(session.FileSystem);
+        Locations     = new RuntimeLocations(Vfs, session.NewLocationSessions(), session.Discovered);
+        Features      = new FeatureScope(workspace.Name);
+        AiService     = session.NewAiService(this);
+        ShellServices = new ShellServices(this, session.Activities);
     }
 
-    /// <summary>Convenience constructor for tests and defaults.</summary>
-    public WorkspaceRuntime() : this(new Workspace()) { }
+    /// <summary>Acquires the workspace's providers and mounts its connections: the runtime is ready for its first window.</summary>
+    internal void Start()
+    {
+        AcquireProviders();
+        _session.AwaitFirstDiscovery();
+        Locations.Follow(Workspace.Connections);
+    }
 
-    internal void RepointWorkspace(Workspace workspace) => Workspace = workspace;
+    /// <summary>
+    /// Acquires a fresh provider set for the workspace's current configs and assigned grid columns and swaps it in —
+    /// acquire before release, so unchanged instances stay and dropped ones are cooled — then registers its execution
+    /// instances with the assistant, keyed by column id, and has the residency weigh each for loading ahead.
+    /// </summary>
+    internal void AcquireProviders()
+    {
+        var pool  = _session.Providers;
+        var fresh = pool.AcquireProviderSet(Workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(Workspace.AiConfig));
+
+        StartupTimings.Mark("Workspace.ProvidersAcquired");
+        if (WorkspaceManager.FoldInLocalColumns(Workspace, fresh))
+        {
+            var again = pool.AcquireProviderSet(Workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(Workspace.AiConfig));
+            pool.ReleaseProviderSet(fresh);
+            fresh = again;
+        }
+        StartupTimings.Mark("Workspace.LocalColumnsFolded");
+
+        var old   = Providers;
+        Providers = fresh;
+        pool.ReleaseProviderSet(old);
+        // Nothing is loaded here: the residency weighs each assigned model for loading ahead once the window is up. A standby
+        // runtime's are weighed when a launch adopts it, so a window nobody has asked for yet loads nothing.
+        if (!IsStandby) pool.Residency?.Preload(fresh.Execution.Values);
+
+        AiService.ClearProviders();
+        foreach (var (columnId, provider) in fresh.Execution)
+            AiService.Register(columnId, provider);
+        RaiseProvidersChanged();
+    }
+
+    /// <summary>Has a launch that adopted this standby runtime weigh its assigned models for loading ahead.</summary>
+    internal void Adopted()
+    {
+        IsStandby = false;
+        if (Providers is { } providers) _session.Providers.Residency?.Preload(providers.Execution.Values);
+    }
+
+    /// <summary>
+    /// Points the runtime at <paramref name="workspace"/>, or renews it for the one it runs when that is the same: its tabs
+    /// close (their pages captured the old services), its feature instances and background jobs go, and it is given a new
+    /// assistant, providers acquired for the workspace's configs, and the workspace's connections. The workspace's saved
+    /// startup tabs reopen so its windows are not left empty.
+    /// </summary>
+    internal void Renew(Workspace workspace)
+    {
+        workspace.EnsureSharedServicesLoaded();
+        ShellServices.CloseAllTabs();
+        Features.Reset();
+        _session.StopJobsOf(this);
+
+        Workspace = workspace;
+        AiService.Dispose();
+        AiService = _session.NewAiService(this);
+        AcquireProviders();
+        Locations.Follow(workspace.Connections);
+
+        ShellServices.OpenDefaultTabs(workspace.DefaultTabs);
+    }
+
+    /// <summary>
+    /// Ends the runtime, letting go of what it holds in the order nothing still running can reach what is gone: its
+    /// background jobs stop, its feature instances go, its assistant lets go of the providers it listened to, its provider
+    /// set returns to the pool (cooling any model nothing else uses), its file watches close, and its locations unmount and
+    /// close their sessions. Ending it again does nothing.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_ended) return;
+        _ended = true;
+
+        _session.StopJobsOf(this);
+        Features.Close();
+        AiService.Dispose();
+        _session.Providers.ReleaseProviderSet(Providers);
+        Providers = null;
+        ShellServices.Dispose();
+        await Locations.DisposeAsync().ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Raised when the runtime's providers are registered anew, or one of them becomes available or stops being — a

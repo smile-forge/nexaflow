@@ -54,14 +54,12 @@ public sealed class WorkspaceManager
     /// </summary>
     internal Func<WorkspaceRuntime, IWindowHost>? WindowHostFactory { get; set; }
 
-    /// <summary>The app's background tasks: each workspace's assistant runs its slow work there, and a workspace's jobs stop when
-    /// its models go.</summary>
-    internal BackgroundActivityManager? BackgroundTasks { get; set; }
+    /// <summary>Builds every runtime, and is its link to the session's provider pool, background tasks and locations. Set by
+    /// <c>App</c> at startup.</summary>
+    internal WorkspaceRuntimeFactory? RuntimeFactory { get; set; }
 
-    /// <summary>Where <paramref name="ws"/>'s assistant runs its slow work, telling the user through the app's notifications when
-    /// each piece ends; null before the app has its background tasks.</summary>
-    private BackgroundJobs? JobsOf(WorkspaceRuntime ws)
-        => BackgroundTasks is { } tasks ? new(tasks, ws, MessageCenter.Instance.Post) : null;
+    private WorkspaceRuntimeFactory Factory
+        => RuntimeFactory ?? throw new InvalidOperationException("No runtime is built before the app has its runtime factory.");
 
     private WorkspaceManager() { }
 
@@ -73,6 +71,7 @@ public sealed class WorkspaceManager
     public void Initialize(WorkspacesConfig config)
     {
         _savedConfig = config;
+        _workspaces.Clear();
         Workspaces.Clear();
 
         var workspaces = config.Contexts is { Count: > 0 } saved ? saved : [new Workspace()];
@@ -207,125 +206,66 @@ public sealed class WorkspaceManager
     }
 
     /// <summary>
-    /// Creates a brand-new runtime <see cref="WorkspaceRuntime"/> for <paramref name="workspace"/> with
-    /// fully-bootstrapped per-Workspace services. Always returns a fresh instance — used on every
-    /// app/IPC launch (launching the app N times ⇒ N Workspaces, possibly all on one workspace).
+    /// Creates a brand-new runtime <see cref="WorkspaceRuntime"/> for <paramref name="workspace"/>, started and listed among the
+    /// live ones. Always returns a fresh instance — used on every app/IPC launch (launching the app N times ⇒ N runtimes,
+    /// possibly all on one workspace).
     /// </summary>
     public WorkspaceRuntime CreateWorkspace(Workspace workspace)
     {
-        workspace.EnsureSharedServicesLoaded();
-        var ws = new WorkspaceRuntime(workspace);
-        BootstrapServices(ws);
+        var ws = Factory.Create(workspace);
         _workspaces.Add(ws);
         return ws;
     }
 
     /// <summary>
-    /// Builds a runtime for <paramref name="workspace"/> ahead of the launch that will use it: bootstrapped as
-    /// <see cref="CreateWorkspace"/> bootstraps one, but on standby (<see cref="WorkspaceRuntime.IsStandby"/>) — not live,
+    /// Builds a runtime for <paramref name="workspace"/> ahead of the launch that will use it: started as
+    /// <see cref="CreateWorkspace"/> starts one, but on standby (<see cref="WorkspaceRuntime.IsStandby"/>) — not live,
     /// so nothing that asks which workspaces are open counts it, and with its models left unweighed until
     /// <see cref="AdoptStandby"/>.
     /// </summary>
-    internal WorkspaceRuntime CreateStandbyWorkspace(Workspace workspace)
-    {
-        workspace.EnsureSharedServicesLoaded();
-        var ws = new WorkspaceRuntime(workspace) { IsStandby = true };
-        BootstrapServices(ws);
-        return ws;
-    }
+    internal WorkspaceRuntime CreateStandbyWorkspace(Workspace workspace) => Factory.CreateStandby(workspace);
 
     /// <summary>Makes a standby runtime live, as <see cref="CreateWorkspace"/> would have made it: listed among the open
     /// workspaces, and its assigned models weighed for loading ahead.</summary>
     internal void AdoptStandby(WorkspaceRuntime ws)
     {
-        ws.IsStandby = false;
+        ws.Adopted();
         _workspaces.Add(ws);
-        if (ws.Providers is { } providers)
-            ProviderManager.Instance.Residency?.Preload(providers.Execution.Values);
     }
 
     /// <summary>
-    /// Switches <paramref name="ws"/> to a different <paramref name="target"/> workspace in place:
-    /// repoints the workspace and reconfigures the runtime (providers + AIService), closing the
-    /// Workspace's tabs. Other Workspaces (incl. ones still on the old workspace) are untouched.
+    /// Switches <paramref name="ws"/> to a different <paramref name="target"/> workspace in place: records the outgoing
+    /// workspace's session, then renews the runtime for the target (<see cref="WorkspaceRuntime.Renew"/>), closing its tabs.
+    /// Other runtimes (incl. ones still on the old workspace) are untouched.
     /// </summary>
     public void SwitchWorkspace(WorkspaceRuntime ws, Workspace target)
     {
         if (ReferenceEquals(ws.Workspace, target)) return;
-        ws.ShellServices?.CaptureLastSession();   // record the outgoing workspace's session before we leave it
-        target.EnsureSharedServicesLoaded();
-        ws.RepointWorkspace(target);
-        ReconfigureWorkspace(ws);
+        ws.ShellServices.CaptureLastSession();
+        ws.Renew(target);
     }
 
     /// <summary>
-    /// Rebuilds <paramref name="ws"/>'s runtime for its CURRENT workspace: closes its tabs, evicts the
-    /// feature cache (so handlers drop the dead AIService), releases the old provider set and
-    /// acquires a fresh one from the workspace's configs (loading newly-needed providers and unloading
-    /// now-unused ones), and rebuilds the AIService. Reopens a default tab in the focused window.
-    /// Called by <see cref="SwitchWorkspace"/> and by the Manage-AI panel after a provider-config change.
-    /// </summary>
-    public void ReconfigureWorkspace(WorkspaceRuntime ws)
-    {
-        var workspace = ws.Workspace;
-
-        // 1. Close all tabs across every window (their page-VMs captured the old services).
-        ws.ShellServices?.CloseAllTabs();
-
-        // 2. Drop cached feature/handler instances that captured the old AIService/IShellServices.
-        FeatureManager.Instance.EvictWorkspace(ws);
-
-        // 3. Rebuild the AIService for the (possibly new) workspace. The old one's jobs stop: the models they run on are going.
-        BackgroundTasks?.StopJobsOf(ws);
-        var service = new AIService(ws, workspace.ConversationsDir, JobsOf(ws));
-        service.LoadAbilityConfig(workspace.AiConfig);
-        ws.AiService = service;
-
-        // 4. Re-acquire providers (pool reuses unchanged ones; weighs newly-assigned models for loading
-        //    ahead, cools now-unused ones — acquire before release so unchanged instances never drop to
-        //    zero refs) and register the execution instances into the new AIService.
-        AcquireAndRegister(ws);
-
-        // 5. Reopen the workspace's saved startup tabs so the windows aren't left empty.
-        ws.ShellServices?.OpenDefaultTabs(workspace.DefaultTabs);
-    }
-
-    /// <summary>
-    /// Called by <see cref="ShellServices.UnregisterWindow"/> when a window closes. When the
-    /// Workspace has no more windows, releases its providers, drops its feature cache, and removes it.
+    /// Called by <see cref="ShellServices.UnregisterWindow"/> when a window closes. When the runtime has no more windows, it
+    /// stops being live and ends (<see cref="WorkspaceRuntime.DisposeAsync"/>), letting go of everything it holds.
     /// </summary>
     public void NotifyWindowClosed(WorkspaceRuntime ws)
     {
-        if (ws.ShellServices is { HasWindows: true }) return;
+        if (ws.ShellServices.HasWindows) return;
 
-        BackgroundTasks?.StopJobsOf(ws);
-        FeatureManager.Instance.EvictWorkspace(ws);
-        ProviderManager.Instance.ReleaseProviderSet(ws.Providers);   // cools any now-unused models
-        _ = ws.Locations.DisposeAsync();                             // unmounts, and closes every session
-        ws.Providers = null;
-        ws.AiService = null;
         _workspaces.Remove(ws);
+        _ = EndAsync(ws);
 
         if (!ws.IsStandby && !AnyWindowsOpen) LastWindowClosed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>
-    /// Rebuilds <paramref name="ws"/>'s provider set from disk (reloading the workspace's provider
-    /// configs so newly discovered providers appear) and re-registers the execution instances into its
-    /// AIService. Called when the AI options panel opens.
-    /// </summary>
-    public void RefreshProviders(WorkspaceRuntime ws)
+    /// <summary>Ends <paramref name="ws"/>. Everything but its locations goes at once; a location that fails to close is
+    /// logged rather than thrown into nobody's hands.</summary>
+    private static async Task EndAsync(WorkspaceRuntime ws)
     {
-        ws.Workspace.ReloadProviderConfigs();
-        AcquireAndRegister(ws);
+        try { await ws.DisposeAsync(); }
+        catch (Exception ex) { ShellSafetyLog.Instance.Failed($"ending the workspace runtime '{ws.Name}'", ex); }
     }
-
-    /// <summary>
-    /// Re-acquires <paramref name="ws"/>'s provider set for its current ability-grid columns (without
-    /// touching tabs) and re-registers the execution instances. Called after the ability grid is edited
-    /// so newly-assigned models get an execution instance (weighed for loading ahead) and dropped ones are cooled.
-    /// </summary>
-    public void SyncProviders(WorkspaceRuntime ws) => AcquireAndRegister(ws);
 
     /// <summary>
     /// Makes <paramref name="model"/> <paramref name="workspace"/>'s <paramref name="slot"/> model — a download a choice waited on
@@ -337,7 +277,7 @@ public sealed class WorkspaceManager
         LocalColumns.Use(workspace.AiConfig, slot, model);
         ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
         foreach (var ws in _workspaces.Where(w => ReferenceEquals(w.Workspace, workspace)).ToList())
-            AcquireAndRegister(ws);
+            ws.AcquireProviders();
     }
 
     /// <summary>Adds a new workspace with a random icon/colour to <see cref="Workspaces"/>.</summary>
@@ -506,13 +446,13 @@ public sealed class WorkspaceManager
     /// opens a replacement window where the old one was, reopens the tabs, then closes the old
     /// workspace's windows (its last close disposes it). Used by the Configure panel after a
     /// provider-config or workspace-scoped feature-config change — the theme-restart pattern, but
-    /// swapping the whole workspace. Falls back to <see cref="ReconfigureWorkspace"/> if no window
-    /// factory is wired (e.g. headless).
+    /// swapping the whole workspace. Renews the runtime in place (<see cref="WorkspaceRuntime.Renew"/>) when it
+    /// has no window, or no window factory is wired (e.g. headless).
     /// </summary>
     internal void RestartWorkspace(WorkspaceRuntime old)
     {
-        var acting = old.ShellServices?.FocusedWindow;
-        if (acting is null || WindowHostFactory is null) { ReconfigureWorkspace(old); return; }
+        var acting = old.ShellServices.FocusedWindow;
+        if (acting is null || WindowHostFactory is null) { old.Renew(old.Workspace); return; }
 
         // Snapshot the acting window's tabs grouped by pane (so a left/right split survives) and its placement.
         var snapshot  = acting.CaptureTabLayout();
@@ -528,10 +468,10 @@ public sealed class WorkspaceManager
         freshHost.Window.Show();
 
         // Tear down the old workspace's windows (last close releases its providers + evicts caches).
-        old.ShellServices?.CloseAllWindows();
+        old.ShellServices.CloseAllWindows();
 
         // Restore the captured pane layout (split + each pane's tabs + active tab) into the fresh window.
-        fresh.ShellServices!.RestoreTabLayout(snapshot);
+        fresh.ShellServices.RestoreTabLayout(snapshot);
     }
 
     /// <summary>Per-workspace data folder: <c>%AppData%\…\Contexts\&lt;name&gt;</c> (folder name kept for compat).</summary>
@@ -588,71 +528,10 @@ public sealed class WorkspaceManager
         return folded;
     }
 
-    /// <summary>How long a runtime waits for the machine's first look for locations before mounting without it.</summary>
-    private static readonly TimeSpan DiscoveryPatience = TimeSpan.FromSeconds(2);
-
-    /// <summary>
-    /// Acquires a fresh provider set for <paramref name="ws"/>'s current configs and assigned grid
-    /// columns, swaps it in (acquire-before-release, so unchanged instances stay and dropped ones are
-    /// cooled), re-registers the execution instances into the AIService keyed by column id, and has the
-    /// residency weigh each for loading ahead.
-    /// </summary>
-    private static void AcquireAndRegister(WorkspaceRuntime ws)
-    {
-        var workspace = ws.Workspace;
-
-        var fresh = ProviderManager.Instance.AcquireProviderSet(
-            workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
-
-        StartupTimings.Mark("Workspace.ProvidersAcquired");
-        if (FoldInLocalColumns(workspace, fresh))
-        {
-            var again = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
-            ProviderManager.Instance.ReleaseProviderSet(fresh);
-            fresh = again;
-        }
-        StartupTimings.Mark("Workspace.LocalColumnsFolded");
-        var old   = ws.Providers;
-        ws.Providers = fresh;
-        ProviderManager.Instance.ReleaseProviderSet(old);
-        // Nothing is loaded here: the residency weighs each assigned model for loading ahead once the window is up. A standby
-        // runtime's are weighed when a launch adopts it, so a window nobody has asked for yet loads nothing.
-        if (!ws.IsStandby) ProviderManager.Instance.Residency?.Preload(fresh.Execution.Values);
-
-        if (ws.AiService is { } svc)
-        {
-            svc.ClearProviders();
-            foreach (var (columnId, provider) in fresh.Execution)
-                svc.Register(columnId, provider);
-            ws.RaiseProvidersChanged();
-        }
-
-        // The workspace's connections, mounted on the runtime's file system from its own session pool, with what the
-        // backends find on this machine. The first look is let finish before mounting — a registry read for WSL — so the
-        // tabs reopened next find a saved distro's folder mounted; a look slower than DiscoveryPatience is mounted when it
-        // finishes instead, and every later look has already finished.
-        FeatureManager.Instance.EnsureLocationProviders();
-        DiscoveredLocations.Instance.StartAsync().Wait(DiscoveryPatience);
-        ws.Locations.Follow(workspace.Connections);
-    }
-
     /// <summary>The grid columns actually assigned to an ability — the models in use (need an instance).</summary>
     internal static IReadOnlyList<ProviderModelPair> AssignedColumns(AiConfig cfg)
     {
         var assigned = cfg.AssignedColumnIds();
         return [.. cfg.Columns.Where(c => assigned.Contains(c.Id))];
-    }
-
-    private static void BootstrapServices(WorkspaceRuntime ws)
-    {
-        var workspace = ws.Workspace;
-
-        var service = new AIService(ws, workspace.ConversationsDir, Instance.JobsOf(ws));
-        service.LoadAbilityConfig(workspace.AiConfig);
-        ws.AiService = service;
-
-        AcquireAndRegister(ws);
-
-        ws.ShellServices ??= new ShellServices(ws, ProviderManager.Instance.ActivityManager);
     }
 }

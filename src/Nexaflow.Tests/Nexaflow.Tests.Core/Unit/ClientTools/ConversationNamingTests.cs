@@ -71,10 +71,7 @@ public class ConversationNamingTests
     /// — and <paramref name="again"/> in another column besides.</summary>
     private static AIService Service(Model[] row, Model? again = null)
     {
-        var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, TestTemp.Root);
-        typeof(WorkspaceRuntime).GetProperty(nameof(WorkspaceRuntime.AiService))!.GetSetMethod(nonPublic: true)!.Invoke(ws, [svc]);
-        typeof(WorkspaceRuntime).GetProperty(nameof(WorkspaceRuntime.ShellServices))!.GetSetMethod(nonPublic: true)!.Invoke(ws, [new ShellServices(ws)]);
+        var svc = TestRuntimes.Unstarted().AiService;
 
         var columns = row.Select((m, i) => (Id: "c" + i, Model: m)).ToList();
         if (again is not null) columns.Add(("again", again));

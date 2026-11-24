@@ -434,7 +434,7 @@ public class WorkspaceManagerTests
     {
         var workspace = new Workspace { Name = "Ready" };
         InitWith(workspace);
-        var standby = new WorkspaceRuntime(workspace) { IsStandby = true };
+        var standby = TestRuntimes.Unstarted(workspace, standby: true);
 
         Assert.IsFalse(WorkspaceManager.Instance.IsWorkspaceInUse(workspace), "a window nobody has asked for yet holds no workspace open");
         Assert.IsNull(WorkspaceManager.Instance.FindLiveWorkspace(workspace));
@@ -461,10 +461,10 @@ public class WorkspaceManagerTests
         WorkspaceManager.Instance.LastWindowClosed += Count;
         try
         {
-            WorkspaceManager.Instance.NotifyWindowClosed(new WorkspaceRuntime(workspace) { IsStandby = true });
+            WorkspaceManager.Instance.NotifyWindowClosed(TestRuntimes.Unstarted(workspace, standby: true));
             Assert.AreEqual(0, said, "discarding a standby leaves the app as windowless as it was");
 
-            var live = new WorkspaceRuntime(workspace) { IsStandby = true };
+            var live = TestRuntimes.Unstarted(workspace, standby: true);
             WorkspaceManager.Instance.AdoptStandby(live);
             WorkspaceManager.Instance.NotifyWindowClosed(live);
             Assert.AreEqual(1, said, "a launch's window closing as the last one is what builds the next standby");

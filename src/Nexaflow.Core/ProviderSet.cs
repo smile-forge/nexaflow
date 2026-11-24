@@ -28,6 +28,9 @@ public sealed class ProviderSet
     /// <summary>Pool keys this set acquired, in acquisition order — used to release them.</summary>
     internal IReadOnlyList<string> PoolKeys { get; }
 
+    /// <summary>Whether the set has gone back to the pool, so releasing it again takes nothing more. Guarded by the pool's lock.</summary>
+    internal bool Released { get; set; }
+
     public ProviderSet(
         IReadOnlyList<IAiProvider>                providers,
         IReadOnlyDictionary<string, IAiProvider>  execution,

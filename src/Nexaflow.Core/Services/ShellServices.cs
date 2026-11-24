@@ -31,7 +31,7 @@ namespace Nexaflow.Core.Services;
 /// during bootstrap, before any window); each <see cref="MainWindow"/> showing this
 /// workspace registers its <see cref="IWindowHost"/> on activation and unregisters on close.
 /// </summary>
-public sealed class ShellServices : IShellServices
+public sealed class ShellServices : IShellServices, IDisposable
 {
     private readonly WorkspaceRuntime _workspace;
     private readonly IBackgroundActivityManager? _activity;
@@ -47,7 +47,17 @@ public sealed class ShellServices : IShellServices
     {
         _workspace = workspace;
         _activity  = activity;
-        _busyFolders.Changed += () => _ui.InvokeAsync(() => FolderBusyChanged?.Invoke());
+        _busyFolders.Changed += OnBusyFoldersChanged;
+    }
+
+    private void OnBusyFoldersChanged() => _ui.InvokeAsync(() => FolderBusyChanged?.Invoke());
+
+    /// <summary>Closes every file and folder watch the runtime's pages left open, and stops hearing of busy folders: the runtime
+    /// has ended. On the UI thread, where the folder watcher's window is.</summary>
+    public void Dispose()
+    {
+        _busyFolders.Changed -= OnBusyFoldersChanged;
+        DisposeAllWatches();
     }
 
     /// <summary>
@@ -495,16 +505,14 @@ public sealed class ShellServices : IShellServices
 
     /// <summary>
     /// Closes every window in this workspace. The last close runs <see cref="UnregisterWindow"/> →
-    /// <see cref="WorkspaceManager.NotifyWindowClosed"/>, releasing the workspace's providers and
-    /// evicting its caches. Used by <see cref="WorkspaceManager.RestartWorkspace"/> after a fresh
-    /// replacement workspace+window is already showing.
+    /// <see cref="WorkspaceManager.NotifyWindowClosed"/>, which ends the runtime. Used by
+    /// <see cref="WorkspaceManager.RestartWorkspace"/> after a fresh replacement workspace+window is already showing.
     /// </summary>
     internal void CloseAllWindows()
     {
         _suppressSessionCapture = true;   // rebuild/delete teardown — not a user closing the workspace
         foreach (var host in _windows.ToList())
             host.Window.Close();
-        DisposeAllWatches();
     }
 
     // ── File watching ──────────────────────────────────────────────────────

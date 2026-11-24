@@ -34,6 +34,7 @@ using Nexaflow.Providers.AiHost;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.AiHost.Catalog;
+using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Core;
 
@@ -386,7 +387,10 @@ public partial class App : Application
         // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
         // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
         WorkspaceManager.Instance.WindowHostFactory = ws => CreateWorkspaceWindow(activityManager, ws);
-        WorkspaceManager.Instance.BackgroundTasks   = activityManager;
+        WorkspaceManager.Instance.RuntimeFactory    = new WorkspaceRuntimeFactory(
+            ProviderManager.Instance, activityManager, MessageCenter.Instance.Post, VirtualFileSystem.Instance,
+            LocationProviderRegistry.Instance, DiscoveredLocations.Instance,
+            new StoredCredentialSource(CredentialManagerStore.Default), FeatureManager.Instance.EnsureLocationProviders);
         StartupTimings.Mark("Init.Workspaces");
 
         // ── 5. File map + external apps ──────────────────────────────────────

@@ -103,10 +103,7 @@ public class ToolAudioTests
 
     private static AIService Service(Model model, Transcriber? transcriber)
     {
-        var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, TestTemp.Root);
-        typeof(WorkspaceRuntime).GetProperty(nameof(WorkspaceRuntime.AiService))!.GetSetMethod(nonPublic: true)!.Invoke(ws, [svc]);
-        typeof(WorkspaceRuntime).GetProperty(nameof(WorkspaceRuntime.ShellServices))!.GetSetMethod(nonPublic: true)!.Invoke(ws, [new ShellServices(ws)]);
+        var svc = TestRuntimes.Unstarted().AiService;
         svc.Register("c1", model);
         var config = new AiConfig
         {

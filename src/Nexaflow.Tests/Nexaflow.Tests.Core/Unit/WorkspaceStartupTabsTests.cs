@@ -206,7 +206,7 @@ public class WorkspaceStartupTabsTests
     {
         var workspace = new Workspace { Name = "Ready", DefaultTabs = [Tab("FileSystem")] };
         WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [workspace] });
-        var shell = new ShellServices(new WorkspaceRuntime(workspace) { IsStandby = true });
+        var shell = TestRuntimes.Unstarted(workspace, standby: true).ShellServices;
         var host  = new FakeWindowHost
         {
             Layout            = [Tab("FileSystem"), Tab("Terminal")],
@@ -249,8 +249,8 @@ public class WorkspaceStartupTabsTests
         var workspace = new Workspace { Name = name };
         WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [workspace] });
 
-        var runtime = new WorkspaceRuntime(workspace);
-        var shell   = new ShellServices(runtime);
+        var runtime = TestRuntimes.Unstarted(workspace);
+        var shell   = runtime.ShellServices;
         var host    = new FakeWindowHost();
         shell.RegisterWindow(host);
         shell.SetFocused(host);

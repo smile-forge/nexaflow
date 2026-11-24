@@ -19,12 +19,15 @@ public sealed class RuntimeLocations : IAsyncDisposable
     private IReadOnlyList<UnreachableLocation> _unreachable = [];
     private bool _disposed;
 
+    /// <summary>Whether what is found on this machine is followed — from the first <see cref="Follow"/>, so a runtime that never
+    /// mounts anything is not held by the machine's discovery.</summary>
+    private bool _followingDiscovered;
+
     public RuntimeLocations(LocationFileSystem vfs, LocationSessionPool pool, DiscoveredLocations discovered)
     {
         _vfs        = vfs;
         _pool       = pool;
         _discovered = discovered;
-        _discovered.Changed += Remount;
     }
 
     /// <summary>What is mounted now; null before anything is followed.</summary>
@@ -46,6 +49,12 @@ public sealed class RuntimeLocations : IAsyncDisposable
     {
         lock (_gate)
         {
+            if (_disposed) return;
+            if (!_followingDiscovered)
+            {
+                _followingDiscovered = true;
+                _discovered.Changed += Remount;
+            }
             if (!ReferenceEquals(_following, connections))
             {
                 if (_following is not null) _following.Changed -= Remount;

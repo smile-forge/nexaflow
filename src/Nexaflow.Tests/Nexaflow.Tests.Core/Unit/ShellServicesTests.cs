@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Core.Unit;
 [TestClass]
 public class ShellServicesTests
 {
-    private static ShellServices CreateSvc() => new(new WorkspaceRuntime());
+    private static ShellServices CreateSvc() => TestRuntimes.Unstarted().ShellServices;
 
     /// <summary>
     /// Seeds a page directly into ShellServices' private tab registry.

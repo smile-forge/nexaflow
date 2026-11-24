@@ -35,7 +35,7 @@ public class FeatureDiFailureTests
     public void UnknownConstructorParameter_Throws_NamingTheTypeAndParameter()
     {
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => FeatureManager.Instance.Instantiate(typeof(NeedsSomethingUninjectable), new WorkspaceRuntime()));
+            () => FeatureManager.Instance.Instantiate(typeof(NeedsSomethingUninjectable), TestRuntimes.Unstarted()));
 
         // The message has to carry enough to act on: whoever hits this is looking at a feature that isn't
         // there, with no other clue as to why.
@@ -49,7 +49,7 @@ public class FeatureDiFailureTests
         // The exact shape that let PdfTextExtractor look healthy while resolving to nothing: a config type
         // that is never registered because no assembly activation ever produced it.
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => FeatureManager.Instance.Instantiate(typeof(NeedsAnUnregisteredConfig), new WorkspaceRuntime()));
+            () => FeatureManager.Instance.Instantiate(typeof(NeedsAnUnregisteredConfig), TestRuntimes.Unstarted()));
 
         StringAssert.Contains(ex.Message, nameof(UnregisteredConfig));
         StringAssert.Contains(ex.Message, "not registered");
@@ -59,7 +59,7 @@ public class FeatureDiFailureTests
     public void NoPublicConstructor_Throws()
     {
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => FeatureManager.Instance.Instantiate(typeof(NoPublicCtor), new WorkspaceRuntime()));
+            () => FeatureManager.Instance.Instantiate(typeof(NoPublicCtor), TestRuntimes.Unstarted()));
 
         StringAssert.Contains(ex.Message, "no public constructor");
     }
@@ -70,20 +70,23 @@ public class FeatureDiFailureTests
         // Not wrapped in TargetInvocationException, and not swallowed: the feature author needs their own
         // exception and their own stack, not "your feature doesn't exist".
         var ex = Assert.ThrowsExactly<NotSupportedException>(
-            () => FeatureManager.Instance.Instantiate(typeof(ExplodingCtor), new WorkspaceRuntime()));
+            () => FeatureManager.Instance.Instantiate(typeof(ExplodingCtor), TestRuntimes.Unstarted()));
 
         Assert.AreEqual("deliberate", ex.Message);
     }
 
     [TestMethod]
-    public void HalfWiredRuntime_Throws_RatherThanBuildingAgainstIt()
+    public async Task AnEndedRuntime_BuildsNothing_RatherThanHoldingServicesAgain()
     {
-        // A runtime whose services aren't set is pre-bootstrap or post-teardown. A feature built against it
-        // would capture nulls and misbehave somewhere far away from the cause, so it's caught here instead.
-        var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => FeatureManager.Instance.Instantiate(typeof(NeedsAiService), new WorkspaceRuntime()));
+        // A runtime that ended has let its services go. A feature built against it would hold them again, with nothing left to
+        // release them, so it is refused here instead.
+        var ws = TestRuntimes.Unstarted();
+        await ws.DisposeAsync();
 
-        StringAssert.Contains(ex.Message, "BootstrapServices");
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => FeatureManager.Instance.Instantiate(typeof(NeedsAiService), ws));
+
+        StringAssert.Contains(ex.Message, "after it ended");
     }
 
     [TestMethod]
@@ -130,16 +133,27 @@ public class FeatureDiFailureTests
     }
 
     [TestMethod]
-    public void AFeatureService_IsDisposed_WhenItsRuntimeIsEvicted()
+    public void AFeatureService_IsDisposed_WhenItsRuntimeRenewsItsServices()
     {
         var ws = WiredRuntime();
         var service = ((NeedsTheService)FeatureManager.Instance.Instantiate(typeof(NeedsTheService), ws)).Service;
 
-        FeatureManager.Instance.EvictWorkspace(ws);
+        ws.Features.Reset();
 
         Assert.IsTrue(service.Disposed);
         var rebuilt = ((NeedsTheService)FeatureManager.Instance.Instantiate(typeof(NeedsTheService), ws)).Service;
-        Assert.AreNotSame(service, rebuilt, "the runtime reconfigured gets a service built against its new services");
+        Assert.AreNotSame(service, rebuilt, "the runtime renewed gets a service built against its new services");
+    }
+
+    [TestMethod]
+    public async Task AFeatureService_IsDisposed_WhenItsRuntimeEnds()
+    {
+        var ws = WiredRuntime();
+        var service = ((NeedsTheService)FeatureManager.Instance.Instantiate(typeof(NeedsTheService), ws)).Service;
+
+        await ws.DisposeAsync();
+
+        Assert.IsTrue(service.Disposed);
     }
 
     [TestMethod]
@@ -185,21 +199,10 @@ public class FeatureDiFailureTests
         [typeof(IFileTextExtractor), typeof(IGenericObjectHandler), typeof(IPageRegistration)];
 
     /// <summary>
-    /// A runtime in the state the app hands to features. <c>WorkspaceManager.BootstrapServices</c> is private,
-    /// so this sets the same two services it sets — unconditionally, exactly as the real one does for a
-    /// workspace with no AI provider configured.
+    /// A runtime in the state the app hands to features: built with its shell services and an assistant, exactly as the app
+    /// builds one for a workspace with no AI provider configured.
     /// </summary>
-    private static WorkspaceRuntime WiredRuntime()
-    {
-        var ws = new WorkspaceRuntime();
-        Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
-        Set(nameof(WorkspaceRuntime.AiService),
-            new AIService(ws, Path.Combine(TestTemp.Root, "nexa-di-conv")));
-        return ws;
-
-        void Set(string property, object value) =>
-            typeof(WorkspaceRuntime).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(ws, [value]);
-    }
+    private static WorkspaceRuntime WiredRuntime() => TestRuntimes.Unstarted();
 
     // ── Doubles ──────────────────────────────────────────────────────────────
 

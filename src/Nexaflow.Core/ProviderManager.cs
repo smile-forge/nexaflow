@@ -258,6 +258,8 @@ public sealed class ProviderManager
         var toRelease = new List<PoolEntry>();
         lock (_poolLock)
         {
+            if (set.Released) return;
+            set.Released = true;
             foreach (var key in set.PoolKeys)
             {
                 if (!_pool.TryGetValue(key, out var entry)) continue;

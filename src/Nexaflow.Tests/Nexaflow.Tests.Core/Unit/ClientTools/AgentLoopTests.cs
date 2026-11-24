@@ -219,14 +219,7 @@ public class AgentLoopTests
     /// </summary>
     private static AIService NewServiceOnAWiredRuntime()
     {
-        var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, TestTemp.Root);
-        Set(nameof(WorkspaceRuntime.AiService), svc);
-        Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
-        return svc;
-
-        void Set(string property, object value) =>
-            typeof(WorkspaceRuntime).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(ws, [value]);
+        return TestRuntimes.Unstarted().AiService;
     }
 
     // Conversation on c1, a distinct image-recognition model on c2.

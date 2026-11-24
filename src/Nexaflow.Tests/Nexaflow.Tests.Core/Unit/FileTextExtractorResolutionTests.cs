@@ -32,7 +32,7 @@ public class FileTextExtractorResolutionTests
     [ClassInitialize]
     public static void Init(TestContext _) => FeatureManager.Instance.RegisterFeatures();
 
-    private static ShellServices NewShell() => new(new WorkspaceRuntime());
+    private static ShellServices NewShell() => TestRuntimes.Unstarted().ShellServices;
 
     [TestMethod]
     public void PdfPath_ResolvesToTheFeaturesExtractor()

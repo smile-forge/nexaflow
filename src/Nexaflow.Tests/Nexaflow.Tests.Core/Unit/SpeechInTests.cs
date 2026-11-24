@@ -73,8 +73,8 @@ public class SpeechInTests
     [TestMethod]
     public void ASpeechModelThatFinishesDownloading_IsOfferedAndTheRuntimeSaysSo()
     {
-        var runtime  = new WorkspaceRuntime();
-        var service  = new AIService(runtime, TestTemp.Root);
+        var runtime  = TestRuntimes.Unstarted();
+        var service  = runtime.AiService;
         var listener = new Listener();
         service.Register("stt", listener);
         service.LoadAbilityConfig(new AiConfig
@@ -98,7 +98,7 @@ public class SpeechInTests
     {
         AIService Service(bool listens, bool speaks, bool answers)
         {
-            var service = new AIService(new WorkspaceRuntime(), TestTemp.Root);
+            var service = TestRuntimes.Unstarted().AiService;
             service.Register(Local, new Listener { Ready = true });
             service.Register("voice", new FakeSpeaker());
             service.Register("chat", new Answerer());

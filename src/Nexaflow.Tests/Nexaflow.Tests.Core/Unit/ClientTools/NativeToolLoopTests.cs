@@ -94,10 +94,7 @@ public class NativeToolLoopTests
 
     private static AIService Service(ILlmProvider model)
     {
-        var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, TestTemp.Root);
-        typeof(WorkspaceRuntime).GetProperty(nameof(WorkspaceRuntime.AiService))!.GetSetMethod(nonPublic: true)!.Invoke(ws, [svc]);
-        typeof(WorkspaceRuntime).GetProperty(nameof(WorkspaceRuntime.ShellServices))!.GetSetMethod(nonPublic: true)!.Invoke(ws, [new ShellServices(ws)]);
+        var svc = TestRuntimes.Unstarted().AiService;
         svc.Register("c1", model);
         svc.LoadAbilityConfig(new AiConfig
         {
