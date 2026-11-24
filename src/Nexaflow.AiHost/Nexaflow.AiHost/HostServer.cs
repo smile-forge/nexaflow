@@ -38,6 +38,9 @@ internal sealed class HostServer
     }
 
     /// <summary>Who the session serves.</summary>
+    /// <summary>Whether a request of this session's is running.</summary>
+    public bool Busy => !_running.IsEmpty;
+
     public ClientIdentity Client => _client;
 
     /// <summary>How long a request may say nothing before the server speaks for it (<see cref="RequestActivity"/>): well inside any

@@ -577,12 +577,94 @@
           "class": "DiagramPicture"
         }
       ]
+    },
+    "ai-host-service": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Service/WorkerSupervisor.cs",
+          "class": "WorkerSupervisor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Service/ServicePipes.cs",
+          "class": "ServicePipes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Service/HandedPipes.cs",
+          "class": "HandedPipes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Service/PipeHandover.cs",
+          "class": "PipeHandover"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Service/RuntimeWatch.cs",
+          "class": "RuntimeWatch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Service/HostWindowsService.cs",
+          "class": "HostWindowsService"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Service/ProcessWorkerLauncher.cs",
+          "class": "ProcessWorkerLauncher"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Store/StoreAccess.cs",
+          "class": "StoreAccess"
+        },
+        {
+          "type": "code",
+          "doc": "aihostSetup/Package.wxs"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/local-ai.md",
+          "title_path": [
+            "Local AI \u2014 voice conversation, on-device models, media generation",
+            "Architecture",
+            "One host process on one stack"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Service/ServiceSupervisorTests.cs",
+            "class": "ServiceSupervisorTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Service/RealServiceTests.cs",
+            "class": "RealServiceTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Service/RuntimeWatchTests.cs",
+            "class": "RuntimeWatchTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/Store/StoreAccessTests.cs",
+            "class": "StoreAccessTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 14,
+  "changed_sets": 16,
   "touched_nodes": [
     "ai-host",
+    "ai-host-service",
     "ai-model-assets",
     "ai-tools",
     "conversation-cut-back",

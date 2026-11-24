@@ -92,6 +92,9 @@ internal sealed class HostModelStore : IModelStore
         foreach (var asset in AssetsOf(paths)) await _store.RemoveAsync(asset, ct);
     }
 
+    /// <summary>Moves in every file the catalog names that an earlier folder it was given holds as the same file, fetching nothing.</summary>
+    public Task AdoptEarlierAsync(CancellationToken ct) => _store.AdoptEarlierAsync([.. _files.Values], ct);
+
     /// <summary>The folder of the CUDA pack this machine runs on, when it is in the store; null where the machine cannot run it, or
     /// it is not here.</summary>
     public string? RuntimePack() => CudaRuntimePack.Applies(_machine) ? CudaRuntimePack.FolderIn(_store) : null;

@@ -1,0 +1,12 @@
+<!--
+This file contains the declaration of all the localizable strings.
+-->
+<WixLocalization xmlns="http://wixtoolset.org/schemas/v4/wxl" Culture="en-US">
+
+  <String Id="DowngradeError" Value="A newer version of [ProductName] is already installed." />
+
+  <String Id="ProductName" Value="Smile-forge AI host" />
+  <String Id="ServiceDisplayName" Value="Smile-forge AI host" />
+  <String Id="ServiceDescription" Value="Runs the AI models that Nexaflow and other apps on this machine share: one owner for the GPU, the models and the model store." />
+
+</WixLocalization>

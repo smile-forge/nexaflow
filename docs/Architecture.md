@@ -882,7 +882,9 @@ re-rolling them.
 ## Installer
 
 The installer is its own solution, `NexaflowSetup.slnx`: `nexaflowSetup` builds the MSI that carries the app (and fails
-on a broken product tree — `ValidateSnaplinks`), and `nexaflowBundle` the WiX Burn bundle released as the setup exe.
+on a broken product tree — `ValidateSnaplinks`), `aihostSetup` the MSI that installs the AI host as the machine's service
+(installed by the bundle where its Install page's `InstallAiHost` asks — [local-ai.md](local-ai.md)), and
+`nexaflowBundle` the WiX Burn bundle released as the setup exe.
 The bundle's chain puts what the app needs from Windows in place before the MSI. Each prerequisite is an `ExePackage`
 whose installer is downloaded only when a registry search finds the machine without it; it is permanent (uninstalling
 Nexaflow leaves it) and vital (a failure stops the chain before the MSI).

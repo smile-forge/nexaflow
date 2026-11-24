@@ -36,6 +36,8 @@
     <PackageReference Include="MisakiSharp" Version="2.2.0" />
     <!-- Qwen3's byte-level BPE, for the prompts the image model reads (MIT). -->
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.1" />
+    <!-- ServiceBase: the host runs as the machine's AI host service, where it is installed. -->
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,6 +51,8 @@
     <Compile Include="..\Shared\AiHostLogFile.cs" Link="AiHostLogFile.cs" />
     <!-- The cards as their driver reads them: budgets follow what is free on each. -->
     <Compile Include="..\Shared\Nvml.cs" Link="Nvml.cs" />
+    <!-- The kill-on-close job the service binds its worker to, as the SDK binds the hosts it starts. -->
+    <Compile Include="..\Shared\HostProcessJob.cs" Link="HostProcessJob.cs" />
   </ItemGroup>
 
   <ItemGroup>

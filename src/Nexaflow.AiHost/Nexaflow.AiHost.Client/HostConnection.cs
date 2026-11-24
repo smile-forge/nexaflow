@@ -191,6 +191,10 @@ internal sealed class HostConnection : IAsyncDisposable
     /// <summary>How long joining the service may take to find its pipe answering, once the service manager says it runs.</summary>
     private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(3);
 
+    /// <summary>How long the service, once connected, may take to welcome this app: a client is served by the service's worker, which
+    /// may be starting — after a crash, or to take up a new runtime.</summary>
+    private static readonly TimeSpan WelcomeTimeout = TimeSpan.FromSeconds(30);
+
     /// <summary>
     /// Joins the machine's AI host service, where it runs: connects to its pipe, checks the process that answers is the service's own —
     /// so nothing that took the pipe's name is ever spoken to — and says hello as <paramref name="app"/>. Null where the service is not
@@ -201,8 +205,10 @@ internal sealed class HostConnection : IAsyncDisposable
                                                         EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
     {
         if (service.RunningProcessId() is not { } processId) return null;
-        // The host reads which account this app runs as from the pipe itself: the app lets it identify that account, and no more.
-        var pipe = new NamedPipeClientStream(".", service.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous, TokenImpersonationLevel.Identification);
+        // The host reads which account this app runs as from the pipe itself: the app lets it identify that account, and no more. It asks
+        // to read and write, and no more: the service's pipe grants a client nothing else.
+        var pipe = new NamedPipeClientStream(".", service.PipeName, PipeAccessRights.ReadWrite, PipeOptions.Asynchronous,
+                                             TokenImpersonationLevel.Identification, HandleInheritability.None);
         HostChannel? channel = null;
         try
         {
@@ -210,6 +216,7 @@ internal sealed class HostConnection : IAsyncDisposable
             timeout.CancelAfter(JoinTimeout);
             try { await pipe.ConnectAsync(timeout.Token).ConfigureAwait(false); }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }   // running, yet not answering
+            timeout.CancelAfter(WelcomeTimeout);
             if (AiHostService.ServerProcessIdOf(pipe) != processId) return null;
 
             var sections = new ClientSections(message => channel!.SendAsync(message));

@@ -1,13 +1,13 @@
 using System.Runtime.InteropServices;
 
-namespace Nexaflow.AiHost.Client;
+namespace Nexaflow.AiHost;
 
 /// <summary>
-/// The job object the SDK binds each AI host it starts to: a process-wide Win32 job with
-/// <c>JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE</c>. A host assigned to it the instant it is created dies with the app — for any
-/// reason, including a crash, a debugger Stop, or a taskkill where no managed cleanup runs — because the OS terminates
-/// every assigned process and its descendants as the last handle to the job closes. The app's own children are its own
-/// business; this job holds only hosts.
+/// The job object a process binds each AI host process it starts to — the SDK the hosts an app starts, the service its worker —
+/// one source compiled into each: a process-wide Win32 job with <c>JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE</c>. A process assigned to
+/// it the instant it is created dies with its starter — for any reason, including a crash, a debugger Stop, or a taskkill where
+/// no managed cleanup runs — because the OS terminates every assigned process and its descendants as the last handle to the job
+/// closes. The starter's other children are its own business; this job holds only hosts.
 ///
 /// The handle is deliberately never closed during the process lifetime: closing it (process exit) is what triggers
 /// the kill. Graceful teardown of each child stays its owner's job; this is the backstop for abnormal exit.

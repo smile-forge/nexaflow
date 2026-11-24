@@ -23,6 +23,7 @@
   <String Id="OptionsBrowseButton" Value="&amp;Browse" />
   <String Id="InstallToolsCheckbox" Value="Install command-line &amp;tools (nfi.exe) and add them to the system PATH" />
   <String Id="InstallExplorerMenuCheckbox" Value="Add &quot;Open in Nexaflow&quot; to the right-click &amp;menu in File Explorer" />
+  <String Id="InstallAiHostCheckbox" Value="Install the &amp;AI host as a service, sharing this machine's GPU and models with other apps" />
   <String Id="OptionsOkButton" Value="&amp;OK" />
   <String Id="OptionsCancelButton" Value="&amp;Cancel" />
   <String Id="ProgressHeader" Value="Setup Progress" />

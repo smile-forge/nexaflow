@@ -4,33 +4,44 @@ using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Service;
 
 namespace Nexaflow.AiHost;
 
 /// <summary>
-/// The host's pipe: every client that connects gets a session of its own (<see cref="HostServer"/>) on the host's one set of models,
-/// GPUs and handlers. Who a client is the OS says — its account, read by acting as the pipe's client, never taken from what it
-/// sends — and its hello says which app it is; one that speaks another protocol, or — on a host started with a token — gives
-/// another token, is turned away (<see cref="HelloRefused"/>). A host that ends with its last client serves until every client it
-/// welcomed has gone, and gives up where none comes within <see cref="AiHostProtocol.ConnectTimeout"/>.
+/// The host's clients: every one that connects (<paramref name="pipes"/>) gets a session of its own (<see cref="HostServer"/>) on the
+/// host's one set of models, GPUs and handlers. Who a client is the OS says — its account, read by acting as the pipe's client,
+/// never taken from what it sends — and its hello says which app it is; one that speaks another protocol, or — on a host started
+/// with a token — gives another token, is turned away (<see cref="HelloRefused"/>). A host that ends with its last client serves
+/// until every client it welcomed has gone, and gives up where none comes within <see cref="AiHostProtocol.ConnectTimeout"/>; one
+/// that does not — the service's worker — serves until no more clients will come, and lets those it has go with it.
 /// </summary>
+/// <param name="pipes">Where its clients come from: a pipe of its own, or those the service's supervisor hands it.</param>
 /// <param name="token">The token a client must give; null where the account alone admits one.</param>
 /// <param name="policy">What each client may ask for (<see cref="HostPolicy.Grants"/>).</param>
 /// <param name="endsWithLastClient">Stop once the last client welcomed has gone — a host an app started for itself.</param>
+/// <param name="welcomeAs">The process its welcome names — the one a client checks it is speaking to: the service's own, for its
+/// worker; this one otherwise.</param>
 [SupportedOSPlatform("windows")]
-internal sealed class HostListener(string pipeName, string? token, IReadOnlyList<IHostRequestHandler> handlers, HostPolicy policy, HostLog log,
-                                   bool endsWithLastClient)
+internal sealed class HostListener(IClientPipes pipes, string? token, IReadOnlyList<IHostRequestHandler> handlers, HostPolicy policy, HostLog log,
+                                   bool endsWithLastClient, int? welcomeAs = null)
 {
     /// <summary>How long a client that has connected has to say hello.</summary>
     private static readonly TimeSpan HelloLimit = TimeSpan.FromSeconds(10);
-
-    /// <summary>Buffered both ways: unbuffered, every write would wait for the other end to read it.</summary>
-    private const int PipeBuffer = SharedBytes.InlineLimit;
 
     private readonly Lock _gate = new();
     private readonly List<HostServer> _sessions = [];
     private readonly CancellationTokenSource _stop = new();
     private int _welcomed;
+
+    /// <summary>Whether any client has a request running.</summary>
+    public bool Busy
+    {
+        get
+        {
+            lock (_gate) return _sessions.Exists(s => s.Busy);
+        }
+    }
 
     /// <summary>Tells every client connected now — a file of the store arriving or going.</summary>
     public void Tell(HostMessage message)
@@ -40,42 +51,46 @@ internal sealed class HostListener(string pipeName, string? token, IReadOnlyList
         foreach (var session in sessions) session.Tell(message);
     }
 
-    /// <summary>Takes clients until the host ends — with its last client, where it does — then waits for every session to end.</summary>
+    /// <summary>Takes clients until the host ends — with its last client, where it does, or once no more will come — then, where it
+    /// ends with its last client, waits for every session to end.</summary>
     public async Task RunAsync()
     {
         var sessions = new List<Task>();
         using var noneCame = new CancellationTokenSource(AiHostProtocol.ConnectTimeout);
-        bool first = true;
         while (!_stop.IsCancellationRequested)
         {
-            var pipe = CreatePipe(first);
-            first = false;
+            ClientPipe? client;
             try
             {
                 using var waiting = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token,
                     Volatile.Read(ref _welcomed) == 0 && endsWithLastClient ? noneCame.Token : CancellationToken.None);
-                await pipe.WaitForConnectionAsync(waiting.Token);
+                client = await pipes.NextAsync(waiting.Token);
             }
             catch (OperationCanceledException)
             {
-                await pipe.DisposeAsync();
                 if (Volatile.Read(ref _welcomed) == 0) log.Write("no client came; stopping");
                 break;
             }
+            if (client is null)
+            {
+                log.Write("no more clients will come; stopping");
+                break;
+            }
             sessions.RemoveAll(t => t.IsCompleted);
-            sessions.Add(Task.Run(() => ServeAsync(pipe)));
+            sessions.Add(Task.Run(() => ServeAsync(client)));
         }
-        await Task.WhenAll(sessions);
+        if (endsWithLastClient) await Task.WhenAll(sessions);
     }
 
     /// <summary>One client, from its hello to its leaving.</summary>
-    private async Task ServeAsync(NamedPipeServerStream pipe)
+    private async Task ServeAsync(ClientPipe arriving)
     {
+        var pipe = arriving.Pipe;
         HostServer? server = null;
         HostSections? sections = null;
         try
         {
-            var account = AccountOf(pipe);
+            var account = arriving.Account ?? AccountOf(pipe);
             sections = new HostSections(account, TimeProvider.System, message =>
             {
                 server?.Tell(message);
@@ -97,7 +112,7 @@ internal sealed class HostListener(string pipeName, string? token, IReadOnlyList
                     log.Write($"{account.Value}/{said.App} was turned away: {why}");
                     return;
                 }
-                await channel.SendAsync(new Welcome(Environment.ProcessId));
+                await channel.SendAsync(new Welcome(welcomeAs ?? Environment.ProcessId));
             }
 
             var client = new ClientIdentity(account.Value, said.App);
@@ -152,19 +167,8 @@ internal sealed class HostListener(string pipeName, string? token, IReadOnlyList
         }
         catch (IOException ex)
         {
-            throw new UnauthorizedAccessException($"The client did not let its account be read: {ex.Message}", ex);
+            throw new UnauthorizedAccessException($"The client did not let its account be read: {ex.Message} (0x{ex.HResult:X8})", ex);
         }
         return account ?? throw new UnauthorizedAccessException("The client's account could not be read.");
-    }
-
-    /// <summary>One instance of the pipe, for the next client to connect to: only this host's own account may open it. The first
-    /// instance is refused where the name is taken already, so nothing else can stand in for the host.</summary>
-    private NamedPipeServerStream CreatePipe(bool first)
-    {
-        var security = new PipeSecurity();
-        security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User!, PipeAccessRights.FullControl, AccessControlType.Allow));
-        return NamedPipeServerStreamAcl.Create(pipeName, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte,
-                                               PipeOptions.Asynchronous | (first ? PipeOptions.FirstPipeInstance : PipeOptions.None),
-                                               PipeBuffer, PipeBuffer, security);
     }
 }

@@ -86,6 +86,15 @@ internal sealed class HeldModels : IDisposable
     /// <summary>Holds <paramref name="request"/>'s parts, loaded where the plan places them, and tells it where they run
     /// (<see cref="ModelsPlaced"/>) — until the returned value is disposed.</summary>
     /// <exception cref="HostRequestException">A part the catalog does not name, or a model whose files are not in the store.</exception>
+    /// <summary>Whether any client holds a model now.</summary>
+    public bool AnyHeld
+    {
+        get
+        {
+            lock (_gate) return _holds.Count > 0;
+        }
+    }
+
     public async Task<IAsyncDisposable> HoldAsync(HoldModels request, Func<HostReply, Task> reply, CancellationToken ct)
     {
         if (request.Models.Count == 0) throw new HostRequestException(HostErrorKind.Invalid, "A hold names at least one part.");

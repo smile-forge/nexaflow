@@ -209,7 +209,9 @@ public sealed class ModelAssetStore : IModelAssetStore
 
     /// <summary>Moves into place each of <paramref name="assets"/> not here that an earlier version's folder holds — before
     /// anything is weighed or fetched, so a set that shares most of its files with an earlier one downloads only the rest.</summary>
-    private async Task AdoptEarlierAsync(IReadOnlyList<ModelAsset> assets, CancellationToken ct)
+    /// <summary>Moves into the store every one of <paramref name="assets"/> it lacks that an earlier folder holds as the same file, and
+    /// fetches nothing: what is not there is fetched when it is first wanted.</summary>
+    public async Task AdoptEarlierAsync(IReadOnlyList<ModelAsset> assets, CancellationToken ct)
     {
         foreach (var asset in assets.DistinctBy(a => a.RelativePath, StringComparer.Ordinal))
         {

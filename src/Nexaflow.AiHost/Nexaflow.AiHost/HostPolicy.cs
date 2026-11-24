@@ -29,6 +29,10 @@ internal sealed record HostPolicy(int? MemoryShare, string? LogFolder, TimeSpan 
     public static string DefaultFolder
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Smile-Forge", "AiHost");
 
+    /// <summary>Where the service and its worker log where the file names no folder: a service has no app to ask. A host an app starts
+    /// logs only where the app or the file says.</summary>
+    public static string ServiceLogFolder => Path.Combine(DefaultFolder, "Logs");
+
     /// <summary>The file's name in that folder.</summary>
     public const string FileName = "host.json";
 

@@ -332,6 +332,29 @@ names the one it speaks) leaves the app to start a host of its own; one that tur
 answer, not gone round. The service serves every client as it was set up, whatever environment the app would start its own
 host with. A Nexaflow run on a model store of its own, or under a UI test, never joins it.
 
+**The service.** Installed from an MSI of its own (`aihostSetup`; the bundle's `InstallAiHost` checkbox, ticked where the
+machine has NVIDIA's driver), the host runs as `SmileForgeAiHost` under a virtual account of its own,
+`NT SERVICE\SmileForgeAiHost`, started with the machine whoever is signed in (`HostWindowsService`). The service's process
+is a thin supervisor (`WorkerSupervisor`). It opens the pipe — any signed-in account may connect to read and write, none
+may open an instance of its own to answer on, and nothing across the network may connect (`ServicePipes`) — takes each
+client on, reads its account there, since only the process that connected a pipe can act as its client, and hands the
+connected pipe and the account to its worker (`PipeHandover`, `HandedPipes`): the same executable run with `--worker`,
+the broker itself, which welcomes clients as the supervisor's process. A native crash in llama.cpp or ONNX Runtime costs
+the worker's requests, never the service: the supervisor starts another at once — a client taken meanwhile waits for it —
+and after three failures in two minutes only after a minute's pause. Native libraries load once per process, so a CUDA
+pack fetched while the worker runs, or the one it runs from removed, is taken up by a new worker once nothing is held or
+running (`RuntimeWatch`, `WorkerExit.RuntimeChanged`). The service and its worker log to
+`%ProgramData%\Smile-Forge\AiHost\Logs` unless the policy file names a folder.
+
+**The store's permissions follow the service** (`StoreAccess`). While the service is installed the store is its: SYSTEM,
+Administrators and the service write, and every user reads — so a host an app starts while the service is stopped, or
+speaks another protocol, still runs the models there, though it fetches none. The installer, as SYSTEM, first moves the
+installing user's models from an earlier Nexaflow (`%LOCALAPPDATA%\Smile\nexaflow\ai`) into the store — the service cannot
+read that user's folders — then gives the store and the host's folder to the service, owned by Administrators so no user
+who made a file there keeps the right to change its rules. Uninstalling the service gives the store back to every user in
+full control, as the first host an app starts makes it where there is none, so whichever user's app starts a host can
+fetch, adopt and remove. Either way the store's rules are its own, and everything in it inherits them.
+
 The client watches the host three ways: a heartbeat answered on the host's reading loop, so a frozen process shows
 however busy its requests are; a stall limit per request, so a request that stops replying is taken for a hang; and
 a grace after a cancellation, so a request that will not stop is one. A host the app started is killed by any of them; the
@@ -1259,12 +1282,16 @@ they are.
 
 ## Delivery
 
-**In the app, not the installer.** Updatum re-runs the whole installer bundle (~225 MB) on every update, Burn caches
-every payload a second time under Package Cache, the standard bootstrapper cannot probe a GPU, and models are a
-per-machine choice users change later. At most, the bundle's Install page gains an opt-in checkbox — like
-`InstallTools` — that the app reads on first run.
+**Models in the app, not the installer.** Updatum re-runs the whole installer bundle (~225 MB) on every update, Burn
+caches every payload a second time under Package Cache, the standard bootstrapper cannot probe a GPU, and models are a
+per-machine choice users change later. The installer carries the host alone.
 
 - **The host** ships in the base install, in `AiHost\` beside the app: ONNX Runtime and llama.cpp, CPU only, started only when a workspace uses a model Nexaflow runs.
+- **The host as the machine's service** is the bundle's option (`InstallAiHost`, beside `InstallTools`): its own MSI,
+  `aihostSetup`, installs the same host into `Program Files\Smile-forge\AiHost` and as the `SmileForgeAiHost` service.
+  It starts ticked where NVIDIA's CUDA library (`nvcuda.dll`) is in System32 — the machines whose models are worth one
+  owner for the GPU — and keeps what an earlier install chose: unticked over an install that has the service, the bundle
+  removes it.
 - **Execution providers**: the CUDA pack (about 1.3 GB on disk) for NVIDIA, fetched with the first owned model on a
   machine with an NVIDIA GPU and a CUDA 13 driver — from Microsoft's NuGet packages and NVIDIA's wheels on PyPI, each
   archive checked and only the DLLs kept. Each pack is kept in a folder of its id, which names the runtimes it carries,
@@ -1274,9 +1301,9 @@ per-machine choice users change later. At most, the bundle's Install page gains 
   rather than the whole pack. Once the new pack is whole, however it came, the earlier folders are deleted; on a
   machine the pack does not suit, at launch. Windows ML's providers, for other vendors and NPUs, come with the first
   model built for one of them.
-- **Models and voices**: `ModelAssetStore` — the AI host SDK's (`Nexaflow.AiHost.Provisioning`), so any app running
-  models through the host fetches them the same way — under `%LOCALAPPDATA%\Smile\nexaflow\ai\` (`LocalAiFolder`), a
-  short, real, non-roaming path. Each provider ships a catalog manifest naming its models' files with source, size and
+- **Models and voices**: `ModelAssetStore` — the AI host SDK's (`Nexaflow.AiHost.Provisioning`), kept by the host
+  alone in the machine's one store, `%ProgramData%\Smile-Forge\Models` (`HostModelStore`), which every app asks the host
+  to fetch into; the files an earlier Nexaflow kept under `%LOCALAPPDATA%\Smile\nexaflow\ai\` are moved in. Each provider ships a catalog manifest naming its models' files with source, size and
   SHA-256 (`ModelCatalog`, `Providers.Local`; the CUDA pack a set of its own, `AssetSet`); a download
   resumes from a `.partial` file and a file is handed out only once verified. A file an earlier CUDA pack kept is moved in
   when it is the same file, before anything is weighed against the drive or downloaded.

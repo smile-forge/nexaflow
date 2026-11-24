@@ -27,6 +27,8 @@
   <ItemGroup>
     <!-- The log file the host writes too: one source, compiled into each. -->
     <Compile Include="..\Shared\AiHostLogFile.cs" Link="AiHostLogFile.cs" />
+    <!-- The kill-on-close job the hosts it starts are bound to, as the service binds its worker. -->
+    <Compile Include="..\Shared\HostProcessJob.cs" Link="HostProcessJob.cs" />
   </ItemGroup>
 
   <ItemGroup>

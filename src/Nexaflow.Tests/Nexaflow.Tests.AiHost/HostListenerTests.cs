@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using System.Security.Principal;
 using Nexaflow.AiHost;
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Service;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.AiHost;
@@ -30,7 +31,7 @@ public class HostListenerTests
     {
         string pipe = "nexaflow-test-" + Guid.NewGuid().ToString("N");
         var log = new HostLog(TestTemp.CreateSubdirectory("nexaflow-listener-").FullName);
-        var listener = new HostListener(pipe, Token, [new WhoAsked()], policy ?? HostPolicy.Default, log, endsWithLastClient: true);
+        var listener = new HostListener(new OwnPipes(pipe), Token, [new WhoAsked()], policy ?? HostPolicy.Default, log, endsWithLastClient: true);
         return new Listening(pipe, listener, Task.Run(listener.RunAsync));
     }
 
