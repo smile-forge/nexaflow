@@ -22,7 +22,7 @@ public class HostChannelTests
 
         HostMessage[] sent =
         [
-            new Hello("ab12", AiHostProtocol.Version, 7), new Welcome(), new Ping(3), new Pong(3), new CancelRequest(9),
+            new Hello("ab12", AiHostProtocol.Version, "Nexaflow"), new Welcome(7), new HelloRefused("another protocol"), new Ping(3), new Pong(3), new CancelRequest(9),
             new DescribeHost(1), new Progress(1, "loading", 5, 10), new Completed(1),
             new Failed(2, HostErrorKind.Refused, "over budget"),
         ];
@@ -51,20 +51,18 @@ public class HostChannelTests
         await using var app  = new HostChannel(server);
         await using var host = new HostChannel(client);
 
-        var model = new DrawingModel(DrawingMethod.HiDream,
-                                     new Dictionary<string, ModelSpec> { [DrawingParts.Denoiser] = new("h/denoiser", "hidream-denoiser", @"C:\ai\h\denoiser", "denoiser.onnx", null, 2, 0) },
-                                     50, 3f, 5f);
-        await app.SendAsync(new Draw(5, model, "a fox", 1344, 768, 42, RequestPriority.Job));
+        await app.SendAsync(new Draw(5, "hidream-o1-image", "a fox", 1344, 768, 42, RequestPriority.Job, NegativePrompt: "blur",
+                                     Lora: new DrawingLora("hidream-fast", 0.8f)));
         var draw = (Draw)(await host.ReceiveAsync())!;
         Assert.AreEqual((5L, "a fox", 1344, 768, 42L, RequestPriority.Job), (draw.RequestId, draw.Prompt, draw.Width, draw.Height, draw.Seed, draw.Priority));
-        Assert.AreEqual((DrawingMethod.HiDream, 50, 3f, 5f), (draw.Model.Method, draw.Model.Steps, draw.Model.Shift, draw.Model.Guidance));
-        Assert.AreEqual(@"C:\ai\h\denoiser", draw.Model.Parts[DrawingParts.Denoiser].Folder);
+        Assert.AreEqual(("hidream-o1-image", "blur", new DrawingLora("hidream-fast", 0.8f)), (draw.Model, draw.NegativePrompt, draw.Lora),
+                        "the model as the catalog names it, with what to keep out and the LoRA it is drawn with");
 
         byte[] rgb = [1, 2, 3, 4, 5, 6];
-        await host.SendAsync(new Drawn(5, 2, 1, rgb));
+        await host.SendAsync(new Drawn(5, 2, 1, SharedBytes.Of(rgb)));
         var drawn = (Drawn)(await app.ReceiveAsync())!;
         Assert.AreEqual((2, 1), (drawn.Width, drawn.Height));
-        CollectionAssert.AreEqual(rgb, drawn.Rgb);
+        CollectionAssert.AreEqual(rgb, drawn.Rgb.ToArray());
     }
 
     [TestMethod]
@@ -72,7 +70,7 @@ public class HostChannelTests
     public async Task AMessagesByteArrays_CrossBesideItsJson_ManyMegabytesAndSeveralAtOnce()
     {
         await using var pair = await PipePair.OpenAsync();
-        var model = new DrawingModel(DrawingMethod.HiDream, new Dictionary<string, ModelSpec>(), 4, 3f, 1f);
+        const string model = "hidream-o1-image";
         byte[] first = [.. Enumerable.Range(0, 1024 * 1024 * 3 * 3).Select(i => (byte)i)];
         byte[] second = [7, 8, 9];
         byte[] mask = new byte[1024 * 1024];
@@ -81,14 +79,14 @@ public class HostChannelTests
     var receiving = pair.Host.ReceiveAsync();   // a pipe holds a little: the other end reads as it is written, as a host's loop does
         await pair.App.SendAsync(new Draw(5, model, "a fox", 1024, 1024, 42, RequestPriority.Job)
         {
-            Sources = [new DrawingSource(3072, 1024, first), new DrawingSource(1, 1, second)],
-            Mask = mask,
+            Sources = [new DrawingSource(3072, 1024, SharedBytes.Of(first)), new DrawingSource(1, 1, SharedBytes.Of(second))],
+            Mask = SharedBytes.Of(mask),
         });
         var draw = (Draw)(await receiving)!;
 
-        CollectionAssert.AreEqual(first, draw.Sources[0].Rgb);
-        CollectionAssert.AreEqual(second, draw.Sources[1].Rgb);
-        CollectionAssert.AreEqual(mask, draw.Mask);
+        CollectionAssert.AreEqual(first, draw.Sources[0].Rgb.ToArray());
+        CollectionAssert.AreEqual(second, draw.Sources[1].Rgb.ToArray());
+        CollectionAssert.AreEqual(mask, draw.Mask!.ToArray());
     }
 
     [TestMethod]

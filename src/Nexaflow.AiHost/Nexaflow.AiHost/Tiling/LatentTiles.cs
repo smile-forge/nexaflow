@@ -1,4 +1,5 @@
 using Nexaflow.AiHost.Contracts;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.AiHost.Tiling;
 
@@ -192,12 +193,10 @@ internal static class LatentTiling
     }
 
     /// <summary>Planar values as interleaved 8-bit RGB, rounded to the nearest.</summary>
-    public static byte[] RgbOf(ReadOnlySpan<float> planar)
+    public static void RgbOf(ReadOnlySpan<float> planar, Span<byte> into)
     {
         int plane = planar.Length / 3;
-        var rgb = new byte[planar.Length];
         for (int p = 0; p < plane; p++)
-            for (int c = 0; c < 3; c++) rgb[p * 3 + c] = (byte)Math.Clamp(MathF.Round(planar[c * plane + p]), 0, 255);
-        return rgb;
+            for (int c = 0; c < 3; c++) into[p * 3 + c] = (byte)Math.Clamp(MathF.Round(planar[c * plane + p]), 0, 255);
     }
 }

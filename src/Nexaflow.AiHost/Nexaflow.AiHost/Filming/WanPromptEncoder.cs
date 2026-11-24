@@ -5,6 +5,7 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.Tokenizers;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Models;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.AiHost.Filming;
 

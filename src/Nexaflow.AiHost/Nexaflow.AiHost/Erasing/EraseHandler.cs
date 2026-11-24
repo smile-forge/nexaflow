@@ -10,55 +10,46 @@ namespace Nexaflow.AiHost.Erasing;
 /// <see cref="ErasingHandover"/>): the inpainter held while the picture's regions go through it, in the room the picture
 /// borrowed, each region taking the GPU at the request's priority and reported.
 /// </summary>
-internal sealed class EraseHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<ErasePicture>
+internal sealed class EraseHandler(HeldModels models, GpuScheduler gpu) : HostRequestHandler<ErasePicture>
 {
     protected override async Task HandleAsync(ErasePicture request, Func<HostReply, Task> reply, CancellationToken ct)
     {
         Validate(request);
-        var rgba = await File.ReadAllBytesAsync(request.Pixels, ct);
-        if (rgba.Length != request.Width * request.Height * 4)
-            throw new HostRequestException(HostErrorKind.Invalid, $"{request.Pixels} holds {rgba.Length} bytes, not {request.Width}x{request.Height} RGBA.");
-        var mask = await File.ReadAllBytesAsync(request.Mask, ct);
-        if (mask.Length != request.Width * request.Height)
-            throw new HostRequestException(HostErrorKind.Invalid, $"{request.Mask} holds {mask.Length} bytes, not a {request.Width}x{request.Height} mask.");
+        // Filled in place in the bytes the reply carries back: the picture is copied once, and only the mask's pixels change.
+        var erased = RequestSections.Create(request.Pixels.Length);
+        request.Pixels.Span.CopyTo(erased.Span);
+        var mask = request.Mask.Memory;
 
-        var regions = ErasingRegions.Of(mask, request.Width, request.Height);
+        var regions = ErasingRegions.Of(mask.Span, request.Width, request.Height);
         if (regions.Count > 0)
         {
             var lane = gpu.Open(request.Priority);
-            using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
-            var spec = request.Parts[ErasingParts.Inpainter];
-            using var lease = await models.AcquireAsync(spec, resident: false, s => reply(new Progress(request.RequestId, s, 0, 0)), ct, room);
+            using var room = models.BorrowRoom();
+            using var lease = await models.AcquireAsync(models.ToolPart(request.Tool, ErasingParts.Inpainter), s => reply(new Progress(request.RequestId, s, 0, 0)), ct, room);
             var inpainter = lease.As<PictureInpainter>();
             for (int i = 0; i < regions.Count; i++)
             {
-                var prepared = ErasingHandover.Prepare(rgba, request.Width, mask, regions[i]);
+                var prepared = ErasingHandover.Prepare(erased.Span, request.Width, mask.Span, regions[i]);
                 float[] inpainted;
-                using (await lane.NextAsync(spec.Device, ct))
+                using (await lane.NextAsync(lease.Model.Spec.Device, ct))
                 {
                     ct.ThrowIfCancellationRequested();
                     inpainted = inpainter.Inpaint(prepared.Rgb, prepared.Mask, prepared.Width, prepared.Height, lastCall: i == regions.Count - 1);
                 }
-                ErasingHandover.LayBack(rgba, request.Width, mask, regions[i], inpainted, prepared);
+                ErasingHandover.LayBack(erased.Span, request.Width, mask.Span, regions[i], inpainted, prepared);
                 await reply(new Progress(request.RequestId, ErasingStages.Filling, i + 1, regions.Count));
             }
         }
-        await File.WriteAllBytesAsync(request.Into, rgba, ct);
-        await reply(new PictureErased(request.RequestId, regions.Count));
+        await reply(new PictureErased(request.RequestId, regions.Count, erased));
     }
 
     private static void Validate(ErasePicture request)
     {
         if (request.Width <= 0 || request.Height <= 0)
             throw new HostRequestException(HostErrorKind.Invalid, "A picture to erase from has a size.");
-        if (string.IsNullOrWhiteSpace(request.Into))
-            throw new HostRequestException(HostErrorKind.Invalid, "An erasure needs a file to write the picture to.");
-        if (!File.Exists(request.Pixels))
-            throw new HostRequestException(HostErrorKind.NotFound, $"The picture to erase from is not at {request.Pixels}.");
-        if (!File.Exists(request.Mask))
-            throw new HostRequestException(HostErrorKind.NotFound, $"The mask of what to erase is not at {request.Mask}.");
-        foreach (var role in ErasingParts.All)
-            if (!request.Parts.ContainsKey(role))
-                throw new HostRequestException(HostErrorKind.Invalid, $"Erasing needs its {role}.");
+        if (request.Pixels.Length != (long)request.Width * request.Height * 4)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} picture is not {request.Pixels.Length} bytes of RGBA.");
+        if (request.Mask.Length != (long)request.Width * request.Height)
+            throw new HostRequestException(HostErrorKind.Invalid, $"A {request.Width}x{request.Height} mask is not {request.Mask.Length} bytes.");
     }
 }

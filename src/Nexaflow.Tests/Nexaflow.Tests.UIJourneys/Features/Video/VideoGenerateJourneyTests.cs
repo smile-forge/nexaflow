@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Features.Video.UI;
 /// and nothing it does not take — and Create sets the clip making as one of the workspace's background tasks, which the
 /// AI bar's pill lists, with Stop.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding Wan2.2 FastWan as the app keeps it, each file verified, which
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding Wan2.2 FastWan as the app keeps it, each file verified, which
 /// the app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it the journey is inconclusive.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
@@ -26,7 +26,7 @@ namespace Nexaflow.Tests.Features.Video.UI;
 [CoversNode("video-gen-video")]
 public class VideoGenerateJourneyTests : UiJourneyTestBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
     private string _folder = "";

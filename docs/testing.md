@@ -331,7 +331,7 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
     install puts it, and the sandbox's `BrowserExecutableFolder` policy points every app at it — the loader finds no
     runtime by that folder alone or by `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, but takes the policy — so the Web viewer and
     its journeys run there. Not the clipboard, printers or camera — and the microphone only
-    with `start --audio`. It gets 16 GB unless `--memory` says otherwise.
+    with `start --audio`. It has the host's GPU unless `start --no-gpu` takes it away — a PC with no NVIDIA card, where Nexaflow's own models run on the CPU. It gets 16 GB unless `--memory` says otherwise.
   - **The `NEXAFLOW_TEST_*` variables set where you `start` it go with it**, so a journey finds the models and media it
     finds on your desktop: a path outside the checkout is mapped read-only under `C:\nexaflow-host\<variable>` and the
     value rewritten to match, a path in the checkout is rewritten to its place in the mapping, anything else is passed
@@ -407,9 +407,13 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
 - **`TestCategory("OwnedModel")`** *(`Tests.Core/AiPaths`, and `OwnedModelTests` in `Tests.AiHost`)* — the agent loop
   and the AI host on a real model, Gemma 4 E4B, where a machine has it. The AI-path suite checks the app's own paths, so
   it runs the model greedy (`NEXAFLOW_AI_GREEDY`) and each run gives the same replies as the last; `OwnedModelTests`
-  checks the model's sampling itself, drawing on fresh hosts so a seed repeats. `NEXAFLOW_TEST_GEMMA` names a folder holding
-  its files as its catalog lays them out (its GGUF and its projector), and
-  `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack to run it on; without the first they are **inconclusive**, which is what
+  checks the model's sampling itself, drawing on fresh hosts so a seed repeats. The model comes from **the test store**,
+  `NEXAFLOW_TEST_STORE`: one model store, laid out as the AI host keeps it (the machine's own `%ProgramData%\Smile-Forge\Models`,
+  or a copy), each model under its catalog folder and the CUDA pack under `runtime\<id>`, which every suite on a real model
+  shares. A test names a model by its catalog id and its part, as an app does; its host keeps the test store and downloads
+  nothing, and a part built for the GPU runs where the store holds the CUDA pack this machine runs — Gemma runs on CUDA
+  there and on the CPU otherwise. Reference data — the makers' readings a port is held to — is named apart, by a
+  `NEXAFLOW_TEST_*_REFERENCE` variable of its own. Without the store they are **inconclusive**, which is what
   they are in CI. One host and one loaded model serve a run, so the classes do not parallelise. They assert what the
   harness owns — the tools called and their arguments, what was asked for approval, the page's state afterwards, the
   reply's language, and that the run ended by answering within a bounded number of corrected tool blocks — never the
@@ -420,43 +424,62 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
     on the real models goes wrong.
   - **Journeys on the app's own models** *(`Tests.UIJourneys`, `TestCategory("OwnedModel")`: `BackgroundTasksJourneyTests`,
     `VoiceConversationJourneyTests`, `MarkdownDocumentWorkJourneyTests`)* — the real app on Gemma 4 E4B and whatever else
-    the journey's workspace assigns. `NEXAFLOW_TEST_AI_DIR` names an AI folder holding those models as the app keeps them,
-    each file verified, which the app is started on as its `NEXAFLOW_AI_DIR`; seeded into the journey's own config, the
-    workspace's grid names them. Unset, they are **inconclusive**. A journey's app downloads nothing, so the folder holds
+    the journey's workspace assigns. The app is started on the test store, `NEXAFLOW_TEST_STORE`, as its `NEXAFLOW_AI_DIR`,
+    the store holding those models, each file verified; seeded into the journey's own config, the workspace's grid names
+    them. Unset, they are **inconclusive**. A journey's app downloads nothing, so the store holds
     every part the journey meets — a journey that makes pictures needs the picture safety check too
     (`tools\image-safety-classifier-m`), which every picture made passes, and `OwnedModelFolder` makes it inconclusive,
     naming the part, where it is missing; a part the app offers for download on screen ends the journey there, inconclusive,
     through `NeedsHere`, rather than leaving the rest to wait out timeouts on a model that cannot arrive. A seeded grid
-    sets `"LocalSeeded": true`, so the app's first-run setup gives no other model the folder holds a job the journey did
+    sets `"LocalSeeded": true`, so the app's first-run setup gives no other model the store holds a job the journey did
     not — HiDream for high-quality pictures beside Z-Image, say. They run in Windows Sandbox like any journey — it forwards
-    the variable and maps the folder in read-only — and assert the shape of what a model made, never its wording. A
+    the variable and maps the store in read-only — and assert the shape of what a model made, never its wording. A
     journey that meets a model without being about one — Convert to Markdown in the PDF and image viewers — starts its app
     on an `EmptyModelStore` instead: a model folder and a temp folder of its own, empty, so it meets the same app on every
-    machine whatever that machine's store holds. A reading under way is not driven there: a real one ends sooner than a
-    journey can be sure to press Stop, so `PageConversionTests` holds one open.
+      machine whatever that machine's store holds. A reading under way is not driven there: a real one ends sooner than a
+      journey can be sure to press Stop, so `PageConversionTests` holds one open.
+    - **Apps sharing the AI host** *(`SharedHostMeasurements` in `Tests.AiHost`, `TestCategory("OwnedModel")`)* — on the GPU,
+      with the test store's CUDA pack, and `NEXAFLOW_TEST_ARIA_MODEL` naming the background app's model where one is used.
+      Several apps join one service run in the test (`ServiceUnderTest`: its supervisor in the test process, its worker the
+      host executable on the test store), each under a name of its own as apps join the machine's service: Nexaflow's voice
+      beside another app's thinking and a third app asking of the model Nexaflow holds; an app that asks and stops reading
+      (`UnreadClient`, a bare connection below the SDK, whose client reads every reply off the pipe however slowly its caller
+      takes them) beside one that reads, whose replies come as fast as alone; and a picture one app draws on a card made
+      tight (`GpuBallast`, device memory held through the pack's CUDA runtime) sending another app's conversation model away
+      and back. `NEXAFLOW_TEST_MEASUREMENTS` names a file their numbers are appended to.
+    - **The AI host service, installed** *(`AiHostServiceJourneyTests` in `Tests.UIJourneys`, `TestCategory("Machine")`)* —
+      installs the built `aihostSetup` MSI, so it runs only in Windows Sandbox and is inconclusive anywhere else; build the
+      solution and `aihostSetup` first, and name the test store, `NEXAFLOW_TEST_STORE`, holding Gemma 4 26B A4B and the CUDA
+      pack. From the outside, as a machine gets it: the model and the pack, copied into the sandbox user's earlier model
+      folder, are moved into the service's store as it installs; the service runs with the machine under its own account and
+      keeps the store, every user reading; Nexaflow — started as a journey's app, yet joining the service
+      (`NEXAFLOW_TEST_JOIN_SERVICE=1`) — answers from it, and Settings show the service's memory share, read-only; the SDK's
+      sample, given no host of its own, answers from the same service; a worker killed under them is replaced; with the
+      service stopped, the AI's line says Nexaflow's own models cannot run, and why (`AiBar_LocalAiNotice`), and the sample
+      has no host — none of its own in the service's place; back, the line clears and Nexaflow answers again; and
+      uninstalling gives the store back to every user, an app's own host then running what the store holds. What each tool it
+      ran said is written to `TestResults\aihost-service\`.
 - **`ImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host drawing with Z-Image Turbo's real
-  graphs: `NEXAFLOW_TEST_IMAGE` names a folder holding the published build (`encoder\`, `denoiser\`, `decoder\`) and
-  `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack — the model is built for the GPU only. They assert a drawing's shape: its
+  graphs, `z-image-turbo` from the test store, on the CUDA pack there — the model is built for the GPU only. They assert a
+  drawing's shape: its
   steps, its size, a picture rather than a flat field, the same picture from the same seed, a stop between steps, and
   the prompt encoder's tokens against Hugging Face's; the fox one draws is attached to the run's results to look at.
     Unset, each is **inconclusive**. How the build compares with PyTorch is `tools/ai-models/z-image-turbo/check_z_image.py`.
   - **`HiDreamModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the same for HiDream-O1's graph:
-    `NEXAFLOW_TEST_HIDREAM` names a folder holding the published build (`denoiser\`), with `NEXAFLOW_TEST_RUNTIME_PACK`.
+    `hidream-o1-image` from the test store, on the CUDA pack there.
     They assert its fifty steps, its size, a picture rather than a flat field, a stop between steps, a size it was not
     trained on refused, and the prompt read as HiDream's processor reads it; the fox it draws is attached to the run's
     results. Unset, each is **inconclusive**. How the build compares with PyTorch is
               `tools/ai-models/hidream-o1/check_hidream_o1.py`; the sampler's port is held to HiDream's own by `HiDreamSamplerTests`.
   - **`MossImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the same for MOSS-Image's parts:
-    `NEXAFLOW_TEST_MOSS` names a folder holding the build as the catalog lays it out (`encoder\Qwen3.5-9B-Q8_0.gguf`,
-    `denoiser\`, `decoder\`, `loras\`), with `NEXAFLOW_TEST_RUNTIME_PACK`. They assert its fifty guided steps, the same
+    `moss-image` and its LoRAs from the test store, on the CUDA pack there. They assert its fifty guided steps, the same
     picture from the same seed, a negative prompt and a style LoRA each changing the picture, the distillation's own
     eight steps, and what a model takes not refused before anything loads; the pictures are attached to the run's
     results. Unset, each is **inconclusive**. How the build and each LoRA compare with PyTorch is
     `tools/ai-models/moss-image/check_moss_image.py` and `check_moss_loras.py`; the sampler's port is held to the
     recipe's loop by `MossSamplerTests`.
     - **`VideoModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host filming with Wan2.2-TI2V's real
-      graphs: `NEXAFLOW_TEST_VIDEO` names a folder holding the published build (`prompt-encoder\`, `denoiser\`,
-      `denoiser-fast\`, `decoder\`, `frame-encoder\`) and `NEXAFLOW_TEST_RUNTIME_PACK` the CUDA pack. They assert a clip's
+      graphs, `wan2.2-ti2v-5b` and `fastwan2.2-ti2v-5b` from the test store, on the CUDA pack there. They assert a clip's
       shape — FastWan's three steps and the full model's fifty, each latent frame decoded, an H.264 MP4 of the size and
       length asked for (read by `Mp4Reader`), a clip from a picture, a stop between steps, a length the model does not make
       refused — and the prompt tokenised as UMT5's tokenizer reads it; the clips are attached to the run's results to
@@ -476,10 +499,9 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
   holding the built lexicons (`fr.tsv.gz`, `de.tsv.gz`, from `tools/ai-models/kokoro-lexicons`) and espeak-ng's
   readings of real reply sentences (`context-fr-sentences.jsonl`, `context-de-sentences.jsonl`).
   `PhonemizerAgainstEspeakTests` counts the sentences that come out with espeak-ng's sounds;
-  `SpeechModelTests` hear spoken turns through the listening models in `NEXAFLOW_TEST_SPEECH` with Whisper
-  large-v3-turbo, or the Whisper whose folders `NEXAFLOW_TEST_WHISPER` names (`whisper-small-en` for
-  `whisper-small-en-cpu` and `-cuda`); an English-only Whisper skips the French and German case.
-  `PhonemizerReadBackTests` (`TestCategory("OwnedModel")`, with `NEXAFLOW_TEST_SPEECH` too) speaks them through Kokoro,
+  `SpeechModelTests` hear spoken turns through `nemotron-whisper-turbo`'s listening models, Whisper large-v3-turbo
+  among them, and speak through `kokoro-82m`, both from the test store.
+  `PhonemizerReadBackTests` (`TestCategory("OwnedModel")`, with the test store too) speaks them through Kokoro,
   hears them back through Whisper and fails when ours is understood worse than espeak-ng's own reading. Unset, they are
   **inconclusive**; the rules themselves are pinned without models in `SpeechNormalizerTests` and `LexiconPhonemizerTests`.
 - **`TestCategory("UI")`** — means two different things by suite, so CI excludes `Nexaflow.Tests.UIJourneys` as a

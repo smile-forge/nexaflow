@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
@@ -13,15 +14,12 @@ namespace Nexaflow.AiHost.Speech;
 /// <see cref="ListenSession"/>. Replies <see cref="Progress"/> at least once a second, so a quiet room is not taken
 /// for a hung host.
 /// </summary>
-internal sealed class ListenHandler(ModelRegistry models, GpuScheduler gpu) : HostStreamHandler<Listen>
+internal sealed class ListenHandler(ModelRegistry models, RequestModels requests, GpuScheduler gpu) : HostStreamHandler<Listen>
 {
     protected override async Task HandleAsync(Listen request, Func<HostReply, Task> reply, ChannelReader<RequestInput> input, CancellationToken ct)
     {
-        var parts = request.Models;
-        if (request.End == UtteranceEnd.Turn && parts.TurnDetector is null)
-            throw new HostRequestException(HostErrorKind.Invalid, "Listening for the end of a turn needs a turn detector.");
-
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
+        var parts = await requests.ListeningAsync(request, Stage, ct);
         using var vad         = await models.AcquireAsync(parts.VoiceActivity, resident: false, Stage, ct);
         using var recognizer  = await models.AcquireAsync(parts.Recognizer, resident: false, Stage, ct);
         using var transcriber = parts.Transcriber is { } t ? await models.AcquireAsync(t, resident: false, Stage, ct) : null;

@@ -15,4 +15,7 @@
   <Project Path="nexaflowSetup/nexaflowSetup.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="52400615-c2b1-4ecf-a059-2f752e45b47c">
     <Platform Project="x64" />
   </Project>
+  <Project Path="aihostSetup/aihostSetup.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" Id="70d0791e-da9c-4e7a-b0cf-70863f9f168a">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

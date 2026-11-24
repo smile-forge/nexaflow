@@ -91,7 +91,7 @@ public class HiDreamSamplerTests
         tokens[HiDreamSampler.TokenWidth + Within(2, 1, 2)] = -1f;      // patch 1, blue, row 1 column 2: black
         tokens[HiDreamSampler.TokenWidth + Within(1, 1, 2)] = 3f;       // its green past the range: clamped
 
-        var rgb = HiDreamSampler.Rgb(tokens, rows: 1, cols: 2);
+        var rgb = HiDreamSampler.Rgb(tokens, rows: 1, cols: 2).ToArray();
 
         int width = 2 * HiDreamSampler.Patch;
         Assert.AreEqual(255, rgb[0], "red of the first pixel");
@@ -237,7 +237,7 @@ public class HiDreamSamplerTests
         var tokens = HiDreamSampler.TokensOf(rgb, width, height);
         var values = HiDreamSampler.PixelMask(mask, width, height);
 
-        CollectionAssert.AreEqual(rgb, HiDreamSampler.Rgb(tokens, rows: 1, cols: 2));
+        CollectionAssert.AreEqual(rgb, HiDreamSampler.Rgb(tokens, rows: 1, cols: 2).ToArray());
         int at = HiDreamSampler.TokenWidth + (5 * HiDreamSampler.Patch) + 8;   // the second patch, red, row 5, column 8
         Assert.AreEqual(1f, values[at]);
         Assert.AreEqual(1f, values[at + 2 * HiDreamSampler.Patch * HiDreamSampler.Patch], "and its blue");

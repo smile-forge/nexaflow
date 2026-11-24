@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -18,7 +19,7 @@ public class OwnedSpeechToTextProviderTests
     private static MachineCards Nvidia() => new([new MachineCard("gpu", 24L << 30)], new Version(13, 0));
 
     private static OwnedSpeechToTextProvider Provider(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Amd(), new ProviderModel(ModelId));
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), hardware ?? Amd(), new ProviderModel(ModelId));
 
     private static IReadOnlyList<ModelAsset> FilesOn(MachineCards hardware)
         => Provider(new FakeModelStore(), new FakeAiHost(), hardware).Catalog.Single(m => m.Id == ModelId).Files;
@@ -46,21 +47,27 @@ public class OwnedSpeechToTextProviderTests
     }
 
     [TestMethod]
-    public async Task ListeningForTurns_OpensAListenInTheHost_AtTheVoicePriority_WithEveryPart()
+    public async Task ListeningForTurns_OpensAListenInTheHost_AtTheVoicePriority_HoldingEveryPartForTheSession()
     {
         var host = new FakeAiHost();
         var provider = Provider(new FakeModelStore([.. FilesOn(Nvidia()), .. CudaRuntimePack.Files]), host, Nvidia());
+        string[] parts = [.. new[] { HostedRoles.VoiceActivity, HostedRoles.Recognizer, HostedRoles.Transcriber, HostedRoles.TurnDetector }.Select(role => $"{ModelId}/{role}")];
 
-        await using var session = await provider.StartSessionAsync(new SpeechToTextOptions("de", SpeechSegmentation.Turns));
+        await using (var session = await provider.StartSessionAsync(new SpeechToTextOptions("de", SpeechSegmentation.Turns)))
+        {
+            var listen = host.Requests.OfType<Listen>().Single();
+            Assert.AreEqual((ModelId, "de", UtteranceEnd.Turn, RequestPriority.Voice), (listen.Model, listen.Language, listen.End, listen.Priority),
+                            "the speech model by the catalog's id: its parts' builds, and where they lie, are the host's to take from it");
+            Assert.IsTrue(host.Environment.Cuda, "the host runs from the pack, on a machine it suits");
+            var voice = host.Holds.Single(h => h.Priority == RequestPriority.Voice);
+            CollectionAssert.AreEquivalent(parts, voice.Models.Select(m => m.Id).ToArray(), "every part held ahead of everything else placed while it listens");
+            var held = (await new HostHolds(host).DescribeAsync()).Held!;
+            Assert.AreEqual((0, (int?)null), (held.Single(p => p.Part.Part == HostedRoles.Transcriber).Device, held.Single(p => p.Part.Part == HostedRoles.VoiceActivity).Device),
+                            "on the GPU, but for the parts that always run on the CPU");
+        }
 
-        var listen = host.Requests.OfType<Listen>().Single();
-        Assert.AreEqual(("de", UtteranceEnd.Turn, RequestPriority.Voice), (listen.Language, listen.End, listen.Priority));
-        Assert.AreEqual(("silero-vad", "silero_vad.onnx"), (listen.Models.VoiceActivity.Runner, listen.Models.VoiceActivity.File));
-        Assert.AreEqual(@"C:\ai\models\nemotron-3.5-asr-streaming", listen.Models.Recognizer.Folder, "the folder is where the store keeps its files");
-        Assert.AreEqual(@"C:\ai\models\whisper-large-v3-turbo-cuda", listen.Models.Transcriber!.Folder, "the CUDA build, on a machine the pack suits");
-        Assert.AreEqual("1", listen.Models.Transcriber.CudaOptions!["sdpa_kernel"]);
-        Assert.AreEqual((0, (int?)null), (listen.Models.Transcriber.Device, listen.Models.VoiceActivity.Device), "on the GPU, but for the parts that always run on the CPU");
-        Assert.AreEqual("smart-turn", listen.Models.TurnDetector!.Runner);
+        Assert.IsFalse(host.Holds.Any(h => h.Priority == RequestPriority.Voice), "the voice's hold ends with the session");
+        CollectionAssert.AreEquivalent(parts, host.Holds.Single().Models.Select(m => m.Id).ToArray(), "the model's own hold stays while it is warm");
     }
 
     [TestMethod]
@@ -72,8 +79,9 @@ public class OwnedSpeechToTextProviderTests
         await using var session = await provider.StartSessionAsync(new SpeechToTextOptions());
 
         var listen = host.Requests.OfType<Listen>().Single();
-        Assert.AreEqual((null, UtteranceEnd.Pause, RequestPriority.Interactive), (listen.Language, listen.End, listen.Priority));
-        Assert.AreEqual(@"C:\ai\models\whisper-large-v3-turbo-cpu", listen.Models.Transcriber!.Folder);
+        Assert.AreEqual((ModelId, (string?)null, UtteranceEnd.Pause, RequestPriority.Interactive), (listen.Model, listen.Language, listen.End, listen.Priority));
+        Assert.AreEqual(AiHostEnvironment.Cpu, host.Environment, "the CPU build, on a machine the pack does not suit");
+        Assert.IsFalse(host.Holds.Any(h => h.Priority == RequestPriority.Voice), "dictation is held as the model is, with no hold at the voice priority");
     }
 
     [TestMethod]

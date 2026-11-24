@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
@@ -18,8 +19,9 @@ internal interface IFilmingMethod
     /// <summary>Whether it makes clips of this size and length.</summary>
     bool Films(int width, int height, int frames);
 
-    /// <summary>Makes <paramref name="request"/>'s clip, handing its frames over as they are decoded.</summary>
-    Task FilmAsync(Film request, FilmingCallbacks report, ModelRegistry.Room room, CancellationToken ct);
+    /// <summary>Makes <paramref name="request"/>'s clip with <paramref name="model"/> — its parts where they run for this clip — handing
+    /// its frames over as they are decoded.</summary>
+    Task FilmAsync(Film request, FilmingModel model, FilmingCallbacks report, ModelRegistry.Room room, CancellationToken ct);
 }
 
 /// <summary>What a filming method tells as it goes.</summary>
@@ -27,7 +29,7 @@ internal interface IFilmingMethod
 /// <param name="Stepped">Each denoising step as it finishes: how many are done, of how many.</param>
 /// <param name="Decoded">Each latent frame decoded: how many are done, of how many.</param>
 /// <param name="Frames">The frames a latent frame decoded to, in order: interleaved 8-bit RGB, one after another.</param>
-internal sealed record FilmingCallbacks(Func<string, Task> Stage, Func<int, int, Task> Stepped, Func<int, int, Task> Decoded, Func<byte[], Task> Frames);
+internal sealed record FilmingCallbacks(Func<string, Task> Stage, Func<int, int, Task> Stepped, Func<int, int, Task> Decoded, Func<SharedBytes, Task> Frames);
 
 /// <summary>
 /// Makes a clip by the method its model films with (<see cref="IFilmingMethod"/>) and sends its frames as they are decoded, so the
@@ -35,12 +37,13 @@ internal sealed record FilmingCallbacks(Func<string, Task> Stage, Func<int, int,
 /// reply or speech gets in between, and each denoising step and decoded latent frame is reported. Like a picture, a clip borrows the
 /// room its largest part needs: residents nothing is using make way on its parts' GPUs, and load again after it.
 /// </summary>
-internal sealed class FilmHandler(ModelRegistry models, IReadOnlyList<IFilmingMethod> methods) : HostRequestHandler<Film>
+internal sealed class FilmHandler(ModelRegistry models, RequestModels requests, IReadOnlyList<IFilmingMethod> methods) : HostRequestHandler<Film>
 {
     protected override async Task HandleAsync(Film request, Func<HostReply, Task> reply, CancellationToken ct)
     {
-        var method = methods.FirstOrDefault(m => m.Films(request.Model.Method))
-                     ?? throw new HostRequestException(HostErrorKind.Invalid, $"This host does not film the {request.Model.Method} way.");
+        var (entry, filming) = requests.Filmer(request.Model);
+        var method = methods.FirstOrDefault(m => m.Films(filming.Method))
+                      ?? throw new HostRequestException(HostErrorKind.Invalid, $"This host does not film the {filming.Method} way.");
         if (!method.Films(request.Width, request.Height, request.Frames))
             throw new HostRequestException(HostErrorKind.Invalid, $"{request.Frames} frames at {request.Width}x{request.Height} is not a clip this model makes.");
         if (request.FramesPerSecond <= 0)
@@ -50,12 +53,15 @@ internal sealed class FilmHandler(ModelRegistry models, IReadOnlyList<IFilmingMe
         if (request.FirstFrame is { } first && first.Length != request.Width * request.Height * 3)
             throw new HostRequestException(HostErrorKind.Invalid, $"The first frame is not {request.Width}x{request.Height} RGB.");
 
-        using var room = models.BorrowRoom(ids => reply(new MadeWay(request.RequestId, ids)));
+        Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
+        var model = await requests.FilmingAsync(entry, request.NegativePrompt, Stage, ct);
+
+        using var room = models.BorrowRoom();
         var report = new FilmingCallbacks(
-            stage => reply(new Progress(request.RequestId, stage, 0, 0)),
+            Stage,
             (done, total) => reply(new Progress(request.RequestId, FilmingStages.Filming, done, total)),
             (done, total) => reply(new Progress(request.RequestId, FilmingStages.Decoding, done, total)),
             rgb => reply(new FilmedFrames(request.RequestId, rgb)));
-        await method.FilmAsync(request, report, room, ct);
+        await method.FilmAsync(request, model, report, room, ct);
     }
 }

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -221,7 +222,7 @@ internal sealed record OwnedModelOffer(string ProviderName, string ModelId, stri
 
     /// <summary>The owned language provider's first model, with its speech models, their files and — where the machine
     /// suits it — the CUDA pack to fetch, and where they would run here; null when no provider is Nexaflow's own harness.</summary>
-    public static OwnedModelOffer? Find(ProviderSet providers, MachineCards hardware, ModelAssetStore? assets = null)
+    public static OwnedModelOffer? Find(ProviderSet providers, MachineCards hardware, IModelAssetStore? assets = null)
     {
         var provider = providers.Providers.FirstOrDefault(p => p.Harness == ModelHarness.Owned && p.Serves(ModelKind.Language));
         if (provider is not ILocalModelCatalog { Catalog: [var model, ..] } catalog) return null;

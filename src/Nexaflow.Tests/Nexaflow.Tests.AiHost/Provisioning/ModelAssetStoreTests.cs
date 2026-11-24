@@ -50,7 +50,8 @@ public class ModelAssetStoreTests
         var store  = new ModelAssetStore(_root, [_legacy], new HttpClient(server));
         Assert.IsNull(store.Locate(Asset));
 
-        var path = await store.EnsureAsync(Asset);
+        await store.EnsureAsync(Asset);
+        var path = store.Locate(Asset)!;
         await store.EnsureAsync(Asset);
 
         Assert.AreEqual(path, store.Locate(Asset));
@@ -64,7 +65,9 @@ public class ModelAssetStoreTests
         File.WriteAllBytes(Path.Combine(_legacy, "ggml-test.bin"), Weights);
         var server = new Server();
 
-        var path = await new ModelAssetStore(_root, [_legacy], new HttpClient(server)).EnsureAsync(Asset);
+        var store = new ModelAssetStore(_root, [_legacy], new HttpClient(server));
+        await store.EnsureAsync(Asset);
+        var path = store.Locate(Asset)!;
 
         Assert.AreEqual(0, server.Requests);
         CollectionAssert.AreEqual(Weights, File.ReadAllBytes(path));
@@ -89,7 +92,8 @@ public class ModelAssetStoreTests
     public async Task AFileChangedOnDisk_IsNoLongerHandedOut()
     {
         var store = new ModelAssetStore(_root, [], new HttpClient(new Server()));
-        var path  = await store.EnsureAsync(Asset);
+        await store.EnsureAsync(Asset);
+        var path = store.Locate(Asset)!;
 
         File.WriteAllBytes(path, Weights[..1000]);
 
@@ -140,7 +144,8 @@ public class ModelAssetStoreTests
         store.Changed += (_, a) => changed.Add(a);
         var progress = new List<AssetProgress>();
 
-        var paths = await store.EnsureAllAsync([cublas, cudnn], new SyncProgress(progress));
+        await store.EnsureAllAsync([cublas, cudnn], new SyncProgress(progress));
+        var paths = new[] { store.Locate(cublas)!, store.Locate(cudnn)! };
 
         Assert.AreEqual(1, server.Requests);
         CollectionAssert.AreEqual(Cublas, File.ReadAllBytes(paths[0]));

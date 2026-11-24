@@ -7,6 +7,7 @@ using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Generation;
 using Nexaflow.AiHost.Models;
 using Nexaflow.AiHost.Speech.Spectra;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.AiHost.Speech;
 

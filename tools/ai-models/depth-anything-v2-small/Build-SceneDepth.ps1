@@ -15,11 +15,12 @@
 
     with the model card (README.md) and this recipe beside it. depth_reference.py then runs the makers' own infer_image on
     their sample pictures into <Work>\reference — what the AI host's port is held to (Nexaflow.Tests.AiHost's SceneDepthTests,
-    with NEXAFLOW_TEST_SCENE_DEPTH=<Out> and NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE=<Work>\reference) — and
+    with <Out> as tools\depth-anything-v2-small in the test store NEXAFLOW_TEST_STORE names and
+    NEXAFLOW_TEST_SCENE_DEPTH_REFERENCE=<Work>\reference) — and
     resampling_reference.py what OpenCV and PyTorch make of small pictures, for the resizes' ports (Nexaflow.Tests.IO's
     DepthResamplingTests). Upload with
       hf upload smile-forge/depth-anything-v2-small-onnx <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the published files are written.

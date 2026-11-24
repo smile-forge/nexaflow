@@ -14,10 +14,10 @@ namespace Nexaflow.Tests.AiHost;
 /// <summary>
 /// How well French and German replies are understood when the voices read them: real reply sentences phonemised —
 /// by our phonemiser, by espeak-ng reading each sentence whole, and for French by MisakiSharp's espeak-free replay —
-/// spoken by Kokoro, heard back by Whisper large-v3-turbo, and scored by the words it gets wrong. Needs
-/// <c>NEXAFLOW_TEST_SPEECH</c> (the speech models, with <c>kokoro-82m</c> holding <c>voices/ff_siwis.bin</c> and
-/// <c>kokoro-82m-german</c> the German fine-tune) and <c>NEXAFLOW_TEST_LEXICONS</c> (the lexicons and the sentences with
-/// espeak-ng's readings); <c>NEXAFLOW_TEST_RUNTIME_PACK</c> runs Whisper on the GPU.
+/// spoken by Kokoro, heard back by Whisper large-v3-turbo, and scored by the words it gets wrong. Needs the test store
+/// (<see cref="TestStore"/>) holding <c>kokoro-82m</c> and <c>nemotron-whisper-turbo</c> — Whisper runs on the GPU where it
+/// holds the CUDA pack this machine runs — and <c>NEXAFLOW_TEST_LEXICONS</c> (the lexicons and the sentences with
+/// espeak-ng's readings).
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -27,54 +27,44 @@ public class PhonemizerReadBackTests
 {
     private const int Sentences = 100;
 
+    /// <summary>The speech-to-text model of the catalog that hears the sentences back.</summary>
+    private const string Listener = "nemotron-whisper-turbo";
+
     private static AiHostClient? _client;
-    private static ListenModels? _models;
-    private static string _root = "", _lexicons = "";
+
+    /// <summary>The listener's parts, held for the class's requests as dictation holds them.</summary>
+    private static HostHold? _hold;
+    private static string _lexicons = "";
 
     [ClassInitialize]
     public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SPEECH") is not { Length: > 0 } root
-            || Environment.GetEnvironmentVariable("NEXAFLOW_TEST_LEXICONS") is not { Length: > 0 } lexicons) return;
-        _root = root;
+        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_LEXICONS") is not { Length: > 0 } lexicons) return;
+        _client = await TestStore.HostOnEitherAsync();
+        if (_client is null) return;
         _lexicons = lexicons;
-        string? pack = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is { Length: > 0 } p ? p : null;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"),
-                                                             TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        // On the first GPU when the host runs from the pack; on the CPU without.
-        int? gpu = pack is null ? null : 0;
-        string nemotron = Path.Combine(root, "nemotron-3.5-asr-streaming");
-        _models = new ListenModels(
-            new ModelSpec("speech/voice-activity", "silero-vad", nemotron, "silero_vad.onnx", null, 0, 0),
-            new ModelSpec("speech/recognizer", "nemotron-streaming-asr", nemotron, null, null, pack is null ? 0 : 2L << 30, 0, Device: gpu),
-            pack is null
-                ? new ModelSpec("speech/transcriber", "whisper", Path.Combine(root, "whisper-large-v3-turbo-cpu"), null, null, 0, 0)
-                : new ModelSpec("speech/transcriber", "whisper", Path.Combine(root, "whisper-large-v3-turbo-cuda"), null, null, 4L << 30, 0,
-                                new Dictionary<string, string> { ["sdpa_kernel"] = "1" }, Device: gpu),
-            new ModelSpec("speech/turn", "smart-turn", Path.Combine(root, "smart-turn-v3"), "smart-turn-v3.2-cpu.onnx", null, 0, 0));
-        foreach (var model in new[] { _models.VoiceActivity, _models.Recognizer, _models.Transcriber!, _models.TurnDetector! })
-            await foreach (var _ in _client.SendAsync(id => new LoadModel(id, model), TimeSpan.FromMinutes(3))) { }
+        // Held where the host places them: on the GPU when it runs from the pack, on the CPU without.
+        _hold = await TestStore.HoldPlacedAsync(_client, TestStore.HeldPartsOf(Listener, _client.Environment.Cuda), RequestPriority.Voice);
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
+        if (_hold is not null) await _hold.DisposeAsync();
         if (_client is not null) await _client.DisposeAsync();
     }
 
     [TestMethod]
     [Timeout(3_600_000, CooperativeCancellation = true)]
-    [DataRow("fr", "kokoro-82m", "voices/ff_siwis.bin")]
-    [DataRow("de", "kokoro-82m-german", "voices/df_kerstin.bin")]
-    public async Task RealReplies_AreUnderstoodWhenSpoken(string language, string voiceFolder, string voiceFile)
+    [DataRow("fr")]
+    [DataRow("de")]
+    public async Task RealReplies_AreUnderstoodWhenSpoken(string language)
     {
-        if (_client is null) Assert.Inconclusive("NEXAFLOW_TEST_SPEECH and NEXAFLOW_TEST_LEXICONS name no speech models and lexicons here.");
-        using var kokoro = (KokoroSynthesizer)new KokoroSynthesizerRunner().Load(
-            new ModelSpec($"speech/kokoro-{language}", "kokoro", Path.Combine(_root, voiceFolder), "onnx/model.onnx", null, 0, 0));
-        var voice = kokoro.Voice(voiceFile);
+        if (_client is null) Assert.Inconclusive($"{TestStore.Missing(gpu: false)} Or NEXAFLOW_TEST_LEXICONS names no lexicons.");
+        // Kokoro speaks in this process, read from the test store: the voice the catalog gives the language, on the CPU.
+        var spoken = TestStore.Voice("kokoro-82m", language, null, 0);
+        using var kokoro = (KokoroSynthesizer)new KokoroSynthesizerRunner().Load(spoken.Model with { Folder = TestStore.PathOf(spoken.Model.Folder) });
+        var voice = kokoro.Voice(spoken.VoiceFile);
 
         PhonemeLanguage rules = language == "fr" ? new FrenchLanguage() : new GermanLanguage();
         var ours = new LexiconPhonemizer(PhonemeLexicon.Load(Path.Combine(_lexicons, $"{language}.tsv.gz")), rules, new EnglishPhonemizer());
@@ -111,7 +101,7 @@ public class PhonemizerReadBackTests
         var wave = kokoro.Tokenize(phonemes).SelectMany(piece => kokoro.Synthesize(piece, voice, 1f)).ToArray();
         byte[] pcm = new PcmResampler(KokoroSynthesizer.SampleRate, 16_000).Convert(Pcm16.FromSamples(wave));
 
-        await using var stream = await _client!.OpenStreamAsync(id => new Listen(id, _models!, language, UtteranceEnd.Pause, RequestPriority.Voice), TimeSpan.FromMinutes(1));
+        await using var stream = await _client!.OpenStreamAsync(id => new Listen(id, Listener, language, UtteranceEnd.Pause, RequestPriority.Voice), TimeSpan.FromMinutes(1));
         var reading = Task.Run(async () =>
         {
             var finals = new List<string>();

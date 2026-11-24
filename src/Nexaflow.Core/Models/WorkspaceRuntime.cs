@@ -69,7 +69,7 @@ public sealed class WorkspaceRuntime
 
     /// <summary>
     /// Raised when the runtime's providers are registered anew, or one of them becomes available or stops being — a
-    /// model finishing its download, say. What depends on a kind of model being there (dictation) listens. Raised on
+    /// model finishing its download, say. What depends on a kind of model being there (the mic) listens. Raised on
     /// whichever thread made the change.
     /// </summary>
     public event EventHandler? ProvidersChanged;

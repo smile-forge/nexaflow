@@ -1,0 +1,63 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <!--
+    The AI host as the machine's service: one broker that owns the GPUs, the models and the model store
+    (%ProgramData%\Smile-Forge\Models), shared by every app on the machine that runs models through it. It runs as its own
+    virtual account, NT SERVICE\SmileForgeAiHost, started with the machine whoever is signed in; apps join it on the pipe
+    SmileForge.AiHost (docs/local-ai.md).
+  -->
+  <Package Id="smileforge.aihostSetup" Name="!(loc.ProductName)" Manufacturer="Smile-forge"
+           Version="$(var.AppVersion)" UpgradeCode="{CA58A045-284D-4733-87F1-FC1D3C76A814}">
+    <MajorUpgrade Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" DowngradeErrorMessage="!(loc.DowngradeError)" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ManufacturerFolder" Name="!(bind.Property.Manufacturer)">
+        <Directory Id="INSTALLFOLDER" Name="AiHost" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="!(loc.ProductName)" Level="1" AllowAbsent="no" AllowAdvertise="no">
+      <ComponentGroupRef Id="HostComponents" />
+      <ComponentRef Id="HostService" />
+    </Feature>
+
+    <!--
+      The executable and the service it runs as, in one component, as Windows Installer requires. A service that fails is
+      restarted twice, then left for the administrator; its supervisor restarts a worker that fails on its own.
+      Service, under HKLM\SOFTWARE\Smile-forge\AiHost, is what the bundle reads to keep this choice across an upgrade.
+    -->
+    <Component Id="HostService" Directory="INSTALLFOLDER">
+      <File Id="HostExe" Source="$(var.HostExe)" KeyPath="yes" />
+      <ServiceInstall Id="HostServiceInstall" Name="SmileForgeAiHost" DisplayName="!(loc.ServiceDisplayName)"
+                      Description="!(loc.ServiceDescription)" Type="ownProcess" Start="auto" ErrorControl="normal"
+                      Account="NT SERVICE\SmileForgeAiHost" Arguments="--service" Vital="yes">
+        <util:ServiceConfig FirstFailureActionType="restart" SecondFailureActionType="restart" ThirdFailureActionType="none"
+                            RestartServiceDelayInSeconds="30" ResetPeriodInDays="1" />
+      </ServiceInstall>
+      <ServiceControl Id="HostServiceControl" Name="SmileForgeAiHost" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\Smile-forge\AiHost" Name="Service" Type="integer" Value="1" />
+      <!-- The shared "Smile-forge" folder goes with the last product in it. -->
+      <RemoveFolder Id="RemoveManufacturerFolder" Directory="ManufacturerFolder" On="uninstall" />
+    </Component>
+
+    <!--
+      The store is the service's while it is installed (HostProgram's secure-store step, run as SYSTEM): the installing user's
+      models from an earlier Nexaflow are moved in first — the service cannot read that user's folders — then the store and the
+      host's folder are given to the service, every user reading. As the service goes, the store is given back to every user
+      in full control, for the hosts their apps start. Not on an upgrade, whose next version keeps the service; and an
+      uninstall never fails for it.
+    -->
+    <SetProperty Id="SecureStoreForService" Sequence="execute" Before="SecureStoreForService"
+                 Value="&quot;[#HostExe]&quot; --secure-store service --adopt &quot;[LocalAppDataFolder]Smile\nexaflow\ai&quot;" />
+    <CustomAction Id="SecureStoreForService" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="deferred" Impersonate="no" Return="check" />
+    <SetProperty Id="SecureStoreForUsers" Sequence="execute" Before="SecureStoreForUsers"
+                 Value="&quot;[#HostExe]&quot; --secure-store users" />
+    <CustomAction Id="SecureStoreForUsers" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="SecureStoreForService" After="InstallServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="SecureStoreForUsers" After="DeleteServices" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

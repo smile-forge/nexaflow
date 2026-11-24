@@ -448,13 +448,12 @@ public class ImageEraseTests
 
         public Task<PictureErasure> EraseAsync(PictureEraseRequest request, IProgress<double>? progress, CancellationToken ct)
         {
-            var pixels = File.ReadAllBytes(request.Pixels);
-            var mask = File.ReadAllBytes(request.Mask);
+            var pixels = request.Pixels.ToArray();
+            var mask = request.Mask.ToArray();
             lock (Asks) Asks.Add(new Ask(pixels.ToArray(), mask, request.Width, request.Height));
             for (int p = 0; p < mask.Length; p++)
                 if (mask[p] != 0) (pixels[p * 4], pixels[p * 4 + 1], pixels[p * 4 + 2]) = (Paint.Red, Paint.Green, Paint.Blue);
-            File.WriteAllBytes(request.Into, pixels);
-            return Task.FromResult(new PictureErasure(1));
+            return Task.FromResult(new PictureErasure(1, new ArrayMemoryOwner(pixels)));
         }
     }
 
@@ -516,10 +515,9 @@ public class ImageEraseTests
 
         public Task<PictureRestoration> RestoreAsync(PictureRestoreRequest request, IProgress<double>? progress, CancellationToken ct)
         {
-            var pixels = File.ReadAllBytes(request.Pixels);
+            var pixels = request.Pixels.ToArray();
             lock (Pixels) Pixels.Add(pixels);
-            File.WriteAllBytes(request.Into, pixels);
-            return Task.FromResult(new PictureRestoration(request.Width, request.Height, 0));
+            return Task.FromResult(new PictureRestoration(request.Width, request.Height, 0, new ArrayMemoryOwner(pixels)));
         }
     }
 }

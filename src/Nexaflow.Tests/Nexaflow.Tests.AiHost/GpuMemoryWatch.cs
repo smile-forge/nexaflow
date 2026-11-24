@@ -5,7 +5,8 @@ namespace Nexaflow.Tests.AiHost;
 /// <summary>
 /// The most a GPU held while something ran — the card's own used memory, every process's together, as the driver's management
 /// library (NVML) reads it every few milliseconds: the host is a process of its own, and Windows says nothing of one process's
-/// share. Two runs watched in turn, with the same else loaded in both, differ by what they themselves held.
+/// share. Two runs watched in turn, with the same else loaded in both, differ by what they themselves held. What the card has free now
+/// is read the same way (<see cref="MemoryNow"/>), for a host built in the test's own process to budget it as the host does.
 /// </summary>
 internal sealed class GpuMemoryWatch : IDisposable
 {
@@ -42,6 +43,15 @@ internal sealed class GpuMemoryWatch : IDisposable
     {
         if (!Ready.Value || DeviceByIndex(index, out var device) != 0) throw new AssertInconclusiveException("NVML cannot read this machine's GPU.");
         return new GpuMemoryWatch(device);
+    }
+
+    /// <summary>What GPU <paramref name="index"/>, as NVML numbers it, holds in all, and what is free on it now — every process's use
+    /// counted.</summary>
+    public static (long Total, long Free) MemoryNow(uint index = 0)
+    {
+        if (!Ready.Value || DeviceByIndex(index, out var device) != 0 || MemoryOf(device, out var memory) != 0)
+            throw new AssertInconclusiveException("NVML cannot read this machine's GPU.");
+        return ((long)memory.Total, (long)memory.Free);
     }
 
     /// <summary>The most the GPU held while watched.</summary>

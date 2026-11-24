@@ -51,9 +51,9 @@ public abstract class LocalToolModels : ILocalTool
 
     public IReadOnlyList<ModelAsset> OwnFiles => _front.Catalog?.Files ?? [];
 
-    public bool OwnFilesHere => OwnFiles.All(f => _store.Locate(f) is not null);
+    public bool OwnFilesHere => OwnFiles.All(f => _store.Has(f));
 
-    public long DownloadBytes => Files.Where(f => _store.Locate(f) is null).Sum(f => f.Size);
+    public long DownloadBytes => Files.Where(f => !_store.Has(f)).Sum(f => f.Size);
 
     public int DownloadPercent => _percent;
 
@@ -102,7 +102,7 @@ public abstract class LocalToolModels : ILocalTool
         string? failure = null;
         try
         {
-            await _store.EnsureAllAsync([.. Files.Where(f => _store.Locate(f) is null)], new Inline<AssetProgress>(p =>
+            await _store.EnsureAllAsync([.. Files.Where(f => !_store.Has(f))], new Inline<AssetProgress>(p =>
             {
                 int percent = (int)(p.Fraction * 100);
                 if (percent == _percent) return;   // said again only when it moves

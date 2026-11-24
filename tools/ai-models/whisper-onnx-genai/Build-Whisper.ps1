@@ -14,7 +14,7 @@
     and beside them the model card (README.md) and this script, so the published repository says how to rebuild
     itself. Upload with
       hf upload smile-forge/whisper-onnx-genai <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
     large-v3-turbo is built by tools/ai-models/whisper-large-v3-turbo and published on its own.
 

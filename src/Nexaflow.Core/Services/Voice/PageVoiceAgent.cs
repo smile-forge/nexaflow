@@ -9,7 +9,8 @@ namespace Nexaflow.Core.Services.Voice;
 /// The agent a voice session talks to: the workspace's, on the page in front of the user at the moment each turn is
 /// taken — the page context and its tools, as for a typed request — asked to write its reply to be heard. A page that
 /// keeps the conversation itself, the conversation page, already gives the agent every turn as its context, so the
-/// session's own record is not given again.
+/// session's own record is not given again. Each turn is a turn of the conversation that shows it — the page's, or the
+/// session's in the bar — under its name.
 /// <para>Each turn runs on the UI thread, as a typed request does: the page, its tools and the handler that shows the
 /// conversation all live there — a tool refreshes the page it acted on as it returns.</para>
 /// </summary>
@@ -33,6 +34,7 @@ public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageV
         var options = new AgentRunOptions
         {
             History    = pageKeepsConversation ? [] : history,
+            Conversation = handler.ConversationName,
             ReplyStyle = SpokenStyle,
             Tools      = sessionTools,
             Ran        = ran,

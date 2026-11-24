@@ -25,7 +25,8 @@ internal sealed class AbilityReadiness(Func<AiConfig?> config, Func<string, IAiP
         var columns = Columns(ability);
         if (columns.Count == 0) return AiAbilityStatus.Unassigned;
         if (columns.Any(c => registered(c.Id) is { IsAvailable: true })) return AiAbilityStatus.Ready;
-        if (Shelf() is not { } shelf || Awaited(ability, columns, shelf) is not { } option) return new(AiAbilityState.Unavailable);
+    // A model of Nexaflow's own waits on a download only where its host can be reached to fetch it.
+        if (LocalHostUnreachable || Shelf() is not { } shelf || Awaited(ability, columns, shelf) is not { } option) return new(AiAbilityState.Unavailable);
         return Downloads?.Of(option) is { IsRunning: true } download
             ? new(AiAbilityState.Downloading, download.Total, download.Percent)
             : new(AiAbilityState.NeedsDownload, shelf.MissingBytes(option));
@@ -88,4 +89,7 @@ internal sealed class AbilityReadiness(Func<AiConfig?> config, Func<string, IAiP
     private LocalModelShelf? Shelf() => providers() is { } set && ProviderManager.Instance.Assets is { } store ? new(set, store) : null;
 
     private static LocalModelDownloads? Downloads => ProviderManager.Instance.Service<LocalModelDownloads>();
+
+    /// <summary>The host Nexaflow's own models run in cannot be reached — the machine's AI host service stopped, say.</summary>
+    private static bool LocalHostUnreachable => ProviderManager.Instance.Service<Nexaflow.AiHost.Client.IAiHost>() is { Unreachable: not null };
 }

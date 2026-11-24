@@ -61,7 +61,6 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [tree-sitter](https://github.com/tree-sitter/tree-sitter) | MIT |
 | [TreeSitter.DotNet](https://github.com/mariusgreuel/tree-sitter-dotnet-bindings) (+ bundled grammars) | MIT |
 | [tree-sitter-xml](https://github.com/tree-sitter-grammars/tree-sitter-xml) (built from source) | MIT |
-| [Whisper.net](https://github.com/sandrohanea/whisper.net), with native [whisper.cpp](https://github.com/ggml-org/whisper.cpp) | MIT |
 | [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) (+ Microsoft.Extensions.*, Microsoft.Bcl.*, and the C#/WinRT Windows SDK projection) | MIT |
 

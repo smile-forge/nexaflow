@@ -1,6 +1,8 @@
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.AiHost.Catalog;
+using Nexaflow.AiHost.Provisioning;
 
 namespace Nexaflow.Tests.AiHost;
 
@@ -75,6 +77,25 @@ public class RealHostTests
         await client.DisposeAsync();
 
         Assert.AreEqual(0, await exited.WaitAsync(TimeSpan.FromSeconds(10)), "closing the pipe ends the host cleanly");
+    }
+
+    [TestMethod]
+    public async Task AnApp_LearnsWhatIsInTheHostsStore_AndIsRefusedWhatTheHostWillNotFetch()
+    {
+        await using var client = new AiHostClient(new ProcessAiHostLauncher(HostPath, _aiDir, downloads: false));
+        var store = new AiHostModelStore(client);
+        await store.RefreshAsync();
+        var named = HostCatalog.Models.SelectMany(m => m.Files).Where(f => f.Archive is null).MinBy(f => f.Size)!;
+        var stray = new ModelAsset("models/elsewhere/weights.bin", new Uri("https://example.test/weights.bin"), 4, new string('0', 64));
+
+        Assert.IsFalse(store.Has(named), "an empty store holds nothing the catalog names");
+        Assert.IsFalse(store.HadEarlierRuntimePack);
+        var off     = await Assert.ThrowsExactlyAsync<AiHostException>(() => store.EnsureAllAsync([named]));
+        var unnamed = await Assert.ThrowsExactlyAsync<AiHostException>(() => store.EnsureAllAsync([stray]));
+
+        Assert.AreEqual(HostErrorKind.Refused, off.Kind, "this run downloads nothing");
+        Assert.AreEqual(HostErrorKind.NotFound, unnamed.Kind, "the host fetches only what its catalog names");
+        Assert.IsFalse(store.Has(named));
     }
 
     [TestMethod]

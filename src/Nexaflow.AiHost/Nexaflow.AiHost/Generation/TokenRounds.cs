@@ -10,8 +10,10 @@ namespace Nexaflow.AiHost.Generation;
 /// between its kernels, so several pages read at once cost little more a token than one does.
 /// <para>
 /// A round starts once every reply in the rounds has chosen its token, so they keep step: one that takes longer between
-/// tokens — sending its text — holds the others back by as long. A round is one GPU step, taken at the highest priority
-/// among its replies, so a prompt being read or another model's work goes between rounds.
+/// tokens — sending its text — holds the others back by as long. A reply whose client is slow to take what it wrote — its
+/// session's queue full — stands aside while it waits (<see cref="Member.StandAside"/>), so the others go on without it, and
+/// steps back in with its next token. A round is one GPU step, taken at the highest priority among its replies and counted
+/// to that reply's client, so a prompt being read or another model's work goes between rounds.
 /// </para>
 /// </summary>
 internal sealed class TokenRounds(LlamaContext context, PromptReads prompts, Action<IEnumerable<LiveConversation>> gather)
@@ -19,14 +21,20 @@ internal sealed class TokenRounds(LlamaContext context, PromptReads prompts, Act
     private readonly object _gate = new();
     private readonly List<Member> _members = [];
     private readonly List<Member> _posted = [];
+    /// <summary>The members not standing aside: how many tokens a round waits for.</summary>
+    private int _attending;
 
     /// <summary>A reply about to be written in <paramref name="conversation"/>, joining the rounds; it leaves them when
     /// the returned member is disposed.</summary>
     /// <param name="turn">Waits for the GPU step a round is read in, at this reply's priority.</param>
     public Member Join(LiveConversation conversation, RequestPriority priority, Func<ValueTask<IDisposable>> turn)
     {
-        var member = new Member(this, conversation, priority, turn);
-        lock (_gate) _members.Add(member);
+        var member = new Member(this, conversation, priority, turn, ClientIdentity.Current);
+        lock (_gate)
+        {
+            _members.Add(member);
+            _attending++;
+        }
         return member;
     }
 
@@ -59,17 +67,32 @@ internal sealed class TokenRounds(LlamaContext context, PromptReads prompts, Act
         List<Member>? round;
         lock (_gate)
         {
-            _members.Remove(member);
+            if (_members.Remove(member) && !member.Aside) _attending--;
             _posted.Remove(member);
             round = Ready();
         }
         Start(round);
     }
 
-    /// <summary>The next round, once every member has chosen its token; null until then. Called under the gate.</summary>
+    /// <summary>Sets <paramref name="member"/> aside from the rounds, or back in them: aside, a round waits for its token no
+    /// longer.</summary>
+    private void SetAside(Member member, bool aside)
+    {
+        List<Member>? round = null;
+        lock (_gate)
+        {
+            if (member.Aside == aside || !_members.Contains(member)) return;
+            member.Aside = aside;
+            _attending += aside ? -1 : 1;
+            if (aside) round = Ready();
+        }
+        Start(round);
+    }
+
+    /// <summary>The next round, once every member not standing aside has chosen its token; null until then. Called under the gate.</summary>
     private List<Member>? Ready()
     {
-        if (_posted.Count == 0 || _posted.Count < _members.Count) return null;
+        if (_posted.Count == 0 || _posted.Count < _attending) return null;
         List<Member> round = [.. _posted];
         _posted.Clear();
         return round;
@@ -86,7 +109,10 @@ internal sealed class TokenRounds(LlamaContext context, PromptReads prompts, Act
         try
         {
             var chosen = new int[0];
-            using (await round.MinBy(m => m.Priority)!.Turn())
+            // The round's step is the most urgent reply's, counted to its client.
+            var leading = round.MinBy(m => m.Priority)!;
+            leading.Client.Enter();
+            using (await leading.Turn())
             {
                 // The room its tokens leave read with whatever prompts are waiting to be read.
     // Each conversation's own slice: read in one step only in the order of their sequences, a token each; prompts are read in
@@ -120,12 +146,38 @@ internal sealed class TokenRounds(LlamaContext context, PromptReads prompts, Act
         private readonly TokenRounds _rounds;
         private int _left;
 
-        internal Member(TokenRounds rounds, LiveConversation conversation, RequestPriority priority, Func<ValueTask<IDisposable>> turn)
+        internal Member(TokenRounds rounds, LiveConversation conversation, RequestPriority priority, Func<ValueTask<IDisposable>> turn,
+                        ClientIdentity client)
         {
             _rounds = rounds;
             Conversation = conversation;
             Priority = priority;
             Turn = turn;
+            Client = client;
+        }
+
+        /// <summary>The client the reply is for.</summary>
+        internal ClientIdentity Client { get; }
+
+        /// <summary>Whether it stands aside from the rounds now. Read and written under the rounds' gate.</summary>
+        internal bool Aside { get; set; }
+
+        /// <summary>Stands aside from the rounds until the returned value is disposed — while what the reply wrote waits for its client
+        /// to take it — so they go on without it; disposed, it steps back in, and its next token is waited for again.</summary>
+        public IDisposable StandAside()
+        {
+            _rounds.SetAside(this, aside: true);
+            return new StepBack(this);
+        }
+
+        private sealed class StepBack(Member member) : IDisposable
+        {
+            private int _done;
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _done, 1) == 0) member._rounds.SetAside(member, aside: false);
+            }
         }
 
         internal LiveConversation Conversation { get; }

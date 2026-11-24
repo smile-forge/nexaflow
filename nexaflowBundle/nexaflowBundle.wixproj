@@ -14,5 +14,6 @@
     <PackageReference Include="WixToolset.Bal.wixext" Version="*" />
     <PackageReference Include="WixToolset.Util.wixext" Version="*" />
     <ProjectReference Include="..\nexaflowSetup\nexaflowSetup.wixproj" />
+    <ProjectReference Include="..\aihostSetup\aihostSetup.wixproj" />
   </ItemGroup>
 </Project>

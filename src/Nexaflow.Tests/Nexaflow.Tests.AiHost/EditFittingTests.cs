@@ -11,11 +11,11 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("owned-images")]
 public class EditFittingTests
 {
-    private static readonly DrawingModel Model = new(DrawingMethod.Flux2Klein, new Dictionary<string, ModelSpec>(), 4, 0f, 0f);
+    private const string Model = "flux2-klein-4b";
 
     private static Draw Edit(params DrawingSource[] sources) => new(1, Model, "a lake", 0, 0, 1, RequestPriority.Job) { Sources = sources };
 
-    private static DrawingSource Picture(int width, int height) => new(width, height, new byte[width * height * 3]);
+    private static DrawingSource Picture(int width, int height) => new(width, height, SharedBytes.Of(new byte[width * height * 3]));
 
     [TestMethod]
     public void EachPicture_IsReadAtItsModelsSize_AndTheEditDrawnAtTheFirstOnes()
@@ -44,18 +44,18 @@ public class EditFittingTests
         var mask = new byte[2000 * 1000];
         for (int y = 0; y < 1000; y++) mask.AsSpan(y * 2000, 1000).Fill(255);   // the left half drawn again
 
-        var fitted = EditFitting.Fitted(Edit(Picture(2000, 1000)) with { Mask = mask }, KleinSampler.ReadSize);
+        var fitted = EditFitting.Fitted(Edit(Picture(2000, 1000)) with { Mask = SharedBytes.Of(mask) }, KleinSampler.ReadSize);
 
         Assert.AreEqual(1440 * 720, fitted.Mask!.Length);
-        Assert.AreEqual(255, fitted.Mask[360 * 1440 + 100], "where it is drawn again");
-        Assert.AreEqual(0, fitted.Mask[360 * 1440 + 1300], "where the picture is kept");
+        Assert.AreEqual(255, fitted.Mask.Span[360 * 1440 + 100], "where it is drawn again");
+        Assert.AreEqual(0, fitted.Mask.Span[360 * 1440 + 1300], "where the picture is kept");
     }
 
     [TestMethod]
     public void APictureOrMask_NotTheSizeItSays_IsRefused()
     {
-        var shortPicture = new DrawingSource(10, 10, new byte[299]);
+        var shortPicture = new DrawingSource(10, 10, SharedBytes.Of(new byte[299]));
         Assert.ThrowsExactly<HostRequestException>(() => EditFitting.Fitted(Edit(shortPicture), KleinSampler.ReadSize));
-        Assert.ThrowsExactly<HostRequestException>(() => EditFitting.Fitted(Edit(Picture(64, 64)) with { Mask = new byte[63 * 64] }, KleinSampler.ReadSize));
+        Assert.ThrowsExactly<HostRequestException>(() => EditFitting.Fitted(Edit(Picture(64, 64)) with { Mask = SharedBytes.Of(new byte[63 * 64]) }, KleinSampler.ReadSize));
     }
 }

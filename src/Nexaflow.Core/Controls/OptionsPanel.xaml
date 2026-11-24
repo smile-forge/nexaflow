@@ -29,11 +29,11 @@
                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1"
+                <TextBox Grid.Column="1" IsEnabled="{Binding IsEnabled}" AutomationProperties.AutomationId="{Binding AutomationId}"
                          Style="{StaticResource DarkTextBox}"
                          Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
                          FontSize="12"/>
-                <Button AutomationProperties.AutomationId="Options_ClearValue" x:Name="ClearBtn"
+                <Button AutomationProperties.AutomationId="Options_ClearValue" x:Name="ClearBtn" IsEnabled="{Binding IsEnabled}"
                         Grid.Column="2"
                         Margin="4,0,0,0"
                         Width="22" Height="22"
@@ -114,13 +114,13 @@
                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1"
+                <TextBox Grid.Column="1" IsEnabled="{Binding IsEnabled}" AutomationProperties.AutomationId="{Binding AutomationId}"
                          Style="{StaticResource DarkTextBox}"
                          Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
                          FontSize="12"
                          BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
                          ToolTip="{Binding ValidationError}"/>
-                <Button AutomationProperties.AutomationId="Options_BrowseFolder" Grid.Column="2"
+                <Button AutomationProperties.AutomationId="Options_BrowseFolder" Grid.Column="2" IsEnabled="{Binding IsEnabled}"
                         Margin="6,0,0,0"
                         Style="{StaticResource IconButton}"
                         ToolTip="{loc:Str Shell.Options.BrowseFolder}"
@@ -141,7 +141,7 @@
                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" VerticalAlignment="Center"/>
-                <ComboBox Grid.Column="1"
+                <ComboBox Grid.Column="1" IsEnabled="{Binding IsEnabled}" AutomationProperties.AutomationId="{Binding AutomationId}"
                           Style="{StaticResource DarkComboBox}"
                           ItemsSource="{Binding EnumOptions}"
                           SelectedValuePath="Value"
@@ -166,7 +166,7 @@
                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" VerticalAlignment="Center"/>
-                <ComboBox Grid.Column="1"
+                <ComboBox Grid.Column="1" IsEnabled="{Binding IsEnabled}" AutomationProperties.AutomationId="{Binding AutomationId}"
                           Style="{StaticResource DarkComboBox}"
                           ItemsSource="{Binding ListOptions}"
                           SelectedValuePath="Value"
@@ -192,13 +192,13 @@
                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1"
+                <TextBox Grid.Column="1" IsEnabled="{Binding IsEnabled}" AutomationProperties.AutomationId="{Binding AutomationId}"
                          Style="{StaticResource DarkTextBox}"
                          Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
                          FontSize="12"
                          BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
                          ToolTip="{Binding ValidationError}"/>
-                <Button AutomationProperties.AutomationId="Options_BrowseFile" Grid.Column="2"
+                <Button AutomationProperties.AutomationId="Options_BrowseFile" Grid.Column="2" IsEnabled="{Binding IsEnabled}"
                         Margin="6,0,0,0"
                         Style="{StaticResource IconButton}"
                         ToolTip="{loc:Str Shell.Options.BrowseFile}"
@@ -219,7 +219,7 @@
                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" VerticalAlignment="Center"/>
-                <ToggleButton AutomationProperties.AutomationId="Options_Toggle" Grid.Column="1"
+                <ToggleButton AutomationProperties.AutomationId="Options_Toggle" Grid.Column="1" IsEnabled="{Binding IsEnabled}"
                               Style="{StaticResource ToggleSwitch}"
                               IsChecked="{Binding Value}"/>
             </Grid>
@@ -232,6 +232,16 @@
                                       EnumComboBoxTemplate="{StaticResource EnumComboBoxTemplate}"
                                       ListComboBoxTemplate="{StaticResource ListComboBoxTemplate}"
                                       ToggleTemplate="{StaticResource ToggleTemplate}"/>
+
+        <!-- Each row its editor, and under one decided outside the app why it is not the user's to change here. -->
+        <DataTemplate x:Key="RuledRowTemplate" DataType="{x:Type vm:PropertyEditViewModel}">
+            <StackPanel>
+                <ContentControl Content="{Binding}" ContentTemplateSelector="{StaticResource EditorSelector}" Focusable="False"/>
+                <TextBlock Text="{Binding Note}" Margin="180,-2,0,6" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Visibility="{Binding IsRuled, Converter={StaticResource BoolVis}}"/>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -301,8 +311,7 @@
                               Padding="20,12"
                               HorizontalScrollBarVisibility="Disabled"
                               Visibility="{Binding SelectedSection.HasCustomControl, Converter={StaticResource InverseBoolVis}}">
-                    <ItemsControl ItemsSource="{Binding SelectedSection.Properties}"
-                                  ItemTemplateSelector="{StaticResource EditorSelector}"/>
+                    <ItemsControl ItemsSource="{Binding SelectedSection.Properties}" ItemTemplate="{StaticResource RuledRowTemplate}"/>
                 </ScrollViewer>
             </Grid>
         </Grid>

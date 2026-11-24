@@ -14,7 +14,7 @@ namespace Nexaflow.AiHost.Generation;
 /// a step of its own — each token read in one round with every other reply the model is writing
 /// (<see cref="TokenRounds"/>) — so speech gets in between.
 /// </summary>
-internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : HostRequestHandler<Generate>
+internal sealed class GenerateHandler(ModelRegistry models, HeldModels held, GpuScheduler gpu) : HostRequestHandler<Generate>
 {
     /// <summary>The progress stage a reply in its reasoning reports, with how many tokens it has thought so far.</summary>
     public const string Thinking = "thinking";
@@ -24,17 +24,20 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
 
     protected override async Task HandleAsync(Generate request, Func<HostReply, Task> reply, CancellationToken ct)
     {
-        using var lease = await models.AcquireAsync(request.Model, resident: false,
-            stage => reply(new Progress(request.RequestId, stage, 0, 0)), ct);
+        Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
+        using var lease = await models.AcquireAsync(await held.ResolveAsync(request.Model, Stage, ct), resident: false, Stage, ct);
         var model = lease.As<ChatModel>();
         string prompt = ChatPrompt.Render(model, request.Turns, generationPrompt: true, request.Tools, request.Thinks);
         var media = ChatPrompt.Media(model, request.Turns);
-        using var use = model.Enter(request.Turns, request.Priority, () => media.Count == 0 ? model.Model.Tokenize(prompt).Length : null, models.SpareOn);
+        var remembered = ConversationMatch.Remembered(request.Turns);
+        using var use = model.Enter(remembered, request.Conversation, request.Priority, () => media.Count == 0 ? model.Model.Tokenize(prompt).Length : null,
+                                    models.SpareOn);
         var lane = use.Lane;
         using var answering = await lane.Conversations.AnsweringAsync(ct);
         using var attended = gpu.Engage(request.Priority, model.Spec.Device);   // a young job on its card waits for this reply
 
-        LiveConversation? conversation = lane.Conversations.TakeContinued(request.Turns);
+        // A named turn takes what its conversation kept, to continue or cut back; a one-off takes nothing anybody kept.
+        LiveConversation? conversation = request.Conversation is { } name ? lane.Conversations.TakeNamed(name) : null;
         bool kept = false;
         using var sampler = new LlamaSampler(request.Sampling, lane.Longest, request.Decoding?.RepeatBan);   // as the model's makers recommend
         try
@@ -48,13 +51,16 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             }
             else
             {
-            // Not continued as its turns now render — an edited turn, reasoning the template leaves out of what was answered — it may
-            // still hold this prompt's start, and be cut back to it.
-            if (conversation is not null) lane.Conversations.Keep(conversation);
             using var prepared = model.Prepare(prompt, [.. media.Select(Bytes)]);
-            conversation = prepared.Pieces is [{ IsText: true, Tokens: { } tokens }] ? lane.Conversations.TakeCutBackFor(tokens) : null;
+            // Not continued as its turns now render — an edited turn, reasoning the template leaves out of what was answered — it may
+            // still hold this prompt's start, and be cut back to it; otherwise it is let go and the prompt read afresh.
+            if (conversation is not null && !(prepared.Pieces is [{ IsText: true, Tokens: { } tokens }] && lane.Conversations.CutBack(conversation, tokens)))
+            {
+                conversation.Dispose();
+                conversation = null;
+            }
             int held = conversation?.Length ?? 0;
-            conversation ??= lane.Conversations.Start();
+            conversation ??= lane.Conversations.Start(request.Conversation);
             conversation.Sampler = sampler;
             read = await ReadAsync(model, lane, conversation, prepared, held, request.Priority, ct);
             }
@@ -62,9 +68,9 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             if (request.Decoding?.WrittenWindow is { } window) conversation.KeepWritten(window);
 
             var outcome = await GenerateAsync(model, lane, conversation, request, model.Thinking?.Opens(prompt) == true, reply, ct);
-            if (outcome.Continuable && !conversation.Forgets)
+            if (outcome.Continuable && !conversation.Forgets && conversation.Name is not null)
             {
-                conversation.Answered(request.Turns, outcome.Text, outcome.Calls, outcome.StoppedAt);
+                conversation.Answered(remembered, outcome.Text, outcome.Calls, outcome.StoppedAt);
                 lane.Conversations.Keep(conversation);
                 kept = true;
             }
@@ -181,15 +187,14 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
     }
 
     /// <summary>A medium's bytes as the projector takes them: an image as its file, a recording as 16 kHz mono WAV.</summary>
-    private static byte[] Bytes(ChatMedia media)
+    private static ReadOnlyMemory<byte> Bytes(ChatMedia media)
     {
-        byte[] bytes = media.Bytes is { Length: > 0 } inline ? inline
-                     : media.Path is { } path && File.Exists(path) ? File.ReadAllBytes(path)
-                     : throw new HostRequestException(HostErrorKind.NotFound, $"The {media.Kind.ToString().ToLowerInvariant()} to read is not there: {media.Path}.");
-        if (media.Kind != MediaKind.Audio) return bytes;
-        if (media.Bytes is null || bytes.Length % 2 != 0)
+        if (media.Bytes.Length == 0)
+            throw new HostRequestException(HostErrorKind.Invalid, $"The {media.Kind.ToString().ToLowerInvariant()} to read is empty.");
+        if (media.Kind != MediaKind.Audio) return media.Bytes.Memory;
+        if (media.Bytes.Length % 2 != 0)
             throw new HostRequestException(HostErrorKind.Invalid, "A recording comes as its samples: 16-bit mono PCM at 16 kHz.");
-        return PcmSamples.Wav(bytes);
+        return PcmSamples.Wav(media.Bytes.Span);
     }
 
     /// <param name="Continuable">Whether the conversation can be kept for the next request: its reply ended where the
@@ -211,7 +216,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
         var reader = request.Tools is { Count: > 0 } tools && model.ToolCalls is { } syntax ? syntax.Read(text.Decode, tools) : null;
         var calls = new List<ChatToolCall>();
         var written = new StringBuilder();
-        int prompt = conversation.Tokens, generated = 0, thought = 0;
+        int prompt = conversation.Length, generated = 0, thought = 0;   // the opening it began with counted too: the whole conversation
         var circles = new CircleWatch();
         var (thinking, thoughts) = request.SendsReasoning && model.Thinking is { } said
             ? (new ReplyText(model.Model), new ReasoningStream(said.Heading)) : (null, null);
@@ -219,6 +224,19 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
 
         Outcome Stop(StopReason reason, bool continuable, int token)
             => new(reason, written.ToString(), calls, generated, prompt, continuable, model.Model.TokenText(token));
+
+        // What the reply writes goes to its client's queue at once; where the queue is full, the reply stands aside from the rounds
+        // while it waits, so the other replies on the model go on without it.
+        async Task Send(HostReply message)
+        {
+            var sending = reply(message);
+            if (sending.IsCompleted)
+            {
+                await sending;
+                return;
+            }
+            using (rounds.StandAside()) await sending;
+        }
 
         while (true)
         {
@@ -232,9 +250,9 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
             {
                 reasoning = token != span.Close;
                 // Reasoning is not shown, so it is told as it goes: the app hears the reply is alive, however long it thinks.
-                if (++thought % ThinkingReport == 0) await reply(new Progress(request.RequestId, Thinking, thought, 0));
+                if (++thought % ThinkingReport == 0) await Send(new Progress(request.RequestId, Thinking, thought, 0));
                 if (thoughts is not null && token != span.Open && token != span.Close && thoughts.Take(thinking!.Decode(token)) is { Length: > 0 } piece)
-                    await reply(new ReasoningDelta(request.RequestId, piece));
+                    await Send(new ReasoningDelta(request.RequestId, piece));
             }
             else
             {
@@ -242,7 +260,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
                 {
                     case ToolCallToken.Made:
                         calls.Add(reader!.Made!);
-                        await reply(new ToolCallMade(request.RequestId, reader.Made!));
+                        await Send(new ToolCallMade(request.RequestId, reader.Made!));
                         break;
                     case ToolCallToken.Waits:
                         return Stop(StopReason.ToolCalls, continuable: true, token);
@@ -251,7 +269,7 @@ internal sealed class GenerateHandler(ModelRegistry models, GpuScheduler gpu) : 
                         if (written.Length == 0) piece = piece.TrimStart();
                         if (piece.Length == 0) break;
                         written.Append(piece);
-                        await reply(new TextDelta(request.RequestId, piece));
+                        await Send(new TextDelta(request.RequestId, piece));
                         break;
                 }
             }

@@ -14,7 +14,7 @@ namespace Nexaflow.Core.Services.LocalAi;
 /// </summary>
 public sealed class LocalModelDownloads
 {
-    private readonly ModelAssetStore _store;
+    private readonly IModelAssetStore _store;
     private readonly IBackgroundActivityManager? _activities;
     private readonly Action<Workspace, LocalSlot, ProviderModelPair> _use;
     private readonly Lock _gate = new();
@@ -22,7 +22,7 @@ public sealed class LocalModelDownloads
     private readonly Dictionary<(Workspace, LocalSlot), LocalModelOption> _waiting = [];
 
     /// <param name="use">Makes a model a workspace's job's model — saved, and taken up by the running workspace.</param>
-    public LocalModelDownloads(ModelAssetStore store, IBackgroundActivityManager? activities, Action<Workspace, LocalSlot, ProviderModelPair> use)
+    public LocalModelDownloads(IModelAssetStore store, IBackgroundActivityManager? activities, Action<Workspace, LocalSlot, ProviderModelPair> use)
     {
         _store      = store;
         _activities = activities;
@@ -51,7 +51,7 @@ public sealed class LocalModelDownloads
         lock (_gate)
         {
             if (_running.TryGetValue(Key(option), out var running)) return running;
-            var download = new LocalDownload(option, option.Needs.Where(f => _store.Locate(f) is null).Sum(f => f.Size));
+            var download = new LocalDownload(option, option.Needs.Where(f => !_store.Has(f)).Sum(f => f.Size));
             _running[Key(option)] = download;
             download.Run(RunAsync(download));
             return download;

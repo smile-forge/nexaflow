@@ -11,17 +11,16 @@ namespace Nexaflow.AiHost.Speech;
 /// language's phonemiser and voice, a GPU step per piece at the request's priority, its audio sent back in pieces of
 /// about a second and its end marked. A segment in a language with no voice is read by the first.
 /// </summary>
-internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, SpeechPhonemizers phonemizers) : HostStreamHandler<Speak>
+internal sealed class SpeakHandler(ModelRegistry models, RequestModels requests, GpuScheduler gpu, SpeechPhonemizers phonemizers) : HostStreamHandler<Speak>
 {
     private const int ChunkSamples = KokoroSynthesizer.SampleRate;
 
     protected override async Task HandleAsync(Speak request, Func<HostReply, Task> reply, ChannelReader<RequestInput> input, CancellationToken ct)
     {
-        if (request.Voices.Count == 0) throw new HostRequestException(HostErrorKind.Invalid, "Speaking needs a voice.");
-        if (request.Voices.FirstOrDefault(v => !phonemizers.Reads(v.Language, v.Lexicon)) is { } unread)
-            throw new HostRequestException(HostErrorKind.Invalid, $"This host cannot read {unread.Language} for a voice{(unread.Lexicon is null ? " without its lexicon" : "")}.");
-
         Task Stage(string stage) => reply(new Progress(request.RequestId, stage, 0, 0));
+        var voices = await requests.VoicesAsync(request.Model, Stage, ct);
+        if (voices.FirstOrDefault(v => !phonemizers.Reads(v.Language, v.Lexicon)) is { } unread)
+            throw new HostRequestException(HostErrorKind.Invalid, $"This host cannot read {unread.Language} for a voice{(unread.Lexicon is null ? " without its lexicon" : "")}.");
         var leases = new Dictionary<string, ModelRegistry.Lease>(StringComparer.Ordinal);
 
         // A voice's model is taken on with the first segment it reads: a language never spoken never loads its voice.
@@ -34,14 +33,14 @@ internal sealed class SpeakHandler(ModelRegistry models, GpuScheduler gpu, Speec
 
         try
         {
-            await SynthesizerOf(request.Voices[0]);   // the first voice reads every language without one: ready before the first segment
+            await SynthesizerOf(voices[0]);   // the first voice reads every language without one: ready before the first segment
 
             int spokenSamples = 0;
             Task Alive() => reply(new Progress(request.RequestId, "speaking", spokenSamples * 1000L / KokoroSynthesizer.SampleRate, 0));
             await foreach (var item in HostStreamInput.ReadAsync(input, Alive, ct))
             {
                 if (item is not TextToSpeak text) continue;
-                var voice = request.Voices.FirstOrDefault(v => string.Equals(v.Language, text.Language, StringComparison.OrdinalIgnoreCase)) ?? request.Voices[0];
+                var voice = voices.FirstOrDefault(v => string.Equals(v.Language, text.Language, StringComparison.OrdinalIgnoreCase)) ?? voices[0];
                 var synthesizer = await SynthesizerOf(voice);
                 string phonemes = phonemizers.For(voice.Language, voice.Lexicon).Phonemize(text.Text);
                 int? device = synthesizer.Spec.Device;

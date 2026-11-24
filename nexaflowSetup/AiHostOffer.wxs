@@ -1,0 +1,14 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!--
+    AiHostOffered says this Nexaflow's bundle offers the AI host service (aihostSetup), whether or not it was taken: with the
+    service's own Service value, it is what lets the bundle tell an install where the service was turned down from one that
+    never offered it (InstallAiHost in Bundle.wxs).
+  -->
+  <Fragment>
+    <ComponentGroup Id="AiHostOfferedComponents" Directory="INSTALLFOLDER">
+      <Component Id="AiHostOffered">
+        <RegistryValue Root="HKMU" Key="Software\Smile-forge\Nexaflow" Name="AiHostOffered" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

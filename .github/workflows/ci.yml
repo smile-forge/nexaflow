@@ -123,6 +123,10 @@ jobs:
       - name: Verify installer payload is complete (Release, x64)
         run: dotnet build nexaflowSetup/nexaflowSetup.wixproj -c Release -p:Platform=x64 --no-restore
 
+      # The AI host service's MSI: its payload guard holds the runtimes the service loads, and WiX validates the service it installs.
+      - name: Verify the AI host service's installer (Release, x64)
+        run: dotnet build aihostSetup/aihostSetup.wixproj -c Release -p:Platform=x64 --no-restore
+
       # Build the WHOLE solution, not just the five projects whose tests run below. Naming projects meant the
       # other suites — Visuals, Components, Maths, the Viewers/WindowsOS/Architecture ones —
       # were never compiled here, so a break in any of them passed CI and only surfaced when somebody opened

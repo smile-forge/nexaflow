@@ -6,6 +6,7 @@ using Nexaflow.IO.Common.Imaging;
 using Nexaflow.IO.Common.Video;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Local;
+using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Providers.AiHost;
 
@@ -19,14 +20,15 @@ namespace Nexaflow.Providers.AiHost;
 public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILocalModelCatalog, IAsyncDisposable
 {
     private readonly OwnedModelRuntime _runtime;
-    private readonly OwnedModel?       _model;
+    private readonly HostedModel?       _model;
 
-    public OwnedVideoGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostModelSetup setup,
+    public OwnedVideoGenerationProvider(IBackgroundActivityManager activities, IModelAssetStore assets, IAiHost host, HostHolds holds,
                                         MachineCards hardware, ProviderModel model)
     {
-        _runtime = new OwnedModelRuntime(activities, assets, host, setup, hardware);
+        _runtime = new OwnedModelRuntime(activities, assets, host, holds, hardware);
         _model   = OwnedModels.OfKind(ModelKind.VideoGeneration).FirstOrDefault(m => m.Id == model.Model);
         assets.Changed += OnAssetChanged;
+        _runtime.ReachabilityChanged += (_, _) => AvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public string Name => OwnedLlmProvider.ProviderName;
@@ -45,7 +47,7 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
     public IReadOnlyList<PlacementNeed> NeedsOf(string modelId)
         => OwnedModels.OfKind(ModelKind.VideoGeneration).FirstOrDefault(m => m.Id == modelId) is { } model ? _runtime.NeedsOf(model) : [];
 
-    public bool IsAvailable => _model is not null && _runtime.IsHere(_model);
+    public bool IsAvailable => _model is not null && _runtime.Reachable && _runtime.IsHere(_model);
 
     public event EventHandler? AvailabilityChanged;
 
@@ -64,8 +66,8 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
     /// where it is guided; one of a name it does not have makes nothing, so it offers its first shape alone.</summary>
     public VideoSettings Settings => _model?.Filming is { } filming ? SettingsOf(filming) : new([new(16, 9)]);
 
-    internal static VideoSettings SettingsOf(OwnedFilming filming) =>
-        new([.. OwnedFilming.Shapes.Select(shape => MediaAspect.Of(filming.Sizes[shape].Width, filming.Sizes[shape].Height))])
+    internal static VideoSettings SettingsOf(HostedFilming filming) =>
+        new([.. HostedFilming.Shapes.Select(shape => MediaAspect.Of(filming.Sizes[shape].Width, filming.Sizes[shape].Height))])
         {
             Seeds           = true,
             NegativePrompts = filming.Method == FilmingMethod.Wan,
@@ -75,13 +77,9 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
     public (int Width, int Height)? FirstFrameSize(MediaAspect aspect, string? resolution) => _model?.Filming is { } filming ? SizeOf(filming, aspect) : null;
 
     /// <summary>The size it films <paramref name="aspect"/> at, or null where it films none in those proportions.</summary>
-    private static (int Width, int Height)? SizeOf(OwnedFilming filming, MediaAspect aspect) =>
-        OwnedFilming.Shapes.Select(shape => filming.Sizes[shape]).Where(size => new MediaAspect(size.Width, size.Height) == aspect)
+    private static (int Width, int Height)? SizeOf(HostedFilming filming, MediaAspect aspect) =>
+        HostedFilming.Shapes.Select(shape => filming.Sizes[shape]).Where(size => new MediaAspect(size.Width, size.Height) == aspect)
                            .Select(size => ((int Width, int Height)?)size).FirstOrDefault();
-
-    /// <summary>What a guided model steers away from: its own negative prompt, then what it is told to keep out.</summary>
-    internal static string NegativePrompt(OwnedFilming filming, string? asked) =>
-        string.IsNullOrWhiteSpace(asked) ? filming.NegativePrompt : $"{filming.NegativePrompt}, {asked.Trim()}";
 
     public Task<IReadOnlyList<string>> GetAvailableModelsAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>([.. _runtime.Runnable(ModelKind.VideoGeneration).Select(m => m.Id)]);
@@ -112,26 +110,24 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
             firstFrame = rgb.Rgb;
         }
 
-        var parts = new Dictionary<string, ModelSpec>();
-        foreach (var role in FilmingParts.Of(filming.Method))
-            parts[role] = await _runtime.PlacedOnDemandAsync(_model, role, ct);
-        var model = new FilmingModel(filming.Method, parts, filming.Steps, filming.Shift, filming.Guidance, filming.Timesteps,
-                                     NegativePrompt(filming, request.NegativePrompt));
+        var model = _runtime.Ready(_model);
+        string? negative = string.IsNullOrWhiteSpace(request.NegativePrompt) ? null : request.NegativePrompt.Trim();
         long seed = request.Seed ?? Random.Shared.NextInt64();
 
         var label    = $"Filming with {_model.Catalog.DisplayName}";
         var activity = _runtime.Activities.StartActivity(label + "…");
         var host     = _runtime.Host;
         host.Environment = _runtime.Environment;
-        var madeWay  = new List<IDisposable>();   // the models that make way for this clip, back once it is done
+        
         try
         {
             // Encoded frame by frame as the host sends them, so the clip is never held whole as pictures.
             using var mp4 = new MemoryStream();
             using var encoder = new Mp4Encoder(mp4, width, height, filming.FramesPerSecond);
+            using var start = firstFrame is null ? null : await host.ShareAsync(firstFrame, ct);
             int frameBytes = width * height * 3;
             await foreach (var reply in host.SendAsync(id => new Film(id, model, request.Prompt, width, height, filming.Frames(request.Seconds),
-                                                                         filming.FramesPerSecond, seed, RequestPriority.Job) { FirstFrame = firstFrame },
+                                                                         filming.FramesPerSecond, seed, RequestPriority.Job) { FirstFrame = start, NegativePrompt = negative },
                                                        OwnedModelRuntime.StallLimit, ct))
             {
                 switch (reply)
@@ -143,11 +139,10 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
                         activity.Update($"{label} — step {progress.Done} of {progress.Total}");
                         break;
                     case FilmedFrames frames:
-                        for (int at = 0; at + frameBytes <= frames.Rgb.Length; at += frameBytes) encoder.AddFrame(frames.Rgb.AsSpan(at, frameBytes));
+                        using (frames.Rgb)
+                            for (int at = 0; at + frameBytes <= frames.Rgb.Length; at += frameBytes) encoder.AddFrame(frames.Rgb.Span.Slice(at, frameBytes));
                         break;
-                    case MadeWay made:
-                        madeWay.Add(_runtime.MakingWay(made.Models));
-                        break;
+
                 }
             }
             if (encoder.Frames == 0) throw new LlmProviderException("The AI host finished without a clip.");
@@ -169,10 +164,6 @@ public sealed class OwnedVideoGenerationProvider : IVideoGenerationProvider, ILo
         {
             activity.Fail(ex.Message);
             throw;
-        }
-        finally
-        {
-            foreach (var back in madeWay) back.Dispose();
         }
     }
 

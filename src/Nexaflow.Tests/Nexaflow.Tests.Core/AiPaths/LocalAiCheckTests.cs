@@ -25,7 +25,7 @@ public class LocalAiCheckTests
         var used = new OwnedModelInUse("gemma-4-e4b-it", "Gemma 4 E4B", ModelKind.Language, model, (IHostModelCatalog)model);
         var stages = new List<LocalAiCheckStage>();
 
-        var check = await new LocalAiChecker(OwnedModelHarness.Setup!, [used], reports)
+        var check = await new LocalAiChecker(OwnedModelHarness.Holds!, [used], reports)
             .RunAsync(new Inline<LocalAiCheckProgress>(p => stages.Add(p.Stage)), default);
 
         string report = await File.ReadAllTextAsync(check.ReportPath);

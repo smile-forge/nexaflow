@@ -10,7 +10,7 @@ namespace Nexaflow.AiHost.Drawing;
 /// </summary>
 internal interface IDrawingMethod
 {
-    /// <summary>What a <see cref="DrawingModel.Method"/> names it.</summary>
+    /// <summary>What a model's catalog names it (<see cref="DrawingModel.Method"/>).</summary>
     DrawingMethod Method { get; }
 
     /// <summary>Whether it draws pictures of this size.</summary>
@@ -34,8 +34,9 @@ internal interface IDrawingMethod
     /// <summary>Whether it draws again only what a mask covers over the first source (<see cref="Draw.Mask"/>).</summary>
     bool Masks { get; }
 
-    /// <summary>Draws <paramref name="request"/>'s picture, as interleaved 8-bit RGB rows.</summary>
+    /// <summary>Draws <paramref name="request"/>'s picture with <paramref name="model"/>, as interleaved 8-bit RGB rows.</summary>
+    /// <param name="model">The model the request names, its parts where they run for this picture.</param>
     /// <param name="stage">Told of a part loading, by what it is doing.</param>
     /// <param name="stepped">Told of each denoising step as it finishes: how many are done, of how many.</param>
-    Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct);
+    Task<SharedBytes> DrawAsync(Draw request, DrawingModel model, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct);
 }

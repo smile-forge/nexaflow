@@ -42,10 +42,10 @@ internal sealed class NativeToolProtocol : ToolProtocol
 
     public override async Task<AgentStep> StepAsync(ILlmProvider provider, IReadOnlyList<LlmMessage> messages, IReadOnlyList<IClientTool> tools,
                                                     IReadOnlyCollection<string> toolNames, IAIResponseHandler handler, LlmThinking thinking,
-                                                    CancellationToken ct)
+                                                    string? conversation, CancellationToken ct)
     {
         IReadOnlyList<LlmTool> declared = [.. tools.Select(Declare), Plan, Suggest];
-        var (text, made, ended) = await StreamAsync(provider.StreamAsync(messages, declared, LlmUrgency.Interactive, thinking, ct), handler);
+        var (text, made, ended) = await StreamAsync(provider.StreamAsync(messages, declared, LlmUrgency.Interactive, thinking, conversation, ct), handler);
 
         var planCall = made.FirstOrDefault(c => c.Name == PlanTool);
         var suggest  = made.FirstOrDefault(c => c.Name == SuggestTool);

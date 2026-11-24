@@ -82,15 +82,39 @@ public class AiHostClientTests
     }
 
     [TestMethod]
-    public async Task AHostWithTheWrongToken_IsRefused()
+    public async Task TheApp_SaysHelloWithTheTokenItStartedTheHostWith_AndItsName()
     {
-        var host = new FakeHost { WrongToken = new string('0', 64) };
+        var host = new FakeHost();
+        await using var client = new AiHostClient(host, Fast, app: "a test app");
+
+        await Describe(client);
+
+        var (hello, token) = host.Greeted!.Value;
+        Assert.AreEqual((token, AiHostProtocol.Version, "a test app"), (hello.Token, hello.ProtocolVersion, hello.App));
+    }
+
+    [TestMethod]
+    public async Task AnAnswerFromAProcessTheAppDidNotStart_IsRefused()
+    {
+        var host = new FakeHost { WelcomesAs = 9999 };
         await using var client = new AiHostClient(host, Fast);
 
         var ex = await Assert.ThrowsExactlyAsync<AiHostException>(() => Describe(client));
 
         Assert.AreEqual(AiHostFailure.Unavailable, ex.Failure);
         Assert.IsTrue(host.Last!.WasKilled, "a host that cannot prove itself is not left running");
+    }
+
+    [TestMethod]
+    public async Task AHostThatTurnsTheAppAway_IsUnavailable_SayingWhy()
+    {
+        var host = new FakeHost { RefusesWith = "it speaks another protocol" };
+        await using var client = new AiHostClient(host, Fast);
+
+        var ex = await Assert.ThrowsExactlyAsync<AiHostException>(() => Describe(client));
+
+        Assert.AreEqual(AiHostFailure.Unavailable, ex.Failure);
+        StringAssert.Contains(ex.Message, "it speaks another protocol");
     }
 
     [TestMethod]
@@ -275,10 +299,10 @@ public class AiHostClientTests
             Serve = async (r, c) => { await release.Task; await FakeHost.Describe(r, c); },
         };
         await using var client = new AiHostClient(host, Fast);
-        var pack = new AiHostEnvironment(@"C:\ai\runtime\cuda");
+        var pack = AiHostEnvironment.OnCuda;
 
         var running = Describe(client);                    // in flight on the CPU host
-        while (!client.IsRunning) await Task.Delay(10);
+        await host.RequestArrived.WaitAsync(Generous);     // in the host's hands, not only connected
         client.Environment = pack;
         var next = Describe(client);                       // waits for the CPU host to finish
 
@@ -291,6 +315,23 @@ public class AiHostClientTests
 
         Assert.AreEqual(2, host.Starts);
         CollectionAssert.AreEqual(new[] { AiHostEnvironment.Cpu, pack }, host.Environments.ToArray());
+    }
+
+    [TestMethod]
+    public async Task AHostLostWithARequestStillOpen_IsReplacedOnTheNextRequest_NotWaitedOn()
+    {
+        var host = new FakeHost { Serve = FakeHost.Silent };
+        await using var client = new AiHostClient(host, Fast);
+        // Kept open, as a hold is until its owner lets it go.
+        await using var held = await client.OpenStreamAsync(id => new DescribeHost(id), Generous);
+        await host.RequestArrived.WaitAsync(Generous);
+
+        host.Last!.Exit(1);
+        while (client.IsRunning) await Task.Delay(10);   // its loss seen
+        host.Serve = FakeHost.Describe;
+        await Describe(client).WaitAsync(Generous);
+
+        Assert.AreEqual(2, host.Starts, "the lost host was replaced, its open request no reason to wait");
     }
 
     [TestMethod]

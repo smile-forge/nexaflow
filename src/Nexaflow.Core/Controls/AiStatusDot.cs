@@ -12,6 +12,7 @@ namespace Nexaflow.Core.Controls;
 /// States (highest priority first):
 ///   IsBusy=true          → orange ellipse, size-pulse (AI is working)
 ///   HandlerSymbol != null → indigo circle with symbol text (single handler identified)
+///   Warning != null      → a warning-coloured ring around ⚠, the warning its tooltip (what is typed for the AI will not reach it)
 ///   IsListening=true     → indigo→cyan gradient ellipse, opacity-pulse (ambiguous/no handler)
 ///   default              → green ellipse, steady (ready)
 /// </summary>
@@ -30,6 +31,13 @@ public class AiStatusDot : ContentControl
     public static readonly DependencyProperty IsListeningProperty =
         DependencyProperty.Register(nameof(IsListening), typeof(bool), typeof(AiStatusDot),
             new PropertyMetadata(false, OnStateChanged));
+
+    public static readonly DependencyProperty WarningProperty =
+        DependencyProperty.Register(nameof(Warning), typeof(string), typeof(AiStatusDot),
+            new PropertyMetadata(null, OnStateChanged));
+
+    /// <summary>Why what is typed for the AI will not reach it — the host Nexaflow's own models run in out of reach — or null.</summary>
+    public string? Warning { get => (string?)GetValue(WarningProperty); set => SetValue(WarningProperty, value); }
 
     public bool    IsBusy        { get => (bool)GetValue(IsBusyProperty);        set => SetValue(IsBusyProperty, value); }
     public string? HandlerSymbol { get => (string?)GetValue(HandlerSymbolProperty); set => SetValue(HandlerSymbolProperty, value); }
@@ -127,10 +135,16 @@ public class AiStatusDot : ContentControl
     private static void OnStateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         => ((AiStatusDot)d).ApplyStyle();
 
+    /// <summary>Seen by UI Automation — with its warning as its item status — as the user sees it: a custom content control has no peer
+    /// of its own.</summary>
+    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer()
+        => new System.Windows.Automation.Peers.FrameworkElementAutomationPeer(this);
+
     private void ApplyStyle()
     {
         _busySb.Stop();
         _listenSb.Stop();
+        System.Windows.Automation.AutomationProperties.SetItemStatus(this, "");
         _dot.Opacity = 1.0;
         _dot.Width   = 28;
 
@@ -149,8 +163,25 @@ public class AiStatusDot : ContentControl
             _dot.Visibility          = Visibility.Collapsed;
             _symbolBorder.Visibility = Visibility.Visible;
             _symbolBorder.Background  = ThemeBrush("AiStatus.Handler");
+            _symbolBorder.BorderThickness = new Thickness(0);
+            _symbolText.SetResourceReference(TextBlock.ForegroundProperty, "AiStatus.HandlerText");
             _symbolText.Text          = sym;
             ToolTip = Str.Format("Shell.AiBar.Status.HandlerFormat", sym);
+            return;
+        }
+
+        // What is typed for the AI will not reach it: said before it is sent. A handler of the page's own, above, still takes its input.
+        if (Warning is { Length: > 0 } warning)
+        {
+            _dot.Visibility          = Visibility.Collapsed;
+            _symbolBorder.Visibility = Visibility.Visible;
+            _symbolBorder.Background  = Brushes.Transparent;
+            _symbolBorder.BorderBrush = ThemeBrush("WarningBrush");
+            _symbolBorder.BorderThickness = new Thickness(2);
+            _symbolText.Foreground    = ThemeBrush("WarningBrush");
+            _symbolText.Text          = "⚠";
+            ToolTip = warning;
+            System.Windows.Automation.AutomationProperties.SetItemStatus(this, warning);
             return;
         }
 

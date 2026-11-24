@@ -3,7 +3,7 @@
   <!--
     "Nexaflow": the language models Nexaflow runs itself, in its AI host. The provider is the host's client for
     one model — fetching its files and the runtime the machine needs, loading it, and turning a conversation into
-    the host's requests. The models it offers are in owned-models.json.
+    the host's requests. The models it offers are the AI host's catalog's (Nexaflow.AiHost.Catalog), seen as Nexaflow's kinds.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -17,14 +17,13 @@
     <ProjectReference Include="..\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers.Local\Nexaflow.Providers.Local.csproj" />
     <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.AiHost\Nexaflow.AiHost.Catalog\Nexaflow.AiHost.Catalog.csproj" />
     <!-- The containers the host takes raw: pictures decoded and PNGs made, recordings read, clips encoded. -->
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Media\Nexaflow.Media.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="owned-models.json" LogicalName="owned-models.json" />
-  </ItemGroup>
+
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Providers" />

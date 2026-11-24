@@ -8,8 +8,8 @@ namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
 /// The host checking pictures with OwenElliott's image safety classifier, M. How a picture is laid out for it is checked
-/// always; the classifier itself where <c>NEXAFLOW_TEST_PICTURE_CHECK</c> names a folder holding
-/// <c>image-safety-classifier-m.onnx</c> — it runs on the CPU, so no CUDA pack is needed. What is asserted is the shape of a
+/// always; the classifier itself where the test store (<see cref="TestStore"/>) holds <c>image-safety-classifier-m</c> — it
+/// runs on the CPU too, so no CUDA pack is needed. What is asserted is the shape of a
 /// verdict and that a plain picture is judged fit, not how well the classifier catches what it is for.
 /// </summary>
 [TestClass]
@@ -17,19 +17,15 @@ namespace Nexaflow.Tests.AiHost;
 [CoversNode("opt-shell-ai-protection")]
 public class PictureCheckingTests
 {
+    /// <summary>The checking tool, as the catalog names it: the host runs its classifier where it places it.</summary>
+    private const string Tool = "image-safety-classifier-m";
+
     private static AiHostClient? _client;
-    private static ModelSpec? _classifier;
 
     [ClassInitialize]
-    public static void Start(TestContext context)
+    public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_PICTURE_CHECK") is not { Length: > 0 } folder) return;
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(null),
-        };
-        _classifier = new ModelSpec("image-safety-classifier-m", "picture-safety-classifier", folder, "image-safety-classifier-m.onnx", null, 0, 0);
+        _client = await TestStore.HostAsync(gpu: false);
     }
 
     [ClassCleanup]
@@ -38,10 +34,10 @@ public class PictureCheckingTests
         if (_client is not null) await _client.DisposeAsync();
     }
 
-    private static (AiHostClient Client, ModelSpec Classifier) Host()
+    private static (AiHostClient Client, string Tool) Host()
     {
-        if (_client is null || _classifier is null) Assert.Inconclusive("NEXAFLOW_TEST_PICTURE_CHECK names no image safety classifier on this machine.");
-        return (_client, _classifier);
+        if (_client is null) Assert.Inconclusive(TestStore.Missing(gpu: false));
+        return (_client, Tool);
     }
 
     /// <summary>A plain outdoor scene, 640 × 480: a sky lightening toward the horizon over a strip of grass, as its RGB.</summary>
@@ -81,7 +77,7 @@ public class PictureCheckingTests
         var (client, classifier) = Host();
 
         PictureChecked? verdict = null;
-        await foreach (var reply in client.SendAsync(id => new CheckPicture(id, classifier, MeadowWidth, MeadowHeight, Meadow()), TimeSpan.FromMinutes(1)))
+        await foreach (var reply in client.SendAsync(id => new CheckPicture(id, classifier, MeadowWidth, MeadowHeight, SharedBytes.Of(Meadow())), TimeSpan.FromMinutes(1)))
             if (reply is PictureChecked done) verdict = done;
 
         Assert.IsNotNull(verdict);
@@ -97,7 +93,7 @@ public class PictureCheckingTests
 
         var ex = await Assert.ThrowsAsync<AiHostException>(async () =>
         {
-            await foreach (var _ in client.SendAsync(id => new CheckPicture(id, classifier, 2, 2, [1, 2, 3, 4]), TimeSpan.FromMinutes(1))) { }
+            await foreach (var _ in client.SendAsync(id => new CheckPicture(id, classifier, 2, 2, SharedBytes.Of([1, 2, 3, 4])), TimeSpan.FromMinutes(1))) { }
         });
         StringAssert.Contains(ex.Message, "bytes of RGB");
     }

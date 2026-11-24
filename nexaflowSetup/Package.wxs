@@ -72,6 +72,7 @@
       <ComponentGroupRef Id="ShortcutComponents" />
       <ComponentGroupRef Id="CleanupComponents" />
       <ComponentGroupRef Id="ExplorerMenuOfferedComponents" />
+      <ComponentGroupRef Id="AiHostOfferedComponents" />
     </Feature>
 
     <!--

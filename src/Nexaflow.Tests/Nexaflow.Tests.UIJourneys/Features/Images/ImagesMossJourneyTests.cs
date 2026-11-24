@@ -17,7 +17,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// prompt, so what to keep out goes; Create draws the picture in its eight steps into the folder under the name given,
 /// fetching the LoRA first.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding MOSS-Image as the app keeps it, each file verified, which the
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding MOSS-Image as the app keeps it, each file verified, which the
 /// app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it the journey is inconclusive.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
@@ -28,7 +28,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 [CoversNode("owned-images-moss")]
 public class ImagesMossJourneyTests : UiJourneyTestBase
 {
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
     private string _folder = "";

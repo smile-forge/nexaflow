@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.Services;
@@ -11,8 +12,8 @@ using NSubstitute;
 namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>
-/// The CUDA pack's download at launch: a machine that had the pack gets this version's in place of it, and the earlier one
-/// goes — at once where the pack does not suit the machine, only once this one is whole where it does.
+/// The CUDA pack's download at launch: a machine that had the pack gets this version's in place of it where the pack suits the
+/// machine, and nothing where it does not. The earlier pack is the host's to delete, once this one is whole.
 /// </summary>
 [TestClass]
 [CoversNode("ai-local-models")]
@@ -43,20 +44,21 @@ public class CudaPackDownloadTests
         return dir;
     }
 
-    /// <summary>The pack's download over a store that fetches nothing: what can come, comes from disk.</summary>
+    /// <summary>The pack's download over a store that fetches nothing, as the host keeps it: what can come, comes from disk, and an
+    /// earlier pack there says the machine had one.</summary>
     private CudaPackDownload Pack(MachineCards machine, IBackgroundActivityManager? activities = null)
-        => new(new ModelAssetStore(_root, CudaRuntimePack.EarlierIn(_root), downloadsAllowed: false), _root, machine, activities);
+        => new(new ModelAssetStore(_root, CudaRuntimePack.EarlierIn(_root), downloadsAllowed: false), () => CudaRuntimePack.EarlierIn(_root).Count > 0,
+               machine, activities);
 
     [TestMethod]
-    public async Task OnAMachineThePackDoesNotSuit_AnEarlierPack_IsDeletedAtLaunch_AndNothingIsFetched()
+    public async Task OnAMachineThePackDoesNotSuit_AnEarlierPack_FetchesNothingAtLaunch()
     {
-        var earlier    = EarlierPack();
+        EarlierPack();
         var activities = Substitute.For<IBackgroundActivityManager>();
         var pack       = Pack(NoGpu, activities);
 
         await pack.ReplaceEarlierAsync();
 
-        Assert.IsFalse(Directory.Exists(earlier), "nothing on this machine will read it");
         activities.DidNotReceive().StartActivity(Arg.Any<string>());
         Assert.IsNull(pack.Failure);
     }

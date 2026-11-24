@@ -7,8 +7,7 @@ namespace Nexaflow.Core.AI;
 public enum LocalSlot { Language, SpeechToText, TextToSpeech, ImageGeneration, HighQualityImageGeneration, ImageEditing, VideoGeneration, HighQualityVideoGeneration }
 
 /// <summary>
-/// The ability grid's Local column: the models that run on this machine — Nexaflow's own, and whisper.cpp's for dictation
-/// where this machine runs none of Nexaflow's speech models — one chosen for each
+/// The ability grid's Local column: the models that run on this machine — Nexaflow's own, in its AI host — one chosen for each
 /// job (<see cref="LocalSlot"/>). Each job's model is saved as a column of its own under a reserved id, so a chain names it
 /// like any other column and the rest of the app needs to know nothing of it; on screen the grid shows them as one column,
 /// whose cell in a row is the row's job's model.
@@ -17,22 +16,9 @@ public static class LocalColumns
 {
     private const string Prefix = "local-";
 
-    /// <summary>The assemblies of the Local column's providers — Nexaflow's own models and whisper.cpp — loaded for every workspace,
-    /// since every workspace has the column.</summary>
-    public static readonly IReadOnlyList<string> Assemblies = ["Nexaflow.Providers.AiHost.dll", "Nexaflow.Providers.Whisper.dll"];
-
-    /// <summary>
-    /// Speech to text where this machine runs none of Nexaflow's own speech models: Whisper base on whisper.cpp, which
-    /// dictates into the box. It hears words but not when a speaker has finished, so it holds no conversation; Nexaflow's
-    /// own speech models always do.
-    /// </summary>
-    public static ProviderModelPair Dictation { get; } = new()
-    {
-        ProviderName = "Whisper", Model = "base", Kind = ModelKind.SpeechToText, AssemblyFileName = "Nexaflow.Providers.Whisper.dll",
-    };
-
-    /// <summary>Whether <paramref name="column"/> is whisper.cpp's — a model that only dictates.</summary>
-    public static bool Dictates(ProviderModelPair column) => string.Equals(column.ProviderName, Dictation.ProviderName, StringComparison.OrdinalIgnoreCase);
+    /// <summary>The assembly of the Local column's provider — Nexaflow's own models — loaded for every workspace, since every workspace
+    /// has the column.</summary>
+    public static readonly IReadOnlyList<string> Assemblies = ["Nexaflow.Providers.AiHost.dll"];
 
     /// <summary>The reserved id of <paramref name="slot"/>'s column.</summary>
     public static string IdOf(LocalSlot slot) => Prefix + slot switch
@@ -169,10 +155,11 @@ public static class LocalColumns
     }
 
     /// <summary>
-    /// Keeps every job a row uses the Local column for on a model the job offers here: one with no model yet, or whose model
-    /// the job no longer offers — whisper.cpp's sizes where this machine runs Nexaflow's own speech models, or those models
-    /// where it can only dictate — gets the job's first model, as <see cref="Seed"/> chooses. Nothing is downloaded: a model
-    /// not here is the grid's to offer. A job that offers nothing here is left as it is. Returns whether anything changed.
+    /// Keeps every job a row uses the Local column for on a model the job offers here: one with no model yet, or whose model the job
+    /// no longer offers — a provider since retired, a model gone from its catalog — gets the job's first model, as <see cref="Seed"/>
+    /// chooses; where none runs here, the model it no longer offers is let go, and the job has none. Nothing is downloaded: a model not
+    /// here is the grid's to offer. A job that offers nothing at all — its catalog not read — is left as it is. Returns whether anything
+    /// changed.
     /// </summary>
     /// <param name="options">The models each job offers, as for <see cref="Seed"/>.</param>
     public static bool Settle(AiConfig config, Func<LocalSlot, IReadOnlyList<(ProviderModelPair Model, bool Runs, bool Here, bool Suits)>> options)
@@ -184,12 +171,14 @@ public static class LocalColumns
             if (!AbilitiesOf(slot).Any(a => config.Assignments.GetValueOrDefault(a.ToString())?.ColumnIds.Contains(id) == true)) continue;
 
             var offered = options(slot);
+            if (offered.Count == 0) continue;
             var chosen  = config.Columns.FirstOrDefault(c => c.Id == id);
             if (chosen is not null && offered.Any(o => o.Model.Model == chosen.Model
                                                      && string.Equals(o.Model.ProviderName, chosen.ProviderName, StringComparison.OrdinalIgnoreCase)))
                 continue;
-            if (FirstOf(offered) is not { } first) continue;
-            Choose(config, slot, first);
+            if (FirstOf(offered) is { } first) Choose(config, slot, first);
+            else if (chosen is not null) config.Columns.Remove(chosen);
+            else continue;
             changed = true;
         }
         return changed;

@@ -10,8 +10,7 @@ namespace Nexaflow.Core.Services.Tools;
 
 /// <summary>
 /// Picture selection as features and the assistant use it (<see cref="IPictureSelection"/>): SAM 3.1 in the AI host
-/// (<see cref="OwnedPictureSelection"/>). The host takes a picture and gives masks by file; a session keeps its files in
-/// a folder of its own, which goes when it does, so a feature hands over pixels and gets masks back.
+/// (<see cref="OwnedPictureSelection"/>). A feature hands over pixels and gets masks back.
 /// </summary>
 public sealed class PictureSelection : LocalToolModels, IPictureSelection
 {
@@ -28,26 +27,11 @@ public sealed class PictureSelection : LocalToolModels, IPictureSelection
     {
         if (width <= 0 || height <= 0 || (long)width * height > SelectInPicture.MostPixels || rgba.Length != (long)width * height * 4)
             throw new InvalidOperationException($"A {width}x{height} picture of {rgba.Length} bytes is not one a selection reads.");
-        var folder = Directory.CreateTempSubdirectory("nexaflow-selection-").FullName;
-        try
-        {
-            string pixels = Path.Combine(folder, "picture.rgba");
-            await File.WriteAllBytesAsync(pixels, rgba, ct);
-            var session = await _selection.OpenAsync(pixels, width, height, ct);
-            File.Delete(pixels);   // read: the host keeps what it made of it
-            return new Session(session, folder, width, height);
-        }
-        catch
-        {
-            Session.Remove(folder);
-            throw;
-        }
+        return new Session(await _selection.OpenAsync(rgba, width, height, ct), width, height);
     }
 
-    private sealed class Session(OwnedSelectionSession session, string folder, int width, int height) : IPictureSelectionSession
+    private sealed class Session(OwnedSelectionSession session, int width, int height) : IPictureSelectionSession
     {
-        private int _asks;
-
         public int Width => width;
 
         public int Height => height;
@@ -63,60 +47,27 @@ public sealed class PictureSelection : LocalToolModels, IPictureSelection
             asked.AddRange(points.Select(p => new SelectionPoint((float)p.X, (float)p.Y, p.Include ? SelectionPointKind.Include : SelectionPointKind.Exclude)));
             if (asked.Count == 0) throw new InvalidOperationException("A selection needs a click or a box.");
 
-            string into = MaskFile();
-            try
-            {
-                var selected = await session.SelectAsync(asked, new MaskTarget(into, maskWidth, maskHeight), ct);
-                return new PictureMask(await File.ReadAllBytesAsync(into, ct), maskWidth, maskHeight, Box(selected.Bounds));
-            }
-            finally
-            {
-                Delete(into);
-            }
+            var selected = await session.SelectAsync(asked, new MaskTarget(maskWidth, maskHeight), ct);
+            using (selected.Mask)
+                return new PictureMask(selected.Mask.ToArray(), maskWidth, maskHeight, Box(selected.Bounds));
         }
 
         public async Task<IReadOnlyList<PictureFind>> FindAsync(string phrase, IReadOnlyList<PictureExample> examples, int maskWidth, int maskHeight, CancellationToken ct)
         {
-            string into = MaskFile();
-            try
+            var found = await session.FindAsync(phrase, [.. examples.Select(e => new SelectionExample(
+                new SelectionBox((float)e.Box.Left, (float)e.Box.Top, (float)e.Box.Right, (float)e.Box.Bottom), e.Like))],
+                new MaskTarget(maskWidth, maskHeight), ct);
+            using var masks = found.Masks;
+            int size = maskWidth * maskHeight;
+            return [.. found.Found.Select((f, i) =>
             {
-                var found = await session.FindAsync(phrase, [.. examples.Select(e => new SelectionExample(
-                    new SelectionBox((float)e.Box.Left, (float)e.Box.Top, (float)e.Box.Right, (float)e.Box.Bottom), e.Like))],
-                    new MaskTarget(into, maskWidth, maskHeight), ct);
-                var masks = await File.ReadAllBytesAsync(into, ct);
-                int size = maskWidth * maskHeight;
-                return [.. found.Found.Select((f, i) =>
-                {
-                    var box = Box(f.Box)!;
-                    return new PictureFind(f.Score, box, new PictureMask(masks.AsSpan(i * size, size).ToArray(), maskWidth, maskHeight, box));
-                })];
-            }
-            finally
-            {
-                Delete(into);
-            }
+                var box = Box(f.Box)!;
+                return new PictureFind(f.Score, box, new PictureMask(masks.Memory.Slice(i * size, size).ToArray(), maskWidth, maskHeight, box));
+            })];
         }
-
-        private string MaskFile() => Path.Combine(folder, $"mask-{Interlocked.Increment(ref _asks)}.bin");
 
         private static PictureBox? Box(SelectionBox? box) => box is null ? null : new PictureBox(box.Left, box.Top, box.Right, box.Bottom);
 
-        private static void Delete(string file)
-        {
-            try { File.Delete(file); }
-            catch (IOException) { }   // still being written by an ask given up on: it goes with the folder
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await session.DisposeAsync();
-            Remove(folder);
-        }
-
-        public static void Remove(string folder)
-        {
-            try { Directory.Delete(folder, recursive: true); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }   // the temp folder's own cleaning takes what is left
-        }
+        public ValueTask DisposeAsync() => session.DisposeAsync();
     }
 }

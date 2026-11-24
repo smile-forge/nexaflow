@@ -16,8 +16,8 @@ classifier (`image-safety-classifier-m`), which Core runs itself rather than a p
 | Layer | What | Where |
 |---|---|---|
 | Graphs | built, checked against the makers' own code and published by a recipe | `tools/ai-models/<tool>/`, a smile-forge Hugging Face repository |
-| Catalog | the tool's parts and pinned files, in the owned catalog's `tools` section | `owned-models.json` → `OwnedTool` (`OwnedModels.Tools`) |
-| Runtime | fetching, placing on demand, holding — shared with the owned models through `OwnedEntry` | `OwnedModelRuntime` |
+| Catalog | the tool's parts and pinned files, in the host catalog's `tools` section — the files the host fetches into its store | `Nexaflow.AiHost.Catalog/models.json` → `HostedTool` (`HostCatalog.Tools`) |
+| Runtime | asking the host to fetch, placing on demand, holding — shared with the owned models through `HostedEntry` | `OwnedModelRuntime` |
 | Host | a request family of its own, with runners for its graphs | `Nexaflow.AiHost/<Family>/`, its messages in `Nexaflow.AiHost.Contracts` |
 | Front | what the app asks of it, no provider types in sight; whether it runs here, its files and readiness from `OwnedToolFront` | `Nexaflow.Providers.AiHost/Owned<Tool>.cs` |
 | Contract | what a feature asks of it: `IToolModels` (where its models stand, download) and the tool's own | `Features.Common/ToolModels.cs` |
@@ -344,7 +344,7 @@ on the Local AI page. `PictureCheckingTests` runs the host with it on the CPU; `
 
 1. A recipe under `tools/ai-models/<tool>/`: fetch the makers' code and weights pinned, build each graph and hold it to its
    original, run the makers' own pipeline on their own samples into a reference set; publish to smile-forge.
-2. A kind in `OwnedToolKind`, its roles in `OwnedRoles.Of(OwnedToolKind)`, and its entry in the catalog's `tools` section,
+2. A kind in `HostedToolKind`, its roles in `HostedRoles.Of(HostedToolKind)`, and its entry in the catalog's `tools` section,
    each part's `memoryBytes` its measured peak — or, for a part so small a GPU would only keep it waiting, `runsOnCpu` —
    and every file in one of its parts' folders.
 3. The host's request family and runners, registered in `HostMessages`, `ModelRunners.Default` and `HostProgram`; a GPU

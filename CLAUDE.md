@@ -69,9 +69,9 @@ src/
   Nexaflow.Services.Initiatives/      WPF-free product tree + graph backend — never references WPF/Core/Features
   Nexaflow.Services.Initiatives.Cli/  nfi
   Nexaflow.Elevation/                 Elevation.Contracts (DTOs) + PrivilegeBridge (the elevated exe)
-  Nexaflow.AiHost/                    the AI host: Contracts (pipe protocol) + Client (the app's side) + Provisioning (model files and their store) + the host exe — models Nexaflow runs itself
+  Nexaflow.AiHost/                    the AI host: Contracts (pipe protocol) + Client (the app's side) + Catalog (the models it runs, and the planner that places them) + Provisioning (model files and their store) + the host exe — models Nexaflow runs itself
   Nexaflow.Languages/                 one resource-only pack per language
-  Nexaflow.Providers/                 Providers.Common + OpenAICompatible (the chat-completions wire format) + Providers.Local (what a local provider offers) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria, Whisper; AiHost — "Nexaflow")
+  Nexaflow.Providers/                 Providers.Common + OpenAICompatible (the chat-completions wire format) + Providers.Local (what a local provider offers) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria; AiHost — "Nexaflow")
   Nexaflow.Tests/                     one suite per subject — docs/testing.md
 ```
 
@@ -232,8 +232,8 @@ screenshot and drive the app there
 - **Every change to a repository file goes through `nfi graph edit`** — never Edit/Write, `sed -i`, a heredoc or a
   redirect. Source, tests, docs, project files, this file. Only scratch files outside the repo are written otherwise.
 - **A change is not complete until you've asked who depends on it**: read the edit's `impact:` / `compile:` lines,
-  then `nfi test <id>`. A package bump: `graph node external:<Name>` names every consuming project. (NAudio is used by both
-  the Audio feature and Core's `DictationService` — a grep of the feature you're in names only one.)
+  then `nfi test <id>`. A package bump: `graph node external:<Name>` names every consuming project — a package two areas use
+  is named by a grep of the feature you're in only once.
 - **After touching `Nexaflow.Core`, run its unit tests before committing** (`Tests.Core`, `--filter
   "FullyQualifiedName~Unit"` — [testing.md](docs/testing.md#fast-inner-loop)).
 - **Update the product tree as you build, not after merge** — concerns, snaplinks, descriptions. Snaplink edits on a

@@ -31,6 +31,8 @@
             <Checkbox Name="InstallTools" X="11" Y="190" Width="-11" Height="17" TabStop="yes" FontId="3">#(loc.InstallToolsCheckbox)</Checkbox>
             <!-- Bound to InstallExplorerMenu (Bundle.wxs), passed to the MSI as INSTALLEXPLORERMENU. On unless turned off. -->
             <Checkbox Name="InstallExplorerMenu" X="11" Y="212" Width="-11" Height="17" TabStop="yes" FontId="3">#(loc.InstallExplorerMenuCheckbox)</Checkbox>
+            <!-- Bound to InstallAiHost (Bundle.wxs), which installs the AiHostService package. On where an NVIDIA driver is. -->
+            <Checkbox Name="InstallAiHost" X="11" Y="234" Width="-11" Height="17" TabStop="yes" FontId="3">#(loc.InstallAiHostCheckbox)</Checkbox>
             <Checkbox Name="EulaAcceptCheckbox" X="-11" Y="-41" Width="260" Height="17" TabStop="yes" FontId="3" HideWhenDisabled="yes">#(loc.InstallAcceptCheckbox)</Checkbox>
             <Button Name="InstallUpdateButton" X="11" Y="-11" Width="200" Height="23" TabStop="yes" FontId="0" EnableCondition="WixStdBAUpdateAvailable" HideWhenDisabled="yes">#(loc.UpdateButton)</Button>
             <Button Name="OptionsButton" X="-171" Y="-11" Width="75" Height="23" TabStop="yes" FontId="0" VisibleCondition="NOT WixStdBASuppressOptionsUI">

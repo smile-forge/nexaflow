@@ -655,13 +655,12 @@ public class ImageSceneDepthTests
         {
             Interlocked.Increment(ref _asks);
             if (Fails is { } failure) return Task.FromException<SceneDepthEstimate>(failure);
-            Assert.AreEqual(request.Width * request.Height * 4, new FileInfo(request.Pixels).Length, "the photo is handed over whole, as RGBA");
+            Assert.AreEqual(request.Width * request.Height * 4, request.Pixels.Length, "the photo is handed over whole, as RGBA");
             const int w = 48, h = 32;
             var disparity = new float[w * h];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++) disparity[y * w + x] = 10f * (1 - x / (float)(w - 1)) + 0.01f;
-            File.WriteAllBytes(request.Into, MemoryMarshal.AsBytes(disparity.AsSpan()).ToArray());
-            return Task.FromResult(new SceneDepthEstimate(w, h));
+            return Task.FromResult(new SceneDepthEstimate(w, h, new ArrayMemoryOwner(MemoryMarshal.AsBytes(disparity.AsSpan()).ToArray())));
         }
     }
 

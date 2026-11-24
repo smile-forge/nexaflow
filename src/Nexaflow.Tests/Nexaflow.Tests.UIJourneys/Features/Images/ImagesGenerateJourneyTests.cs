@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Features.Images.UI;
 /// Turbo, New offers Gen Image: chosen, it shows what to draw and what Z-Image offers — its three shapes and a seed, and
 /// nothing it does not take — and Create draws the picture in the background into the folder under the name given.
 /// <para>
-/// <c>NEXAFLOW_TEST_AI_DIR</c> names an AI folder holding Z-Image Turbo as the app keeps it, each file verified, which the
+/// <c>NEXAFLOW_TEST_STORE</c> names the test model store, holding Z-Image Turbo as the app keeps it, each file verified, which the
 /// app is started on as its <c>NEXAFLOW_AI_DIR</c>; without it the journey is inconclusive.
 /// </para>
 /// Interactive desktop only — run with <c>--filter "TestCategory=UI"</c>.
@@ -35,7 +35,7 @@ public class ImagesGenerateJourneyTests : ImageEditJourneyBase
         RunStep("a picture drawn into a canvas arrives as a layer, and Generate layer can be let go or stopped", () => { OpenArtistStartScreen(); CanvasGeneratesAsALayer(); });
         AssertJourney();
     }
-    private const string AiDirVariable = "NEXAFLOW_TEST_AI_DIR";
+    private const string AiDirVariable = "NEXAFLOW_TEST_STORE";
 
     private string _aiDir = "";
     private string _folder = "";

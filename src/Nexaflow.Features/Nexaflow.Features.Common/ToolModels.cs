@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace Nexaflow.Features.Common;
 
 /// <summary>Where a tool's models stand on this machine.</summary>
@@ -16,17 +18,20 @@ public enum ToolModelsState
     Ready,
 }
 
-/// <summary>A picture to restore, by file: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</summary>
-/// <param name="Pixels">The file the picture is in.</param>
+/// <summary>A picture to restore: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</summary>
+/// <param name="Pixels">The picture.</param>
 /// <param name="Width">The picture's width, in pixels.</param>
 /// <param name="Height">The picture's height, in pixels.</param>
 /// <param name="Scale">1, 2 or 4: how many times its size it comes back — at 1, cleaned and kept at its size.</param>
 /// <param name="Faces">Whether the faces found in it are remade.</param>
-/// <param name="Into">The file the restored picture is written to, in the same form; replaced if it is there.</param>
-public sealed record PictureRestoreRequest(string Pixels, int Width, int Height, int Scale, bool Faces, string Into);
+public sealed record PictureRestoreRequest(ReadOnlyMemory<byte> Pixels, int Width, int Height, int Scale, bool Faces);
 
-/// <summary>A restored picture, in the request's file: its size, and how many faces were remade in it.</summary>
-public sealed record PictureRestoration(int Width, int Height, int FacesRestored);
+/// <summary>A restored picture: its size, how many faces were remade in it, and its pixels in the request's form. Dispose it once
+/// read — its pixels may be memory the tool shares with the process that made them.</summary>
+public sealed record PictureRestoration(int Width, int Height, int FacesRestored, IMemoryOwner<byte> Pixels) : IDisposable
+{
+    public void Dispose() => Pixels.Dispose();
+}
 
 /// <summary>
 /// The models a tool runs on this machine — a tool rather than an AI service: a person uses it from a page, an assistant
@@ -125,16 +130,19 @@ public interface IPictureSelectionSession : IAsyncDisposable
     Task<IReadOnlyList<PictureFind>> FindAsync(string phrase, IReadOnlyList<PictureExample> examples, int maskWidth, int maskHeight, CancellationToken ct);
 }
 
-/// <summary>What to erase from a picture, by file.</summary>
-/// <param name="Pixels">The file the picture is in: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</param>
-/// <param name="Mask">The file the mask is in: one byte a pixel, row by row, erased where it is not 0.</param>
+/// <summary>What to erase from a picture.</summary>
+/// <param name="Pixels">The picture: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</param>
+/// <param name="Mask">The mask: one byte a pixel, row by row, erased where it is not 0.</param>
 /// <param name="Width">The picture's and the mask's width, in pixels.</param>
 /// <param name="Height">The picture's and the mask's height, in pixels.</param>
-/// <param name="Into">The file the erased picture is written to, in the picture's form; replaced if it is there.</param>
-public sealed record PictureEraseRequest(string Pixels, string Mask, int Width, int Height, string Into);
+public sealed record PictureEraseRequest(ReadOnlyMemory<byte> Pixels, ReadOnlyMemory<byte> Mask, int Width, int Height);
 
-/// <summary>An erased picture, in the request's file, filled in <see cref="Regions"/> regions of its surroundings.</summary>
-public sealed record PictureErasure(int Regions);
+/// <summary>An erased picture, in the request's form, filled in <see cref="Regions"/> regions of its surroundings. Dispose it once
+/// read — its pixels may be memory the tool shares with the process that made them.</summary>
+public sealed record PictureErasure(int Regions, IMemoryOwner<byte> Pixels) : IDisposable
+{
+    public void Dispose() => Pixels.Dispose();
+}
 
 /// <summary>
 /// What a mask covers erased from a picture by a neural network Nexaflow runs on this machine, and filled from what is
@@ -147,19 +155,22 @@ public interface IPictureErasing : IToolModels
     Task<PictureErasure> EraseAsync(PictureEraseRequest request, IProgress<double>? progress, CancellationToken ct);
 }
 
-/// <summary>A picture whose scene depth to estimate, by file.</summary>
-/// <param name="Pixels">The file the picture is in: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</param>
+/// <summary>A picture whose scene depth to estimate.</summary>
+/// <param name="Pixels">The picture: interleaved 8-bit RGBA, row by row, straight alpha, nothing else.</param>
 /// <param name="Width">The picture's width, in pixels.</param>
 /// <param name="Height">The picture's height, in pixels.</param>
-/// <param name="Into">The file the disparity is written to (<see cref="SceneDepthEstimate"/>); replaced if it is there.</param>
-public sealed record SceneDepthRequest(string Pixels, int Width, int Height, string Into);
+public sealed record SceneDepthRequest(ReadOnlyMemory<byte> Pixels, int Width, int Height);
 
 /// <summary>
-/// A picture's scene depth, in the request's file: <see cref="Width"/> × <see cref="Height"/> single-precision floats, row by
-/// row — relative inverse depth, larger nearer, its scale and offset the model's own — at the size the model read the
-/// picture, whose corners are the picture's corners: brought to any size by bilinear resizing with the corners aligned.
+/// A picture's scene depth: <see cref="Width"/> × <see cref="Height"/> single-precision floats in <see cref="Disparity"/>, row by
+/// row — relative inverse depth, larger nearer, its scale and offset the model's own — at the size the model read the picture,
+/// whose corners are the picture's corners: brought to any size by bilinear resizing with the corners aligned. Dispose it once
+/// read — the floats may be memory the tool shares with the process that made them.
 /// </summary>
-public sealed record SceneDepthEstimate(int Width, int Height);
+public sealed record SceneDepthEstimate(int Width, int Height, IMemoryOwner<byte> Disparity) : IDisposable
+{
+    public void Dispose() => Disparity.Dispose();
+}
 
 /// <summary>
 /// How far each part of a picture lies from the camera — its scene depth, not its colour depth — estimated from the one

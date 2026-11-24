@@ -10,8 +10,9 @@ namespace Nexaflow.Tests.AiHost.Selecting;
 /// mask, and each phrase's finds — how many, how sure, and their masks — against what the makers' paths made of the same
 /// picture in fp32 (tools/ai-models/sam3.1/sam_reference.py), one session a picture, each answer from the one reading.
 /// <para>
-/// <c>NEXAFLOW_TEST_SAM</c> names the published graphs' folder, <c>NEXAFLOW_TEST_SAM_REFERENCE</c> the reference set and
-/// <c>NEXAFLOW_TEST_RUNTIME_PACK</c> the CUDA pack; without them every test is inconclusive.
+/// The graphs are <c>sam3.1</c>'s from the test store (<see cref="TestStore"/>), the tokenizer's vocabulary beside the text
+/// encoder as the catalog lays it, run on the CUDA pack there; <c>NEXAFLOW_TEST_SAM_REFERENCE</c> names the reference set.
+/// Without both every test is inconclusive.
 /// </para>
 /// </summary>
 [TestClass]
@@ -24,63 +25,35 @@ public class PictureSelectionTests
     private const double Overlap = 0.95;
 
     private static AiHostClient? _client;
-    private static string? _graphs, _reference;
-    private static string _work = "";
+    private static string? _reference;
 
     public TestContext TestContext { get; set; } = null!;
 
     [ClassInitialize]
-    public static void Start(TestContext context)
+    public static async Task Start(TestContext context)
     {
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SAM") is not { Length: > 0 } graphs) return;
         if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_SAM_REFERENCE") is not { Length: > 0 } reference) return;
-        if (Environment.GetEnvironmentVariable("NEXAFLOW_TEST_RUNTIME_PACK") is not { Length: > 0 } pack) return;
-
-        var aiDir = TestTemp.CreateSubdirectory("nexaflow-aihost-").FullName;
-        _client = new AiHostClient(new ProcessAiHostLauncher(Path.Combine(AppContext.BaseDirectory, "AiHost", "Nexaflow.AiHost.exe"), aiDir))
-        {
-            Environment = new AiHostEnvironment(pack),
-        };
-        (_graphs, _reference) = (graphs, reference);
-        _work = TestTemp.CreateSubdirectory("nexaflow-selecting-").FullName;
+        _client = await TestStore.HostAsync();
+        _reference = reference;
     }
 
     [ClassCleanup]
     public static async Task Stop()
     {
         if (_client is not null) await _client.DisposeAsync();
-        try { if (_work.Length > 0) Directory.Delete(_work, recursive: true); } catch (IOException) { }
     }
 
-    private static IReadOnlyDictionary<string, ModelSpec> Parts()
+    /// <summary>The selecting tool, as the catalog names it: the host runs its five graphs where it places them.</summary>
+    private static string Tool()
     {
-        if (_client is null || _graphs is null)
-            Assert.Inconclusive("NEXAFLOW_TEST_SAM, NEXAFLOW_TEST_SAM_REFERENCE and NEXAFLOW_TEST_RUNTIME_PACK are not all set.");
-        ModelSpec Part(string role, string runner, string folder, long mib)
-            => new($"picture-selection/{role}", runner, Path.Combine(_graphs!, folder), $"{folder}.onnx", null, mib << 20, 0, Device: 0);
-        // The published folder keeps the vocabulary apart; the catalog lays it beside the text encoder, where the runner
-        // reads it — here a folder of the test's own holds it, the graph named by its full path.
-        string text = Path.Combine(_work, "text-encoder");
-        Directory.CreateDirectory(text);
-        string vocabulary = Path.Combine(text, "bpe_simple_vocab_16e6.txt.gz");
-        if (!File.Exists(vocabulary)) File.Copy(Path.Combine(_graphs!, "tokenizer", "bpe_simple_vocab_16e6.txt.gz"), vocabulary);
-        return new Dictionary<string, ModelSpec>
-        {
-            [SelectingParts.ImageEncoder]    = Part(SelectingParts.ImageEncoder, "sam-image-encoder", "image-encoder", 2560),
-            [SelectingParts.ClickDecoder]    = Part(SelectingParts.ClickDecoder, "sam-click-decoder", "click-decoder", 256),
-            [SelectingParts.TextEncoder]     = Part(SelectingParts.TextEncoder, "sam-text-encoder", "text-encoder", 1024) with
-                                               {
-                                                   Folder = text,
-                                                   File = Path.Combine(_graphs!, "text-encoder", "text-encoder.onnx"),
-                                               },
-            [SelectingParts.ExemplarEncoder] = Part(SelectingParts.ExemplarEncoder, "sam-exemplar-encoder", "exemplar-encoder", 128),
-            [SelectingParts.Finder]          = Part(SelectingParts.Finder, "sam-finder", "finder", 1664),
-        };
+        if (_client is null || _reference is null)
+            Assert.Inconclusive($"{TestStore.Missing()} Or NEXAFLOW_TEST_SAM_REFERENCE is not set.");
+        return "sam3.1";
     }
 
     private static JsonObject Pictures()
     {
-        _ = Parts();
+        _ = Tool();
         return JsonNode.Parse(File.ReadAllText(Path.Combine(_reference!, "reference.json")))!["pictures"]!.AsObject();
     }
 
@@ -132,7 +105,8 @@ public class PictureSelectionTests
 
     private async Task<Session> OpenAsync(JsonNode picture)
     {
-        var stream = await _client!.OpenStreamAsync(id => new SelectInPicture(id, Parts(), Path.Combine(_reference!, picture["pixels"]!.GetValue<string>()),
+        using var pixels = await _client!.ShareFileAsync(Path.Combine(_reference!, picture["pixels"]!.GetValue<string>()));
+        var stream = await _client.OpenStreamAsync(id => new SelectInPicture(id, Tool(), pixels,
                                                                               picture["width"]!.GetValue<int>(), picture["height"]!.GetValue<int>(),
                                                                               RequestPriority.Interactive),
                                                     TimeSpan.FromMinutes(5));
@@ -155,11 +129,11 @@ public class PictureSelectionTests
                 var points = c!["points"]!.AsArray().Zip(c["labels"]!.AsArray(), (p, l) => new SelectionPoint(
                     p![0]!.GetValue<float>(), p[1]!.GetValue<float>(),
                     l!.GetValue<int>() switch { 1 => SelectionPointKind.Include, 0 => SelectionPointKind.Exclude, 2 => SelectionPointKind.BoxTopLeft, _ => SelectionPointKind.BoxBottomRight })).ToList();
-                var into = Path.Combine(_work, $"{name}-{c["case"]}.mask");
-                var selected = await session.AskAsync<PointsSelected>(new SelectByPoints(session.Id, ++turn, points, new MaskTarget(into, width, height)));
+                var selected = await session.AskAsync<PointsSelected>(new SelectByPoints(session.Id, ++turn, points, new MaskTarget(width, height)));
+                using var mask = selected.Mask;
 
                 Assert.AreEqual(turn, selected.Turn);
-                double iou = Iou(File.ReadAllBytes(Path.Combine(_reference!, c["mask"]!.GetValue<string>())), File.ReadAllBytes(into));
+                double iou = Iou(File.ReadAllBytes(Path.Combine(_reference!, c["mask"]!.GetValue<string>())), mask.ToArray());
                 ious.Add(iou);
                 TestContext.WriteLine($"{name} {c["case"]}: IoU {iou:F4} with the makers' mask");
                 Assert.IsTrue(iou >= Overlap, $"{name} {c["case"]}: IoU {iou:F4}");
@@ -188,16 +162,16 @@ public class PictureSelectionTests
                     float w = b[2]!.GetValue<float>() * width, h = b[3]!.GetValue<float>() * height;
                     return new SelectionExample(new SelectionBox(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), l!.GetValue<int>() == 1);
                 }).ToList();
-                var into = Path.Combine(_work, $"{name}-{f["case"]}.masks");
                 var found = await session.AskAsync<PhraseFound>(new SelectByPhrase(session.Id, ++turn, f["phrase"]!.GetValue<string>(), examples,
-                                                                                    new MaskTarget(into, width, height)));
+                                                                                    new MaskTarget(width, height)));
+                using var masks = found.Masks;
 
                 float[] theirs = [.. f["scores"]!.AsArray().Select(s => s!.GetValue<float>()).OrderByDescending(s => s)];
                 Assert.AreEqual(theirs.Length, found.Found.Count, $"{name} '{f["phrase"]}': how many are found");
                 for (int i = 0; i < theirs.Length; i++)
                     Assert.AreEqual(theirs[i], found.Found[i].Score, 0.01f, $"{name} '{f["phrase"]}': how sure");
 
-                var all = File.ReadAllBytes(into);
+                var all = masks.ToArray();
                 int size = width * height;
                 var ours = Enumerable.Range(0, found.Found.Count).Select(i => all.AsSpan(i * size, size).ToArray()).ToList();
                 foreach (var file in f["masks"]!.AsArray())

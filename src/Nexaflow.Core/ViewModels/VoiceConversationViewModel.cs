@@ -30,6 +30,9 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     private TaskCompletionSource<bool>? _confirmed;
     private bool _inline;
 
+    /// <summary>The workspace's AI service the conversation runs on, for its models to forget it when it ends.</summary>
+    private AIService? _service;
+
     /// <summary>A conversation is under way.</summary>
     [ObservableProperty] private bool _isActive;
 
@@ -82,6 +85,10 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
 
     public bool IsConfirming => Confirmation is not null;
 
+    /// <summary>The name the spoken conversation's turns are taken under while it is held here, in the bar; null on a page that
+    /// holds the conversation itself, and once it has ended.</summary>
+    public string? ConversationName { get; private set; }
+
     public ObservableCollection<ShownBlockViewModel> Shown { get; } = [];
 
     /// <summary>What the user is saying, as it is heard. Raised on the UI thread.</summary>
@@ -103,6 +110,8 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     {
         if (IsActive) return;
         _inline   = inline is not null;
+        _service  = service;
+        ConversationName = _inline ? null : "voice-" + Guid.NewGuid().ToString("N");
         Saying    = "";
         ContextUse = null;
         _playback = new SpeakerPlayback();
@@ -168,6 +177,9 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
         var session = _session;
         _session = null;
         if (session is not null) await session.DisposeAsync();
+        if (ConversationName is { } ended) _ = _service?.ForgetConversationAsync(ended);   // the conversation is over: its models let it go
+        ConversationName = null;
+        _service         = null;
         _capture?.Dispose();
         _playback?.Dispose();
         _capture  = null;

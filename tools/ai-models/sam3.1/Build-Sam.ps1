@@ -20,7 +20,7 @@
     with the model card (README.md), the SAM License and this recipe beside them. sam_reference.py then runs the makers'
     own paths into <Work>\reference — what the AI host's port is held to. Upload with
       hf upload smile-forge/sam3.1-onnx <Out> .
-    then pin the commit it makes in src/Nexaflow.Providers/Nexaflow.Providers.AiHost/owned-models.json.
+    then pin the commit it makes in src/Nexaflow.AiHost/Nexaflow.AiHost.Catalog/models.json.
 
 .PARAMETER Out
     Where the published files are written.

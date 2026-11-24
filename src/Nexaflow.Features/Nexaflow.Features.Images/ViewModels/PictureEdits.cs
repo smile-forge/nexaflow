@@ -19,7 +19,7 @@ namespace Nexaflow.Features.Images.ViewModels;
 /// what comes back arrives as a new layer laid exactly over what it was made from, shown only where it was drawn: the
 /// original stays beneath, so nothing is lost.
 /// </summary>
-public sealed partial class PictureEdits : ObservableObject
+public sealed partial class PictureEdits : ObservableObject, IDisposable
 {
     /// <summary>The least context, in pixels, a fill is shown on each side of its selection.</summary>
     private const int ContextMargin = 64;
@@ -44,6 +44,21 @@ public sealed partial class PictureEdits : ObservableObject
         _viewer = viewer;
         _shell  = shell;
         _ai     = ai;
+        // The edits a workspace's model offers follow it: one that becomes available after the picture opened — its files read from the
+        // store, its host reached again — is offered then.
+        if (_ai is not null) _ai.AbilitiesChanged += OnAbilitiesChanged;
+    }
+
+    /// <summary>The workspace's models changed, on whichever thread: what is offered is said again, on the UI's.</summary>
+    private void OnAbilitiesChanged(object? sender, EventArgs e)
+    {
+        if (_shell is null) Refresh();
+        else _ = _shell.RunOnUiAsync(Refresh);
+    }
+
+    public void Dispose()
+    {
+        if (_ai is not null) _ai.AbilitiesChanged -= OnAbilitiesChanged;
     }
 
     /// <summary>What the workspace's Image Editing model offers; null where it has none.</summary>
@@ -167,6 +182,10 @@ public sealed partial class PictureEdits : ObservableObject
     /// <summary>The picture shown, what is selected on it, or its crop frame changed: what can be generated may have.</summary>
     internal void Refresh()
     {
+        OnPropertyChanged(nameof(OffersChange));
+        OnPropertyChanged(nameof(OffersFill));
+        OnPropertyChanged(nameof(OffersEditing));
+        GenerateChangeCommand.NotifyCanExecuteChanged();
         AskFillCommand.NotifyCanExecuteChanged();
         GenerateExpansionCommand.NotifyCanExecuteChanged();
         GenerateCanvasCommand.NotifyCanExecuteChanged();

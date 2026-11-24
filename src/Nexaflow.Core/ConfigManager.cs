@@ -269,6 +269,35 @@ public sealed class ConfigManager
         return JsonSerializer.Deserialize(json, config.GetType(), _opts)!;
     }
 
+    private readonly List<IConfigRulings> _rulings = [];
+
+    /// <summary>Adds what rules on settings the app does not decide alone (<see cref="RulingFor"/>); disposing what it returns takes it
+    /// away.</summary>
+    public IDisposable AddRulings(IConfigRulings rulings)
+    {
+        lock (_gate) _rulings.Add(rulings);
+        return new RulingsAdded(this, rulings);
+    }
+
+    /// <summary>What rules on <paramref name="propertyName"/> of <paramref name="config"/> now — the first that does — or null where the
+    /// app decides it.</summary>
+    public ConfigRuling? RulingFor(object config, string propertyName)
+    {
+        IConfigRulings[] rulings;
+        lock (_gate) rulings = [.. _rulings];
+        foreach (var each in rulings)
+            if (each.RulingFor(config, propertyName) is { } ruling) return ruling;
+        return null;
+    }
+
+    private sealed class RulingsAdded(ConfigManager manager, IConfigRulings rulings) : IDisposable
+    {
+        public void Dispose()
+        {
+            lock (manager._gate) manager._rulings.Remove(rulings);
+        }
+    }
+
     private enum LoadOutcome { None, Loaded, Migrated, Unreadable }
 
     /// <summary>

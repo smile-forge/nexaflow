@@ -1,4 +1,5 @@
 using System.Text;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
@@ -10,7 +11,7 @@ namespace Nexaflow.Tests.Providers;
 
 /// <summary>
 /// The picture tools Nexaflow runs in its AI host: Real-ESRGAN and GFPGAN, catalogued as a tool rather than a model, run
-/// for a restoration with the parts its scale and faces need, never downloaded unasked.
+/// for a restoration at the scale asked, its faces too where asked, never downloaded unasked.
 /// </summary>
 [TestClass]
 public class OwnedPictureToolsTests
@@ -20,7 +21,7 @@ public class OwnedPictureToolsTests
     private static MachineCards NoGpu() => new([], null);
 
     private static OwnedPictureTools Tools(FakeModelStore store, FakeAiHost host, MachineCards? hardware = null)
-        => new(new FakeActivityManager(), store, host, new HostModelSetup(host), hardware ?? Nvidia());
+        => new(new FakeActivityManager(), store, host, new HostHolds(host), hardware ?? Nvidia());
 
     private static IReadOnlyList<ModelAsset> Files => Tools(new FakeModelStore(), new FakeAiHost()).Catalog!.Files;
 
@@ -58,42 +59,44 @@ public class OwnedPictureToolsTests
     }
 
     [TestMethod]
-    public async Task APictureEnhancedAtItsSize_UsesThe2xUpscalerAlone_AtTheJobPriority()
+    public async Task APictureEnhancedAtItsSize_IsAskedOfTheToolItsCatalogNames_AtTheJobPriority()
     {
-        var host = Restoring(new Progress(0, RestoringStages.Upscaling, 1, 2), new Progress(0, RestoringStages.Upscaling, 2, 2), new PictureRestored(0, 64, 48, 0));
+        var host = Restoring(new Progress(0, RestoringStages.Upscaling, 1, 2), new Progress(0, RestoringStages.Upscaling, 2, 2),
+                             new PictureRestored(0, 64, 48, 0, SharedBytes.Of(new byte[64 * 48 * 4])));
         var steps = new List<RestoringStep>();
+        var picture = new byte[64 * 48 * 4];
+        picture[7] = 9;
 
-        var restored = await Tools(Here(), host).RestoreAsync(@"C:\in.rgba", 64, 48, 1, faces: false, @"C:\out.rgba", new Inline<RestoringStep>(steps.Add), CancellationToken.None);
+        using var restored = await Tools(Here(), host).RestoreAsync(picture, 64, 48, 1, faces: false, new Inline<RestoringStep>(steps.Add), CancellationToken.None);
 
         var request = (RestorePicture)host.Requests.Single();
-        Assert.AreEqual((@"C:\in.rgba", 64, 48, 1, false, @"C:\out.rgba", RequestPriority.Job),
-                        (request.Pixels, request.Width, request.Height, request.Scale, request.Faces, request.Into, request.Priority));
-        CollectionAssert.AreEqual(new[] { RestoringParts.UpscalerX2 }, request.Parts.Keys.ToArray());
-        Assert.AreEqual("esrgan-upscaler", request.Parts[RestoringParts.UpscalerX2].Runner);
-        Assert.AreEqual(new RestoredPicture(64, 48, 0), restored);
+        Assert.AreEqual((64, 48, 1, false, RequestPriority.Job), (request.Width, request.Height, request.Scale, request.Faces, request.Priority));
+        CollectionAssert.AreEqual(picture, request.Pixels.ToArray(), "the picture goes to the host as it was given");
+        Assert.AreEqual("real-esrgan-gfpgan", request.Tool, "the tool by the catalog's id: which upscaler the scale takes is the host's to choose");
+        Assert.AreEqual((64, 48, 0, 64 * 48 * 4), (restored.Width, restored.Height, restored.FacesRestored, restored.Pixels.Length));
         CollectionAssert.AreEqual(new[] { 1, 2 }, steps.Select(s => s.Done).ToArray());
     }
 
     [TestMethod]
-    public async Task APictureUpscaledWithItsFaces_UsesThe4xUpscaler_AndEveryFacePart()
+    public async Task APictureUpscaledWithItsFaces_AsksForFourTimesItsSize_AndItsFaces()
     {
-        var host = Restoring(new PictureRestored(0, 256, 192, 2));
+        var host = Restoring(new PictureRestored(0, 256, 192, 2, SharedBytes.Of(new byte[256 * 192 * 4])));
 
-        var restored = await Tools(Here(), host).RestoreAsync(@"C:\in.rgba", 64, 48, 4, faces: true, @"C:\out.rgba", null, CancellationToken.None);
+        using var restored = await Tools(Here(), host).RestoreAsync(new byte[64 * 48 * 4], 64, 48, 4, faces: true, null, CancellationToken.None);
 
-        CollectionAssert.AreEquivalent(new[] { RestoringParts.UpscalerX4, RestoringParts.FaceDetector, RestoringParts.FaceRestorer, RestoringParts.FaceParser },
-                                       ((RestorePicture)host.Requests.Single()).Parts.Keys.ToArray());
+        var request = (RestorePicture)host.Requests.Single();
+        Assert.AreEqual(("real-esrgan-gfpgan", 4, true), (request.Tool, request.Scale, request.Faces), "the parts that takes are the host's to choose");
         Assert.AreEqual(2, restored.FacesRestored);
     }
 
     [TestMethod]
     public async Task ToolsNotYetHere_AreNotDownloadedUnasked()
     {
-        var host = Restoring(new PictureRestored(0, 64, 48, 0));
+        var host = Restoring(new PictureRestored(0, 64, 48, 0, SharedBytes.Of(new byte[64 * 48 * 4])));
         var store = new FakeModelStore();
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Tools(store, host).RestoreAsync(@"C:\in.rgba", 64, 48, 2, false, @"C:\out.rgba", null, CancellationToken.None));
+            Tools(store, host).RestoreAsync(new byte[64 * 48 * 4], 64, 48, 2, false, null, CancellationToken.None));
 
         Assert.AreEqual(0, host.Requests.Count);
         Assert.AreEqual(0, store.Fetched.Count, "a download is the person's to start");
@@ -105,7 +108,7 @@ public class OwnedPictureToolsTests
         var host = new FakeAiHost { Reply = (r, _) => [new Failed(r.RequestId, HostErrorKind.Refused, "not enough room on the GPU")] };
 
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            Tools(Here(), host).RestoreAsync(@"C:\in.rgba", 64, 48, 2, false, @"C:\out.rgba", null, CancellationToken.None));
+            Tools(Here(), host).RestoreAsync(new byte[64 * 48 * 4], 64, 48, 2, false, null, CancellationToken.None));
 
         StringAssert.Contains(ex.Message, "not enough room on the GPU");
     }
@@ -120,9 +123,9 @@ public class OwnedPictureToolsTests
                                         "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } ] } ] }
             """);
 
-        var ex = Assert.ThrowsExactly<InvalidDataException>(() => OwnedModels.ReadTools(json));
+        var ex = Assert.ThrowsExactly<InvalidDataException>(() => HostCatalog.Read(json));
 
-        StringAssert.Contains(ex.Message, "Owned tool 't' needs one part each of upscalerX2, upscalerX4, faceDetector, faceRestorer, faceParser");
+        StringAssert.Contains(ex.Message, "Tool 't' needs one part each of upscalerX2, upscalerX4, faceDetector, faceRestorer, faceParser");
     }
 
     /// <summary>Progress reported at once, on the reporting thread.</summary>

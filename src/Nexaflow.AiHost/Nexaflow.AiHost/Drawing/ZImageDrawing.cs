@@ -25,9 +25,8 @@ internal sealed class ZImageDrawing(ModelRegistry models, GpuScheduler gpu) : ID
 
     public bool Masks => false;
 
-    public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
+    public async Task<SharedBytes> DrawAsync(Draw request, DrawingModel model, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
-        var model = request.Model;
         var lane  = gpu.Open(request.Priority);
         int h = request.Height / ZImageSampler.PixelsPerLatent, w = request.Width / ZImageSampler.PixelsPerLatent;
 

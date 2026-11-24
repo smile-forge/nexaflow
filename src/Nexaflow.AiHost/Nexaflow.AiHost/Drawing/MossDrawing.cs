@@ -29,12 +29,11 @@ internal sealed class MossDrawing(ModelRegistry models, GpuScheduler gpu) : IDra
 
     public bool Masks => false;
 
-    public async Task<byte[]> DrawAsync(Draw request, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
+    public async Task<SharedBytes> DrawAsync(Draw request, DrawingModel model, Func<string, Task> stage, Func<int, int, Task> stepped, ModelRegistry.Room room, CancellationToken ct)
     {
-        var model = request.Model;
         var lane  = gpu.Open(request.Priority);
         int h = request.Height / MossSampler.PixelsPerLatent, w = request.Width / MossSampler.PixelsPerLatent;
-        var distilled = request.Lora?.Sampler is { } file ? DataSpaceSampler.Read(file) : null;
+        var distilled = model.Lora?.Sampler is { } file ? DataSpaceSampler.Read(file) : null;
         if (distilled is not null && request.NegativePrompt is not null)
             throw new HostRequestException(HostErrorKind.Invalid, "A distillation draws with no negative prompt.");
         int steps = distilled?.StepCodes.Count ?? model.Steps;
@@ -59,8 +58,8 @@ internal sealed class MossDrawing(ModelRegistry models, GpuScheduler gpu) : IDra
         using (var lease = await models.AcquireAsync(denoiserSpec, resident: false, stage, ct, room))
         {
             var denoiser = lease.As<MossDenoiser>();
-            using var lora = request.Lora is { } chosen ? denoiser.LoadLora(chosen.Adapter) : null;
-            float strength = request.Lora?.Strength ?? 0f;
+            using var lora = model.Lora is { } chosen ? denoiser.LoadLora(chosen.Adapter) : null;
+            float strength = model.Lora?.Strength ?? 0f;
             var noise = MossSampler.Noise(request.Seed, h, w);
             var rope  = MossSampler.Rope(h, w, prompt.Rows);
             latents = distilled is null

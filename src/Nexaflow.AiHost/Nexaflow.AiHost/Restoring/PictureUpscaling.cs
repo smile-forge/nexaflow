@@ -45,30 +45,35 @@ internal static class PictureUpscaling
         => factor == 2 ? (width % 2, height % 2) : (0, 0);
 
     /// <summary>
-    /// Upscales interleaved RGBA by <paramref name="factor"/>, then brings it to <paramref name="scale"/> times its size.
-    /// Each tile is read straight from the picture and written straight into the result, so nothing of the picture is held
-    /// as floats but the tile at work.
+    /// Upscales interleaved RGBA by <paramref name="factor"/>, then brings it to <paramref name="scale"/> times its size, into
+    /// <paramref name="into"/>. Each tile is read straight from the picture and written straight into the result, so nothing of the
+    /// picture is held as floats but the tile at work — and at the model's own factor nothing of the result is held twice.
     /// </summary>
+    /// <param name="into">The result, <paramref name="width"/> × <paramref name="scale"/> by <paramref name="height"/> ×
+    /// <paramref name="scale"/> interleaved RGBA.</param>
     /// <param name="upscaleTile">Runs one tile — planar RGB, its width and height, and whether it is the picture's last —
     /// and gives back the tile <paramref name="factor"/> times the size.</param>
     /// <param name="tileDone">Each tile as it is done, of how many.</param>
-    public static async Task<byte[]> UpscaleAsync(byte[] rgba, int width, int height, int factor, int scale,
-                                                  Func<float[], int, int, bool, Task<float[]>> upscaleTile, Func<int, int, Task> tileDone)
+    public static async Task UpscaleAsync(ReadOnlyMemory<byte> rgba, int width, int height, int factor, int scale, Memory<byte> into,
+                                          Func<float[], int, int, bool, Task<float[]>> upscaleTile, Func<int, int, Task> tileDone)
     {
-        bool opaque = IsOpaque(rgba);
+        bool opaque = IsOpaque(rgba.Span);
         var (padRight, padBottom) = ModPad(width, height, factor);
         var tiles = Tiles(width + padRight, height + padBottom, TileSide(factor));
         int total = tiles.Count * (opaque ? 1 : 2), done = 0;
 
-        var output = new byte[width * factor * height * factor * 4];
+        var output = scale == factor ? into : new byte[width * factor * height * factor * 4];
         if (opaque)
-            for (int i = 3; i < output.Length; i += 4) output[i] = 255;
+        {
+            var pixels = output.Span;
+            for (int i = 3; i < pixels.Length; i += 4) pixels[i] = 255;
+        }
         await ThroughTiles(rgba, width, height, factor, tiles, alpha: false, output, upscaleTile, () => tileDone(++done, total), lastOfAll: opaque);
         if (!opaque)
             await ThroughTiles(rgba, width, height, factor, tiles, alpha: true, output, upscaleTile, () => tileDone(++done, total), lastOfAll: true);
 
-        int ow = width * factor, oh = height * factor;
-        return scale == factor ? output : ReferenceResampling.ResizeLanczos(output, ow, oh, 4, width * scale, height * scale);
+        if (scale != factor)
+            ReferenceResampling.ResizeLanczos(output.Span, width * factor, height * factor, 4, width * scale, height * scale).CopyTo(into);
     }
 
     /// <summary>
@@ -76,26 +81,27 @@ internal static class PictureUpscaling
     /// into its RGB, rounded as NumPy rounds, or, for <paramref name="alpha"/>, the grey the alpha went through as, read back
     /// as OpenCV reads grey from BGR, into its alpha. What falls in the padding is dropped.
     /// </summary>
-    private static async Task ThroughTiles(byte[] rgba, int width, int height, int factor, IReadOnlyList<TileArea> tiles, bool alpha, byte[] output,
+    private static async Task ThroughTiles(ReadOnlyMemory<byte> rgba, int width, int height, int factor, IReadOnlyList<TileArea> tiles, bool alpha, Memory<byte> output,
                                            Func<float[], int, int, bool, Task<float[]>> upscaleTile, Func<Task> tileDone, bool lastOfAll)
     {
         int ow = width * factor, oh = height * factor;
         for (int i = 0; i < tiles.Count; i++)
         {
             var t = tiles[i];
-            var made = await upscaleTile(TileInput(rgba, width, height, t, alpha), t.ReadWidth, t.ReadHeight, lastOfAll && i == tiles.Count - 1);
+            var made = await upscaleTile(TileInput(rgba.Span, width, height, t, alpha), t.ReadWidth, t.ReadHeight, lastOfAll && i == tiles.Count - 1);
             int mw = t.ReadWidth * factor, plane = mw * t.ReadHeight * factor;
             int fromX = (t.KeepX - t.ReadX) * factor, fromY = (t.KeepY - t.ReadY) * factor;
             int toX = t.KeepX * factor, toY = t.KeepY * factor;
             int keepWidth = Math.Min(t.KeepWidth * factor, ow - toX), keepHeight = Math.Min(t.KeepHeight * factor, oh - toY);
             Parallel.For(0, keepHeight, y =>
             {
+                var into = output.Span;
                 for (int x = 0; x < keepWidth; x++)
                 {
                     int from = (fromY + y) * mw + fromX + x, to = ((toY + y) * ow + toX + x) * 4;
-                    if (alpha) output[to + 3] = ToByte(0.299f * made[from] + 0.587f * made[plane + from] + 0.114f * made[2 * plane + from]);
+                    if (alpha) into[to + 3] = ToByte(0.299f * made[from] + 0.587f * made[plane + from] + 0.114f * made[2 * plane + from]);
                     else
-                        for (int c = 0; c < 3; c++) output[to + c] = ToByte(made[c * plane + from]);
+                        for (int c = 0; c < 3; c++) into[to + c] = ToByte(made[c * plane + from]);
                 }
             });
             await tileDone();
@@ -106,7 +112,7 @@ internal static class PictureUpscaling
     /// What a tile reads, as planar values from 0 to 1: the picture's colour, or its alpha as grey, past its right and bottom
     /// edges reflected about the edge pixel — as PyTorch's <c>reflect</c> pad makes the padded picture.
     /// </summary>
-    private static float[] TileInput(byte[] rgba, int width, int height, TileArea t, bool alpha)
+    private static float[] TileInput(ReadOnlySpan<byte> rgba, int width, int height, TileArea t, bool alpha)
     {
         int plane = t.ReadWidth * t.ReadHeight;
         var input = new float[3 * plane];
@@ -150,7 +156,7 @@ internal static class PictureUpscaling
         return output;
     }
 
-    private static bool IsOpaque(byte[] rgba)
+    private static bool IsOpaque(ReadOnlySpan<byte> rgba)
     {
         for (int i = 3; i < rgba.Length; i += 4)
             if (rgba[i] != 255) return false;
@@ -158,16 +164,17 @@ internal static class PictureUpscaling
     }
 
     /// <summary>The picture's colour as planar values from 0 to 1, as the face detector reads it.</summary>
-    internal static float[] Planar(byte[] rgba, int width, int height)
+    internal static float[] Planar(ReadOnlyMemory<byte> rgba, int width, int height)
     {
         int plane = width * height;
         var planar = new float[3 * plane];
         Parallel.For(0, height, y =>
         {
+            var pixels = rgba.Span;
             for (int x = 0; x < width; x++)
             {
                 int at = (y * width + x) * 4;
-                for (int c = 0; c < 3; c++) planar[c * plane + y * width + x] = rgba[at + c] / 255f;
+                for (int c = 0; c < 3; c++) planar[c * plane + y * width + x] = pixels[at + c] / 255f;
             }
         });
         return planar;

@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Filming;
 using Nexaflow.Tests.Fixtures;
@@ -5,8 +6,9 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// Denoisers streamed against the same denoisers whole, in this process on the CUDA pack, where a machine has the model and its
-/// streamed build (<c>denoiser.stream.json</c> beside the graph): the same latents and prompt give the same prediction, to the
+/// Denoisers streamed against the same denoisers whole, in this process on the CUDA pack, where the test store (<see cref="TestStore"/>)
+/// holds the pack, the model and its streamed build (<c>denoiser.stream.json</c> beside the graph): the same latents and prompt give
+/// the same prediction, to the
 /// rounding of fp16 arithmetic done in another order, and the GPU holds less giving it. Those drawn in a host of their own are
 /// checked with their model's other tests (<c>AStreamedDenoiser_…</c>).
 /// </summary>
@@ -22,10 +24,9 @@ public class StreamedDenoiserTests
     [Timeout(900_000, CooperativeCancellation = true)]
     public void WansDenoiser_Streamed_PredictsAsTheWholeOneDoes_HoldingLess()
     {
-        string root = Environment.GetEnvironmentVariable("NEXAFLOW_TEST_VIDEO") ?? "";
-        string folder = Path.Combine(root, "denoiser");
-        if (root.Length == 0 || PackRuntime.Bind() is null || !File.Exists(Path.Combine(folder, "denoiser.stream.json")))
-            Assert.Inconclusive("NEXAFLOW_TEST_VIDEO names no denoiser with a streamed build, or NEXAFLOW_TEST_RUNTIME_PACK is not set.");
+        if (PackRuntime.Bind() is null) Assert.Inconclusive(TestStore.Missing());
+        var spec = TestStore.InProcessSpec("wan2.2-ti2v-5b", FilmingParts.Denoiser, 0, 16L << 30);
+        if (!File.Exists(Path.Combine(spec.Folder, "denoiser.stream.json"))) Assert.Inconclusive("The test store's Wan2.2 denoiser has no streamed build.");
         var shape = new LatentShape(31, 44, 80);   // 1280 × 704, 121 frames
         var rng = new Random(9);
         var latents = new float[shape.Values];
@@ -33,7 +34,6 @@ public class StreamedDenoiserTests
         var timesteps = Enumerable.Repeat(757f, shape.Frames).ToArray();
         var text = new float[WanPromptEncoder.Rows * WanPromptEncoder.Width];
         for (int i = 0; i < 64 * WanPromptEncoder.Width; i++) text[i] = (float)(rng.NextDouble() * 0.2 - 0.1);
-        var spec = new ModelSpec("wan2.2-ti2v-5b/denoiser", "wan-denoiser", folder, "denoiser.onnx", null, 16L << 30, 0, Device: 0);
 
         float[] Flow(ModelSpec at, out long peak)
         {

@@ -1,25 +1,40 @@
 using System.Diagnostics;
+using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Contracts;
 
 namespace Nexaflow.AiHost.Models;
 
 /// <summary>
-/// The models in memory. The resident set — what the app asked to keep loaded — stays; any other model a request
+/// The models in memory. The resident set — what is held (<see cref="HeldModels"/>) — stays; any other model a request
 /// names is loaded on demand into what its GPU's budget leaves, and is the first to go when another needs the room.
 /// Admission is per GPU, against its budget, from each model's estimate: a model that would not fit is refused rather
 /// than over-committed, after unloading what may go. A picture borrows a <see cref="Room"/>: while one is out,
 /// residents nothing is using may make way for its parts — or the picture waits until they are idle — and they are
 /// loaded again once the last picture is done, or as soon as a request needs one.
+/// <para>
+/// A model already loaded is leased at once, behind nobody. A model not loaded is admitted in the order the requests for it
+/// came, whichever client they are from: one at a time, each planning against the room as it then is, and loading. One that
+/// finds only models in use in its way keeps its place in line while later ones plan, and once one of those models is let go
+/// it plans again ahead of every request that came after it.
+/// </para>
 /// </summary>
 /// <param name="memory">The share of this machine's memory models on the CPU may hold; none when unset.</param>
-internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, ModelRunners runners, HostLog log, HostMemory? memory = null) : IDisposable
+/// <param name="idleUnload">How long a model nothing holds stays loaded once nothing uses it (<see cref="HostPolicy.IdleUnload"/>);
+/// null keeps it until another needs its room.</param>
+internal sealed class ModelRegistry(IHostGpus gpus, ModelRunners runners, HostLog log, Store.IModelFiles files, HostMemory? memory = null,
+                                    TimeSpan? idleUnload = null) : IDisposable
 {
+    /// <summary>Where the files a request names lie in the model store.</summary>
+    public Store.IModelFiles Files => files;
     /// <summary>How often a request waiting for room says so, so the app's watchdog keeps hearing from it.</summary>
     private static readonly TimeSpan WaitingReport = TimeSpan.FromSeconds(20);
 
-    internal sealed class Entry(IHostModel model)
+    /// <param name="requested">The spec as a request named it — its folder the store's name for it — which a later request is held
+    /// to, and which a model that made way is loaded again from; the model itself holds the spec it was loaded from.</param>
+    internal sealed class Entry(IHostModel model, ModelSpec requested)
     {
         public IHostModel Model { get; } = model;
+        public ModelSpec Requested { get; } = requested;
         public bool Resident { get; set; }
         /// <summary>The app let it go while a request was using it.</summary>
         public bool UnloadWhenIdle { get; set; }
@@ -33,9 +48,15 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     private readonly List<Entry> _replaced = [];
     /// <summary>Residents unloaded to make way for a picture.</summary>
     private readonly Dictionary<string, ModelSpec> _displaced = new(StringComparer.Ordinal);
-    private readonly SemaphoreSlim _loading = new(1, 1);
+    /// <summary>The requests for a model not loaded, in the order they came (<see cref="AdmitEarliest"/>).</summary>
+    private readonly LinkedList<PlaceInLine> _line = new();
     private readonly object _gate = new();
-    private TaskCompletionSource _idle = Signal();
+    /// <summary>The request planning, or loading what it planned, now: one at a time, so no two plan against the same room.</summary>
+    private PlaceInLine? _admitting;
+    /// <summary>How many times room may have come — a model in use let go, or one unloaded — so a request that found none
+    /// knows whether to plan again.</summary>
+    private long _roomChanges;
+    private bool _disposed;
     private int _rooms;
 
     /// <summary>The model, loaded where its spec places it — and kept loaded while the lease is held.</summary>
@@ -43,34 +64,128 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     /// <param name="room">The picture it is loaded for: residents nothing is using may make way for it.</param>
     /// <exception cref="HostRequestException">It names a GPU this host does not have, would not fit beside the models
     /// that must stay, or would not load.</exception>
+    /// <exception cref="ObjectDisposedException">The host is closing.</exception>
     public async Task<Lease> AcquireAsync(ModelSpec spec, bool resident, Func<string, Task> stage, CancellationToken ct, Room? room = null)
     {
         if (spec.Device is { } device) gpus.Gpu(device);
         if (TryLease(spec, ref resident) is { } held) return held;
 
-        while (true)
+        var place = JoinLine();
+        try
         {
-            Task idle;
-            await RequestActivity.WaitAsync(_loading.WaitAsync(ct));   // behind another model's load
-            try
+            while (true)
             {
+                await TurnToPlanAsync(place, stage, ct);
                 if (TryLease(spec, ref resident) is { } loaded) return loaded;
-                lock (_gate) idle = _idle.Task;
                 if (MakeRoomFor(spec, room, out var madeWay))
                 {
-                    if (madeWay.Count > 0) await room!.MadeWayAsync(madeWay);
+                    if (madeWay.Count > 0) PartsAway?.Invoke(madeWay);
                     return await LoadAsync(spec, resident, stage, ct);
                 }
+                KeepPlaceForRoom(place);   // only models in use stand in the way
             }
-            finally { _loading.Release(); }
+        }
+        finally { LeaveLine(place); }
+    }
 
-            // Only models in use stand in the way: wait until one is let go, then plan again.
-            while (!idle.IsCompleted)
+    /// <summary>Takes a place at the back of the line, given the turn to plan at once when nobody is ahead.</summary>
+    private PlaceInLine JoinLine()
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var place = new PlaceInLine();
+            _line.AddLast(place.Node);
+            AdmitEarliest();
+            return place;
+        }
+    }
+
+    /// <summary>Waits for <paramref name="place"/>'s turn to plan. Waiting for room, it says so every <see cref="WaitingReport"/>
+    /// so the app's watchdog keeps hearing from it; behind other requests' loads, the wait is marked on its request.</summary>
+    private async Task TurnToPlanAsync(PlaceInLine place, Func<string, Task> stage, CancellationToken ct)
+    {
+        while (true)
+        {
+            Task turn;
+            bool forRoom;
+            lock (_gate)
             {
-                await stage("waiting");
-                await Task.WhenAny(idle, Task.Delay(WaitingReport, ct));
-                ct.ThrowIfCancellationRequested();
+                turn = place.Turn.Task;
+                forRoom = WaitsForRoom(place);
             }
+            if (!forRoom)
+            {
+                await RequestActivity.WaitAsync(turn.WaitAsync(ct));
+                return;
+            }
+            await stage("waiting");
+            try
+            {
+                await turn.WaitAsync(WaitingReport, ct);
+                return;
+            }
+            catch (TimeoutException) { }   // still waiting: say so again
+        }
+    }
+
+    /// <summary><paramref name="place"/> found only models in use in its way: it keeps its place, and the turn passes to the
+    /// next that may plan. It plans again once room may have come — at once, if some came while it planned.</summary>
+    private void KeepPlaceForRoom(PlaceInLine place)
+    {
+        lock (_gate)
+        {
+            place.FoundNoRoom = true;
+            place.Turn = Signal();
+            _admitting = null;
+            AdmitEarliest();
+        }
+    }
+
+    /// <summary>Takes <paramref name="place"/> out of the line — loaded, refused, failed or given up on — passing the turn on if it
+    /// had it.</summary>
+    private void LeaveLine(PlaceInLine place)
+    {
+        lock (_gate)
+        {
+            if (place.Node.List is not null) _line.Remove(place.Node);
+            if (_admitting != place) return;
+            _admitting = null;
+            AdmitEarliest();
+        }
+    }
+
+    /// <summary>Whether <paramref name="place"/> waits for room: it found none, and none may have come since. Called under the
+    /// gate.</summary>
+    private bool WaitsForRoom(PlaceInLine place) => place.FoundNoRoom && place.PlannedAt == _roomChanges;
+
+    /// <summary>Room may have come — a model in use was let go, or one unloaded: the requests waiting for it may plan again, in
+    /// the order they came. Called under the gate.</summary>
+    private void RoomMayHaveCome()
+    {
+        _roomChanges++;
+        AdmitEarliest();
+    }
+
+    /// <summary>Gives the turn to plan to the earliest request in line not waiting for room, unless one has it now; once the
+    /// registry is disposed, every request in line is told so. Called under the gate.</summary>
+    private void AdmitEarliest()
+    {
+        if (_disposed)
+        {
+            foreach (var waiting in _line) waiting.Turn.TrySetException(new ObjectDisposedException(nameof(ModelRegistry)));
+            return;
+        }
+        if (_admitting is not null) return;
+        for (var node = _line.First; node is not null; node = node.Next)
+        {
+            var place = node.Value;
+            if (WaitsForRoom(place)) continue;
+            place.FoundNoRoom = false;
+            place.PlannedAt = _roomChanges;
+            _admitting = place;
+            place.Turn.TrySetResult();
+            return;
         }
     }
 
@@ -81,11 +196,15 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         lock (_gate)
         {
             if (!_loaded.TryGetValue(spec.Id, out var entry)) return null;
-            if (!entry.Model.Spec.PlacedAs(spec))
+            if (!entry.Requested.PlacedAs(spec))
             {
                 resident |= entry.Resident;
                 _loaded.Remove(spec.Id);
-                if (entry.Users == 0) Free(entry);
+                if (entry.Users == 0)
+                {
+                    Free(entry);
+                    RoomMayHaveCome();
+                }
                 else _replaced.Add(entry);
                 return null;
             }
@@ -104,26 +223,39 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         IHostModel model;
         try
         {
-            model = await Task.Run(() =>
-            {
-                if (spec.Adapter is { } adapter) adapters.EnsurePrepared(spec.Folder, adapter);
-                return runners.Load(spec);
-            }, ct);
+            var placed = Placed(spec);
+            model = await Task.Run(() => runners.Load(placed), ct);
         }
         catch (Exception ex) when (ex is not HostRequestException and not OperationCanceledException)
         {
             throw new HostRequestException(HostErrorKind.Runtime, $"{spec.Id} did not load: {ex.Message}");
         }
-        log.Write($"loaded {spec.Id} on {Where(spec)} in {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s");
+        log.WriteActivity($"loaded {spec.Id} on {Where(spec)} in {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s");
 
+        bool displaced;
+        Lease lease;
         lock (_gate)
         {
             // A resident that made way for a picture is resident again, whoever loads it.
-            bool displaced = _displaced.Remove(spec.Id);
-            var entry = new Entry(model) { Resident = resident || displaced, Users = 1 };
+            displaced = _displaced.Remove(spec.Id);
+            var entry = new Entry(model, spec) { Resident = resident || displaced, Users = 1 };
             _loaded[spec.Id] = entry;
-            return new Lease(this, entry);
+            SweepFromNow();
+            lease = new Lease(this, entry);
         }
+        if (displaced) PartBack?.Invoke(spec.Id);
+        return lease;
+    }
+
+    /// <summary><paramref name="spec"/> as it is loaded: its folder where it lies in the model store, and its files plain names in it —
+    /// a request names a model's files, never where they are.</summary>
+    /// <exception cref="HostRequestException">It names a folder or a file that is not a plain path inside the store.</exception>
+    private ModelSpec Placed(ModelSpec spec)
+    {
+        foreach (var name in new[] { spec.File, spec.Projector }.OfType<string>())
+            if (!Provisioning.StorePath.IsPlain(name))
+                throw new HostRequestException(HostErrorKind.Invalid, $"{spec.Id} names a file, '{name}', that is not a plain path inside its folder.");
+        return spec with { Folder = files.PathOf(spec.Folder) };
     }
 
     /// <summary>Unloads what must go for <paramref name="spec"/> to fit: on its GPU, and in this machine's memory for what it holds
@@ -168,7 +300,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
                 if (admission is null || admission.Waits)
                 {
                     admission = new VramBudget.Admission([.. held.Where(m => !m.InUse && (!m.Resident || room is not null)).Select(m => m.Id)], Waits: false);
-                    log.Write($"{spec.Id} needs {bytes >> 20} MiB of this machine's memory, past its {budget >> 20} MiB share beside the models in use; it loads past it");
+                    log.WriteActivity($"{spec.Id} needs {bytes >> 20} MiB of this machine's memory, past its {budget >> 20} MiB share beside the models in use; it loads past it");
                 }
                 unload.AddRange(admission.Unload);
             }
@@ -179,7 +311,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
                 var entry = _loaded[id];
                 if (entry.Resident)
                 {
-                    _displaced[id] = entry.Model.Spec;
+                    _displaced[id] = entry.Requested;
                     residents.Add(id);
                 }
                 Unload(entry);
@@ -195,6 +327,22 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     /// <summary>What <paramref name="spec"/> holds in this machine's memory, against the host's share of it.</summary>
     private static long InMemory(ModelSpec spec) => spec.Device is null ? spec.MemoryBytes : spec.HostBytes;
 
+    /// <summary>A lease on every model loaded now — held or loaded on demand — so each can be asked something without being unloaded
+    /// meanwhile; each is let go as its lease is disposed.</summary>
+    public IReadOnlyList<Lease> LeaseLoaded()
+    {
+        lock (_gate)
+        {
+            var leases = new List<Lease>(_loaded.Count);
+            foreach (var entry in _loaded.Values)
+            {
+                entry.Users++;
+                leases.Add(new Lease(this, entry));
+            }
+            return leases;
+        }
+    }
+
     /// <summary>
     /// What GPU <paramref name="device"/> has to spare now beyond the models loaded there: its budget as the card says it now
     /// (<see cref="IHostGpus.BudgetNow"/>), less what they hold. Room a model takes for itself outside admission — a lane for work
@@ -209,13 +357,20 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         }
     }
 
-    /// <summary>Room for one picture: while any is out, residents nothing is using may make way for its parts.</summary>
-    /// <param name="madeWay">Told the residents that make way for this picture, as they do.</param>
-    public Room BorrowRoom(Func<IReadOnlyList<string>, Task>? madeWay = null)
+    /// <summary>Room for one picture: while any is out, residents nothing is using may make way for its parts
+    /// (<see cref="PartsAway"/>).</summary>
+    public Room BorrowRoom()
     {
         lock (_gate) _rooms++;
-        return new Room(this, madeWay);
+        return new Room(this);
     }
+
+    /// <summary>Residents made way on their GPU for a picture, by their ids: unloaded until the last picture is done, or a request
+    /// needs one.</summary>
+    public event Action<IReadOnlyList<string>>? PartsAway;
+
+    /// <summary>A resident that made way for a picture is loaded again.</summary>
+    public event Action<string>? PartBack;
 
     /// <summary>Once the last picture is done, loads the residents that made way for pictures — those no request has
     /// loaded since.</summary>
@@ -242,6 +397,28 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
         }
     }
 
+    /// <summary>Looks for models gone idle a quarter of <c>idleUnload</c> apart, and no less than a second — from the first model loaded.</summary>
+    private Timer? _sweeping;
+
+    /// <summary>Starts looking for models gone idle, where the registry lets them go in time and is not yet looking. Called under the gate.</summary>
+    private void SweepFromNow()
+    {
+        if (_sweeping is not null || idleUnload is not { } idle || _disposed) return;
+        var every = TimeSpan.FromTicks(Math.Max(TimeSpan.FromSeconds(1).Ticks, idle.Ticks / 4));
+        _sweeping = new Timer(_ => UnloadIdle(idle), null, every, every);
+    }
+    /// <summary>Unloads every model nothing holds and nothing has used for <paramref name="idle"/>: what is left loaded after a request,
+    /// with nobody holding it, goes in time rather than only when another model needs its room.</summary>
+    internal void UnloadIdle(TimeSpan idle)
+    {
+        lock (_gate)
+        {
+            var gone = _loaded.Values.Where(e => !e.Resident && e.Users == 0 && Stopwatch.GetElapsedTime(e.LastUsed) >= idle).ToList();
+            foreach (var entry in gone) Unload(entry);
+            if (gone.Count > 0) RoomMayHaveCome();
+        }
+    }
+
     /// <summary>Takes a model out of the resident set; it is unloaded now if nothing is using it, or when the last
     /// request using it ends.</summary>
     public void Release(string id)
@@ -251,7 +428,11 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
             _displaced.Remove(id);
             if (!_loaded.TryGetValue(id, out var entry)) return;
             entry.Resident = false;
-            if (entry.Users == 0) Unload(entry);
+            if (entry.Users == 0)
+            {
+                Unload(entry);
+                RoomMayHaveCome();
+            }
             else entry.UnloadWhenIdle = true;
         }
     }
@@ -266,9 +447,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
             if (_replaced.Remove(entry)) Free(entry);
             else if (entry.UnloadWhenIdle) Unload(entry);
 
-            var idle = _idle;
-            _idle = Signal();
-            idle.TrySetResult();
+            RoomMayHaveCome();
         }
     }
 
@@ -281,7 +460,7 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     private void Free(Entry entry)
     {
         entry.Model.Dispose();
-        log.Write($"unloaded {entry.Model.Spec.Id} from {Where(entry.Model.Spec)}");
+        log.WriteActivity($"unloaded {entry.Model.Spec.Id} from {Where(entry.Model.Spec)}");
     }
 
     private static string Where(ModelSpec spec) => spec.Device is { } device ? $"GPU {device}" : "the CPU";
@@ -292,11 +471,30 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     {
         lock (_gate)
         {
+            _disposed = true;
+            _sweeping?.Dispose();
+            AdmitEarliest();
             foreach (var entry in _loaded.Values.ToList()) Unload(entry);
             foreach (var entry in _replaced) Free(entry);
             _replaced.Clear();
         }
-        _loading.Dispose();
+    }
+
+    /// <summary>One request's place in line for a model not loaded.</summary>
+    private sealed class PlaceInLine
+    {
+        public PlaceInLine() => Node = new LinkedListNode<PlaceInLine>(this);
+
+        public LinkedListNode<PlaceInLine> Node { get; }
+
+        /// <summary>Completes when it is its turn to plan; a new one each time it goes back to waiting for room.</summary>
+        public TaskCompletionSource Turn { get; set; } = Signal();
+
+        /// <summary>It found only models in use in its way the last time it planned.</summary>
+        public bool FoundNoRoom { get; set; }
+
+        /// <summary>The times room may have come (<see cref="_roomChanges"/>) as it was last given its turn.</summary>
+        public long PlannedAt { get; set; }
     }
 
     /// <summary>A model held for one request.</summary>
@@ -330,17 +528,9 @@ internal sealed class ModelRegistry(IHostGpus gpus, ModelAdapters adapters, Mode
     public sealed class Room : IDisposable
     {
         private readonly ModelRegistry _registry;
-        private readonly Func<IReadOnlyList<string>, Task>? _madeWay;
         private int _returned;
 
-        internal Room(ModelRegistry registry, Func<IReadOnlyList<string>, Task>? madeWay)
-        {
-            _registry = registry;
-            _madeWay  = madeWay;
-        }
-
-        /// <summary>Residents have made way for this picture.</summary>
-        internal Task MadeWayAsync(IReadOnlyList<string> ids) => _madeWay?.Invoke(ids) ?? Task.CompletedTask;
+        internal Room(ModelRegistry registry) => _registry = registry;
 
         public void Dispose()
         {

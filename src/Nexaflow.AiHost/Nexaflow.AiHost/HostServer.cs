@@ -5,25 +5,43 @@ using Nexaflow.AiHost.Contracts;
 namespace Nexaflow.AiHost;
 
 /// <summary>
-/// Reads the pipe and dispatches. Heartbeats, cancellations and input are handled here, on the reading loop, so none
-/// waits behind a running request; each request runs on its own task and ends in exactly one Completed or Failed.
+/// One client's session: reads its pipe and dispatches. Heartbeats, cancellations and input are handled here, on the reading loop,
+/// and what they answer goes out through the session's outbox (<see cref="SessionOutbox"/>), so none waits behind a running request
+/// or a send; each request runs on its own task, as its client (<see cref="ClientIdentity"/>), and ends in exactly one Completed or
+/// Failed. A client that sends what cannot be read ends its own session, never the host.
 /// </summary>
 internal sealed class HostServer
 {
     private readonly HostChannel _channel;
+    private readonly SessionOutbox _outbox;
     private readonly HostLog _log;
     private readonly Dictionary<Type, IHostRequestHandler> _handlers;
     private readonly ConcurrentDictionary<long, RunningRequest> _running = new();
 
     private readonly TimeProvider _clock;
+    private readonly HostSections? _sections;
+    private readonly ClientIdentity _client;
 
-    public HostServer(HostChannel channel, HostLog log, IEnumerable<IHostRequestHandler> handlers, TimeProvider? clock = null)
+    /// <param name="sections">The shared sections the host makes for this client; null where it makes none and every block
+    /// crosses in its frame.</param>
+    /// <param name="client">Who the session serves; the host itself where none is named — a test's server.</param>
+    public HostServer(HostChannel channel, HostLog log, IEnumerable<IHostRequestHandler> handlers, TimeProvider? clock = null, HostSections? sections = null,
+                      ClientIdentity? client = null)
     {
         _channel  = channel;
+        _outbox   = new SessionOutbox(channel, log);
         _log      = log;
         _handlers = handlers.ToDictionary(h => h.RequestType);
         _clock    = clock ?? TimeProvider.System;
+        _sections = sections;
+        _client   = client ?? ClientIdentity.Host;
     }
+
+    /// <summary>Who the session serves.</summary>
+    /// <summary>Whether a request of this session's is running.</summary>
+    public bool Busy => !_running.IsEmpty;
+
+    public ClientIdentity Client => _client;
 
     /// <summary>How long a request may say nothing before the server speaks for it (<see cref="RequestActivity"/>): well inside any
     /// stall limit the client sets.</summary>
@@ -32,34 +50,53 @@ internal sealed class HostServer
     /// <summary>How often the requests running are looked at for one that has been quiet that long.</summary>
     private static readonly TimeSpan QuietCheck = TimeSpan.FromSeconds(5);
 
-    /// <summary>Serves until the app closes the pipe; every request still running is then cancelled and awaited.</summary>
+    /// <summary>Tells the client something nothing it asked is waiting on — a file of the store arriving, a section closed —
+    /// ahead of any reply; never waits.</summary>
+    public void Tell(HostMessage message) => _outbox.Tell(message);
+
+    /// <summary>Serves until the client closes the pipe, or sends what cannot be read; every request still running is then cancelled
+    /// and awaited, and what is queued for the client written.</summary>
     public async Task RunAsync()
     {
         var serving = new List<Task>();
         using var stop = new CancellationTokenSource();
         var speaking = SpeakForQuietAsync(stop.Token);
-        while (await _channel.ReceiveAsync() is { } message)
+        while (await ReceiveAsync() is { } message)
         {
             switch (message)
             {
                 case Ping ping:
-                    await _channel.SendAsync(new Pong(ping.Sequence));
+                    _outbox.Tell(new Pong(ping.Sequence));
                     break;
                 case CancelRequest cancel:
                     if (_running.TryGetValue(cancel.RequestId, out var cancelled)) cancelled.Cancel();
                     break;
+                case AllocateSection allocate:
+                    _outbox.Tell(_sections?.Allocate(allocate.Length) is { } section
+                        ? new SectionAllocated(allocate.Ticket, section.SectionId!.Value, section.SectionName!, section.Capacity)
+                        : new SectionRefused(allocate.Ticket, _sections is null ? "This host makes no shared sections." : $"The app's shared sections already hold all one app may ({HostSections.MostBytes >> 30} GiB)."));
+                    break;
+                case ReleaseSection release:
+                    _sections?.Release(release.Id);
+                    break;
                 case RequestInput input:
-                    if (_running.TryGetValue(input.RequestId, out var receiving)) receiving.Receive(input);
+                    if (_running.TryGetValue(input.RequestId, out var receiving))
+                    {
+                        receiving.Sections.Take(_channel.Sections);
+                        receiving.Receive(input);
+                    }
+                    else foreach (var bytes in _channel.Sections) _sections?.Return(bytes);
                     break;
                 case HostRequest request:
                     // Registered before it runs, so input or a cancellation sent straight after it is never early.
-                    var running = new RunningRequest(_clock);
+                    var running = new RunningRequest(_clock, new RequestSections(_sections));
+                    running.Sections.Take(_channel.Sections);
                     _running[request.RequestId] = running;
                     serving.RemoveAll(t => t.IsCompleted);
                     serving.Add(Task.Run(() => ServeAsync(request, running)));
                     break;
                 default:
-                    _log.Write($"ignored an unexpected {message.GetType().Name}");
+                    _log.Write($"{_client} sent an unexpected {message.GetType().Name}; it was ignored");
                     break;
             }
         }
@@ -68,48 +105,68 @@ internal sealed class HostServer
         await Task.WhenAll(serving);
         stop.Cancel();
         await speaking;
+        await _outbox.DisposeAsync();
+    }
+
+    /// <summary>The client's next message; null once it has closed the pipe, or sent what cannot be read — which ends its session.</summary>
+    private async Task<HostMessage?> ReceiveAsync()
+    {
+        try
+        {
+            return await _channel.ReceiveAsync();
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException)
+        {
+            _log.Write($"{_client}'s session ends: {ex.Message}");
+            return null;
+        }
     }
 
     private async Task ServeAsync(HostRequest request, RunningRequest running)
     {
         HostReply end;
         running.Activity.Enter();
-        try
+        _client.Enter();
+        using (running.Sections.Enter())
         {
-            if (!_handlers.TryGetValue(request.GetType(), out var handler))
-                throw new HostRequestException(HostErrorKind.Invalid, $"this host does not handle {request.GetType().Name}");
-
-            await handler.HandleAsync(request, reply =>
+            try
             {
-                running.Activity.Said();
-                return _channel.SendAsync(reply, CancellationToken.None);
-            }, running.Input, running.Token);
-            end = new Completed(request.RequestId);
-        }
-        catch (OperationCanceledException) when (running.Token.IsCancellationRequested)
-        {
-            end = new Failed(request.RequestId, HostErrorKind.Cancelled, "cancelled");
-        }
-        catch (HostRequestException ex)
-        {
-            end = new Failed(request.RequestId, ex.Kind, ex.Message);
-        }
-        catch (Exception ex)
-        {
-            _log.Write($"{request.GetType().Name} #{request.RequestId} failed: {ex}");
-            end = new Failed(request.RequestId, HostErrorKind.Runtime, ex.Message);
-        }
-        finally
-        {
-            _running.TryRemove(request.RequestId, out _);
+                if (!_handlers.TryGetValue(request.GetType(), out var handler))
+                    throw new HostRequestException(HostErrorKind.Invalid, $"this host does not handle {request.GetType().Name}");
+
+                await handler.HandleAsync(request, reply =>
+                {
+                    running.Activity.Said();
+                    return _outbox.SendAsync(reply);
+                }, running.Input, running.Token);
+                end = new Completed(request.RequestId);
+            }
+            catch (OperationCanceledException) when (running.Token.IsCancellationRequested)
+            {
+                end = new Failed(request.RequestId, HostErrorKind.Cancelled, "cancelled");
+            }
+            catch (HostRequestException ex)
+            {
+                end = new Failed(request.RequestId, ex.Kind, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _log.Write($"{request.GetType().Name} #{request.RequestId} for {_client} failed: {ex}");
+                end = new Failed(request.RequestId, HostErrorKind.Runtime, ex.Message);
+            }
+            finally
+            {
+                _running.TryRemove(request.RequestId, out _);
+            }
         }
 
-        try { await _channel.SendAsync(end); }
-        catch (Exception ex) when (ex is IOException or ObjectDisposedException) { /* the app has gone */ }
+        // Once its end is in the pipe, its replies are too: what it was sent ends with it, and what it made for a reply it never sent.
+        await _outbox.SendAsync(end, running.Sections.End);
     }
 
     /// <summary>Says for each request quiet for <see cref="Quiet"/> what it is doing — waiting, or going on between waits — until the
-    /// pipe closes. A request stuck in one step is left silent, for the client's watchdog to hear.</summary>
+    /// session ends. A request stuck in one step is left silent, for the client's watchdog to hear; nothing is said for one whose
+    /// client has not yet read what it was sent.</summary>
     private async Task SpeakForQuietAsync(CancellationToken ct)
     {
         using var timer = new PeriodicTimer(QuietCheck, _clock);
@@ -119,19 +176,20 @@ internal sealed class HostServer
                 foreach (var (id, running) in _running)
                 {
                     if (running.Activity.Due(Quiet) is not { } stage) continue;
-                    running.Activity.Said();
-                    await _channel.SendAsync(new Progress(id, stage, 0, 0), ct);
+                    if (_outbox.TrySend(new Progress(id, stage, 0, 0))) running.Activity.Said();
                 }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-        catch (Exception ex) when (ex is IOException or ObjectDisposedException) { /* the app has gone */ }
     }
 
-    /// <summary>A request being served: its cancellation, and the input the app sends it while it runs.</summary>
-    private sealed class RunningRequest(TimeProvider clock)
+    /// <summary>A request being served: its cancellation, the input the app sends it while it runs, and the shared sections it uses.</summary>
+    private sealed class RunningRequest(TimeProvider clock, RequestSections sections)
     {
         /// <summary>What it has done since it last said anything.</summary>
         public RequestActivity Activity { get; } = new(clock);
+
+        public RequestSections Sections { get; } = sections;
+
         // Never disposed: the reading loop may still cancel a request that has just ended, and a source with no
         // timer holds nothing to free.
         private readonly CancellationTokenSource _cancel = new();
