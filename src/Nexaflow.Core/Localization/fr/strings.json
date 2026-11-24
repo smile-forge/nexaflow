@@ -338,6 +338,7 @@
   "Shell.Config.ModelPreload.DaysToPreload": "Jours sur les 7 derniers où un modèle doit servir pour être chargé à l'avance",
   "Shell.Config.ModelPreload.IdleMinutes": "Décharger un modèle inactif depuis (minutes, 0 = jamais)",
   "Shell.Config.ModelPreload.MemoryForModelsPercent": "Mémoire que les modèles exécutés sur le processeur peuvent utiliser (% de ce PC)",
+  "Shell.Config.ModelPreload.MemorySetByService": "Fixée pour ce PC par son service d'hôte IA, que toutes ses applications partagent. Un administrateur la modifie dans %ProgramData%\\Smile-Forge\\AiHost\\host.json.",
 
   "Shell.Config.Workspaces": "Espaces de travail",
   "Shell.Config.About": "À propos",

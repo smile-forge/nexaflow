@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Drawing;
 using Nexaflow.AiHost.Filming;
 using Nexaflow.AiHost.Generation;
@@ -62,6 +63,9 @@ internal sealed class HostBroker : IDisposable
     public string? RuntimePack { get; }
 
     public HeldModels Held { get; }
+
+    /// <summary>This machine's memory, and the share of it models on the CPU may hold.</summary>
+    public HostMemory Memory => _runtime.Memory;
 
     public IReadOnlyList<IHostRequestHandler> Handlers { get; }
 

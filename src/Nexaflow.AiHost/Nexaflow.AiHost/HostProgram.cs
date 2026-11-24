@@ -72,7 +72,7 @@ internal static class HostProgram
                 ? share : policy.MemoryShare ?? AiHostProtocol.DefaultMemoryShare;
             using var broker = new HostBroker(store, memoryShare, policy, log);
 
-            var listener = new HostListener(new OwnPipes(pipeName), token, broker.Handlers, policy, log, endsWithLastClient: true);
+            var listener = new HostListener(new OwnPipes(pipeName), token, broker.Handlers, policy, log, endsWithLastClient: true, memory: broker.Memory);
             // Every client hears of the store's files as they come and go, whoever fetched them.
             store.Changed += (_, path) => listener.Tell(new ModelFilesChanged([path]));
             await listener.RunAsync();
@@ -100,7 +100,7 @@ internal static class HostProgram
 
             using var control = new StreamReader(Console.OpenStandardInput());
             var listener = new HostListener(new HandedPipes(control), token: null, broker.Handlers, policy, log, endsWithLastClient: false,
-                                            welcomeAs: supervisor);
+                                            welcomeAs: supervisor, memory: broker.Memory);
             store.Changed += (_, path) => listener.Tell(new ModelFilesChanged([path]));
             using var stop = new CancellationTokenSource();
             var serving = listener.RunAsync();

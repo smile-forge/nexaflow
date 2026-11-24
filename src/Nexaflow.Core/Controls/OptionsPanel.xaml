@@ -232,6 +232,16 @@
                                       EnumComboBoxTemplate="{StaticResource EnumComboBoxTemplate}"
                                       ListComboBoxTemplate="{StaticResource ListComboBoxTemplate}"
                                       ToggleTemplate="{StaticResource ToggleTemplate}"/>
+
+        <!-- Each row its editor, and under one decided outside the app why it is not the user's to change here. -->
+        <DataTemplate x:Key="RuledRowTemplate" DataType="{x:Type vm:PropertyEditViewModel}">
+            <StackPanel>
+                <ContentControl Content="{Binding}" ContentTemplateSelector="{StaticResource EditorSelector}" Focusable="False"/>
+                <TextBlock Text="{Binding Note}" Margin="180,-2,0,6" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Visibility="{Binding IsRuled, Converter={StaticResource BoolVis}}"/>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -301,8 +311,7 @@
                               Padding="20,12"
                               HorizontalScrollBarVisibility="Disabled"
                               Visibility="{Binding SelectedSection.HasCustomControl, Converter={StaticResource InverseBoolVis}}">
-                    <ItemsControl ItemsSource="{Binding SelectedSection.Properties}"
-                                  ItemTemplateSelector="{StaticResource EditorSelector}"/>
+                    <ItemsControl ItemsSource="{Binding SelectedSection.Properties}" ItemTemplate="{StaticResource RuledRowTemplate}"/>
                 </ScrollViewer>
             </Grid>
         </Grid>

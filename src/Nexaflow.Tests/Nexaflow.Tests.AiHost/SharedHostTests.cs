@@ -49,6 +49,19 @@ public class SharedHostTests
     }
 
     [TestMethod]
+    public async Task AnAppJoinedToTheService_WeighsModelsByTheServicesShareOfMemory_NotItsOwn()
+    {
+        var share = HostMemory.Of(64L << 30, 35);
+        await using var service = new FakeService { Memory = share };
+        await using var client = new AiHostClient(new FakeHost(), Fast, service: service);
+        Assert.IsNull(client.ServiceMemory, "nothing is known of the service before the app joins it");
+
+        await Describe(client);
+
+        Assert.AreEqual((share, share), (client.ServiceMemory, client.Memory), "the service's share, as its administrator set it");
+    }
+
+    [TestMethod]
     public async Task WhereTheServiceDoesNotRun_TheAppStartsAHostOfItsOwn()
     {
         await using var service = new FakeService { Running = false };

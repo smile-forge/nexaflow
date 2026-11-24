@@ -83,7 +83,9 @@ public sealed record Hello(string? Token, int ProtocolVersion, string App) : Hos
 
 /// <summary>The host's answer to a <see cref="Hello"/> it takes: the client's session has begun.</summary>
 /// <param name="ProcessId">The host's process — for a client that started it, the one it started.</param>
-public sealed record Welcome(int ProcessId) : HostMessage;
+/// <param name="Memory">The share of this machine's memory the host's models on the CPU may hold — for an app on the machine's
+/// service, whose administrator sets it, to weigh models by and show; null from a host that does not say.</param>
+public sealed record Welcome(int ProcessId, HostMemory? Memory = null) : HostMessage;
 
 /// <summary>The host's answer to a <see cref="Hello"/> it turns away — another protocol, another token — before it closes the pipe.</summary>
 /// <param name="Protocol">The protocol the host speaks, where the client speaks another — for a client that can start a host of its own

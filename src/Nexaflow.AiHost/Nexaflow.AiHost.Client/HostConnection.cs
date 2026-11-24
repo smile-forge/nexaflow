@@ -62,6 +62,9 @@ internal sealed class HostConnection : IAsyncDisposable
     /// <summary>Joined to the machine's service, which other apps share: never killed by this app, only let go.</summary>
     public bool Shared => _process is null;
 
+    /// <summary>The share of this machine's memory the host's models on the CPU may hold, as its welcome named it; null where it did not.</summary>
+    public HostMemory? Memory { get; private init; }
+
     public AiHostEnvironment Environment { get; }
 
     /// <summary>Completes when no request is in flight.</summary>
@@ -225,7 +228,7 @@ internal sealed class HostConnection : IAsyncDisposable
             switch (await channel.ReceiveAsync(timeout.Token).ConfigureAwait(false))
             {
                 case Welcome welcome when welcome.ProcessId == processId:
-                    var connection = new HostConnection(null, processId, AiHostEnvironment.Cpu, channel, sections, timings, time);
+                    var connection = new HostConnection(null, processId, AiHostEnvironment.Cpu, channel, sections, timings, time) { Memory = welcome.Memory };
                     connection.Ended += onEnded;
                     connection._reading = Task.Run(connection.ReadAsync);
                     connection._beating = Task.Run(connection.BeatAsync);

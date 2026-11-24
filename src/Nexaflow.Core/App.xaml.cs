@@ -319,6 +319,8 @@ public partial class App : Application
         // Which models are loaded ahead, and what they may hold, is this machine's to weigh: what it runs, what was used on it this week.
         var preloadConfig = (ModelPreloadConfig)ConfigManager.Instance.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
         var aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent);
+        // Joined to the machine's AI host service, the share of memory its models may hold is the service's, and Settings shows it so.
+        ConfigManager.Instance.AddRulings(new AiHostSettingRulings(() => aiHost.ServiceMemory));
         // The model store is the AI host's: it alone reads and fetches the files, and the app sees the store as the host describes it,
         // read here in the background — each file found there is told of as it is read, as each that arrives later is.
         var assets = new AiHostModelStore(aiHost);

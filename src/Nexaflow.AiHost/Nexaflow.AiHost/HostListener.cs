@@ -22,9 +22,10 @@ namespace Nexaflow.AiHost;
 /// <param name="endsWithLastClient">Stop once the last client welcomed has gone — a host an app started for itself.</param>
 /// <param name="welcomeAs">The process its welcome names — the one a client checks it is speaking to: the service's own, for its
 /// worker; this one otherwise.</param>
+/// <param name="memory">The share of this machine's memory its models on the CPU may hold, which its welcome names.</param>
 [SupportedOSPlatform("windows")]
 internal sealed class HostListener(IClientPipes pipes, string? token, IReadOnlyList<IHostRequestHandler> handlers, HostPolicy policy, HostLog log,
-                                   bool endsWithLastClient, int? welcomeAs = null)
+                                   bool endsWithLastClient, int? welcomeAs = null, HostMemory? memory = null)
 {
     /// <summary>How long a client that has connected has to say hello.</summary>
     private static readonly TimeSpan HelloLimit = TimeSpan.FromSeconds(10);
@@ -112,7 +113,7 @@ internal sealed class HostListener(IClientPipes pipes, string? token, IReadOnlyL
                     log.Write($"{account.Value}/{said.App} was turned away: {why}");
                     return;
                 }
-                await channel.SendAsync(new Welcome(welcomeAs ?? Environment.ProcessId));
+                await channel.SendAsync(new Welcome(welcomeAs ?? Environment.ProcessId, memory));
             }
 
             var client = new ClientIdentity(account.Value, said.App);

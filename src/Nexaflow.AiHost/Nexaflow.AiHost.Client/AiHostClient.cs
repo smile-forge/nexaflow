@@ -66,9 +66,15 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
         set => Volatile.Write(ref _environment, value);
     }
 
-    /// <summary>The share of this machine's memory the models on its host may hold — what the host it starts will find, before it has
-    /// started.</summary>
-    public HostMemory Memory => _launcher.Memory;
+    /// <summary>The share of this machine's memory the models on its host may hold: the service's, where this app last joined it, as its
+    /// administrator set it; else what a host this app starts will find, before it has started.</summary>
+    public HostMemory Memory => ServiceMemory ?? _launcher.Memory;
+
+    /// <summary>The share of this machine's memory the machine's service holds its models on the CPU to, where this app last joined it and
+    /// it said; null where this app runs a host of its own. Set by the service's administrator, not by this app.</summary>
+    public HostMemory? ServiceMemory => _joinedLast ? Volatile.Read(ref _serviceMemory) : null;
+
+    private HostMemory? _serviceMemory;
 
     /// <summary>
     /// Sends the request <paramref name="create"/> makes from a fresh id and yields its replies until it ends.
@@ -138,6 +144,7 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
                 && await Task.Run(() => HostConnection.JoinAsync(service, _app, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false) is { } joined)
             {
                 _joinedLast = true;
+                if (joined.Memory is { } served) Volatile.Write(ref _serviceMemory, served);
                 return Keep(joined);
             }
 

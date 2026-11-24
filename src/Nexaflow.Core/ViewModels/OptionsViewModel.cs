@@ -63,6 +63,13 @@ public partial class PropertyEditViewModel : ObservableObject
     public IReadOnlyList<ConfigListOption>? EnumOptions { get; }
 
     /// <summary>Dynamic items for ListComboBox editors (populated via [ListSource]).</summary>
+    /// <summary>Why the setting is not the user's to change here — decided outside the app (<see cref="ConfigRuling"/>) — shown under it;
+    /// null where it is theirs.</summary>
+    public string? Note { get; }
+
+    /// <summary>Decided outside the app: shown, read-only, with <see cref="Note"/>.</summary>
+    public bool IsRuled => Note is not null;
+
     public IReadOnlyList<ConfigListOption>? ListOptions { get; }
 
     [ObservableProperty] private object? _value;
@@ -205,6 +212,16 @@ public partial class PropertyEditViewModel : ObservableObject
         _originalValue = _value;
         // Initial validation
         Validate(_value);
+
+        // A setting decided outside the app shows as decided there, read-only; the app's own value stays in the config, for when it
+        // decides again.
+        if (ConfigManager.Instance.RulingFor(editingClone, pi.Name) is { } ruling)
+        {
+            _value         = ruling.Value;
+            _originalValue = _value;
+            _isEnabled     = false;
+            Note           = ruling.Reason;
+        }
     }
 }
 
@@ -366,7 +383,7 @@ public partial class ConfigEditViewModel : ObservableObject
     /// </summary>
     private void WireConditionalEnables()
     {
-        foreach (var dependent in Properties.Where(p => p.DisabledIfProperty is not null))
+        foreach (var dependent in Properties.Where(p => p.DisabledIfProperty is not null && !p.IsRuled))
         {
             var src = Properties.FirstOrDefault(q => q.PropertyName == dependent.DisabledIfProperty);
             if (src is null) continue;

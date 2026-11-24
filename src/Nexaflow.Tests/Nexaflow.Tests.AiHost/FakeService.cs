@@ -40,6 +40,9 @@ internal sealed class FakeService : IAiHostService, IAsyncDisposable
 
     public bool AnswerPings { get; set; } = true;
 
+    /// <summary>The share of memory its welcome names; none unless a test sets one.</summary>
+    public HostMemory? Memory { get; set; }
+
     /// <summary>What it does with a request; by default it describes itself and completes.</summary>
     public Func<HostRequest, HostChannel, Task> Serve { get; set; } = FakeHost.Describe;
 
@@ -95,7 +98,7 @@ internal sealed class FakeService : IAiHostService, IAsyncDisposable
                 }
                 Interlocked.Increment(ref _joins);
                 welcomed = true;
-                await channel.SendAsync(new Welcome(System.Environment.ProcessId));
+                await channel.SendAsync(new Welcome(System.Environment.ProcessId, Memory));
 
                 while (await channel.ReceiveAsync(_stop.Token) is { } message)
                 {

@@ -321,7 +321,10 @@ room (`TokenRounds.Member.StandAside`). A client that sends what cannot be read 
 (`HostPolicy`): the share of memory models on the CPU may hold, the folder the host logs to, how long a model nothing holds
 stays loaded once idle, and the highest priority each account — or one app of an account — may ask for, a request asking
 above it served at it. What the file leaves out is the host's default, and what an app that starts a host for itself
-passes on its command line comes before the file.
+passes on its command line comes before the file. The service's share is the administrator's alone: the host's welcome names it
+(`Welcome.Memory`), an app joined to the service weighs models by it, and Nexaflow's Settings show it, read-only, under the share
+the app would give a host of its own, saying the PC's AI host service sets it (`AiHostSettingRulings`, asked through
+`ConfigManager.RulingFor`, which any setting decided outside the app can use); the app's own share is kept, for a host it starts.
 
 **The service first, else a host of the app's own.** Where the machine runs the host as its service (`SmileForgeAiHost`, on
 the pipe `SmileForge.AiHost`), a client joins it: it asks Windows' service manager which process runs the service

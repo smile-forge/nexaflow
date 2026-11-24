@@ -632,6 +632,11 @@
             "Architecture",
             "One host process on one stack"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/LocalAi/AiHostSettingRulings.cs",
+          "class": "AiHostSettingRulings"
         }
       ],
       "concerns": {
@@ -666,6 +671,11 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SharedHostMeasurements.cs",
             "class": "SharedHostMeasurements",
             "method": "AnAppThatStopsReading_HoldsBackOnlyItsOwnReplies"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ConfigRulingsTests.cs",
+            "class": "ConfigRulingsTests"
           }
         ]
       }
