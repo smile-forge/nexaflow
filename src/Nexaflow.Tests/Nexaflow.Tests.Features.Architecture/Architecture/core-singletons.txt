@@ -7,13 +7,12 @@ src/Nexaflow.Core/ProviderManager.cs
 src/Nexaflow.Core/Services/CrashLog.cs
 src/Nexaflow.Core/Services/ExternalDependencyRegistry.cs
 src/Nexaflow.Core/Services/FeatureCatalog.cs
-src/Nexaflow.Core/Services/MessageCenter.cs
+
 src/Nexaflow.Core/Services/PageViews.cs
 src/Nexaflow.Core/Services/ShellSafetyLog.cs
-src/Nexaflow.Core/Services/SubfeatureCatalog.cs
+
 src/Nexaflow.Core/Services/WorkspaceManager.cs
-src/Nexaflow.IO.Common/Locations/DiscoveredLocations.cs
-src/Nexaflow.IO.Common/Locations/LocationProviderRegistry.cs
+
 src/Nexaflow.IO.Common/VirtualFileSystem.cs
 # Immutable values, not services: one empty block and one null value shared by every reader.
 src/Nexaflow.IO.Hdf5/BlockData.cs

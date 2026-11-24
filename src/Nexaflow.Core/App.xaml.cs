@@ -252,7 +252,7 @@ public partial class App : Application
         _host = host;
 
         // The window a runtime opens into for a tear-off, a "new window" or a workspace rebuild: the session cannot name MainWindow.
-        host.Workspaces.WindowFactory = ws => new MainWindow(host.Activities, ws, host.Workspaces, openDefaultTabs: false).ViewModel;
+        host.Workspaces.WindowFactory = ws => new MainWindow(host.Windows, ws, openDefaultTabs: false).ViewModel;
 
         // The app ends with its last window — unless it stays resident, or an update is ending it once its installer runs, which
         // ending here would cut short.
@@ -327,7 +327,7 @@ public partial class App : Application
         {
             try
             {
-                MessageCenter.Instance.Post(new NotificationItem
+                _host?.Inbox.Post(new NotificationItem
                 {
                     Title     = Str.Get("Shell.Notifications.FaultTitle"),
                     Body      = Str.Get("Shell.Notifications.FaultBody"),
@@ -465,7 +465,7 @@ public partial class App : Application
 
     /// <summary>A runtime's first window, unshown: opening <paramref name="openPath"/>, or the workspace's tabs.</summary>
     private static MainWindow BuildFirstWindow(BackgroundActivityManager activityManager, WorkspaceRuntime ws, string? openPath)
-        => new(activityManager, ws, _host!.Workspaces, openPath: openPath);
+        => new(_host!.Windows, ws, openPath: openPath);
 
     /// <summary>
     /// What follows a launch's window drawing: models load ahead only then, so none of their loading competes with it, and a
@@ -593,7 +593,7 @@ public partial class App : Application
     {
         if (await Updates.CheckAsync() is not { } offer) return;
 
-        MessageCenter.Instance.Post(new NotificationItem
+        _host?.Inbox.Post(new NotificationItem
         {
             Title     = Str.Format("Shell.Notifications.UpdateFormat", offer.Version),
             Body      = offer.Changelog,

@@ -44,6 +44,9 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// they clear, in every workspace.</summary>
     private readonly FolderActivity _folders;
 
+    /// <summary>Posts a message to the session's inbox.</summary>
+    private readonly Action<NotificationItem> _notify;
+
     internal ShellServices(WorkspaceRuntime workspace, RuntimeSessionServices session)
     {
         _workspace = workspace;
@@ -51,6 +54,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         _elevation = session.Elevation;
         _ui        = session.Ui;
         _folders   = session.Folders;
+        _notify    = session.Notify;
         Clipboard  = session.Clipboard;
         _folders.Busy.Changed += OnBusyFoldersChanged;
     }
@@ -453,7 +457,7 @@ public sealed class ShellServices : IShellServices, IDisposable
             ToastDuration = TimeSpan.FromSeconds(3),
             Actions       = [new MessageAction(Str.Get("Shell.Notifications.Restore"), restore, IsPrimary: true)],
         };
-        MessageCenter.Instance.Post(note);
+        _notify(note);
     }
 
     private void RestoreSession(IReadOnlyList<DefaultTabDescriptor> session)
@@ -539,19 +543,19 @@ public sealed class ShellServices : IShellServices, IDisposable
     // Post to the global MessageCenter — the focused window toasts it (errors) or it lands in the
     // shared inbox (notifications). See MessageCenter / ShellViewModel.
     public void ShowError(string message) =>
-        MessageCenter.Instance.Post(new NotificationItem
+        _notify(new NotificationItem
         {
             Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.ErrorTitle"), Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
 
     public void ShowNotification(string message) =>
-        MessageCenter.Instance.Post(new NotificationItem
+        _notify(new NotificationItem
         {
             Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info,
         });
 
     public void ShowNotification(string message, Page tab) =>
-        MessageCenter.Instance.Post(new NotificationItem
+        _notify(new NotificationItem
         {
             Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info, ShowToast = true,
             Actions = [new MessageAction(Str.Get("Shell.Notifications.Open"), new RelayCommand(() => ActivateTab(tab)), IsPrimary: true)],

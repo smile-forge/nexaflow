@@ -18,7 +18,7 @@ public class FeatureStartupTests
     [TestMethod]
     public void AFeaturesOwnSetup_RunsWhenItsAssemblyActivates()
     {
-        FeatureManager.Instance.RegisterFeatures(new WpfUiThread(Dispatcher.CurrentDispatcher));
+        FeatureManager.Instance.RegisterFeatures(new WpfUiThread(Dispatcher.CurrentDispatcher), new Nexaflow.IO.Common.Locations.LocationProviderRegistry());
 
         FeatureCatalog.Instance.ActivateAssemblyOwning(typeof(WindowsFileSystemStartup).FullName!);
 

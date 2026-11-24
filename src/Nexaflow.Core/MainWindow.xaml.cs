@@ -34,7 +34,7 @@ public partial class MainWindow : Window
 
     public ShellViewModel ViewModel => _vm;
 
-    public MainWindow(BackgroundActivityManager activityManager, WorkspaceRuntime workspace, WorkspaceRuntimes runtimes, bool openDefaultTabs = true, string? openPath = null)
+    public MainWindow(WindowServices session, WorkspaceRuntime workspace, bool openDefaultTabs = true, string? openPath = null)
     {
         Services.StartupTimings.Mark("MainWindow.ctor enter");
         InitializeComponent();
@@ -43,7 +43,7 @@ public partial class MainWindow : Window
         // Everything in the window draws a model with the app's views: a page's preview, a folder viewlet.
         ViewRegistry.SetRegistry(this, PageViews.Instance.Registry);
 
-        _vm = new ShellViewModel(activityManager, workspace, runtimes)
+        _vm = new ShellViewModel(session, workspace)
         {
             Window    = this,
             Placement = _placement,

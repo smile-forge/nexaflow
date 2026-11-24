@@ -84,7 +84,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     void IWindowHost.ShowError(string message) => ShowError(Str.Get("Shell.Errors.Error"), message);
     void IWindowHost.ShowNotification(string message)
-        => MessageCenter.Instance.Post(new NotificationItem { Workspace = CurrentRuntime.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message });
+        => _inbox.Post(new NotificationItem { Workspace = CurrentRuntime.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message });
     void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel,
                                       string? confirmLabel, string? cancelLabel)
         => ShowConfirmation(title, prompt, onConfirm, onCancel, confirmLabel, cancelLabel);
@@ -213,7 +213,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     // ── Notifications ─────────────────────────────────────────────────────
     // The inbox is a single app-wide store shared by every window (see MessageCenter).
-    public ObservableCollection<NotificationItem> Notifications => MessageCenter.Instance.Messages;
+    public ObservableCollection<NotificationItem> Notifications => _inbox.Messages;
 
     [ObservableProperty] private int  _unreadCount;
     [ObservableProperty] private bool _notificationsOpen;
@@ -391,7 +391,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     private void ShowError(string title, string message)
-        => MessageCenter.Instance.Post(new NotificationItem
+        => _inbox.Post(new NotificationItem
         {
             Workspace = CurrentRuntime.Workspace, Title = title, Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
@@ -400,7 +400,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>Posts a transient informational toast (e.g. "Exported N conversations").</summary>
     public void ShowInfoToast(string title, string message)
-        => MessageCenter.Instance.Post(new NotificationItem
+        => _inbox.Post(new NotificationItem
         {
             Workspace = CurrentRuntime.Workspace, Title = title, Body = message, Severity = MessageSeverity.Info, ShowToast = true,
         });
@@ -652,6 +652,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>The session's live workspaces, which this window moves between.</summary>
     private readonly WorkspaceRuntimes _runtimes;
 
+    /// <summary>The session's inbox: this window shows every message in it and toasts the new ones.</summary>
+    private readonly MessageCenter _inbox;
+
     /// <summary>
     /// Set by MainWindow after the RibbonControl is initialised so the shell can
     /// remove ribbon items from handler execution (e.g. "files no longer exist").
@@ -710,14 +713,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                 airspace.SetCoveredByOverlay(covered);
     }
 
-    public ShellViewModel(BackgroundActivityManager activityManager, WorkspaceRuntime workspace, WorkspaceRuntimes runtimes)
+    public ShellViewModel(WindowServices session, WorkspaceRuntime workspace)
     {
+        var activityManager = session.Activities;
         _activityManager = activityManager;
+        _inbox           = session.Inbox;
         // NB: AiIsBusy is NOT coupled to background activity — the AI bar locks only while an actual
         // AI run is in flight (driven by SendAiMessage). Background tasks (NuGet checks, downloads,
         // conversation analysis) report through the activity ticker without blocking AI input.
         _currentRuntime = workspace;
-        _runtimes       = runtimes;
+        _runtimes       = session.Workspaces;
         WorkspaceTasks = new WorkspaceBackgroundTasks(activityManager, () => CurrentRuntime);
         WorkspaceTasks.PropertyChanged += (_, e) =>
         {
@@ -805,14 +810,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // mutation that ObservableCollection doesn't surface) — otherwise other windows' badges go stale.
         Notifications.CollectionChanged += OnInboxChanged;
         foreach (var m in Notifications) m.PropertyChanged += OnMessageItemChanged;
-        MessageCenter.Instance.MessagePosted += OnMessagePosted;
+        _inbox.MessagePosted += OnMessagePosted;
         RecomputeUnread();
     }
 
     /// <summary>Detaches shared-store handlers so a closed window's view-model can be collected.</summary>
     public void Detach()
     {
-        MessageCenter.Instance.MessagePosted -= OnMessagePosted;
+        _inbox.MessagePosted -= OnMessagePosted;
 
         // The host outlives its windows: unhooked, or this window stays rooted by it.
         if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged -= OnHostReachabilityChanged;
@@ -859,7 +864,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void DrainPendingToasts()
     {
-        foreach (var m in MessageCenter.Instance.PendingToasts.ToList())
+        foreach (var m in _inbox.PendingToasts.ToList())
         {
             m.ShownAsToast = true;
             ShowToast(m);
@@ -1106,7 +1111,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     [RelayCommand]
-    private void DismissNotification(NotificationItem item) => MessageCenter.Instance.Remove(item);
+    private void DismissNotification(NotificationItem item) => _inbox.Remove(item);
 
     // ── Toast ──────────────────────────────────────────────────────────────
 

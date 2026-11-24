@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
+
 using Nexaflow.Core.Models;
 
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// App-wide inbox of <see cref="NotificationItem"/>s, shared by every window. A message is the source
+/// The session's inbox of <see cref="NotificationItem"/>s, shared by every window. A message is the source
 /// of truth; toasts are a transient presentation of one. Messages posted while no window exists (e.g.
 /// an update found by the <c>--prestart</c> daemon) stay <see cref="NotificationItem.ShowToast"/> +
 /// not-yet-<see cref="NotificationItem.ShownAsToast"/> until a window opens and replays them.
@@ -13,16 +13,11 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 public sealed class MessageCenter
 {
-    public static MessageCenter Instance { get; } = new();
-    private MessageCenter() { }
+    /// <param name="ui">The thread the windows run on, where the inbox changes and its listeners hear of it.</param>
+    public MessageCenter(IUiThread ui) => _ui = ui;
 
-    /// <summary>
-    /// The app UI dispatcher. This singleton is forced into existence on the UI thread from
-    /// <c>ShellHost</c> so it captures the app dispatcher even in the windowless
-    /// <c>--prestart</c> daemon — where the first <see cref="Post"/> would otherwise arrive from a
-    /// background update-check thread and bind <c>_ui</c> to the wrong thread.
-    /// </summary>
-    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    /// <summary>The thread the windows run on: a message posted from any thread joins the inbox there.</summary>
+    private readonly IUiThread _ui;
 
     /// <summary>The one shared inbox; newest first.</summary>
     public ObservableCollection<NotificationItem> Messages { get; } = [];
@@ -47,9 +42,5 @@ public sealed class MessageCenter
 
     public void Remove(NotificationItem message) => OnUi(() => Messages.Remove(message));
 
-    private void OnUi(Action action)
-    {
-        if (_ui.CheckAccess()) action();
-        else _ui.Invoke(action);
-    }
+    private void OnUi(Action action) => _ui.Run(action);
 }

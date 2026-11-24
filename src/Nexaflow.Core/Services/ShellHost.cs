@@ -67,6 +67,18 @@ internal sealed class ShellHost : IAsyncDisposable
     /// <summary>The session's background tasks: what the activity ticker shows, wherever a piece of slow work was started.</summary>
     public BackgroundActivityManager Activities { get; } = new();
 
+    /// <summary>The location backends — WSL, SFTP and the like — every feature's registered in as its assembly activates.</summary>
+    public LocationProviderRegistry LocationProviders { get; } = new();
+
+    /// <summary>The locations found on this machine, mounted in every workspace.</summary>
+    public DiscoveredLocations Discovered { get; }
+
+    /// <summary>The session's inbox: every window shows every message.</summary>
+    public MessageCenter Inbox { get; }
+
+    /// <summary>What each shell window is given of the session.</summary>
+    public WindowServices Windows { get; }
+
     /// <summary>The session's file and folder watches, and its busy folders.</summary>
     public FolderActivity Folders { get; }
 
@@ -89,6 +101,8 @@ internal sealed class ShellHost : IAsyncDisposable
         _options = options;
         Ui       = platform.Ui;
         Folders  = new FolderActivity(platform.Ui, platform.FolderWatchers);
+        Inbox    = new MessageCenter(platform.Ui);
+        Discovered = new DiscoveredLocations(LocationProviders);
 
         // ── 0. Base path — single source of truth for all app-data paths ─────
         // NEXAFLOW_CONFIG_DIR overrides the default (used by UI tests for an isolated, fresh config
@@ -215,14 +229,15 @@ internal sealed class ShellHost : IAsyncDisposable
         if (listUnreadable) WorkspaceManager.Instance.SaveWorkspaces();
 
         RuntimeFactory = new WorkspaceRuntimeFactory(new RuntimeSessionServices(
-            ProviderManager.Instance, Activities, MessageCenter.Instance.Post, VirtualFileSystem.Instance,
-            LocationProviderRegistry.Instance, DiscoveredLocations.Instance,
+            ProviderManager.Instance, Activities, Inbox.Post, VirtualFileSystem.Instance,
+            LocationProviders, Discovered,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
             platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard));
         // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
                                            workspace => WorkspaceManager.Instance.Workspaces.Contains(workspace), TimeProvider.System);
         WorkspaceManager.Instance.Runtimes = Workspaces;
+        Windows = new WindowServices(Activities, Workspaces, Inbox);
         StartupTimings.Mark("Init.Workspaces");
 
         // ── 5. Feature system ────────────────────────────────────────────────
@@ -231,7 +246,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // of StartBackground); activation registers that assembly's global configs, archive handlers /
         // codecs (into the VFS) and theme contributions (folded below the theme applied in step 1), and runs the
         // feature's own setup for the session (IFeatureStartup) — the file system's file map and registries among them.
-        FeatureManager.Instance.RegisterFeatures(platform.Ui);
+        FeatureManager.Instance.RegisterFeatures(platform.Ui, LocationProviders);
 
         // UI-test automation (--uiTest) drives the app far faster than a human and would outrun the
         // post-paint background warm-up, racing features that haven't loaded yet. Force every feature
@@ -239,11 +254,7 @@ internal sealed class ShellHost : IAsyncDisposable
         if (options.UiTest) FeatureCatalog.Instance.EnsureAllActivated();
         StartupTimings.Mark("Init.Features");
 
-        // ── 6a. The app-global inbox ─────────────────────────────────────────
-        // Brought into existence here, on the UI thread, so it holds the app's dispatcher even in the windowless
-        // --prestart daemon (which never builds a ShellViewModel — its first Post would otherwise come from the
-        // background update-check thread).
-        _ = MessageCenter.Instance;
+
 
         // ── 6b. Damaged config: say so, say what came back ───────────────────
         // Settings that could not be read are already on defaults and on record in the crash log; this is
@@ -262,7 +273,7 @@ internal sealed class ShellHost : IAsyncDisposable
         _firstDiscovery = Task.Run(() =>
         {
             FeatureManager.Instance.EnsureLocationProviders();
-            return DiscoveredLocations.Instance.StartAsync();
+            return Discovered.StartAsync();
         });
     }
 
@@ -351,7 +362,7 @@ internal sealed class ShellHost : IAsyncDisposable
     /// recovered from their data folders. Persistent (not a passing toast): it is the record of settings
     /// the user is expected to check, and the wizard that opens beside it covers the re-verification.
     /// </summary>
-    private static void ReportUnreadableConfigs(IReadOnlyList<string> recoveredWorkspaces)
+    private void ReportUnreadableConfigs(IReadOnlyList<string> recoveredWorkspaces)
     {
         var unreadable = ConfigManager.Instance.GetUnreadableConfigs();
         if (unreadable.Count == 0) return;
@@ -361,7 +372,7 @@ internal sealed class ShellHost : IAsyncDisposable
         if (recoveredWorkspaces.Count > 0)
             body += " " + Str.Format("Shell.Notifications.RecoveredFormat", recoveredWorkspaces.Count, string.Join(", ", recoveredWorkspaces));
 
-        MessageCenter.Instance.Post(new NotificationItem
+        Inbox.Post(new NotificationItem
         {
             Title     = Str.Get("Shell.Notifications.UnreadableTitle"),
             Body      = body,

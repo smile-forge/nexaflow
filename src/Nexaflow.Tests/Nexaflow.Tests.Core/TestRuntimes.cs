@@ -23,10 +23,11 @@ internal static class TestRuntimes
     /// connections, and none are made.</summary>
     public static WorkspaceRuntimeFactory FactoryWith(BackgroundActivityManager? tasks, Action<NotificationItem> notify)
     {
-        var ui = new WpfUiThread(Dispatcher.CurrentDispatcher);
+        var ui        = new WpfUiThread(Dispatcher.CurrentDispatcher);
+        var locations = new LocationProviderRegistry();
         return new WorkspaceRuntimeFactory(new RuntimeSessionServices(
-            ProviderManager.Instance, tasks, notify, VirtualFileSystem.Instance, LocationProviderRegistry.Instance,
-            DiscoveredLocations.Instance, Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
+            ProviderManager.Instance, tasks, notify, VirtualFileSystem.Instance, locations,
+            new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
             ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard()));
     }
 

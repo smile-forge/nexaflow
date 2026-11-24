@@ -340,8 +340,9 @@ feature DI builds one per `WorkspaceRuntime`, with the same injection its consum
 the AI, the runtime's file system, configs, tools or another feature service), and drops it with the instances that
 captured the runtime's services — when the runtime is reconfigured or closes, after its tabs have gone — disposing it
 when it is `IDisposable`. The Images tabs share `ImageEditingServices` this way, so a photo open in two of them has one
-recipe store writing its sidecar. A class that is not marked is not supplied: the DI builds only what a feature asks
-it to.
+recipe store writing its sidecar; and the file browser's tabs, object handler and ribbon pins share one
+`FileSystemFeatureRegistry`, `FileOperationQueue` and `FileCompanions`, so a copy started in one tab shows in every
+other. A class that is not marked is not supplied: the DI builds only what a feature asks it to.
 
 ---
 

@@ -67,6 +67,12 @@ public sealed class FeatureManager
     private readonly HashSet<Uri> _themeContributionUris = [];
     private readonly object _themeLock = new();
     private IUiThread? _ui;
+
+    /// <summary>The session's location backends, which every feature's are registered in; given at <see cref="RegisterFeatures"/>.</summary>
+    private LocationProviderRegistry? _locationProviders;
+
+    /// <summary>Resolves the sets of subfeatures a feature asks for, from the catalog.</summary>
+    private readonly SubfeatureCatalog _subfeatures = new(FeatureCatalog.Instance);
     private volatile bool _themeRefreshQueued;
     private int _themeGen;        // bumped when new contribution URIs are added
     private int _themeApplied;    // last generation merged into Application.Resources
@@ -77,10 +83,12 @@ public sealed class FeatureManager
     // ── Registration ──────────────────────────────────────────────────────
 
     /// <summary>Builds the (cached) discovery index. No feature assemblies are loaded on the cache-hit path. A feature's theme is
-    /// folded in on <paramref name="ui"/>, however its assembly came to load.</summary>
-    public void RegisterFeatures(IUiThread ui)
+    /// folded in on <paramref name="ui"/>, however its assembly came to load, and its location backends are registered in
+    /// <paramref name="locationProviders"/>.</summary>
+    public void RegisterFeatures(IUiThread ui, LocationProviderRegistry locationProviders)
     {
-        _ui = ui;
+        _ui                = ui;
+        _locationProviders = locationProviders;
         FeatureCatalog.Instance.Initialize(OnAssemblyActivated);
     }
 
@@ -183,10 +191,10 @@ public sealed class FeatureManager
             RegisterLocationProvider(type);
     }
 
-    private static void RegisterLocationProvider(Type type)
+    private void RegisterLocationProvider(Type type)
     {
-        if (LocationProviderRegistry.Instance.Providers.Any(p => p.GetType() == type)) return;
-        try { if (Activator.CreateInstance(type) is ILocationProvider provider) LocationProviderRegistry.Instance.Register(provider); }
+        if (_locationProviders is not { } registry || registry.Providers.Any(p => p.GetType() == type)) return;
+        try { if (Activator.CreateInstance(type) is ILocationProvider provider) registry.Register(provider); }
         catch { /* a backend that cannot be built reaches nothing; its connections are listed unreachable */ }
     }
 
@@ -369,13 +377,13 @@ public sealed class FeatureManager
             // every discovered plugin implementing T as a descriptor, with NO assembly loaded.
             else if (SubfeatureArg.IsHandleList(pt, out var handleContract))
             {
-                args[i] = SubfeatureCatalog.Instance.Handles(handleContract!, workspace);
+                args[i] = _subfeatures.Handles(handleContract!, workspace);
             }
             // IReadOnlyList<T> where T is a contract some [Subfeature] implements — the eager form. Loads
             // every owning assembly, so it only suits a small fixed plugin set.
             else if (SubfeatureArg.IsInstanceList(pt, out var instanceContract))
             {
-                args[i] = SubfeatureCatalog.Instance.Resolve(instanceContract!, workspace);
+                args[i] = _subfeatures.Resolve(instanceContract!, workspace);
             }
             else if (parms[i].IsOptional)
             {

@@ -30,7 +30,7 @@ public class FileTextExtractorResolutionTests
     private const string OfficeExtractor = "Nexaflow.Features.Office.Search.OfficeTextExtractor";
 
     [ClassInitialize]
-    public static void Init(TestContext _) => FeatureManager.Instance.RegisterFeatures(new WpfUiThread(System.Windows.Threading.Dispatcher.CurrentDispatcher));
+    public static void Init(TestContext _) => FeatureManager.Instance.RegisterFeatures(new WpfUiThread(System.Windows.Threading.Dispatcher.CurrentDispatcher), new Nexaflow.IO.Common.Locations.LocationProviderRegistry());
 
     private static ShellServices NewShell() => TestRuntimes.Unstarted().ShellServices;
 

@@ -32,9 +32,6 @@ public sealed class SubfeatureCatalog
 {
     private readonly FeatureCatalog _catalog;
 
-    /// <summary>The process-wide instance, over the app's discovery index.</summary>
-    public static SubfeatureCatalog Instance { get; } = new(FeatureCatalog.Instance);
-
     /// <summary>
     /// Builds a resolver over a specific <see cref="FeatureCatalog"/>. The catalog is injected rather than
     /// reached for so this is testable against a freshly-scanned index — the app's singleton is only
