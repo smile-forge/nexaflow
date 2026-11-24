@@ -44,6 +44,7 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
     private string _msi = "";
     private string _logs = "";
     private string _earlier = "";
+    private bool _storeHadModel;
 
     /// <summary>The service's worker loads the model on the first request, and the other app loads it again after the worker is
     /// replaced and once the service is gone.</summary>
@@ -95,6 +96,7 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
             foreach (var file in Directory.EnumerateFiles(pack, "*", SearchOption.AllDirectories))
                 Copy(file, Path.Combine(_earlier, Path.GetRelativePath(store, file)));
 
+        _storeHadModel = File.Exists(Path.Combine(Store, OwnedModelFolder.FilesOf(Model)[0]));
         Assert.AreEqual(0, Run("msiexec", ["/i", _msi, "/qn", "/l*v", Path.Combine(_logs, "install.log")]).Exit, "the service's MSI installed");
         Assert.IsTrue(Until(() => Run("sc", ["query", Service]).Output.Contains("RUNNING"), TimeSpan.FromMinutes(2)), "the service runs once installed");
 
@@ -128,7 +130,9 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
         Check("as its own account", () => config.Contains($@"NT SERVICE\{Service}"));
         Check("every user reads the store, and none writes it", () => (UsersRights() & ~FileSystemRights.Synchronize) == FileSystemRights.ReadAndExecute);
         string model = OwnedModelFolder.FilesOf(Model)[0];
-        Check("the earlier model was moved into the service's store", () => File.Exists(Path.Combine(Store, model)) && !File.Exists(Path.Combine(_earlier, model)));
+        // Moved where the store lacked it; where an earlier run of the sandbox left it there, the earlier copy is left alone.
+        Check("the earlier model is in the service's store, moved in where it lacked it", () =>
+            File.Exists(Path.Combine(Store, model)) && (_storeHadModel || !File.Exists(Path.Combine(_earlier, model))));
 
         // Nexaflow, on the service.
         Check("Nexaflow's request is typed and sent", () => InFront() && AskTheAiBar(Question));
@@ -155,14 +159,21 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
 
         // Stopped: nothing in its place, and said.
         Check("the service stops", () => Run("sc", ["stop", Service]).Exit == 0);
-        Check("the AI's line says Nexaflow's own models cannot run, and why", () =>
-            Until(() => WaitForId("AiBar_LocalAiNotice", 1)?.Name?.Contains("not running", StringComparison.OrdinalIgnoreCase) == true, TimeSpan.FromSeconds(30)));
+        Check("the AI's dot warns that what is typed for it will not reach it, and why", () =>
+            Until(() => DotWarning()?.Contains("not running", StringComparison.OrdinalIgnoreCase) == true, TimeSpan.FromSeconds(30)));
+        Check("and the AI's line says so, with the reply it showed put away", () =>
+        {
+            if (WaitForId("AiBar_ReplyDismiss", 2) is { } dismiss) dismiss.Click();
+            return Until(() => WaitForId("AiBar_LocalAiNotice", 1)?.Name?.Contains("not running", StringComparison.OrdinalIgnoreCase) == true, TimeSpan.FromSeconds(10));
+        });
         Check("the other app has no host — none of its own in the service's place — and says why", () =>
             Run(Sample, ["--host", BuiltHost, "--model", Model], "sample-service-stopped.log") is { Exit: not 0 } ran && ran.Errors.Contains("not running"));
 
         // Back: the line clears, and Nexaflow answers again.
         Check("the service starts again", () => Run("sc", ["start", Service]).Exit == 0);
-        Check("back, the AI's line clears", () => Until(() => WaitForId("AiBar_LocalAiNotice", 1) is null, TimeSpan.FromSeconds(60)));
+        Check("back, the AI's line clears, and its dot", () => Until(() => WaitForId("AiBar_LocalAiNotice", 1) is null
+                                                                      && DotWarning() is not { Length: > 0 },
+                                                                TimeSpan.FromSeconds(60)));
         Check("Nexaflow's request is typed and sent again", () => InFront() && AskTheAiBar(Question));
         Check("and the service answers again", () => Answered(Affordable(300)));
 
@@ -172,11 +183,18 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
         Check("every user has full control of the store again", () => (UsersRights() & FileSystemRights.FullControl) == FileSystemRights.FullControl);
         Check("an app's own host runs the model the store holds, fetching nothing", () =>
             Run(Sample, ["--host", BuiltHost, "--model", Model], "sample-own-host.log") is { Exit: 0 } ran && !ran.Errors.Contains("fetching"));
+
+        AssertJourney();
     }
 
-    /// <summary>A reply naming the colours, within <paramref name="seconds"/>.</summary>
+    /// <summary>A reply naming the three colours, within <paramref name="seconds"/>.</summary>
     private bool Answered(int seconds)
-        => Until(() => WaitForId("AiBar_Reply", 1)?.Name?.Contains("red", StringComparison.OrdinalIgnoreCase) == true, TimeSpan.FromSeconds(seconds));
+        => Until(() => WaitForId("AiBar_Reply", 1)?.Name is { } reply
+                       && new[] { "red", "green", "blue" }.All(colour => reply.Contains(colour, StringComparison.OrdinalIgnoreCase)),
+                 TimeSpan.FromSeconds(seconds));
+
+    /// <summary>What the AI's dot warns of — why what is typed for it will not reach it — or null.</summary>
+    private string? DotWarning() => WaitForId("AiBar_StatusDot", 1)?.Properties.ItemStatus.ValueOrDefault;
 
     /// <summary>What every user may do in the store, as its folder's rules say.</summary>
     private static FileSystemRights UsersRights()

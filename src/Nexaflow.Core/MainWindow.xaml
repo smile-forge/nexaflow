@@ -576,9 +576,10 @@
                             </Rectangle>
                             <Rectangle Grid.Column="1" Fill="{StaticResource BorderBrush}" Opacity="0.5"/>
                         </Grid>
-                        <ctrl:AiStatusDot DockPanel.Dock="Left"
+                        <ctrl:AiStatusDot DockPanel.Dock="Left" AutomationProperties.AutomationId="AiBar_StatusDot"
                                           IsBusy="{Binding AiIsBusy}"
                                           HandlerSymbol="{Binding AiHandlerSymbol}"
+                                          Warning="{Binding LocalAiNotice}"
                                           IsListening="{Binding AiIsListening}"
                                           Width="22" Height="22"/>
                         <!-- At the line's right end: the workspace's background tasks — work its assistant left running after replying — while it

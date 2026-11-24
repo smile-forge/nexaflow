@@ -318,6 +318,23 @@ public class AiHostClientTests
     }
 
     [TestMethod]
+    public async Task AHostLostWithARequestStillOpen_IsReplacedOnTheNextRequest_NotWaitedOn()
+    {
+        var host = new FakeHost { Serve = FakeHost.Silent };
+        await using var client = new AiHostClient(host, Fast);
+        // Kept open, as a hold is until its owner lets it go.
+        await using var held = await client.OpenStreamAsync(id => new DescribeHost(id), Generous);
+        await host.RequestArrived.WaitAsync(Generous);
+
+        host.Last!.Exit(1);
+        while (client.IsRunning) await Task.Delay(10);   // its loss seen
+        host.Serve = FakeHost.Describe;
+        await Describe(client).WaitAsync(Generous);
+
+        Assert.AreEqual(2, host.Starts, "the lost host was replaced, its open request no reason to wait");
+    }
+
+    [TestMethod]
     public async Task AStream_TakesInputWhileItRuns_AndReadsWhatTheHostMakesOfIt()
     {
         var host = new FakeHost

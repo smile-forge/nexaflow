@@ -135,7 +135,9 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
             if (_connection is { IsServing: true } started && Serves(started, environment)) return started;
             if (_connection is { } previous)
             {
-                await previous.WhenIdle.WaitAsync(ct).ConfigureAwait(false);
+                // One still serving finishes what it is doing first; one lost has nothing to finish — a request left open on it, as a hold
+                // is until its owner lets it go, would otherwise be waited on for ever.
+                if (previous.IsAlive) await previous.WhenIdle.WaitAsync(ct).ConfigureAwait(false);
                 await previous.DisposeAsync().ConfigureAwait(false);
             }
             _connection = null;
