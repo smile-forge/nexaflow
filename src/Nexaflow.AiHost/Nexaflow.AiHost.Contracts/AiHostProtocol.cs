@@ -38,6 +38,13 @@ public static class AiHostProtocol
     /// <summary>The host's policy file, where not the machine's own (<c>%ProgramData%\Smile-Forge\AiHost\host.json</c>) — a test's.</summary>
     public const string PolicyArgument = "--policy";
 
+    /// <summary>The Windows service the host runs as where it is installed for every app on the machine.</summary>
+    public const string ServiceName = "SmileForgeAiHost";
+
+    /// <summary>The pipe the service opens for its clients: one name, known to every app, which only the service's own process may
+    /// answer on.</summary>
+    public const string ServicePipeName = "SmileForge.AiHost";
+
     /// <summary>The share of memory models on the CPU hold unless the app says otherwise.</summary>
     public const int DefaultMemoryShare = 50;
 

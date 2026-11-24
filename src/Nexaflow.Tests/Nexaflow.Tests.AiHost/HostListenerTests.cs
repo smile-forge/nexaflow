@@ -88,7 +88,9 @@ public class HostListenerTests
         var version = await HelloAsync(older, "Older", version: AiHostProtocol.Version - 1);
 
         StringAssert.Contains(((HelloRefused)token!).Reason, "token");
+        Assert.IsNull(((HelloRefused)token).Protocol, "the protocol was not what it was turned away for");
         StringAssert.Contains(((HelloRefused)version!).Reason, "protocol");
+        Assert.AreEqual(AiHostProtocol.Version, ((HelloRefused)version).Protocol, "the protocol the host speaks, for a client to start a host of its own");
         Assert.IsNull(await stranger.ReceiveAsync(), "and its pipe is closed");
         Assert.AreEqual($"{Me}/Nexaflow", (await AskAsync(welcomed, 1)).RuntimeVersion, "the welcomed client is served all the while");
     }

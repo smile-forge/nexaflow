@@ -86,7 +86,9 @@ public sealed record Hello(string? Token, int ProtocolVersion, string App) : Hos
 public sealed record Welcome(int ProcessId) : HostMessage;
 
 /// <summary>The host's answer to a <see cref="Hello"/> it turns away — another protocol, another token — before it closes the pipe.</summary>
-public sealed record HelloRefused(string Reason) : HostMessage;
+/// <param name="Protocol">The protocol the host speaks, where the client speaks another — for a client that can start a host of its own
+/// build instead; null where it was turned away for something else.</param>
+public sealed record HelloRefused(string Reason, int? Protocol = null) : HostMessage;
 
 /// <summary>The app's heartbeat. The host answers on the thread that reads the pipe, never behind a running request,
 /// so a missing <see cref="Pong"/> means the process itself has stopped answering.</summary>

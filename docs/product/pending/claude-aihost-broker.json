@@ -298,6 +298,11 @@
           "status": "done",
           "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ClientShares.cs",
           "class": "ClientShares"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/AiHostService.cs",
+          "class": "AiHostService"
         }
       ],
       "concerns": {
@@ -358,6 +363,11 @@
             "status": "done",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/ClientConversationsTests.cs",
             "class": "ClientConversationsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/SharedHostTests.cs",
+            "class": "SharedHostTests"
           }
         ]
       }
@@ -455,11 +465,11 @@
           "type": "code",
           "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationLog.cs",
           "class": "ConversationLog",
-          "method": "TakeCutBackFor"
+          "method": "CutBack"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/ConversationLog.cs",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/LiveConversation.cs",
           "class": "LiveConversation",
           "method": "CutBack"
         },
@@ -479,10 +489,98 @@
           "class": "ForgetConversationHandler"
         }
       ]
+    },
+    "page-reading": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "tools/ai-models/unlimited-ocr/README.md",
+          "title_path": [
+            "Unlimited-OCR for llama.cpp, with a text finder"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ToolModels.cs",
+          "class": "IPageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ReadingMessages.cs",
+          "class": "FindTextInPicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Contracts/ModelMessages.cs",
+          "class": "ReplyDecoding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Generation/LiveConversation.cs",
+          "class": "LiveConversation",
+          "method": "KeepWritten"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Llama/LlamaSampler.cs",
+          "class": "LlamaSampler",
+          "method": "Banned"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Reading/FindTextHandler.cs",
+          "class": "FindTextHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/Reading/TextFinding.cs",
+          "class": "TextFinding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Providers/Nexaflow.Providers.AiHost/OwnedPageReading.cs",
+          "class": "OwnedPageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PageReading.cs",
+          "class": "PageReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Tools/PageReading.cs",
+          "class": "PageMarks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReader.cs",
+          "class": "PageReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageReader.cs",
+          "class": "DiagramDrawing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageMarkdown.cs",
+          "class": "PageMarkdown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/PageConversion.cs",
+          "class": "PageConversion"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Pages/DiagramPicture.cs",
+          "class": "DiagramPicture"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 13,
+  "changed_sets": 14,
   "touched_nodes": [
     "ai-host",
     "ai-model-assets",
@@ -491,6 +589,7 @@
     "experts-in-host",
     "local-ai-setup",
     "owned-images-moss-loras",
+    "page-reading",
     "providers-speech-to-text",
     "voice-input"
   ]

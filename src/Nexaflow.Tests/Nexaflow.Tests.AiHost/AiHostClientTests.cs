@@ -302,7 +302,7 @@ public class AiHostClientTests
         var pack = AiHostEnvironment.OnCuda;
 
         var running = Describe(client);                    // in flight on the CPU host
-        while (!client.IsRunning) await Task.Delay(10);
+        await host.RequestArrived.WaitAsync(Generous);     // in the host's hands, not only connected
         client.Environment = pack;
         var next = Describe(client);                       // waits for the CPU host to finish
 

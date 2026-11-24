@@ -323,10 +323,23 @@ stays loaded once idle, and the highest priority each account — or one app of 
 above it served at it. What the file leaves out is the host's default, and what an app that starts a host for itself
 passes on its command line comes before the file.
 
+**The service first, else a host of the app's own.** Where the machine runs the host as its service (`SmileForgeAiHost`, on
+the pipe `SmileForge.AiHost`), a client joins it: it asks Windows' service manager which process runs the service
+(`IAiHostService`, `AiHostService.Machine`), and speaks only where the process answering on the pipe is that one
+(`GetNamedPipeServerProcessId`) and welcomes it as that one — so something that took the pipe's name is never spoken to. A
+service that is not running, does not answer, is not what answers, or speaks another protocol (`HelloRefused.Protocol`
+names the one it speaks) leaves the app to start a host of its own; one that turns the app away for anything else is the
+answer, not gone round. The service serves every client as it was set up, whatever environment the app would start its own
+host with. A Nexaflow run on a model store of its own, or under a UI test, never joins it.
+
 The client watches the host three ways: a heartbeat answered on the host's reading loop, so a frozen process shows
 however busy its requests are; a stall limit per request, so a request that stops replying is taken for a hang; and
-a grace after a cancellation, so a request that will not stop is one. Any of them kills the host; the next request
-starts another, and a host that keeps crashing is not restarted until it has stayed down a while.
+a grace after a cancellation, so a request that will not stop is one. A host the app started is killed by any of them; the
+next request starts another, and a host that keeps crashing is not restarted until it has stayed down a while. The service
+is never the app's to kill: a request it leaves silent is cancelled and fails alone (`AiHostFailure.Stalled`), a cancel it
+does not finish is no longer waited for, and a missed heartbeat lets the connection go — its open requests lost — for the
+next request to join again; none of these counts as a crash. What the service keeps for an app is kept by the app's name
+and account, not its connection, so a conversation outlives a reconnect while the service runs (`AiHostClient.IsRunning`).
 
 A host that dies of a native fault — a CUDA error that ggml aborts on, an access violation in a runtime — takes its
 pipe with it a moment before its exit is seen, so a closed or broken pipe waits up to `AiHostTimings.ExitWait` for the

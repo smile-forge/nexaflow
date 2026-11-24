@@ -93,7 +93,7 @@ internal sealed class HostListener(string pipeName, string? token, IReadOnlyList
                 said = first;
                 if (Refusal(said) is { } why)
                 {
-                    await channel.SendAsync(new HelloRefused(why));
+                    await channel.SendAsync(new HelloRefused(why, said.ProtocolVersion == AiHostProtocol.Version ? null : AiHostProtocol.Version));
                     log.Write($"{account.Value}/{said.App} was turned away: {why}");
                     return;
                 }
