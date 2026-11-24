@@ -114,5 +114,7 @@ internal sealed class ServiceInThisProcess(string pipeName) : IAiHostService
 {
     public string PipeName => pipeName;
 
+    public bool IsInstalled() => true;
+
     public int? RunningProcessId() => Environment.ProcessId;
 }

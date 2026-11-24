@@ -5,9 +5,10 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.AiHost;
 
 /// <summary>
-/// The client and the machine's AI host service: joined where it runs, speaks this app's protocol and is answered by the service's
-/// own process, else a host of the app's own started; and, once joined, never killed — a stalled request fails alone, and a missed
-/// heartbeat lets the connection go for the next request to join again.
+/// The client and the machine's AI host service: where it is installed, joined and nothing else — one stopped, answered by another
+/// process, or of another protocol is no host, saying why, and none is started in its place; where it is not, a host of the app's
+/// own. Once joined, never killed — a stalled request fails alone, and a missed heartbeat lets the connection go for the next
+/// request to join again.
 /// </summary>
 [TestClass]
 [CoversNode("ai-host")]
@@ -62,41 +63,58 @@ public class SharedHostTests
     }
 
     [TestMethod]
-    public async Task WhereTheServiceDoesNotRun_TheAppStartsAHostOfItsOwn()
+    public async Task WhereNoServiceIsInstalled_TheAppStartsAHostOfItsOwn()
+    {
+        await using var service = new FakeService { Installed = false };
+        var host = new FakeHost();
+        await using var client = new AiHostClient(host, Fast, service: service);
+
+        await Describe(client);
+
+        Assert.AreEqual(1, host.Starts);
+        Assert.IsTrue(service.Greetings.IsEmpty, "nothing is said to a service that is not installed");
+    }
+
+    [TestMethod]
+    public async Task AnInstalledServiceNotRunning_IsNoHost_SayingSo_AndNoneIsStartedInItsPlace()
     {
         await using var service = new FakeService { Running = false };
         var host = new FakeHost();
         await using var client = new AiHostClient(host, Fast, service: service);
 
-        await Describe(client);
+        var ex = await Assert.ThrowsExactlyAsync<AiHostException>(() => Describe(client));
 
-        Assert.AreEqual(1, host.Starts);
-        Assert.IsTrue(service.Greetings.IsEmpty, "nothing is said to a service that is not running");
+        Assert.AreEqual(AiHostFailure.Unavailable, ex.Failure);
+        StringAssert.Contains(ex.Message, "not running");
+        Assert.AreEqual(0, host.Starts, "where the service is installed, it is the only host");
     }
 
     [TestMethod]
-    public async Task APipeAnsweredByAProcessNotTheService_IsNeverSpokenTo()
+    public async Task APipeAnsweredByAProcessNotTheService_IsNeverSpokenTo_AndIsNoHost()
     {
         await using var service = new FakeService { ReportsProcessId = System.Environment.ProcessId + 1 };
         var host = new FakeHost();
         await using var client = new AiHostClient(host, Fast, service: service);
 
-        await Describe(client);
+        var ex = await Assert.ThrowsExactlyAsync<AiHostException>(() => Describe(client));
 
+        Assert.AreEqual(AiHostFailure.Unavailable, ex.Failure);
         Assert.IsTrue(service.Greetings.IsEmpty, "no hello reaches what took the service's pipe");
-        Assert.AreEqual(1, host.Starts);
+        Assert.AreEqual(0, host.Starts);
     }
 
     [TestMethod]
-    public async Task AServiceOfAnotherProtocol_LeavesTheAppToAHostOfItsOwn()
+    public async Task AServiceOfAnotherProtocol_IsNoHost_SayingWhichEachSpeaks()
     {
         await using var service = new FakeService { SpeaksProtocol = AiHostProtocol.Version - 1 };
         var host = new FakeHost();
         await using var client = new AiHostClient(host, Fast, service: service);
 
-        await Describe(client);
+        var ex = await Assert.ThrowsExactlyAsync<AiHostException>(() => Describe(client));
 
-        Assert.AreEqual((0, 1), (service.Joins, host.Starts));
+        Assert.AreEqual(AiHostFailure.Unavailable, ex.Failure);
+        StringAssert.Contains(ex.Message, $"protocol {AiHostProtocol.Version - 1}");
+        Assert.AreEqual((0, 0), (service.Joins, host.Starts));
     }
 
     [TestMethod]

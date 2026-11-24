@@ -10,8 +10,9 @@ namespace Nexaflow.Tests.UIJourneys.Features.AiHost;
 /// The AI host service as a machine gets it, end to end and from the outside: the built MSI installed as an administrator installs
 /// it, the service starts with the machine under its own account and keeps the model store, every user reading. An app with no host
 /// of its own — the SDK's sample, given no host to start — joins it, has it fetch a model and answers with it; a worker killed
-/// under it is replaced, and the app joins the next; with the service stopped, an app starts a host of its own that runs what the
-/// store holds; and uninstalling gives the store back to every user. It installs a Windows service, so it runs only in Windows
+/// under it is replaced, and the app joins the next; with the service stopped, an app has no host — none of its own in the service's
+/// place — and says why; and uninstalling gives the store back to every user, whose app's own host then runs what the store holds,
+/// fetching nothing. It installs a Windows service, so it runs only in Windows
 /// Sandbox (<c>Nexaflow.Tests.Sandbox</c>); build the solution and <c>aihostSetup</c> first. The sample's model is fetched from the
 /// network the first time: a few GB.
 /// </summary>
@@ -34,8 +35,10 @@ public class AiHostServiceJourneyTests
         => Path.Combine(TestSampleData.RepoRoot, "src", "Nexaflow.AiHost", "Nexaflow.AiHost.Sample", "bin", "x64", Configuration, "net10.0-windows",
                         "Nexaflow.AiHost.Sample.exe");
 
-    private static string InstalledHost
-        => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Smile-forge", "AiHost", "Nexaflow.AiHost.exe");
+    /// <summary>The host the app starts for itself once no service is installed: the build's own.</summary>
+    private static string BuiltHost
+        => Path.Combine(TestSampleData.RepoRoot, "src", "Nexaflow.AiHost", "Nexaflow.AiHost", "bin", "x64", Configuration, "net10.0-windows", "win-x64",
+                        "Nexaflow.AiHost.exe");
 
     private static string Store
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Smile-Forge", "Models");
@@ -43,7 +46,7 @@ public class AiHostServiceJourneyTests
     private static readonly SecurityIdentifier Users = new(WellKnownSidType.BuiltinUsersSid, null);
 
     [TestMethod]
-    public async Task TheAiHostService_ServesAnApp_OutlivesItsWorker_LeavesAFallback_AndGivesTheStoreBack()
+    public async Task TheAiHostService_ServesAnApp_OutlivesItsWorker_IsTheOnlyHostWhileInstalled_AndGivesTheStoreBack()
     {
         if (!string.Equals(Environment.UserName, "WDAGUtilityAccount", StringComparison.OrdinalIgnoreCase))
             Assert.Inconclusive("It installs a Windows service, so it runs only in Windows Sandbox (Nexaflow.Tests.Sandbox).");
@@ -79,17 +82,20 @@ public class AiHostServiceJourneyTests
             var again = await RunAsync(Sample, [], Answering, Path.Combine(logs, "sample-after-the-worker.log"));
             Assert.AreEqual(0, again.Exit, again.Errors);
 
-            // The service stopped, an app starts a host of its own, which runs the model the service fetched.
+            // The service stopped, an app has no host: none of its own in the service's place, even given one to start.
             Assert.AreEqual(0, (await RunAsync("sc", ["stop", Service], TimeSpan.FromSeconds(60))).Exit);
             await UntilAsync(async () => (await RunAsync("sc", ["query", Service], TimeSpan.FromSeconds(30))).Output.Contains("STOPPED"));
-            var alone = await RunAsync(Sample, ["--host", InstalledHost], Answering, Path.Combine(logs, "sample-private.log"));
-            Assert.AreEqual(0, alone.Exit, alone.Errors);
-            StringAssert.DoesNotMatch(alone.Errors, new System.Text.RegularExpressions.Regex("fetching"), "it fetched nothing: the store held the model");
+            var stopped = await RunAsync(Sample, ["--host", BuiltHost], Answering, Path.Combine(logs, "sample-service-stopped.log"));
+            Assert.AreNotEqual(0, stopped.Exit, "with the service installed, it is the only host");
+            StringAssert.Contains(stopped.Errors, "not running", "and the app is told why");
 
-            // Uninstalled, the service is gone and the store is every user's again.
+            // Uninstalled, the service is gone and the store is every user's again: an app's own host runs the model the service fetched.
             Assert.AreEqual(0, (await RunAsync("msiexec", ["/x", msi, "/qn", "/l*v", Path.Combine(logs, "uninstall.log")], TimeSpan.FromMinutes(10))).Exit);
             Assert.AreNotEqual(0, (await RunAsync("sc", ["query", Service], TimeSpan.FromSeconds(30))).Exit, "the service is gone");
             Assert.AreEqual(FileSystemRights.FullControl, UsersRights() & FileSystemRights.FullControl, "every user has full control of the store again");
+            var own = await RunAsync(Sample, ["--host", BuiltHost], Answering, Path.Combine(logs, "sample-own-host.log"));
+            Assert.AreEqual(0, own.Exit, own.Errors);
+            StringAssert.DoesNotMatch(own.Errors, new System.Text.RegularExpressions.Regex("fetching"), "it fetched nothing: the store held the model");
         }
         finally
         {

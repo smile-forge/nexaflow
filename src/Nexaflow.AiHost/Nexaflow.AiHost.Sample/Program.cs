@@ -3,17 +3,17 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
 
-// An app that is not Nexaflow, running a language model of the AI host's catalog through the SDK alone. It joins the machine's AI
-// host service where one runs — sharing its models and its store with Nexaflow and every other app on the machine — and otherwise
-// starts a private host of its own. It asks the host for the model's files — the host fetches them into its store, which it alone
+// An app that is not Nexaflow, running a language model of the AI host's catalog through the SDK alone. Where the machine's AI host
+// service is installed it joins it and nothing else — sharing its models and its store with Nexaflow and every other app on the
+// machine — and otherwise starts a private host of its own. It asks the host for the model's files — the host fetches them into its store, which it alone
 // keeps — and, on the machine's first NVIDIA card where the CUDA pack suits it, for that too; then it holds the model's chat part —
 // the host placing it beside whatever else it holds, for whichever app — asks one question at background priority, as an app
 // thinking for itself would, writes the reply as it comes, and lets go.
 //
 //   Nexaflow.AiHost.Sample [--host <Nexaflow.AiHost.exe>] [--model <catalog id>] [--store <folder>] [--prompt <text>]
 //
-// --host is the host it starts where no service runs; --store keeps that host to a store of its own, and never joins the service,
-// whose store is the machine's.
+// --host is the host it starts where no service is installed; --store keeps that host to a store of its own, and never joins the
+// service, whose store is the machine's.
 
 var options = new Dictionary<string, string>(StringComparer.Ordinal);
 for (int i = 0; i + 1 < args.Length; i += 2) options[args[i]] = args[i + 1];
@@ -21,11 +21,11 @@ string modelId = options.GetValueOrDefault("--model") ?? "gemma-4-e4b-it";
 string? hostPath = options.GetValueOrDefault("--host");
 string? ownStore = options.GetValueOrDefault("--store");
 IAiHostService? service = ownStore is null ? AiHostService.Machine : null;
-if ((hostPath is null && service?.RunningProcessId() is null)
+if ((hostPath is null && service?.IsInstalled() != true)
     || HostCatalog.Models.FirstOrDefault(m => m.Id == modelId && m.Kind == HostedKind.Language) is not { } entry)
 {
     Console.Error.WriteLine("usage: Nexaflow.AiHost.Sample [--host <Nexaflow.AiHost.exe>] [--model <a language model of the catalog>] [--store <folder>] [--prompt <text>]");
-    Console.Error.WriteLine("       --host is needed where the machine runs no AI host service, or with --store.");
+    Console.Error.WriteLine("       --host is needed where the machine has no AI host service installed, or with --store.");
     return 2;
 }
 string prompt = options.GetValueOrDefault("--prompt") ?? "Name the three primary colours of light, in one line.";

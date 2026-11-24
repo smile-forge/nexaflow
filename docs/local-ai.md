@@ -326,14 +326,16 @@ passes on its command line comes before the file. The service's share is the adm
 the app would give a host of its own, saying the PC's AI host service sets it (`AiHostSettingRulings`, asked through
 `ConfigManager.RulingFor`, which any setting decided outside the app can use); the app's own share is kept, for a host it starts.
 
-**The service first, else a host of the app's own.** Where the machine runs the host as its service (`SmileForgeAiHost`, on
-the pipe `SmileForge.AiHost`), a client joins it: it asks Windows' service manager which process runs the service
-(`IAiHostService`, `AiHostService.Machine`), and speaks only where the process answering on the pipe is that one
-(`GetNamedPipeServerProcessId`) and welcomes it as that one — so something that took the pipe's name is never spoken to. A
-service that is not running, does not answer, is not what answers, or speaks another protocol (`HelloRefused.Protocol`
-names the one it speaks) leaves the app to start a host of its own; one that turns the app away for anything else is the
-answer, not gone round. The service serves every client as it was set up, whatever environment the app would start its own
-host with. A Nexaflow run on a model store of its own, or under a UI test, never joins it.
+**The service where it is installed, else a host of the app's own.** Where the machine has the host installed as its service
+(`SmileForgeAiHost`, on the pipe `SmileForge.AiHost`), a client joins it and uses nothing else: it asks Windows' service
+manager which process runs the service (`IAiHostService`, `AiHostService.Machine`), and speaks only where the process
+answering on the pipe is that one (`GetNamedPipeServerProcessId`) and welcomes it as that one — so something that took the
+pipe's name is never spoken to. A service that is not running, does not answer, is not what answers, speaks another protocol
+(`HelloRefused.Protocol` names the one it speaks) or turns the app away is no host: the request fails saying which
+(`AiHostFailure.Unavailable`), and no host of the app's own is started in its place. Where no service is installed, the app
+starts a host of its own, which keeps the store as fully as the service does — fetching, adopting and removing models. The
+service serves every client as it was set up, whatever environment the app would start its own host with. A Nexaflow run on a
+model store of its own, or under a UI test, never joins it.
 
 **The service.** Installed from an MSI of its own (`aihostSetup`; the bundle's `InstallAiHost` checkbox, ticked where the
 machine has NVIDIA's driver), the host runs as `SmileForgeAiHost` under a virtual account of its own,
@@ -350,8 +352,7 @@ running (`RuntimeWatch`, `WorkerExit.RuntimeChanged`). The service and its worke
 `%ProgramData%\Smile-Forge\AiHost\Logs` unless the policy file names a folder.
 
 **The store's permissions follow the service** (`StoreAccess`). While the service is installed the store is its: SYSTEM,
-Administrators and the service write, and every user reads — so a host an app starts while the service is stopped, or
-speaks another protocol, still runs the models there, though it fetches none. The installer, as SYSTEM, first moves the
+Administrators and the service write, and every user reads. The installer, as SYSTEM, first moves the
 installing user's models from an earlier Nexaflow (`%LOCALAPPDATA%\Smile\nexaflow\ai`) into the store — the service cannot
 read that user's folders — then gives the store and the host's folder to the service, owned by Administrators so no user
 who made a file there keeps the right to change its rules. Uninstalling the service gives the store back to every user in

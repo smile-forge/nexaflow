@@ -25,6 +25,9 @@ internal sealed class FakeService : IAiHostService, IAsyncDisposable
 
     public string PipeName { get; }
 
+    /// <summary>Whether the service is installed, as the service manager says.</summary>
+    public bool Installed { get; set; } = true;
+
     /// <summary>Whether the service manager says the service runs.</summary>
     public bool Running { get; set; } = true;
 
@@ -57,7 +60,9 @@ internal sealed class FakeService : IAiHostService, IAsyncDisposable
 
     public ConcurrentQueue<long> CancelsReceived { get; } = [];
 
-    public int? RunningProcessId() => Running ? ReportsProcessId ?? System.Environment.ProcessId : null;
+    public bool IsInstalled() => Installed;
+
+    public int? RunningProcessId() => Installed && Running ? ReportsProcessId ?? System.Environment.ProcessId : null;
 
     private async Task AcceptAsync()
     {

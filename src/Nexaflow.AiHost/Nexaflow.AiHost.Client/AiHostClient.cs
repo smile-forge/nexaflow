@@ -4,9 +4,9 @@ using Nexaflow.AiHost.Contracts;
 namespace Nexaflow.AiHost.Client;
 
 /// <summary>
-/// The app's one connection to the AI host. Nothing is started until the first request, which joins the machine's AI host
-/// service where one runs and speaks this app's protocol — the host every app on the machine shares — and otherwise starts a
-/// host of the app's own. That host then stays up for the models it holds, and is replaced by a fresh one on the next request
+/// The app's one connection to the AI host. Nothing is started until the first request. Where the machine's AI host service is
+/// installed — the host every app on the machine shares — the request joins it and nothing else: a service stopped, unreachable, or of
+/// another protocol is no host, saying why. Where it is not installed, the request starts a host of the app's own. That host then stays up for the models it holds, and is replaced by a fresh one on the next request
 /// after it dies, stops answering its heartbeat, or leaves a request silent past that request's stall limit. A host that keeps
 /// dying is not restarted until it has stayed down a while, so a broken install fails fast instead of looping. The service is
 /// never killed: a request it leaves silent fails alone, and a missed heartbeat lets its connection go, for the next request to
@@ -120,8 +120,8 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
         return await connection.AllocateAsync(length, ct).ConfigureAwait(false);
     }
 
-    /// <summary>The live connection; else the service, joined; else a host started first — and in place of one this app started
-    /// with another environment, once it has finished what it was doing.</summary>
+    /// <summary>The live connection; else the service, joined, where it is installed; else a host started first — and in place of one this
+    /// app started with another environment, once it has finished what it was doing.</summary>
     private async Task<HostConnection> ConnectAsync(CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -139,10 +139,11 @@ public sealed class AiHostClient : IAiHost, IAsyncDisposable
             }
             _connection = null;
 
-            // Off the caller's thread: joining, or launching a process and waiting on its handshake, is no work for a UI thread.
-            if (_service is { } service
-                && await Task.Run(() => HostConnection.JoinAsync(service, _app, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false) is { } joined)
+            // Off the caller's thread: joining, or launching a process and waiting on its handshake, is no work for a UI thread. Where the
+            // service is installed it is the only host: one that cannot be joined is no host, saying why, and none is started in its place.
+            if (_service is { } service && service.IsInstalled())
             {
+                var joined = await Task.Run(() => HostConnection.JoinAsync(service, _app, _timings, _time, OnEnded, ct), ct).ConfigureAwait(false);
                 _joinedLast = true;
                 if (joined.Memory is { } served) Volatile.Write(ref _serviceMemory, served);
                 return Keep(joined);

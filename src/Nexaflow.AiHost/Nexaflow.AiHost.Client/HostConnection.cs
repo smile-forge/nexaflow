@@ -10,8 +10,8 @@ namespace Nexaflow.AiHost.Client;
 
 /// <summary>
 /// One running host and its pipe: the handshake, the loop that routes replies to their requests, and the heartbeat. The host is
-/// one this app started for itself (<see cref="StartAsync"/>), killed when a watchdog finds it hung, or the machine's service that
-/// other apps share too (<see cref="JoinAsync"/>, <see cref="Shared"/>), which this app never kills: a request that stalls there is
+/// one this app started for itself (<see cref="StartAsync"/>), killed when a watchdog finds it hung, or the machine's service — where it
+/// is installed, the only host — that other apps share too (<see cref="JoinAsync"/>, <see cref="Shared"/>), which this app never kills: a request that stalls there is
 /// cancelled and fails alone, and a missed heartbeat lets the connection go, for the next request to join again.
 /// When anything ends it — the process exiting, the pipe breaking, a watchdog — every open request fails as
 /// <see cref="AiHostFailure.Lost"/> and <see cref="Ended"/> is raised once, unless the app ended it itself.
@@ -199,15 +199,18 @@ internal sealed class HostConnection : IAsyncDisposable
     private static readonly TimeSpan WelcomeTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Joins the machine's AI host service, where it runs: connects to its pipe, checks the process that answers is the service's own —
-    /// so nothing that took the pipe's name is ever spoken to — and says hello as <paramref name="app"/>. Null where the service is not
-    /// running, does not answer, is not what answers, or speaks another protocol: the caller starts a host of its own instead.
+    /// Joins the machine's AI host service, which is installed: connects to its pipe, checks the process that answers is the service's own
+    /// — so nothing that took the pipe's name is ever spoken to — and says hello as <paramref name="app"/>. An app on a machine with the
+    /// service uses it and nothing else, so a service that cannot be joined is no host at all, saying why.
     /// </summary>
-    /// <exception cref="AiHostException">The service turned this app away for something other than its protocol.</exception>
-    public static async Task<HostConnection?> JoinAsync(IAiHostService service, string app, AiHostTimings timings, TimeProvider time,
-                                                        EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
+    /// <exception cref="AiHostException">The service is not running, does not answer, is not what answers, speaks another protocol, or
+    /// turned this app away (<see cref="AiHostFailure.Unavailable"/>).</exception>
+    public static async Task<HostConnection> JoinAsync(IAiHostService service, string app, AiHostTimings timings, TimeProvider time,
+                                                       EventHandler<AiHostExitedEventArgs> onEnded, CancellationToken ct)
     {
-        if (service.RunningProcessId() is not { } processId) return null;
+        if (service.RunningProcessId() is not { } processId)
+            throw Unavailable("The AI host service is installed but not running. Start the Smile-forge AI host service, or uninstall it for "
+                              + "this app to run models itself.");
         // The host reads which account this app runs as from the pipe itself: the app lets it identify that account, and no more. It asks
         // to read and write, and no more: the service's pipe grants a client nothing else.
         var pipe = new NamedPipeClientStream(".", service.PipeName, PipeAccessRights.ReadWrite, PipeOptions.Asynchronous,
@@ -218,9 +221,13 @@ internal sealed class HostConnection : IAsyncDisposable
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(JoinTimeout);
             try { await pipe.ConnectAsync(timeout.Token).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }   // running, yet not answering
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw Unavailable($"The AI host service is running but did not answer on its pipe within {JoinTimeout.TotalSeconds:0} s.");
+            }
             timeout.CancelAfter(WelcomeTimeout);
-            if (AiHostService.ServerProcessIdOf(pipe) != processId) return null;
+            if (AiHostService.ServerProcessIdOf(pipe) != processId)
+                throw Unavailable("Something other than the AI host service answered on its pipe; nothing was said to it.");
 
             var sections = new ClientSections(message => channel!.SendAsync(message));
             channel = new HostChannel(pipe, sections);
@@ -234,23 +241,26 @@ internal sealed class HostConnection : IAsyncDisposable
                     connection._beating = Task.Run(connection.BeatAsync);
                     channel = null;
                     return connection;
-                case HelloRefused { Protocol: not null }:
-                    return null;   // a service of another build: this app's own host speaks its protocol
+                case HelloRefused { Protocol: { } protocol }:
+                    throw Unavailable($"The AI host service speaks protocol {protocol}, and this app {AiHostProtocol.Version}: they are updated together.");
                 case HelloRefused refused:
-                    throw new AiHostException(AiHostFailure.Unavailable, $"The AI host service turned this app away: {refused.Reason}.");
+                    throw Unavailable($"The AI host service turned this app away: {refused.Reason}.");
                 default:
-                    return null;
+                    throw Unavailable("Something other than the AI host service answered on its pipe.");
             }
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or System.ComponentModel.Win32Exception or OperationCanceledException && !ct.IsCancellationRequested)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or System.ComponentModel.Win32Exception
+                                      or OperationCanceledException && !ct.IsCancellationRequested)
         {
-            return null;
+            throw Unavailable($"The AI host service could not be joined: {ex.Message}");
         }
         finally
         {
             if (channel is not null) await channel.DisposeAsync().ConfigureAwait(false);
             else if (pipe is { IsConnected: false }) await pipe.DisposeAsync().ConfigureAwait(false);
         }
+
+        static AiHostException Unavailable(string why) => new(AiHostFailure.Unavailable, why);
     }
 
     /// <summary>Sends the request <paramref name="create"/> makes; null when the connection is retiring and the request

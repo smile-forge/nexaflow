@@ -451,8 +451,9 @@ folder is held only by a live host. `TempHygieneRulesTests` (Architecture) fails
       installs the built `aihostSetup` MSI, so it runs only in Windows Sandbox and is inconclusive anywhere else; build the
       solution and `aihostSetup` first. From the outside, as a machine gets it: the service runs with the machine under its
       own account and keeps the store, every user reading; the SDK's sample, given no host of its own, joins it, has it fetch
-      its model and answers; a worker killed under it is replaced and the sample joins the next; with the service stopped,
-      the sample's own host runs what the store holds; and uninstalling gives the store back to every user. The sample's model
+      its model and answers; a worker killed under it is replaced and the sample joins the next; with the service stopped, the
+      sample has no host — none of its own in the service's place — and says why; and uninstalling gives the store back to every
+      user, the sample's own host then running what the store holds. The sample's model
       is fetched in the sandbox the first time, a few GB. What each step ran writes to `TestResults\aihost-service\`.
 - **`ImageModelTests`** *(`Tests.AiHost`, `TestCategory("OwnedModel")`)* — the host drawing with Z-Image Turbo's real
   graphs, `z-image-turbo` from the test store, on the CUDA pack there — the model is built for the GPU only. They assert a

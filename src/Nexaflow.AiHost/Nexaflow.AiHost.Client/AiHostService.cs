@@ -7,14 +7,17 @@ using Nexaflow.AiHost.Contracts;
 namespace Nexaflow.AiHost.Client;
 
 /// <summary>
-/// The AI host a machine runs as a service, for every app on it: where its pipe is, and which process — as Windows' service manager
-/// says — runs it now. An app joins it where it runs, and talks only to that process on that pipe: something else that took the
-/// pipe's name is never spoken to.
+/// The AI host a machine runs as a service, for every app on it: whether it is installed, where its pipe is, and which process — as
+/// Windows' service manager says — runs it now. Where it is installed an app uses it and nothing else, and talks only to that process
+/// on that pipe: something else that took the pipe's name is never spoken to.
 /// </summary>
 public interface IAiHostService
 {
     /// <summary>The name of the pipe the service opens for its clients.</summary>
     string PipeName { get; }
+
+    /// <summary>Whether the service is installed on this machine, running or not.</summary>
+    bool IsInstalled();
 
     /// <summary>The process running the service now; null where it is not installed, or not running.</summary>
     int? RunningProcessId();
@@ -27,6 +30,20 @@ public sealed class AiHostService(string serviceName, string pipeName) : IAiHost
     public static AiHostService Machine { get; } = new(AiHostProtocol.ServiceName, AiHostProtocol.ServicePipeName);
 
     public string PipeName => pipeName;
+
+    public bool IsInstalled()
+    {
+        var manager = OpenSCManager(null, null, ConnectAccess);
+        if (manager == IntPtr.Zero) return false;
+        try
+        {
+            var service = OpenService(manager, serviceName, QueryStatusAccess);
+            if (service == IntPtr.Zero) return false;
+            CloseServiceHandle(service);
+            return true;
+        }
+        finally { CloseServiceHandle(manager); }
+    }
 
     public int? RunningProcessId()
     {
