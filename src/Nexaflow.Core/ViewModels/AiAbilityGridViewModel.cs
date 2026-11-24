@@ -192,6 +192,9 @@ public partial class AiAbilityRowViewModel : ObservableObject
 public partial class AiAbilityGridViewModel : ObservableObject
 {
     private readonly AiConfig _config;
+
+    /// <summary>The provider instances the grid lists models from and judges columns by; none, and it lists none.</summary>
+    private ProviderSet? _providers;
     private readonly LocalModelShelf? _shelf;
     private readonly LocalModelDownloads? _downloads;
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
@@ -240,18 +243,18 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     /// <param name="shelf">The models on this machine; without it, the Local column has nothing to use.</param>
     /// <param name="downloads">The app's downloads of them; without it, the grid offers none.</param>
-    public AiAbilityGridViewModel(AiConfig config, LocalModelShelf? shelf = null, LocalModelDownloads? downloads = null)
+    public AiAbilityGridViewModel(AiConfig config, ProviderSet? providers = null, LocalModelShelf? shelf = null, LocalModelDownloads? downloads = null)
     {
         _config    = config;
+        _providers = providers;
         _shelf     = shelf;
         _downloads = downloads;
         if (shelf is not null) shelf.Store.Changed += (_, _) => _ui.InvokeAsync(RefreshLocal);
 
         SuggestedModels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasModelSuggestions));
 
-        // Provider plugins are loaded and this context's provider set is (re)built by
-        // WorkspaceConfigViewModel before the grid is shown; we read it via _config.Providers.
-        if (config.Providers is { } set) LocalColumns.Gather(config, set.IsLocal);
+        // The provider set is the editor's own, acquired before the grid is shown: the saved config carries none.
+        if (providers is not null) LocalColumns.Gather(config, providers.IsLocal);
         RebuildAvailableOffers();
 
         foreach (var slot in Enum.GetValues<LocalSlot>())
@@ -304,13 +307,16 @@ public partial class AiAbilityGridViewModel : ObservableObject
         RefreshNotice();
     }
 
+    /// <summary>Lists and judges from <paramref name="providers"/> from now on: the editor acquired its set again.</summary>
+    public void UseProviders(ProviderSet providers) => _providers = providers;
+
     private AiAbilityCellViewModel Cell(AiAbilityRowViewModel row, AiColumnViewModel column)
         => new(row, column, column.IsLocal ? LocalCell : null, Serves);
 
     /// <summary>Whether <paramref name="column"/>'s model serves <paramref name="ability"/> beyond being of its kind — judged
     /// by its provider's capability, so a column added here is judged before it is bound to its model.</summary>
     private bool Serves(AiAbility ability, AiColumnViewModel column)
-        => AiAbilityNames.Serves(ability, _config.Providers?.Find(column.ProviderName, column.Kind), column.Model);
+        => AiAbilityNames.Serves(ability, _providers?.Find(column.ProviderName, column.Kind), column.Model);
 
     /// <summary>A row's Local cell: whether it can be used, its note — the job's model, or why there is none — and whether that
     /// model has yet to be downloaded.</summary>
@@ -429,7 +435,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
     private async Task LoadModelsAsync(ProviderOffer offer)
     {
-        if (_config.Providers?.Find(offer.ProviderName, offer.Kind) is not { } provider)
+        if (_providers?.Find(offer.ProviderName, offer.Kind) is not { } provider)
             return;
 
         IsLoadingModels = true;
@@ -455,7 +461,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
     private void RebuildAvailableOffers()
     {
         AvailableOffers.Clear();
-        if (_config.Providers is not { } set) return;
+        if (_providers is not { } set) return;
 
         var providerConfigs = set.Configs.ToDictionary(c => c.FriendlyName);
         foreach (var provider in set.Providers)
@@ -485,7 +491,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
     /// configures it (an Ollama server's address, an OpenAI-compatible base URL).</summary>
     private AiColumnViewModel NewColumn(string id, string providerName, string model, ModelKind kind, string assemblyFileName)
     {
-        var staysOnMachine = _config.Providers?.Find(providerName, kind) is { } provider
+        var staysOnMachine = _providers?.Find(providerName, kind) is { } provider
                              && provider.Residency == DataResidency.StaysOnMachine;
         return new AiColumnViewModel(id, providerName, model, kind, assemblyFileName, staysOnMachine);
     }
@@ -497,7 +503,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
 
         var colVm = NewColumn(
             Guid.NewGuid().ToString("N"), offer.ProviderName, NewModelName, offer.Kind,
-            _config.Providers?.GetAssemblyFileName(offer.ProviderName) ?? string.Empty);
+            _providers?.GetAssemblyFileName(offer.ProviderName) ?? string.Empty);
 
         Columns.Add(colVm);
 

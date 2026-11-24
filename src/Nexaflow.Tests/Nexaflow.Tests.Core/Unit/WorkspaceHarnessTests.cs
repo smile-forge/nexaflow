@@ -91,7 +91,7 @@ public class WorkspaceHarnessTests
         var voice   = new ProviderModelPair { ProviderName = "OpenAI", Model = "gpt-4o-mini-tts", Kind = ModelKind.TextToSpeech };
         var picture = new ProviderModelPair { ProviderName = "OpenAI", Model = "gpt-image-1", Kind = ModelKind.ImageGeneration };
 
-        WorkspaceAiDefaults.AssignKinds(config, [voice, picture]);
+        WorkspaceAiDefaults.AssignKinds(config, providers: null, [voice, picture]);
 
         CollectionAssert.AreEqual(new[] { voice.Id }, Chain(config, AiAbility.SpeechOut));
         CollectionAssert.AreEqual(new[] { picture.Id }, Chain(config, AiAbility.ImageGeneration));

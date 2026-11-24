@@ -72,10 +72,9 @@ public class ImageEditingRowTests
         {
             Columns     = [Images("draw", "draws"), Images("edit", "edits")],
             Assignments = { ["ImageEditing"] = AbilityChain.Of("draw", "edit"), ["ImageGeneration"] = AbilityChain.Of("draw", "edit") },
-            Providers   = Providers(),
         };
 
-        var grid    = new AiAbilityGridViewModel(config);
+        var grid    = new AiAbilityGridViewModel(config, Providers());
         var editing = grid.Rows.Single(r => r.Ability == AiAbility.ImageEditing);
 
         CollectionAssert.AreEqual(new[] { "edit" }, editing.Chain.ToArray());
@@ -88,9 +87,9 @@ public class ImageEditingRowTests
     [TestMethod]
     public void AModelChosenAtSetup_LeadsImageEditing_OnlyWhereItEdits()
     {
-        var config = new AiConfig { Providers = Providers() };
+        var config = new AiConfig();
 
-        WorkspaceAiDefaults.AssignKinds(config, [Images("draw", "draws"), Images("edit", "edits")]);
+        WorkspaceAiDefaults.AssignKinds(config, Providers(), [Images("draw", "draws"), Images("edit", "edits")]);
 
         CollectionAssert.AreEqual(new[] { "edit" }, config.Assignments["ImageEditing"].ColumnIds.ToArray());
         CollectionAssert.AreEqual(new[] { "edit", "draw" }, config.Assignments["ImageGeneration"].ColumnIds.ToArray());

@@ -433,7 +433,7 @@ internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObje
         }).ToList();
         if (chosen.Count == 0) return;
 
-        WorkspaceAiDefaults.AssignKinds(ctx.Workspace.AiConfig, chosen);
+        WorkspaceAiDefaults.AssignKinds(ctx.Workspace.AiConfig, set, chosen);
         WorkspaceManager.Instance.SaveWorkspaceAiConfig(ctx.Workspace);
         WorkspaceManager.Instance.SaveWorkspaces();
     }

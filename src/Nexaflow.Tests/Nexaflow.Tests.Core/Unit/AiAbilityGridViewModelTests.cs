@@ -93,14 +93,11 @@ public class AiAbilityGridViewModelTests
     [TestMethod]
     public void AColumnWhoseDataStaysOnThisMachine_IsMarked()
     {
-        var config = new AiConfig
-        {
-            Columns   = [Column("here", "Local"), Column("away", "Cloud")],
-            Providers = new ProviderSet(
-                [new Residing("Local", DataResidency.StaysOnMachine), new Residing("Cloud", DataResidency.LeavesMachine)],
-                new Dictionary<string, IAiProvider>(), [], new Dictionary<string, string>(), []),
-        };
-        var grid = new AiAbilityGridViewModel(config);
+        var config    = new AiConfig { Columns = [Column("here", "Local"), Column("away", "Cloud")] };
+        var providers = new ProviderSet(
+            [new Residing("Local", DataResidency.StaysOnMachine), new Residing("Cloud", DataResidency.LeavesMachine)],
+            new Dictionary<string, IAiProvider>(), [], new Dictionary<string, string>(), []);
+        var grid = new AiAbilityGridViewModel(config, providers);
 
         Assert.IsTrue(grid.Columns.Single(c => c.Id == "here").StaysOnMachine);
         Assert.IsFalse(grid.Columns.Single(c => c.Id == "away").StaysOnMachine);

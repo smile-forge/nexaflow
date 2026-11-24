@@ -12,13 +12,6 @@ public sealed class AiConfig : IProviderConfig
     public string ConfigName   => "ai-abilities";
     public string FriendlyName => Str.Get("Shell.Config.Ai");
 
-    /// <summary>
-    /// The editing workspace's provider set — supplies the ability grid with the provider instances
-    /// and configs to list/query. Runtime-only; assigned by <see cref="Services.WorkspaceManager"/>.
-    /// </summary>
-    [JsonIgnore]
-    public ProviderSet? Providers { get; set; }
-
     /// <summary>Ordered list of provider/model columns the user has configured.</summary>
     public List<ProviderModelPair> Columns { get; set; } = [];
 

@@ -191,7 +191,7 @@ public sealed partial class Workspace : ObservableObject
     /// from disk into the live instances. Called when the Configure panel closes after edits were
     /// applied to disk, so a subsequent <see cref="WorkspaceManager.RestartWorkspace"/> rebuilds the
     /// workspace from the saved values (the panel deliberately leaves the live instances untouched
-    /// while editing). The runtime-only <see cref="AiConfig.Providers"/> is preserved (JsonIgnore).
+    /// while editing).
     /// </summary>
     internal void ReloadSharedConfigs()
     {

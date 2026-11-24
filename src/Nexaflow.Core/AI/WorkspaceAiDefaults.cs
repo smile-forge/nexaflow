@@ -80,12 +80,12 @@ internal static readonly IReadOnlySet<AiAbility> FrequentRoles =
     /// The provider's other models a setup chose — speech in and out, pictures, video — each a column of its own, first in
     /// every row that takes its kind.
     /// </summary>
-    public static void AssignKinds(AiConfig config, IEnumerable<ProviderModelPair> chosen)
+    public static void AssignKinds(AiConfig config, ProviderSet? providers, IEnumerable<ProviderModelPair> chosen)
     {
         foreach (var column in chosen)
         {
             config.Columns.Add(column);
-            var provider = config.Providers?.Find(column.ProviderName, column.Kind);
+            var provider = providers?.Find(column.ProviderName, column.Kind);
             foreach (var ability in Enum.GetValues<AiAbility>().Where(a => AiAbilityNames.Kind(a) == column.Kind && AiAbilityNames.Serves(a, provider, column.Model)))
             {
                 var key = ability.ToString();
