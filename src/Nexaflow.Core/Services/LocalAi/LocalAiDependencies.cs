@@ -7,7 +7,7 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Core.Services.LocalAi;
 
 // What Nexaflow's own models need to run on a GPU, declared like any feature's component so Options → About lists each
-// with the rest. The judging is LocalAiRequirements'; these name each requirement and hand it the app's machine.
+// with the rest. The judging is LocalAiRequirements'; these name each requirement and hand it the AI host's answer.
 
 /// <summary>An NVIDIA GPU with memory of its own: where Nexaflow's own models run, where there is one.</summary>
 internal sealed class NvidiaGpuDependency : IExternalDependency
@@ -18,7 +18,7 @@ internal sealed class NvidiaGpuDependency : IExternalDependency
     public ExternalDependencyKind Kind => ExternalDependencyKind.Optional;
     public string? InstallUrl => null;
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.Gpu(LocalAiRequirements.Cards, LocalAiRequirements.Adapters);
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(LocalAiRequirements.AskedOfHost, host => LocalAiRequirements.Gpu(host.Machine, LocalAiRequirements.Adapters));
 }
 
 /// <summary>NVIDIA's driver, new enough for the CUDA the pack's libraries are built for.</summary>
@@ -30,7 +30,7 @@ internal sealed class CudaDriverDependency : IExternalDependency
     public ExternalDependencyKind Kind => ExternalDependencyKind.Optional;
     public string? InstallUrl => "https://www.nvidia.com/Download/index.aspx";
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.CudaDriver(LocalAiRequirements.Cards);
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(LocalAiRequirements.AskedOfHost, host => LocalAiRequirements.CudaDriver(host.Machine));
 }
 
 /// <summary>The CUDA pack the models' runtime loads its GPU libraries from, downloaded into the model store.</summary>
@@ -44,7 +44,7 @@ internal sealed class CudaRuntimePackDependency : IExternalDependency
     /// <summary>No link: it is downloaded by the app, with the models.</summary>
     public string? InstallUrl => null;
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.CudaPack(LocalAiRequirements.Cards, LocalAiRequirements.Store);
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(LocalAiRequirements.AskedOfHost, host => LocalAiRequirements.CudaPack(host.Machine, host.RuntimePack, host.PackFilesHere));
 }
 
 /// <summary>The process every model Nexaflow runs itself is loaded in, installed with the app.</summary>

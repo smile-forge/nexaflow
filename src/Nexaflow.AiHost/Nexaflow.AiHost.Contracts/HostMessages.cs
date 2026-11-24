@@ -170,9 +170,20 @@ public sealed record DescribeHost(long RequestId) : HostRequest(RequestId);
 /// <param name="Gpus">The GPUs models can run on — none without the pack.</param>
 /// <param name="Held">Where every held part runs, whoever holds it (<see cref="HoldModels"/>).</param>
 /// <param name="Unplaced">The held parts placed nowhere, and why.</param>
+/// <param name="Machine">The machine as the host read it when it decided its runtime — what an app says of where models run.</param>
 public sealed record HostDescription(long RequestId, string RuntimeVersion, IReadOnlyList<string> ExecutionProviders,
                                      string? RuntimePack, IReadOnlyList<HostGpu> Gpus, HostMemory? Memory = null,
-                                     IReadOnlyList<PartPlacement>? Held = null, IReadOnlyList<PartUnplaced>? Unplaced = null) : HostReply(RequestId);
+                                     IReadOnlyList<PartPlacement>? Held = null, IReadOnlyList<PartUnplaced>? Unplaced = null,
+                                     HostMachine? Machine = null) : HostReply(RequestId);
+
+/// <summary>The machine as the host read it through NVIDIA's driver, before it chose its runtime.</summary>
+/// <param name="Cards">Its NVIDIA cards, in the order the host numbers them; none where it found no driver.</param>
+/// <param name="CudaDriver">The newest CUDA version their driver runs (<c>13.0</c>), or null where none answered.</param>
+/// <param name="PackFilesHere">How many of the CUDA pack's files the host's store holds, each verified.</param>
+public sealed record HostMachine(IReadOnlyList<HostCard> Cards, string? CudaDriver, int PackFilesHere);
+
+/// <summary>An NVIDIA card the host found: what its driver calls it, all its memory, and its PCI address.</summary>
+public sealed record HostCard(string Name, long TotalBytes, string? BusId);
 
 /// <summary>A GPU the host runs models on.</summary>
 /// <param name="Device">Its number — CUDA's own order, which llama.cpp and ONNX Runtime both count in.</param>

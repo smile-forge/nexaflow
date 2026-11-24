@@ -5,7 +5,7 @@ models that asks before high-risk context leaves this machine; providers serve s
 models, and the mic listens through the grid's Speech In chain (Nexaflow's own Whisper on this machine, OpenAI's
 realtime transcription in the cloud); local models' files live in one verified, resumable store; System Info reports what the
 machine can run, and Options → About → System components what running on its GPU needs — an NVIDIA GPU of its own, a
-CUDA 13 driver, the CUDA pack and the AI host — with why each is not in place. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
+CUDA 13 driver, the CUDA pack and the AI host — as the AI host itself found them when it set its runtime up, the service where it is installed, with why each is not in place. Nexaflow runs Gemma 4 E4B itself, in its AI host — on llama.cpp, from Google's own 4-bit build, on
 CUDA from a pack fetched from where NVIDIA, Microsoft and llama.cpp publish it, or on the CPU — as the provider
 "Nexaflow", chosen when a workspace is set up; tools can hand a model recordings to hear; and an AI-path suite runs the
 agent loop on it. Every model calls tools in its own protocol, prompted by its own chat template.

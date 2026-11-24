@@ -36,7 +36,7 @@ internal sealed class HostBroker : IDisposable
         var scheduler = new GpuScheduler();
         Handlers =
         [
-            new DescribeHostHandler(_runtime, Held),
+            new DescribeHostHandler(_runtime, Held, store),
             new DescribeModelStoreHandler(store),
             new FetchModelFilesHandler(store),
             new RemoveModelFilesHandler(store),

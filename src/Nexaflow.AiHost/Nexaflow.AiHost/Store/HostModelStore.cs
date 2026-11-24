@@ -99,6 +99,11 @@ internal sealed class HostModelStore : IModelStore
     /// it is not here.</summary>
     public string? RuntimePack() => CudaRuntimePack.Applies(_machine) ? CudaRuntimePack.FolderIn(_store) : null;
 
+    /// <summary>The machine as this host read it, and how much of the CUDA pack its store holds: what an app says of the host's runtime.</summary>
+    public HostMachine DescribeMachine()
+        => new([.. _machine.Cards.Select(c => new HostCard(c.Name, c.TotalBytes, c.BusId))], _machine.CudaDriver?.ToString(2),
+               CudaRuntimePack.Files.Count(_store.Has));
+
     /// <summary>Deletes the earlier packs. One still held open — by an earlier host running from it — stays, and the next try takes it.</summary>
     private void RetireEarlierPacks()
     {

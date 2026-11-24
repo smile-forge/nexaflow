@@ -2,7 +2,7 @@ using System.IO;
 using System.Windows.Media;
 using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
-using Nexaflow.AiHost.Provisioning;
+using Nexaflow.AiHost.Contracts;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.LocalAi;
@@ -17,7 +17,8 @@ using NSubstitute;
 namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>
-/// What Options → About → System components says about running Nexaflow's own models on the GPU, on made-up machines:
+/// What Options → About → System components says about running Nexaflow's own models on the GPU, from the AI host's reading of
+/// made-up machines:
 /// one with no NVIDIA GPU, one whose driver is too old for the pack, one still waiting for the pack, and one with
 /// everything — each row saying what it found, whether it will do, and why not.
 /// </summary>
@@ -42,18 +43,11 @@ public class LocalAiRequirementsTests
 
     private static ExternalDependencyStatus CudaDriver(TestMachine machine) => LocalAiRequirements.CudaDriver(machine.Cards);
 
-    private static ExternalDependencyStatus CudaPack(TestMachine machine, IModelAssetStore? store) => LocalAiRequirements.CudaPack(machine.Cards, store);
+    /// <summary>The pack row, where the host's store holds <paramref name="here"/> of its files and it runs on <paramref name="runsOn"/>.</summary>
+    private static ExternalDependencyStatus CudaPack(TestMachine machine, int here, string? runsOn = null)
+        => LocalAiRequirements.CudaPack(machine.Cards, runsOn, here);
 
     private static bool Applies(TestMachine machine) => CudaRuntimePack.Applies(machine.Cards);
-
-    /// <summary>A store holding the first <paramref name="here"/> of the pack's files, verified.</summary>
-    private static IModelAssetStore StoreHolding(int here)
-    {
-        var store = Substitute.For<IModelAssetStore>();
-        var held = CudaRuntimePack.Files.Take(here).ToHashSet();
-        store.Has(Arg.Any<ModelAsset>()).Returns(call => held.Contains(call.Arg<ModelAsset>()));
-        return store;
-    }
 
     private static int PackFiles => CudaRuntimePack.Files.Count;
 
@@ -76,7 +70,7 @@ public class LocalAiRequirementsTests
         Assert.AreEqual(ExternalDependencyState.Missing, driver.State);
         Assert.AreEqual(Str.Get("Shell.Components.CudaDriver.NotNeeded"), driver.Detail);
 
-        var pack = CudaPack(machine, StoreHolding(0));
+        var pack = CudaPack(machine, 0);
         Assert.AreEqual(ExternalDependencyState.Missing, pack.State);
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.NotNeededFormat", Needed), pack.Detail,
             "the pack is not wanted here, so it must not read as something to fetch");
@@ -120,7 +114,7 @@ public class LocalAiRequirementsTests
         Assert.AreEqual("12.8", driver.DetectedVersion);
         Assert.AreEqual(Str.Format("Shell.Components.CudaDriver.TooOldFormat", "12.8", Needed), driver.Detail);
 
-        var pack = CudaPack(machine, StoreHolding(0));
+        var pack = CudaPack(machine, 0);
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.NotNeededFormat", Needed), pack.Detail,
             "with the driver too old the models run on the CPU, as the runtime decides");
     }
@@ -141,21 +135,48 @@ public class LocalAiRequirementsTests
     {
         var machine = Machine(CudaRuntimePack.MinimumDriver, Rtx3080);
 
-        var none = CudaPack(machine, StoreHolding(0));
+        var none = CudaPack(machine, 0);
         Assert.AreEqual(ExternalDependencyState.Missing, none.State);
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.PartFormat", 0, PackFiles), none.Detail);
 
-        var part = CudaPack(machine, StoreHolding(1));
+        var part = CudaPack(machine, 1);
         Assert.AreEqual(ExternalDependencyState.Missing, part.State, "a pack is usable only whole");
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.PartFormat", 1, PackFiles), part.Detail);
     }
 
     [TestMethod]
-    public void ThePack_WithNoStoreSetUp_CannotBeJudged()
+    public void ThePackWhole_ButNotYetRunOn_IsTakenUpAtTheHostsNextStart()
     {
-        var pack = CudaPack(Machine(CudaRuntimePack.MinimumDriver, Rtx3080), null);
+        var pack = CudaPack(Machine(CudaRuntimePack.MinimumDriver, Rtx3080), PackFiles);
 
-        Assert.AreEqual(ExternalDependencyState.Unknown, pack.State, "unknown is not missing: nothing was learned about the machine");
+        Assert.AreEqual(ExternalDependencyState.Present, pack.State, "downloaded whole, it is here");
+        Assert.AreEqual(Str.Format("Shell.Components.CudaPack.NextStartFormat", CudaRuntimePack.Id), pack.Detail,
+            "the host loads its runtime once, as it starts: one fetched since runs from its next start");
+    }
+
+    [TestMethod]
+    public void ARow_WithNoHostToAsk_IsUnknown_SayingWhy()
+    {
+        const string why = "The AI host service is not running.";
+
+        var row = LocalAiRequirements.Judged(HostRuntimeAnswer.Unanswered(why), host => LocalAiRequirements.CudaDriver(host.Machine));
+
+        Assert.AreEqual(ExternalDependencyState.Unknown, row.State, "unknown is not missing: nothing was learned of where the models run");
+        Assert.AreEqual(why, row.Detail);
+    }
+
+    [TestMethod]
+    public void TheHostsReading_IsTheMachineItDescribed_AndThePackItRunsOn()
+    {
+        var described = new HostDescription(1, "1.31.1", ["CUDAExecutionProvider"], CudaRuntimePack.Id, [],
+                                            Machine: new HostMachine([new HostCard(Rtx3080.Name, Rtx3080.DedicatedMemoryBytes, "00000000:01:00.0")], "13.1", PackFiles));
+
+        var reading = HostRuntimeReading.Of(described)!;
+
+        Assert.AreEqual(Rtx3080.Name, reading.Machine.Cards.Single().Name);
+        Assert.AreEqual(new Version(13, 1), reading.Machine.CudaDriver);
+        Assert.AreEqual((CudaRuntimePack.Id, PackFiles), (reading.RuntimePack, reading.PackFilesHere));
+        Assert.IsNull(HostRuntimeReading.Of(described with { Machine = null }), "a host that described no machine gives no reading to judge");
     }
 
     // ── Everything in place ─────────────────────────────────────────────────
@@ -171,7 +192,7 @@ public class LocalAiRequirementsTests
         Assert.AreEqual(ExternalDependencyState.Present, driver.State);
         Assert.AreEqual("13.1", driver.DetectedVersion);
 
-        var pack = CudaPack(machine, StoreHolding(PackFiles));
+        var pack = CudaPack(machine, PackFiles, runsOn: CudaRuntimePack.Id);
         Assert.AreEqual(ExternalDependencyState.Present, pack.State);
         Assert.AreEqual(CudaRuntimePack.Id, pack.DetectedVersion);
         Assert.AreEqual(CudaRuntimePack.Id, pack.Detail, "the pack the host runs on: where it keeps it is the host's own");
@@ -180,7 +201,7 @@ public class LocalAiRequirementsTests
     [TestMethod]
     public void ThePackHere_OnAMachineItDoesNotSuit_IsSaidToGoUnused()
     {
-        var pack = CudaPack(Machine(new Version(12, 8), Rtx3080), StoreHolding(PackFiles));
+        var pack = CudaPack(Machine(new Version(12, 8), Rtx3080), PackFiles);
 
         Assert.AreEqual(ExternalDependencyState.Present, pack.State);
         Assert.AreEqual(Str.Format("Shell.Components.CudaPack.UnusedFormat", CudaRuntimePack.Id, Needed), pack.Detail);

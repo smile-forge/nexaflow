@@ -13,28 +13,26 @@ namespace Nexaflow.Core.Services.LocalAi;
 
 /// <summary>
 /// What Nexaflow's own models need before one runs on a GPU, each judged as Options → About lists it: what was found,
-/// whether it will do, and why not. The rule each judgement applies is the one the models' runtime decides by —
-/// <see cref="CudaRuntimePack.Applies"/> for CUDA, <see cref="CudaRuntimePack.Locate"/> for the pack — so the page says
-/// what the app does rather than a guess beside it.
+/// whether it will do, and why not. Each is judged from what the AI host itself found when it set its runtime up — the machine
+/// it read, the pack it runs on (<see cref="AiHostReading"/>) — by the rule it decided with (<see cref="CudaRuntimePack.Applies"/>),
+/// so the page says where the models run rather than a guess beside it.
 /// <para>
-/// The judgements take the machine as arguments, so they are tested on made-up machines; the declarations in
-/// <c>LocalAiDependencies.cs</c> hand them the machine the app itself decided by.
+/// The judgements take the host's reading as arguments, so they are tested on made-up machines; the declarations in
+/// <c>LocalAiDependencies.cs</c> hand them the host's answer.
 /// </para>
 /// </summary>
 internal static class LocalAiRequirements
 {
-    /// <summary>
-    /// The machine the models' runtime decided by — the one reading the app made at startup, so a driver updated since shows
-    /// once the app is restarted, which is when the models take it up — or a reading now where the app has not set its own
-    /// models up.
-    /// </summary>
-    public static MachineCards Cards => ProviderManager.Instance.Service<MachineCards>() ?? MachineCards.Probe();
+    /// <summary>What the AI host decided its runtime by, asked of the host — see <see cref="AiHostReading"/>.</summary>
+    public static HostRuntimeAnswer AskedOfHost => AiHostReading.Now();
+
+    /// <summary><paramref name="judge"/>'s judgement of the host's reading, or unknown — with why — where no host could be asked: a
+    /// guess beside the host's own word could only disagree with where the models run.</summary>
+    public static ExternalDependencyStatus Judged(HostRuntimeAnswer answer, Func<HostRuntimeReading, ExternalDependencyStatus> judge)
+        => answer.Reading is { } reading ? judge(reading) : ExternalDependencyStatus.Unknown(answer.Why);
 
     /// <summary>Every adapter Windows lists for AI work: what was found, said where no NVIDIA card will do.</summary>
     public static ComputeHardwareReport Adapters => ComputeHardware.Probe();
-
-    /// <summary>The store the models and the CUDA pack are downloaded into; null where the app has not set it up.</summary>
-    public static IModelAssetStore? Store => ProviderManager.Instance.Assets;
 
     /// <summary>Each NVIDIA card the driver manages, named with its memory, beside every adapter Windows lists; where there is
     /// none, what was found instead.</summary>
@@ -70,23 +68,23 @@ internal static class LocalAiRequirements
     }
 
     /// <summary>
-    /// The CUDA pack: here and verified, or how much of it is — and whether this machine runs on it at all, since the
-    /// models wait for it where it does, and never use it where it does not.
+    /// The CUDA pack: the one the host runs on; else how much of it the host's store holds — whole and waiting for the host's next start,
+    /// or partly — where this machine runs on it at all, since the models wait for it where it does, and never use it where it does not.
     /// </summary>
-    public static ExternalDependencyStatus CudaPack(MachineCards cards, IModelAssetStore? store)
+    /// <param name="runtimePack">The pack the host runs on, or null where it runs on the CPU.</param>
+    /// <param name="packFilesHere">How many of the pack's files the host's store holds, each verified.</param>
+    public static ExternalDependencyStatus CudaPack(MachineCards cards, string? runtimePack, int packFilesHere)
     {
-        if (store is null) return ExternalDependencyStatus.Unknown(Str.Get("Shell.Components.CudaPack.NotSetUp"));
+        if (runtimePack is not null) return new(ExternalDependencyState.Present, runtimePack, runtimePack);
 
         var needed = CudaRuntimePack.MinimumDriver.ToString(2);
-        bool applies = CudaRuntimePack.Applies(cards);
-        if (CudaRuntimePack.IsIn(store))
-            return new(ExternalDependencyState.Present, CudaRuntimePack.Id,
-                       applies ? CudaRuntimePack.Id : Str.Format("Shell.Components.CudaPack.UnusedFormat", CudaRuntimePack.Id, needed));
+        bool whole = packFilesHere >= CudaRuntimePack.Files.Count;
+        if (!CudaRuntimePack.Applies(cards))
+            return whole ? new(ExternalDependencyState.Present, CudaRuntimePack.Id, Str.Format("Shell.Components.CudaPack.UnusedFormat", CudaRuntimePack.Id, needed))
+                         : new(ExternalDependencyState.Missing, null, Str.Format("Shell.Components.CudaPack.NotNeededFormat", needed));
 
-        if (!applies) return new(ExternalDependencyState.Missing, null, Str.Format("Shell.Components.CudaPack.NotNeededFormat", needed));
-
-        int here = CudaRuntimePack.Files.Count(store.Has);
-        return new(ExternalDependencyState.Missing, null, Str.Format("Shell.Components.CudaPack.PartFormat", here, CudaRuntimePack.Files.Count));
+        return whole ? new(ExternalDependencyState.Present, CudaRuntimePack.Id, Str.Format("Shell.Components.CudaPack.NextStartFormat", CudaRuntimePack.Id))
+                     : new(ExternalDependencyState.Missing, null, Str.Format("Shell.Components.CudaPack.PartFormat", packFilesHere, CudaRuntimePack.Files.Count));
     }
 
     /// <summary>The AI host's executable, where the app starts it from.</summary>

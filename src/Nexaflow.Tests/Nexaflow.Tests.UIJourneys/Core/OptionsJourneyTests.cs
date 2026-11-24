@@ -142,19 +142,6 @@ public class OptionsJourneyTests : OptionsOverlayJourney
         }
     }
 
-    /// <summary>Expands a collapsible section, tolerating one that is already open.</summary>
-    private void Expand(string automationId)
-    {
-        var toggle = WaitForId(automationId, 5);
-        if (toggle is null) return;
-        if (toggle.Patterns.Toggle.PatternOrDefault?.ToggleState.Value == FlaUI.Core.Definitions.ToggleState.On)
-            return;
-
-        toggle.Click();
-        Wait.UntilInputIsProcessed();
-        System.Threading.Thread.Sleep(200);
-    }
-
     /// <summary>
     /// Every piece of text rendered inside the components list. The rows are a DataTemplate of TextBlocks,
     /// which publish their text as the automation Name — so this is how the journey reads what the user

@@ -14,9 +14,11 @@ namespace Nexaflow.Tests.Features.UI;
 /// The AI host service as a machine gets it, end to end and from the outside. The built MSI, installed as an administrator, moves this
 /// user's models from an earlier Nexaflow into the service's store and installs the service, which starts with the machine under its
 /// own account and keeps the store, every user reading. Nexaflow, started with no host of its own, answers from the service on the
-/// model moved in, and Settings show the share of memory the service's models may hold as the service's, not the user's to change
-/// there. Another app — the SDK's sample, given no host of its own — answers from the same service. With no app using it, the service
-/// runs no worker; a worker killed under the apps is replaced by one started for the next app to come. With the service stopped, the AI's line says Nexaflow's own models cannot run, and why, rather
+/// model moved in; Settings show the share of memory the service's models may hold as the service's, not the user's to change there,
+/// and About that its models run on the CUDA pack the service took up, as the service itself found it. Another app — the SDK's sample,
+/// given no host of its own — answers from the same service. With no app using it, the service runs no worker; a worker killed under
+/// the apps is replaced by one started for the next app to come. With the service stopped, the AI's line says Nexaflow's own models
+/// cannot run, and why, rather
 /// than each request failing, and the other app has no host — none of its own in the service's place; once the service is back, the
 /// line clears and Nexaflow answers again. Uninstalling gives the store back to every user, and an app's own host then runs what the
 /// store holds, fetching nothing.
@@ -146,7 +148,12 @@ public class AiHostServiceJourneyTests : OptionsOverlayJourney
         SelectSection(sections, "Local models", "cfg_MemoryForModelsPercent");
         Check("the share of memory the service's models may hold is the service's, not the user's to change here",
               () => WaitForId("cfg_MemoryForModelsPercent", 10) is { IsEnabled: false });
-        CancelOptions();
+      SelectSection(sections, "About", "About_ComponentsToggle");
+      Expand("About_ComponentsToggle");
+      Check("About says the service's models run on the CUDA pack it took up, as the service itself found it", () =>
+          Until(() => ComponentStatus("CUDA runtime pack") is { } said && said.StartsWith("Installed", StringComparison.Ordinal) && said.Contains("cuda-"),
+                TimeSpan.FromSeconds(60)));
+      CancelOptions();
 
         // Another app, on the same service.
         Check("another app, given no host of its own, answers from the same service, fetching nothing", () =>
