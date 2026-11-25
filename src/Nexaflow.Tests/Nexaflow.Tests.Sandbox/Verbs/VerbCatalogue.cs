@@ -8,7 +8,8 @@ internal static class VerbCatalogue
     public static readonly Verb Start = new(
         "start", VerbSide.Host,
         "start [--monitor <name>] [--memory <MB>] [--offline] [--audio] [--no-gpu]",
-        "Boot a sandbox, open its window maximised on a monitor beside your work, and start the agent in it. The monitor is "
+        "Copy the build into a new session folder, boot a sandbox, open its window maximised on a monitor beside your work, and "
+        + "start the agent in it from that copy; the app and the journeys run from it too, so the checkout can be rebuilt meanwhile. The monitor is "
         + "part of its name (DELL) or its device (DISPLAY2); unnamed, the first that is not the primary. Memory defaults to "
         + "16384 MB. --offline cuts its network; --audio lets the voice journeys hear the host's microphone; --no-gpu gives it no GPU, "
         + "a PC without an NVIDIA card.",
@@ -24,12 +25,12 @@ internal static class VerbCatalogue
     public static readonly Verb Status = new(
         "status", VerbSide.Host,
         "status",
-        "The session folder, the sandbox, its window, and what the agent is doing.");
+        "The session folder, the copy of the build it runs, the sandbox, its window, and what the agent is doing.");
 
     public static readonly Verb Stop = new(
         "stop", VerbSide.Host,
         "stop",
-        "Close the app and cancel any run, then tear the sandbox down. The session folder and its results stay.");
+        "Close the app and cancel any run, then tear the sandbox down. The session folder and its results stay; its copy of the build goes.");
 
     public static readonly Verb Run = new(
         "run", VerbSide.Agent,
@@ -107,7 +108,7 @@ internal static class VerbCatalogue
         Section("In the sandbox, through its agent:", VerbSide.Agent);
         text.AppendLine();
         text.AppendLine("A <target> is an AutomationId, name:<text> for an element's name, or x,y in the sandbox's screen pixels.");
-        text.Append("Build the solution first: the sandbox runs the app and the journeys from this checkout's build.");
+        text.Append("Build the solution first: `start` copies the app, the journeys and this tool from this checkout's build, and the session runs that copy.");
         return text.ToString();
 
         void Section(string heading, VerbSide side)
