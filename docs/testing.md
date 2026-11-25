@@ -308,7 +308,7 @@ journey. Build the solution, then:
 
 ```powershell
 $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/Nexaflow.Tests.Sandbox.exe'
-& $sbx start                                  # boot it; its window opens maximised beside your work
+& $sbx start                                  # copy the build, boot it; its window opens maximised beside your work
 & $sbx run "FullyQualifiedName~HelpJourney"   # follow the console; the exit code is the runner's
 & $sbx launch --tab SystemInfo                # the app, started exactly as a journey starts it
 & $sbx shot --window                          # prints the PNG's path
@@ -325,8 +325,17 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
 - **One exe is both ends.** On the host it starts and stops the sandbox through `wsb`; inside, `agent` serves the verbs
   from the session folder, `TestResults\sandbox\<started>\` (git-ignored), which also holds each run's console and TRX
   (`runs\`), the screenshots (`shots\`) and the agent's log. Drive it through the verbs, never by writing those files.
-- **What the sandbox shares**: this checkout, mapped writable at `C:\nexaflow`, so the journeys run from your build and
-  write `test-samples` and their results back exactly as on the host; your .NET, read-only; and the host's Visual C++
+- **A session runs the build `start` copied.** `start` copies three output folders — the app's, the journey suite's and
+  this tool's — into the session's `build\`, each at its path in the checkout, says what it copied and how long it took,
+  and starts the agent from the copy; `status` names it. A binary run from inside a copy finds its builds there
+  (`BuiltOutput.Root`, marked by the copy's `built-output-snapshot.json`), so `launch` and every journey `run` start the
+  copy's app, and the whole session tests exactly what was built when it began. Rebuild the checkout whenever you like
+  while a run goes on; the next `start` picks the rebuild up. The one output a build cannot replace meanwhile is this
+  tool's own, on the host, while a verb is running from it — `run` follows its console until the run ends, and Ctrl+C
+  stops following without stopping the run. `stop` removes the copy, and `start` removes any an earlier session left.
+- **What the sandbox shares**: this checkout, mapped writable at `C:\nexaflow`, so the journeys run from the session's
+  copy of the build, read the checkout's sources and fixtures, and write `test-samples` and their results back exactly
+  as on the host; your .NET, read-only; and the host's Visual C++
     runtime and Edge WebView2 runtime, which the clean image lacks. WebView2 is mapped read-only where a per-machine
     install puts it, and the sandbox's `BrowserExecutableFolder` policy points every app at it — the loader finds no
     runtime by that folder alone or by `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`, but takes the policy — so the Web viewer and
@@ -338,7 +347,7 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
     as it is.
 - **Smart App Control follows the host.** The clean image boots with it on, which refuses an agent freshly built here,
   unsigned and with no reputation yet. Off on your machine, `start` turns it off in the sandbox before the agent starts;
-  on, the sandbox keeps it, and a rebuild of the agent can be refused there.
+  on, the sandbox keeps it, and an agent rebuilt since the last `start` can be refused there.
 - **A `start` that gives up leaves the sandbox up.** Without an agent after four minutes it says so and exits, and the
   sandbox and its window stay for you to look at; `stop` them. The window shares no handle with `start`, so a caller
   reading `start`'s output sees it end when it ends.
