@@ -34,6 +34,7 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [LzfseSharp](https://github.com/Erik-White/LzfseSharp) (via DiscUtils) | BSD-3-Clause |
 | [lzo.net](https://github.com/zivillian/lzo.net) (via DiscUtils) | MIT |
 | [Microsoft.CodeAnalysis.CSharp](https://github.com/dotnet/roslyn) (optional `nfi` command-line tool) | MIT |
+| [Microsoft.Extensions.Logging](https://github.com/dotnet/runtime) (+ .Abstractions, and the Microsoft.Extensions.DependencyInjection, .Options and .Primitives it builds on) | MIT |
 | [Microsoft.ML.Tokenizers](https://github.com/dotnet/machinelearning) | MIT |
 | [Microsoft.Web.WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) | Microsoft Software License |
 | [MimeKit](https://github.com/jstedfast/MimeKit) | MIT |

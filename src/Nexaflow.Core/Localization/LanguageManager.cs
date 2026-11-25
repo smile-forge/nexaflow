@@ -4,6 +4,8 @@ using System.IO;
 using System.Text.Json;
 using Nexaflow.Core.Services;
 using Nexaflow.Visuals.Common.Localization;
+using Microsoft.Extensions.Logging;
+using Nexaflow.Core.Services.Logging;
 
 namespace Nexaflow.Core.Localization;
 
@@ -34,6 +36,8 @@ public sealed class LanguageManager : ILocalizedStringSource
 
     private readonly string _dir;
     private readonly Func<string, string, ILanguagePack> _load;
+
+    private readonly ILogger<LanguageManager> _log;
     private readonly Dictionary<string, ILanguagePack?> _packs = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private IReadOnlyList<LanguageInfo>? _available;
@@ -41,10 +45,12 @@ public sealed class LanguageManager : ILocalizedStringSource
 
     /// <param name="languagesDir">The folder the packs are dropped into.</param>
     /// <param name="load">Opens the pack for (code, path); throws for a file that is not one.</param>
-    internal LanguageManager(string languagesDir, Func<string, string, ILanguagePack> load)
+    /// <param name="log">Where the string table's first reading is marked among the startup milestones.</param>
+    internal LanguageManager(string languagesDir, Func<string, string, ILanguagePack> load, ILogger<LanguageManager> log)
     {
         _dir     = languagesDir;
         _load    = load;
+        _log     = log;
         _strings = NewStringTable();
     }
 
@@ -189,7 +195,7 @@ public sealed class LanguageManager : ILocalizedStringSource
                 using (var stream = pack.Open(name))
                     if (stream is not null) Merge(table, stream);
 
-        StartupTimings.Mark("Language.Strings");
+        _log.StartupMilestone("Language.Strings");
         return table.ToFrozenDictionary(StringComparer.Ordinal);
     }
 

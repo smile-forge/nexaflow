@@ -29,7 +29,8 @@ public partial class PageLoadErrorView : UserControl
     /// <param name="dependencies">The session's components, any missing one of which is named as the likely cause — given by
     /// the session's <see cref="PageViews"/>, which makes this view.</param>
     /// <param name="showComponents">Opens the About page, which lists every component, in a window open on the session.</param>
-    public PageLoadErrorView(Page? page, Exception? error, ExternalDependencyRegistry dependencies, Action showComponents)
+    /// <param name="logPath">The crash log the failure was recorded in — by the <see cref="PageViews"/> that caught it.</param>
+    public PageLoadErrorView(Page? page, Exception? error, ExternalDependencyRegistry dependencies, Action showComponents, string logPath)
     {
         _dependencies   = dependencies;
         _showComponents = showComponents;
@@ -44,13 +45,7 @@ public partial class PageLoadErrorView : UserControl
 
         ShowLikelyCauses();
 
-        // This view exists because the failure was CAUGHT — so it never reaches the dispatcher handler, and
-        // until now nothing wrote it down. "Also written to …" was simply untrue, and the consequence was
-        // real: a customer reported a PDF tab failing to open and their crash log had no record of it.
-        // Record it here, where the failure actually surfaces.
-        if (error is not null) CrashLog.Instance.Record(error);
-
-        LogPathText.Text = Str.Format("Shell.PageError.LogPathFormat", CrashLog.Instance.CurrentPath);
+        LogPathText.Text = Str.Format("Shell.PageError.LogPathFormat", logPath);
     }
 
     private static string? Describe(Page? page)

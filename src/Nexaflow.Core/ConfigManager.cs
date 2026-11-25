@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Services;
 
 namespace Nexaflow.Core;
@@ -86,14 +87,14 @@ public sealed class ConfigManager : IConfigRulings
     /// <paramref name="localDir"/>.</summary>
     /// <param name="baseDir">Where every config is kept (<see cref="BaseDir"/>).</param>
     /// <param name="localDir">Where what is kept on this machine alone goes (<see cref="LocalDir"/>).</param>
-    /// <param name="faultLog">Where a stored value that could not be read is put on record: the crash log, so a setting that fell
-    /// back to its default is traceable rather than silently gone. Recording needs no dispatcher, so it is safe under the config
-    /// lock on any thread.</param>
-    public ConfigManager(string baseDir, string localDir, CrashLog faultLog)
+    /// <param name="log">Where a stored value that could not be read is put on record, as a fault — so the crash log keeps it, and a
+    /// setting that fell back to its default is traceable rather than silently gone. Logging needs no dispatcher, so it is safe under
+    /// the config lock on any thread.</param>
+    public ConfigManager(string baseDir, string localDir, ILogger<ConfigManager> log)
     {
-        BaseDir   = baseDir;
-        LocalDir  = localDir;
-        _faultLog = faultLog;
+        BaseDir  = baseDir;
+        LocalDir = localDir;
+        _log     = log;
     }
 
     /// <summary>
@@ -121,7 +122,7 @@ public sealed class ConfigManager : IConfigRulings
     public void SuppressWrites() => _suppressWrites = true;
 
     /// <summary>Where a stored value that could not be read is put on record.</summary>
-    private readonly CrashLog _faultLog;
+    private readonly ILogger<ConfigManager> _log;
 
     private string GetConfigDir(string configName) => Path.Combine(BaseDir, configName);
 
@@ -401,9 +402,9 @@ public sealed class ConfigManager : IConfigRulings
             catch { kept = null; }   // left in place; it is reported either way
         }
 
-        _faultLog.Record(new InvalidDataException(
+        _log.LogError(new InvalidDataException(
             $"{path} could not be read, so its settings fall back to their defaults."
-          + (kept is null ? string.Empty : $" The file is kept as {kept}."), cause));
+          + (kept is null ? string.Empty : $" The file is kept as {kept}."), cause), "a configuration file could not be read");
     }
 
     /// <summary>Parses the version out of a <c>config_{version}.json</c> path, or null if it doesn't match.</summary>
@@ -457,9 +458,9 @@ public sealed class ConfigManager : IConfigRulings
         return unreadable;
     }
 
-    /// <summary>Puts each value <see cref="Load"/> could not read on record in the fault log.</summary>
+    /// <summary>Puts each value <see cref="Load"/> could not read on record, as a fault.</summary>
     private void Record(List<InvalidDataException> unreadable)
     {
-        foreach (var fault in unreadable) _faultLog.Record(fault);
+        foreach (var fault in unreadable) _log.LogError(fault, "a stored setting could not be read");
     }
 }

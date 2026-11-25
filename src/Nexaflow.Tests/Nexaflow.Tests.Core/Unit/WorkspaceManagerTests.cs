@@ -35,7 +35,7 @@ public class WorkspaceManagerTests
     {
         _baseDir = Path.Combine(TestTemp.Root, "nexaflow-ws-" + Guid.NewGuid().ToString("N"));
         _config  = TestRuntimes.ConfigIn(_baseDir);
-        _saved   = new WorkspaceManager(new WorkspacesConfig(), TestRuntimes.Providers, _config);   // baseline: one default workspace
+        _saved   = new WorkspaceManager(new WorkspacesConfig(), TestRuntimes.Providers, _config, TestRuntimes.LoggerFor<WorkspaceManager>());   // baseline: one default workspace
     }
 
     [TestCleanup]
@@ -282,7 +282,7 @@ public class WorkspaceManagerTests
         foreach (var workspace in config.Contexts)
             Assert.IsFalse(string.IsNullOrWhiteSpace(WorkspaceManager.WorkspaceDir(_config, workspace.Name)));
 
-        _saved = new WorkspaceManager(config, TestRuntimes.Providers, _config);
+        _saved = new WorkspaceManager(config, TestRuntimes.Providers, _config, TestRuntimes.LoggerFor<WorkspaceManager>());
         Assert.AreEqual(5, _saved.Workspaces.Count);
     }
 
@@ -318,7 +318,7 @@ public class WorkspaceManagerTests
             "the folders are read for their names and never touched");
 
         // And the recovered list is what a save then writes, so the recovery survives the session.
-        _saved = new WorkspaceManager(config, TestRuntimes.Providers, _config);
+        _saved = new WorkspaceManager(config, TestRuntimes.Providers, _config, TestRuntimes.LoggerFor<WorkspaceManager>());
         _saved.SaveWorkspaces();
         CollectionAssert.AreEquivalent(new[] { "Dev", "Research" },
                                        LoadPersisted().Contexts.Select(c => c.Name).ToArray());

@@ -2,35 +2,25 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using Microsoft.Extensions.Logging;
+using Nexaflow.Core.Services.Logging;
 
 namespace Nexaflow.Core.Services;
 
 /// <summary>
-/// Opt-in startup profiler. Measures wall-clock from OS process creation to the first window's
-/// <c>ContentRendered</c>, with a coarse milestone breakdown and the loaded-assembly count (the headline
-/// signal for the lazy-feature-loading work). Enabled by the <c>--timing</c> command-line flag or the
-/// <c>NEXAFLOW_STARTUP_TIMING=1</c> environment variable; zero cost when disabled. Writes to <b>stderr</b>
-/// so a release run shows the numbers without a debugger attached (unlike <see cref="Debug.WriteLine"/>).
+/// Opt-in startup profiler: a destination of the session's logs (<see cref="ShellLogging"/>), there only when the launch asked for it
+/// — the <c>--timing</c> command-line flag or the <c>NEXAFLOW_STARTUP_TIMING=1</c> environment variable. It times each startup
+/// milestone the shell logs (<see cref="StartupMilestones"/>) from OS process creation, and <see cref="Report"/> gives the wall-clock
+/// to the first window's <c>ContentRendered</c>, with the milestone breakdown and the loaded-assembly count (the headline signal for
+/// the lazy-feature-loading work). Writes to <b>stderr</b> so a release run shows the numbers without a debugger attached.
 /// </summary>
-public static class StartupTimings
+public sealed class StartupTimings : LogDestination
 {
-    public static bool Enabled { get; set; }
-
-    private static readonly DateTime _processStart = SafeProcessStart();
-    private static readonly List<(string Name, double Ms)> _marks = [];
-    private static readonly object _lock = new();
-    private static bool _reported;
-    private static DateTime? _windowRequestedAt;   // set when a --prestart daemon is asked to open a window
-
-    /// <summary>Marks the moment a window is requested on-demand from a warmed daemon (the IPC "open a
-    /// window" signal). Lets <see cref="Report"/> emit the daemon's real click→window cost, separate from
-    /// the cold process-start-to-first-window number.</summary>
-    public static void MarkWindowRequested()
-    {
-        if (!Enabled) return;
-        lock (_lock) { _windowRequestedAt = DateTime.Now; _reported = false; }
-        Mark("WindowRequested");
-    }
+    private readonly DateTime _processStart = SafeProcessStart();
+    private readonly List<(string Name, double Ms)> _marks = [];
+    private readonly Lock _gate = new();
+    private bool _reported;
+    private DateTime? _windowRequestedAt;   // set when a --prestart daemon is asked to open a window
 
     private static DateTime SafeProcessStart()
     {
@@ -38,21 +28,39 @@ public static class StartupTimings
         catch { return DateTime.Now; }
     }
 
-    /// <summary>Records a named milestone (ms since process start), and hands it to the safety log, which keeps the
-    /// same milestones as the steps of a session's startup. The timing half is a no-op when disabled.</summary>
-    public static void Mark(string name)
+    protected override bool Takes(string category, LogLevel level) => level == LogLevel.Information;
+
+    /// <summary>
+    /// Records a milestone (ms since process start). A window asked of a warmed daemon also starts the click→window clock
+    /// <see cref="Report"/> gives apart from the cold process-start-to-first-window number, and lets it report again.
+    /// </summary>
+    protected override void Write(in ShellLogEntry entry)
     {
-        ShellSafetyLog.Instance.Step($"startup: {name}");
-        if (!Enabled) return;
-        lock (_lock) _marks.Add((name, (DateTime.Now - _processStart).TotalMilliseconds));
+        var requested = entry.Id == StartupMilestones.WindowRequested;
+        if (!requested && entry.Id != StartupMilestones.Milestone) return;
+
+        var name = entry.Message;
+        if (entry.Fields is { } fields)
+            foreach (var (key, value) in fields)
+                if (key == StartupMilestones.NameField && value is string named) name = named;
+
+        var now = DateTime.Now;
+        lock (_gate)
+        {
+            if (requested)
+            {
+                _windowRequestedAt = now;
+                _reported = false;
+            }
+            _marks.Add((name, (now - _processStart).TotalMilliseconds));
+        }
     }
 
-    /// <summary>Emits the milestone table, assembly count and the headline <c>FIRST_WINDOW_MS</c> line to
-    /// stderr. Idempotent — only the first call reports. No-op when disabled.</summary>
-    public static void Report()
+    /// <summary>Emits the milestone table, assembly count and the headline <c>FIRST_WINDOW_MS</c> line to stderr. Only the first
+    /// call after a launch or a window request reports.</summary>
+    public void Report()
     {
-        if (!Enabled) return;
-        lock (_lock)
+        lock (_gate)
         {
             if (_reported) return;
             _reported = true;

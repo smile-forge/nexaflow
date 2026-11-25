@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Localization;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Elevation;
@@ -31,6 +32,7 @@ namespace Nexaflow.Core.Services;
 /// <param name="Language">The UI language, which a window restarting for a new one selects.</param>
 /// <param name="Views">The view each open page is drawn with, let go when its tab closes.</param>
 /// <param name="HelpTools">The tools that read the help the app ships, which each runtime's assistant offers on every page.</param>
+/// <param name="Logs">The session's logs, which each runtime logs to, and which make the <see cref="ILogger{T}"/> a feature asks for.</param>
 public sealed record RuntimeSessionServices(
     ConfigManager Config,
     ShellConfig Shell,
@@ -52,4 +54,5 @@ public sealed record RuntimeSessionServices(
     ExternalDependencyRegistry Dependencies,
     LanguageManager Language,
     PageViews Views,
-    IReadOnlyList<IClientTool> HelpTools);
+    IReadOnlyList<IClientTool> HelpTools,
+    ILoggerFactory Logs);

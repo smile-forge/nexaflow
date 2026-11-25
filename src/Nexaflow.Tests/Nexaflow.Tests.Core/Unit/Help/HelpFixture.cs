@@ -46,7 +46,7 @@ internal sealed class HelpFixture : IDisposable
         foreach (var code in packs.Keys)
             File.WriteAllBytes(Path.Combine(_dir, $"Nexaflow.Language.{code}.dll"), []);
 
-        Language = new LanguageManager(_dir, (code, _) => packs[code]);
+        Language = new LanguageManager(_dir, (code, _) => packs[code], TestRuntimes.LoggerFor<LanguageManager>());
         Library  = new HelpLibrary(Language);
     }
 

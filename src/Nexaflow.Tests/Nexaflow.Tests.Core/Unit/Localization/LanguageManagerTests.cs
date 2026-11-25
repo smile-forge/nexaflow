@@ -39,7 +39,7 @@ public class LanguageManagerTests
         Touch("Nexaflow.Language.de.txt");
         Touch("Nexaflow.Features.Text.dll");
         var loads = 0;
-        var manager = new LanguageManager(_dir, (code, _) => { loads++; return new FakePack(code); });
+        var manager = new LanguageManager(_dir, (code, _) => { loads++; return new FakePack(code); }, TestRuntimes.LoggerFor<LanguageManager>());
 
         CollectionAssert.AreEquivalent(new[] { "en", "fr" }, manager.Available.Select(l => l.Code).ToList());
         Assert.AreEqual("Français", manager.Available.Single(l => l.Code == "fr").DisplayName,
@@ -51,7 +51,7 @@ public class LanguageManagerTests
     [CoversNode("languages-packs")]
     public void Available_AlwaysOffersEnglish()
     {
-        var manager = new LanguageManager(_dir, (code, _) => new FakePack(code));
+        var manager = new LanguageManager(_dir, (code, _) => new FakePack(code), TestRuntimes.LoggerFor<LanguageManager>());
 
         Assert.AreEqual("en", manager.Available.Single().Code, "English is the fallback even with no pack file");
     }
@@ -73,7 +73,7 @@ public class LanguageManagerTests
     public void Select_ALanguageWithNoPack_FallsBackToEnglish()
     {
         Touch("Nexaflow.Language.en.dll");
-        var manager = new LanguageManager(_dir, (code, _) => new FakePack(code));
+        var manager = new LanguageManager(_dir, (code, _) => new FakePack(code), TestRuntimes.LoggerFor<LanguageManager>());
 
         manager.Select("de");
 
@@ -87,7 +87,7 @@ public class LanguageManagerTests
     {
         Touch("Nexaflow.Language.en.dll");
         Touch("Nexaflow.Language.fr.dll");
-        var manager = new LanguageManager(_dir, (code, _) => new FakePack(code));
+        var manager = new LanguageManager(_dir, (code, _) => new FakePack(code), TestRuntimes.LoggerFor<LanguageManager>());
         var raised = 0;
         manager.Changed += () => raised++;
 
@@ -110,7 +110,8 @@ public class LanguageManagerTests
         Touch("Nexaflow.Language.fr.dll");
         var english = new FakePack("en", ("Nexaflow.Core/help/index.md", "# English"));
         var manager = new LanguageManager(_dir,
-            (code, _) => code == "fr" ? throw new BadImageFormatException("not an assembly") : english);
+            (code, _) => code == "fr" ? throw new BadImageFormatException("not an assembly") : english,
+            TestRuntimes.LoggerFor<LanguageManager>());
         manager.Select("fr");
 
         using var reader = new StreamReader(manager.OpenResource("Nexaflow.Core/help/index.md")!);

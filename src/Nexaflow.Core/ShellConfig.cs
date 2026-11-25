@@ -81,7 +81,7 @@ public sealed class ShellConfig : IFeatureConfig
 
     /// <summary>
     /// Safety logging: while it is on, each session's startup and shutdown, and every load or activation failure the shell
-    /// meets, are written to a file of their own under <c>%LOCALAPPDATA%\Smile\nexaflow\logs</c> (<c>ShellSafetyLog</c>), and
+    /// meets, are written to a file of their own under <c>%LOCALAPPDATA%\Smile\nexaflow\logs</c> (<c>SessionLogProvider</c>), and
     /// the AI host keeps its log beside them. Off by default. Applies live; the AI host follows the next time it starts.
     /// </summary>
     [ConfigDisplayName("Shell.Config.Shell.SafetyLogging")]

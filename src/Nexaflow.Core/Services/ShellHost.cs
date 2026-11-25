@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
@@ -7,6 +8,7 @@ using Nexaflow.Core.Localization;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Elevation;
 using Nexaflow.Core.Services.LocalAi;
+using Nexaflow.Core.Services.Logging;
 using Nexaflow.Core.Services.Tools;
 using Nexaflow.Features.Common;
 
@@ -22,7 +24,9 @@ namespace Nexaflow.Core.Services;
 /// <param name="Folders">Where the session keeps its configuration, and what stays on this machine alone.</param>
 /// <param name="Reset">"Reset Config" relaunched the app: the app-data directory is wiped before anything reads it.</param>
 /// <param name="UiTest">A UI journey drives the app: every feature is activated up front, and nothing is downloaded.</param>
-internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool UiTest);
+/// <param name="Logging">The process's logs, made by the app before the session: what the session logs to, and hands each service
+/// it makes a logger from.</param>
+internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool UiTest, ShellLogging Logging);
 
 /// <summary>What the UI toolkit the shell runs on gives the session: the pieces only it can make.</summary>
 /// <param name="Ui">The thread the windows run on.</param>
@@ -31,14 +35,14 @@ internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
 /// <param name="Views">Makes the view each open page is drawn with, from the toolkit's views the feature catalogue marks as drawing
-/// it; a page that could not be made is drawn naming the session's missing components that may be why, with the way to the
-/// About page that lists them all.</param>
+/// it; a page that could not be made is recorded in the logs, and drawn naming the session's missing components that may be why,
+/// with the way to the About page that lists them all.</param>
 internal sealed record ShellPlatform(
     IUiThread Ui,
     IShellClipboard Clipboard,
     Func<ShellFolderWatcher> FolderWatchers,
     Action<ShellConfig> ApplyAppearance,
-    Func<FeatureCatalog, ExternalDependencyRegistry, Action, PageViews> Views);
+    Func<FeatureCatalog, ExternalDependencyRegistry, Action, ShellLogging, PageViews> Views);
 
 /// <summary>
 /// The shell session: everything that lives as long as the process — from login when the app starts with Windows, otherwise
@@ -61,6 +65,7 @@ internal sealed class ShellHost : IAsyncDisposable
     private static readonly TimeSpan AiHostPatience    = TimeSpan.FromSeconds(6);
 
     private readonly ShellHostOptions _options;
+    private readonly ILogger<ShellHost> _log;
     private readonly AiHostClient _aiHost;
     private readonly ModelResidency _residency;
     private readonly CudaPackDownload? _cudaPack;
@@ -135,6 +140,8 @@ internal sealed class ShellHost : IAsyncDisposable
     public ShellHost(ShellHostOptions options, ShellPlatform platform, AppUpdates updates)
     {
         _options = options;
+        var logs = options.Logging.Factory;
+        _log     = logs.CreateLogger<ShellHost>();
         Ui       = platform.Ui;
         Folders  = new FolderActivity(platform.Ui, platform.FolderWatchers);
         Inbox    = new MessageCenter(platform.Ui);
@@ -146,29 +153,30 @@ internal sealed class ShellHost : IAsyncDisposable
         if (options.Reset) DeleteDirectoryWithRetry(options.Folders.BaseDir);
 
         // A stored value that could not be read goes on record in the crash log, which writes into the same folders.
-        Config = new ConfigManager(options.Folders.BaseDir, options.Folders.LocalDir, CrashLog.Instance);
+        Config = new ConfigManager(options.Folders.BaseDir, options.Folders.LocalDir, logs.CreateLogger<ConfigManager>());
         // The feature catalogue's index is cached under the configuration.
-        Catalog = new FeatureCatalog(Config.BaseDir);
-        StartupTimings.Mark("Init.ConfigManager");
+        Catalog = new FeatureCatalog(Config.BaseDir, logs.CreateLogger<FeatureCatalog>());
+        _log.StartupMilestone("Init.ConfigManager");
 
         // ── 1. Shell config ──────────────────────────────────────────────────
         Shell = new ShellConfig();
         Config.Register(Shell, Shell.ConfigName);
 
         // From here this session knows whether it keeps a safety log: what startup held so far is written out or dropped.
-        ShellSafetyLog.Instance.Apply(Shell.SafetyLogging);
+        options.Logging.Session.Apply(Shell.SafetyLogging);
         platform.ApplyAppearance(Shell);
-        StartupTimings.Mark("Init.Theme");
+        _log.StartupMilestone("Init.Theme");
 
         // The UI language: records the choice and points Str at it. Loads nothing - the first string or help page
         // asked for reads the pack (one resource-only assembly, once).
-        Language = new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load);
+        Language = new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load,
+                                       logs.CreateLogger<LanguageManager>());
         Language.Select(Shell.Language);
         Str.Source = Language;
         // The help pages, read through the language: the Help page's registration is given them (once the feature system is
         // made), and each runtime's assistant the tools that read them.
         var help = new HelpLibrary(Language);
-        StartupTimings.Mark("Init.Language");
+        _log.StartupMilestone("Init.Language");
 
         Security = new SecurityConfig();
         Config.Register(Security, Security.ConfigName);
@@ -195,7 +203,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // Models on this machine are downloaded once each, app-wide, whichever workspace asks.
         // Which models are loaded ahead, and what they may hold, is this machine's to weigh: what it runs, what was used on it this week.
         var preloadConfig = (ModelPreloadConfig)Config.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
-        _aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent, options.UiTest);
+        _aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent, options.UiTest, options.Logging.Session, _log);
         // Joined to the machine's AI host service, the share of memory its models may hold is the service's, and Settings shows it so.
         Config.AddRulings(new AiHostSettingRulings(() => _aiHost.ServiceMemory));
         // The model store is the AI host's: it alone reads and fetches the files, and the app sees the store as the host describes it,
@@ -207,9 +215,9 @@ internal sealed class ShellHost : IAsyncDisposable
         _residency = new ModelResidency(preloadConfig, new ModelUseHistory(Path.Combine(LocalAiFolder.Root(), "model-use.json")));
         // A host with nothing held in it closes after the same idle time a model is let go after.
         if (preloadConfig.IdleRelease is { } idle) _aiHost.RetireWhenIdle(idle, () => holds.HoldsModels);
-        StartupTimings.Mark("Init.ModelStore");
+        _log.StartupMilestone("Init.ModelStore");
         var hardware = MachineCards.Probe();
-        StartupTimings.Mark("Init.HardwareProbe");
+        _log.StartupMilestone("Init.HardwareProbe");
         // A machine that had the CUDA pack gets this version's in place of it, in the background, without being asked again.
         _cudaPack = new CudaPackDownload(assets, () => assets.HadEarlierRuntimePack, hardware, Activities);
         var pictureTools     = new PictureTools(new OwnedPictureTools(Activities, assets, _aiHost, holds, hardware), assets, Activities);
@@ -222,13 +230,14 @@ internal sealed class ShellHost : IAsyncDisposable
         Providers = new ProviderManager(Config, Activities, assets, _residency,
             [_aiHost, holds, hardware,
              new LocalModelDownloads(assets, Activities, UseLocalModel), _cudaPack, pictureTools, pictureSelection,
-             pageReading, pictureErasing, sceneDepth, pictureChecking]);
-        StartupTimings.Mark("Init.LocalTools");
+             pageReading, pictureErasing, sceneDepth, pictureChecking],
+            logs.CreateLogger<ProviderManager>());
+        _log.StartupMilestone("Init.LocalTools");
 
         // The components the features declare, and what Nexaflow's own models need, judged from the host's own reading of its
         // runtime. A page that could not be made names those missing, and offers the About page that lists them all.
         Dependencies = new ExternalDependencyRegistry(platform.Ui, Catalog, [new AiHostReading(holds)]);
-        Views = platform.Views(Catalog, Dependencies, ShowComponents);
+        Views = platform.Views(Catalog, Dependencies, ShowComponents, options.Logging);
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a
@@ -244,10 +253,10 @@ internal sealed class ShellHost : IAsyncDisposable
             .Concat(LocalColumns.Assemblies)   // every workspace has the Local column
             .Distinct();
         Providers.LoadConfigured(allProviderFiles);
-        StartupTimings.Mark("Init.Providers");
+        _log.StartupMilestone("Init.Providers");
 
         // ── 4. Workspaces — the list ─────────────────────────────────────────
-        SavedWorkspaces = new WorkspaceManager(wcConfig, Providers, Config);
+        SavedWorkspaces = new WorkspaceManager(wcConfig, Providers, Config, logs.CreateLogger<WorkspaceManager>());
 
         // Quarantine workspace data folders orphaned by an older build's version-bump config reset (before
         // forward-migration existed): the list is authoritative only when workcontexts.json actually
@@ -265,7 +274,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // of StartBackground); activation registers that assembly's global configs, archive handlers /
         // codecs (into the VFS) and theme contributions (folded below the theme applied in step 1), and runs the
         // feature's own setup for the session (IFeatureStartup) — the file system's file map and registries among them.
-        Features = new FeatureManager(Catalog, Config, platform.Ui, LocationProviders);
+        Features = new FeatureManager(Catalog, Config, platform.Ui, LocationProviders, logs);
 
         // The app-wide tools every workspace's features are given by their contract: the help pages, and the local tools above.
         Features.ProvideTool(help);
@@ -279,7 +288,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // post-paint background warm-up, racing features that haven't loaded yet. Force every feature
         // assembly to load + activate synchronously now so the whole app is ready before automation starts.
         if (options.UiTest) Catalog.EnsureAllActivated();
-        StartupTimings.Mark("Init.Features");
+        _log.StartupMilestone("Init.Features");
 
         // ── 6. Runtimes — the factory each is built by, the live ones, and what each window is given ──
         RuntimeFactory = new WorkspaceRuntimeFactory(new RuntimeSessionServices(
@@ -287,13 +296,13 @@ internal sealed class ShellHost : IAsyncDisposable
             LocationProviders, Discovered,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
             platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard,
-            Dependencies, Language, Views, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools]));
+            Dependencies, Language, Views, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools], logs));
         // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
-                                           SavedWorkspaces.Workspaces.Contains, TimeProvider.System);
+                                           SavedWorkspaces.Workspaces.Contains, TimeProvider.System, logs.CreateLogger<WorkspaceRuntimes>());
         Windows = new WindowServices(Config, Shell, Activities, Workspaces, Inbox, Dependencies, Language, Views, Features, Providers, SavedWorkspaces,
-                                     updates);
-        StartupTimings.Mark("Init.Workspaces");
+                                     updates, options.Logging);
+        _log.StartupMilestone("Init.Workspaces");
 
         // ── 7. Damaged config: say so, say what came back ────────────────────
         // Settings that could not be read are already on defaults and on record in the crash log; this is
@@ -354,7 +363,7 @@ internal sealed class ShellHost : IAsyncDisposable
         if (_ended) return ValueTask.CompletedTask;
         _ended = true;
 
-        ShellSafetyLog.Instance.Step("session ending");
+        _log.LogInformation("session ending");
         Workspaces.Dispose();
         var runtimesEnding = RuntimeFactory.EndAllAsync();
         Folders.Dispose();
@@ -370,34 +379,48 @@ internal sealed class ShellHost : IAsyncDisposable
     }
 
     /// <summary>Waits for <paramref name="ending"/> no longer than <paramref name="patience"/>, recording what did not finish.</summary>
-    private static async Task Bounded(Task ending, TimeSpan patience, string what)
+    private async Task Bounded(Task ending, TimeSpan patience, string what)
     {
         try { await ending.WaitAsync(patience).ConfigureAwait(false); }
-        catch (TimeoutException) { ShellSafetyLog.Instance.Step($"shutdown: {what} did not finish within {patience.TotalSeconds:0} s"); }
-        catch (Exception ex) { ShellSafetyLog.Instance.Failed($"ending {what}", ex); }
+        catch (TimeoutException) { _log.LogInformation("shutdown: {What} did not finish within {Seconds:0} s", what, patience.TotalSeconds); }
+        catch (Exception ex) { _log.LogWarning(ex, "ending {What}", what); }
     }
 
     /// <summary>
     /// The app's AI host client. Its store is the machine's own (<c>%ProgramData%\Smile-Forge\Models</c>), into which the host moves the
     /// files Nexaflow kept in its own folder before the host kept them — or, where <c>NEXAFLOW_AI_DIR</c> names a folder, that folder:
-    /// a test's. A UI test's host downloads nothing.
+    /// a test's. A UI test's host downloads nothing. The host keeps its log beside <paramref name="sessionLog"/>'s while that is on, and
+    /// one that ends without being asked to is put on record in <paramref name="log"/>.
     /// </summary>
-    private static AiHostClient StartAiHost(int memoryShare, bool uiTest)
+    private static AiHostClient StartAiHost(int memoryShare, bool uiTest, SessionLogProvider sessionLog, ILogger log)
     {
         string? testStore = LocalAiFolder.Configured();
         var launcher = new ProcessAiHostLauncher(AiHostInstall.ExecutablePath,
                                                  store: testStore,
                                                  adoptFrom: testStore is null ? [LocalAiFolder.Root()] : [],
                                                  memoryShare: memoryShare,
-                                                 logDirectory: () => ShellSafetyLog.Instance.Folder,
+                                                 logDirectory: () => sessionLog.Folder,
                                                  downloads: !uiTest);
         // A run on a store of its own, or under a UI test, keeps to a host of its own: the service's store is the machine's. A journey of
         // the service itself joins it as the app does.
         bool joins = testStore is null && !uiTest || Environment.GetEnvironmentVariable("NEXAFLOW_TEST_JOIN_SERVICE") == "1";
         var host = new AiHostClient(launcher, app: "Nexaflow", service: joins ? AiHostService.Machine : null);
         // A host's end is recorded only while the user keeps logs; the request it took down fails on its own.
-        host.HostExited += (_, e) => ShellSafetyLog.Instance.AiHostEnded(e);
+        host.HostExited += (_, e) => RecordAiHostEnded(log, e);
         return host;
+    }
+
+    /// <summary>
+    /// An AI host that ended without being asked to, put on record: why — its exit with the code named, or the watchdog or the pipe
+    /// that ended it — and the last lines it wrote to its error output, where a native fault's own words go. The host's own log is
+    /// the <c>aihost-…-{pid}.log</c> beside the session's, and its whole error output the <c>aihost-stderr-…</c> file. Kept by the
+    /// session's log alone, so nothing is written while safety logging is off.
+    /// </summary>
+    internal static void RecordAiHostEnded(ILogger log, AiHostExitedEventArgs exit)
+    {
+        log.LogInformation("AI host process {ProcessId} lost: {Reason}", exit.ProcessId, exit.Reason);
+        foreach (var line in exit.LastErrors)
+            log.LogInformation("AI host process {ProcessId} error output: {Line}", exit.ProcessId, line);
     }
 
     /// <summary>Reads the host's model store, starting the host; then a machine that had the CUDA pack gets this version's in place of
@@ -421,7 +444,7 @@ internal sealed class ShellHost : IAsyncDisposable
         var unreadable = Config.GetUnreadableConfigs();
         if (unreadable.Count == 0) return;
 
-        var body = Str.Format("Shell.Notifications.UnreadableFormat", string.Join(", ", unreadable), CrashLog.Instance.CurrentPath);
+        var body = Str.Format("Shell.Notifications.UnreadableFormat", string.Join(", ", unreadable), _options.Logging.Crash.CurrentPath);
 
         if (recoveredWorkspaces.Count > 0)
             body += " " + Str.Format("Shell.Notifications.RecoveredFormat", recoveredWorkspaces.Count, string.Join(", ", recoveredWorkspaces));

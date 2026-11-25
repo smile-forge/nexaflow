@@ -8,6 +8,7 @@ using System.Windows.Media;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Common.Localization;
 using System.ComponentModel;
+using Nexaflow.Core.Services.Logging;
 
 namespace Nexaflow.Core.Controls;
 
@@ -72,7 +73,7 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
             TextTypography.BaseFontSize = _vm.TextFontSize;
 
             // Live as well: the session's log opens or closes now; the AI host's follows the next time the host starts.
-            ShellSafetyLog.Instance.Apply(_vm.SafetyLogging);
+            _vm.ApplySafetyLogging();
 
             _vm.AcceptAsSaved();
         }
@@ -147,11 +148,20 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         OnPropertyChanged(nameof(HasChanges));
     }
 
+    /// <summary>The session's log, opened or closed to match <see cref="SafetyLogging"/> when the page is applied.</summary>
+    private readonly SessionLogProvider _sessionLog;
+
+    /// <summary>Opens or closes the session's log to match the choice — live; the AI host's log follows the next time the host
+    /// starts.</summary>
+    public void ApplySafetyLogging() => _sessionLog.Apply(SafetyLogging);
+
     /// <param name="cfg">The config the page shows and saves into.</param>
     /// <param name="language">The session's UI language, whose installed packs the picker offers.</param>
-    public ShellConfigViewModel(ShellConfig cfg, LanguageManager language)
+    /// <param name="sessionLog">The session's log, which the safety-logging choice opens and closes as it is applied.</param>
+    public ShellConfigViewModel(ShellConfig cfg, LanguageManager language, SessionLogProvider sessionLog)
     {
         Config                      = cfg;
+        _sessionLog                 = sessionLog;
         LanguageOptions             = language.Available;
         _selectedTheme              = cfg.Theme.ToString();
         // As a code the list offers, so the combo shows a selection: the "English" an older build stored, or a
@@ -208,8 +218,12 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     }
 }
 
-/// <summary>A time a workspace left may stay ready, as the Shell page offers it.</summary>
-public sealed record DormancyOption(int Minutes, string Label);
+/// <summary>A time a workspace left may stay ready, as the Shell page offers it. Read aloud — by a screen reader, by UI
+/// Automation — as its label.</summary>
+public sealed record DormancyOption(int Minutes, string Label)
+{
+    public override string ToString() => Label;
+}
 
 /// <summary>One theme the picker offers: <paramref name="Value"/> is what is saved, <paramref name="Display"/> what is read.</summary>
 public sealed record ThemeChoice(string Value, string Display)

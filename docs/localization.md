@@ -53,7 +53,7 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
   — visible, never a crash. `Str.Format` shows a translation whose placeholders don't fit its arguments as written
   rather than throwing.
 - **Cost.** `{loc:Str}` resolves once, as the XAML loads: no `DynamicResource`, no binding. The first lookup reads
-  every `strings.json` into one frozen table (`StartupTimings` marks it `Language.Strings`); every later lookup is
+  every `strings.json` into one frozen table (logged as the startup milestone `Language.Strings`); every later lookup is
   a dictionary read.
 - **Features** reach `Str` through `Nexaflow.Visuals.Common`, which they already reference. Core sets `Str.Source`
   at startup, the same shape as `TextTypography`, so nothing needs Core.

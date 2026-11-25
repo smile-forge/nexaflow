@@ -125,7 +125,7 @@ public class WorkspaceRuntimesTests
 
     private WorkspaceRuntimes Runtimes(WorkspaceRuntimeFactory? factory = null)
         => new(factory ?? TestRuntimes.FactoryWith(tasks: null, notify: _ => { }), new InlineUi(), () => TimeSpan.FromMinutes(5),
-               _ => true, _time);
+               _ => true, _time, TestRuntimes.LoggerFor<WorkspaceRuntimes>());
 
     /// <summary>A UI thread that is always the calling one: what is posted to it runs at once.</summary>
     private sealed class InlineUi : IUiThread

@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.Logging;
 using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Core.Models;
@@ -15,6 +17,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 {
     /// <summary>The session's side of this runtime: the pools it acquires from and returns to.</summary>
     private readonly WorkspaceRuntimeFactory _session;
+
+    /// <summary>Where the runtime marks its startup milestones.</summary>
+    private readonly ILogger<WorkspaceRuntime> _log;
 
     private bool _ended;
 
@@ -87,6 +92,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     {
         Workspace     = workspace;
         _session      = session;
+        _log          = session.Session.Logs.CreateLogger<WorkspaceRuntime>();
         IsStandby     = standby;
         Vfs           = new LocationFileSystem(session.Session.FileSystem);
         Locations     = new RuntimeLocations(Vfs, session.NewLocationSessions(), session.Session.Discovered);
@@ -114,14 +120,14 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         var pool  = _session.Providers;
         var fresh = pool.AcquireProviderSet(Workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(Workspace.AiConfig));
 
-        StartupTimings.Mark("Workspace.ProvidersAcquired");
+        _log.StartupMilestone("Workspace.ProvidersAcquired");
         if (WorkspaceManager.FoldInLocalColumns(Workspace, fresh, pool.Assets))
         {
             var again = pool.AcquireProviderSet(Workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(Workspace.AiConfig));
             pool.ReleaseProviderSet(fresh);
             fresh = again;
         }
-        StartupTimings.Mark("Workspace.LocalColumnsFolded");
+        _log.StartupMilestone("Workspace.LocalColumnsFolded");
 
         var old   = Providers;
         Providers = fresh;

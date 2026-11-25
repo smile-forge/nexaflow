@@ -1,4 +1,5 @@
 using Nexaflow.Core.Localization;
+using Nexaflow.Core.Services.Logging;
 
 namespace Nexaflow.Core.Services;
 
@@ -19,6 +20,7 @@ namespace Nexaflow.Core.Services;
 /// <param name="SavedWorkspaces">The saved workspaces: the window's selector lists them, and its Options and Configure panels
 /// add, rename and delete them.</param>
 /// <param name="Updates">Where this build stands against its newest release, which the window's About page shows.</param>
+/// <param name="Logging">The process's logs: what the window logs to, and the session's log the window's Options turns on and off.</param>
 public sealed record WindowServices(
     ConfigManager Config,
     ShellConfig Shell,
@@ -31,4 +33,5 @@ public sealed record WindowServices(
     FeatureManager Features,
     ProviderManager Providers,
     WorkspaceManager SavedWorkspaces,
-    AppUpdates Updates);
+    AppUpdates Updates,
+    ShellLogging Logging);

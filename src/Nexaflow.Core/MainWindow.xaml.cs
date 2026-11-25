@@ -17,6 +17,8 @@ using System.Windows.Media;
 using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Viewing;
+using Microsoft.Extensions.Logging;
+using Nexaflow.Core.Services.Logging;
 
 namespace Nexaflow.Core;
 
@@ -36,9 +38,10 @@ public partial class MainWindow : Window
 
     public MainWindow(WindowServices session, WorkspaceRuntime workspace, bool openDefaultTabs = true, string? openPath = null)
     {
-        Services.StartupTimings.Mark("MainWindow.ctor enter");
+        var log = session.Logging.Factory.CreateLogger<MainWindow>();
+        log.StartupMilestone("MainWindow.ctor enter");
         InitializeComponent();
-        Services.StartupTimings.Mark("MainWindow.InitializeComponent");
+        log.StartupMilestone("MainWindow.InitializeComponent");
 
         // Everything in the window draws a model with the app's views: a page's preview, a folder viewlet.
         ViewRegistry.SetRegistry(this, session.Views.Registry);
@@ -49,7 +52,7 @@ public partial class MainWindow : Window
             Placement = _placement,
         };
         DataContext = _vm;
-        Services.StartupTimings.Mark("MainWindow.ShellViewModel");
+        log.StartupMilestone("MainWindow.ShellViewModel");
 
         if (openDefaultTabs)
         {

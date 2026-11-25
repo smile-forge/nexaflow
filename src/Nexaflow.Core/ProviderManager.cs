@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
@@ -36,6 +37,8 @@ public sealed class ProviderManager
     private readonly ModelResidency?             _residency;
     private readonly IReadOnlyList<object>       _services;
     private readonly ConfigManager               _config;
+
+    private readonly ILogger<ProviderManager> _log;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
@@ -67,14 +70,16 @@ public sealed class ProviderManager
     /// <param name="residency">Which of the pool's models stay loaded; null where none is loaded ahead.</param>
     /// <param name="services">App-wide services a provider may take in its constructor, matched by type — the AI host,
     /// the machine's compute hardware.</param>
+    /// <param name="log">Where the pool says which configured provider assemblies are not installed.</param>
     public ProviderManager(ConfigManager config, IBackgroundActivityManager? activityManager, IModelAssetStore? assets,
-                           ModelResidency? residency, IReadOnlyList<object> services)
+                           ModelResidency? residency, IReadOnlyList<object> services, ILogger<ProviderManager> log)
     {
         _config          = config;
         _activityManager = activityManager;
         _assets          = assets;
         _residency       = residency;
         _services        = services;
+        _log             = log;
     }
 
     /// <summary>Which of the pool's models stay loaded; null where none is loaded ahead.</summary>
@@ -110,7 +115,7 @@ public sealed class ProviderManager
             if (File.Exists(path))
                 LoadAssembly(path);
             else
-                ShellSafetyLog.Instance.Step($"providers: {fileName} is configured but not installed; its columns have no provider");
+                _log.LogInformation("providers: {File} is configured but not installed; its columns have no provider", fileName);
         }
     }
 

@@ -35,7 +35,7 @@ public class FeatureCatalogTests
     [TestMethod]
     public void FeatureCatalog_ResolvesFolderViewletsIncludingGit()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir);
+        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
         catalog.Initialize((_, _) => { });   // no-op activation: isolate discovery/resolution
 
         var viewlets = catalog.TypesImplementing<IFolderViewlet>();
@@ -49,7 +49,7 @@ public class FeatureCatalogTests
     [TestMethod]
     public void FeatureCatalog_ResolvesFileActions()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir);
+        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
         catalog.Initialize((_, _) => { });
 
         Assert.IsTrue(catalog.TypesImplementing<IFileAction>().Count > 0,

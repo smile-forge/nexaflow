@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
 using System.ComponentModel;
@@ -21,6 +22,8 @@ public sealed class WorkspaceRuntimes : IDisposable
     private readonly Func<Workspace, bool> _isListed;
     private readonly TimeProvider _time;
 
+    private readonly ILogger<WorkspaceRuntimes> _log;
+
     /// <summary>Each workspace's one runtime, whatever state it is in short of ended.</summary>
     private readonly Dictionary<Workspace, WorkspaceRuntime> _byWorkspace = new(ReferenceEqualityComparer.Instance);
 
@@ -37,14 +40,16 @@ public sealed class WorkspaceRuntimes : IDisposable
     /// <param name="isListed">Whether a workspace is still one of the saved ones: a workspace deleted while it ran ends with its
     /// last window rather than staying dormant.</param>
     /// <param name="time">The clock the dormant runtimes' time is kept by.</param>
+    /// <param name="log">Where a runtime that failed to end cleanly is put on record.</param>
     public WorkspaceRuntimes(WorkspaceRuntimeFactory factory, IUiThread ui, Func<TimeSpan> dormancy, Func<Workspace, bool> isListed,
-                             TimeProvider time)
+                             TimeProvider time, ILogger<WorkspaceRuntimes> log)
     {
         _factory  = factory;
         _ui       = ui;
         _dormancy = dormancy;
         _isListed = isListed;
         _time     = time;
+        _log      = log;
     }
 
     /// <summary>Stops every dormant runtime's clock and stops waiting on any background work: the session is ending, and ends
@@ -254,7 +259,7 @@ public sealed class WorkspaceRuntimes : IDisposable
         runtime.ShellServices.WindowsChanged -= OnWindowsChanged;
 
         try { await runtime.DisposeAsync(); }
-        catch (Exception ex) { ShellSafetyLog.Instance.Failed($"ending the workspace runtime '{runtime.Name}'", ex); }
+        catch (Exception ex) { _log.LogWarning(ex, "ending the workspace runtime '{Workspace}'", runtime.Name); }
         finally
         {
             runtime.StateChanged -= OnStateChanged;

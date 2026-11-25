@@ -2,8 +2,10 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.Logging;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -41,7 +43,7 @@ public class ConfigUnreadableValueTests
     private static Version Prior   => Current > new Version(0, 0, 0, 0) ? new Version(0, 0, 0, 0) : new Version(99, 0, 0, 0);
 
     private string        _dir    = string.Empty;
-    private CrashLog      _log    = null!;
+    private CrashLogProvider _log = null!;
     private ConfigManager _config = null!;
 
     [TestInitialize]
@@ -51,8 +53,8 @@ public class ConfigUnreadableValueTests
         Directory.CreateDirectory(_dir);
 
         var now = DateTimeOffset.Now;   // one clock reading, so the log a test reads is the day it was written
-        _log    = new CrashLog(() => Path.Combine(_dir, "logs"), () => now, "test");
-        _config = TestRuntimes.ConfigIn(_dir, _log);
+        _log    = new CrashLogProvider(() => Path.Combine(_dir, "logs"), () => now, "test");
+        _config = TestRuntimes.ConfigIn(_dir, new LoggerFactory([_log]).CreateLogger<ConfigManager>());
     }
 
     [TestCleanup]

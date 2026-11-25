@@ -232,7 +232,7 @@ public class LocalAiRequirementsTests
     [TestMethod]
     public void TheRequirements_AreListedOnTheAboutPage_EachAnsweringRatherThanThrowing()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir);
+        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
         catalog.Initialize((_, _) => { });
         var discovered = catalog.TypesImplementing<IExternalDependency>();
         foreach (var type in Declarations)

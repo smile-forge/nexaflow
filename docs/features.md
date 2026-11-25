@@ -46,7 +46,8 @@ are `*PageRegistration.cs`) at the root, `ViewModels/`, `Views/`. Copy the cspro
 
 The one required contract. The session's `FeatureManager` discovers it by reflection (reading
 `static StaticPageKind` without instantiating) and builds one instance **per `WorkspaceRuntime`**, injecting:
-any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`, and its `IAIService`.
+any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`, and its `IAIService` — and an
+`ILogger<T>` when its constructor asks for one ([A feature's log](#a-features-log--iloggert)).
 
 - `CreatePageDefinition` must be **cheap and side-effect-free** — the shell builds definitions speculatively
   just to read `Title`/`Icon` (menus, the AI "add context" list) and may discard them. Build the view-model
@@ -343,6 +344,19 @@ when it is `IDisposable`. The Images tabs share `ImageEditingServices` this way,
 recipe store writing its sidecar; and the file browser's tabs, object handler and ribbon pins share one
 `FileSystemFeatureRegistry`, `FileOperationQueue` and `FileCompanions`, so a copy started in one tab shows in every
 other. A class that is not marked is not supplied: the DI builds only what a feature asks it to.
+
+---
+
+## A feature's log — `ILogger<T>`
+
+A constructor the feature DI builds — a registration, a handler, a `[FeatureService]` — may ask for an `ILogger<T>`
+(Microsoft.Extensions.Logging), `T` usually the class itself; the feature's project then references the
+`Microsoft.Extensions.Logging.Abstractions` package and nothing more of the logging stack. It is a logger in the app's
+logs (`ShellLogging`, [Architecture.md](Architecture.md)), so each entry reaches every destination, which keeps it by its
+level: `Error` and above is a fault the crash log keeps, and a UI journey fails on any; a `Warning` carrying an exception
+is something tried and carried on without, written to the session's log as `FAILED {message}: {exception}` — so the
+message names what was tried, `log.LogWarning(ex, "reading {File}", path)`; `Information` is a step of the session's
+account, kept while safety logging is on. The actions and viewlets `FileSystemFeatureRegistry` builds are not given one.
 
 ---
 

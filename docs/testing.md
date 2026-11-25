@@ -841,13 +841,15 @@ Two gates, at opposite ends of the same rule:
 An id whose value is a markup extension (`{Binding AutomationId}`) is skipped by both: the real id is computed
 at run time, so there is no literal for a journey to name.
 
-### Binding errors (`BindingErrorLog` / `known-binding-errors.txt`)
+### Binding errors (`BindingErrorLogProvider` / `known-binding-errors.txt`)
 
 WPF reports a binding it cannot resolve — a member the bound object does not have, an ancestor that is not
 there — only to a debugger, and leaves the target at its default: a card that should show options is simply
 empty, and every check that does not look inside it passes. Under `--uiTest` the app writes each such error
-once, as a signature without WPF's per-object hash codes, to `binding-errors.log` in its config root
-(`Core/Services/BindingErrorLog.cs`). `UITestBase`'s teardown fails the journey on any signature
+once, as a signature without WPF's per-object hash codes, to `binding-errors.log` in its config root: the app's
+listener on WPF's binding trace (`Core/Services/BindingErrorTrace.cs`) logs each one, and the destination of the
+app's logs that takes them alone writes it down (`Core/Services/Logging/BindingErrorLogProvider.cs`). `UITestBase`'s
+teardown fails the journey on any signature
 `Tests.UIJourneys/Infrastructure/known-binding-errors.txt` does not list, prints the signatures, and keeps the
 log with the journey's other logs. The sandbox's `close` reports them too.
 

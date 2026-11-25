@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
@@ -42,6 +43,9 @@ public sealed class WorkspaceManager
     /// <summary>The session's configuration: the list is saved through it, and every workspace in it is listed in it.</summary>
     private readonly ConfigManager _configuration;
 
+    /// <summary>Where what the list tidied of the workspaces' folders, and what it could not, is put on record.</summary>
+    private readonly ILogger<WorkspaceManager> _log;
+
     /// <summary>
     /// The saved workspaces <paramref name="config"/> holds, or one default workspace where it holds none, each listed in
     /// <paramref name="configuration"/> (<see cref="Workspace.ListIn"/>). The list alone: no runtime is made until a window opens one.
@@ -50,11 +54,13 @@ public sealed class WorkspaceManager
     /// <param name="providers">The session's provider pool, which a workspace's provider configs are read through.</param>
     /// <param name="configuration">The session's configuration: the list is saved through it, and each workspace's folders sit
     /// under its own.</param>
-    public WorkspaceManager(WorkspacesConfig config, ProviderManager providers, ConfigManager configuration)
+    /// <param name="log">Where the list says what it tidied of the workspaces' folders, and what it could not.</param>
+    public WorkspaceManager(WorkspacesConfig config, ProviderManager providers, ConfigManager configuration, ILogger<WorkspaceManager> log)
     {
         _savedConfig   = config;
         _providers     = providers;
         _configuration = configuration;
+        _log           = log;
 
         var workspaces = config.Contexts is { Count: > 0 } saved ? saved : [new Workspace()];
         foreach (var p in workspaces)
@@ -153,14 +159,15 @@ public sealed class WorkspaceManager
             catch (Exception ex)
             {
                 // A locked file leaves the folder in place rather than crashing startup — retried next launch.
-                ShellSafetyLog.Instance.Failed($"quarantining the orphaned workspace folder '{name}'", ex);
+                _log.LogWarning(ex, "quarantining the orphaned workspace folder '{Folder}'", name);
             }
         }
 
         ForgetOrphanedLocalFolders(live);
 
         if (moved.Count > 0)
-            ShellSafetyLog.Instance.Step($"workspaces: quarantined {moved.Count} orphaned workspace folder(s) into '{OrphanQuarantineDir}': {string.Join(", ", moved)}");
+            _log.LogInformation("workspaces: quarantined {Count} orphaned workspace folder(s) into '{Quarantine}': {Folders}",
+                                moved.Count, OrphanQuarantineDir, string.Join(", ", moved));
 
         return moved;
     }
@@ -179,7 +186,7 @@ public sealed class WorkspaceManager
             if (live.Contains(Path.GetFileName(dir))) continue;
 
             try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex) { ShellSafetyLog.Instance.Failed($"removing the orphaned local workspace folder '{dir}'", ex); }
+            catch (Exception ex) { _log.LogWarning(ex, "removing the orphaned local workspace folder '{Folder}'", dir); }
         }
     }
 

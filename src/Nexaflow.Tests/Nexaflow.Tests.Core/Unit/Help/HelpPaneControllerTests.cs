@@ -18,7 +18,8 @@ namespace Nexaflow.Tests.Core.Unit;
 public class HelpPaneControllerTests
 {
     /// <summary>Page views for panes whose pages are never drawn.</summary>
-    private static readonly PageViews Undrawn = new(new ViewRegistry(_ => null), (_, _) => throw new InvalidOperationException("a pane under test draws nothing"));
+    private static readonly PageViews Undrawn = new(new ViewRegistry(_ => null), (_, _) => throw new InvalidOperationException("a pane under test draws nothing"),
+    TestRuntimes.LoggerFor<PageViews>());
 
     // A window's panes and the moves the controller makes on them, without the window.
     private sealed class PaneHost : IHelpPaneHost

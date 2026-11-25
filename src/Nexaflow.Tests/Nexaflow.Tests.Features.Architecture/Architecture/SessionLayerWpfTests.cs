@@ -18,7 +18,7 @@ public class SessionLayerWpfTests
 {
     private static readonly string Root = RepoRoot.Locate();
 
-    /// <summary>The session layer: the host, the runtime and what builds it, and what they share.</summary>
+    /// <summary>The session layer: the host, the runtime and what builds it, and what they share — the logs among it.</summary>
     private static readonly string[] SessionLayer =
     [
         "src/Nexaflow.Core/Services/ShellHost.cs",
@@ -28,6 +28,13 @@ public class SessionLayerWpfTests
         "src/Nexaflow.Core/Services/FeatureScope.cs",
         "src/Nexaflow.Core/Services/FolderActivity.cs",
         "src/Nexaflow.Core/Models/WorkspaceRuntime.cs",
+        "src/Nexaflow.Core/Services/Logging/ShellLogging.cs",
+        "src/Nexaflow.Core/Services/Logging/LogDestination.cs",
+        "src/Nexaflow.Core/Services/Logging/CrashLogProvider.cs",
+        "src/Nexaflow.Core/Services/Logging/SessionLogProvider.cs",
+        "src/Nexaflow.Core/Services/Logging/BindingErrorLogProvider.cs",
+        "src/Nexaflow.Core/Services/Logging/FaultBurst.cs",
+        "src/Nexaflow.Core/Services/Logging/StartupMilestones.cs",
     ];
 
     private static readonly Regex CommentsAndLiterals = new(

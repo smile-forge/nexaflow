@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Nexaflow.Core.Services;
 
 /// <summary>
@@ -12,18 +14,21 @@ internal sealed class StartupFailure
     /// <summary>The exit code of a launch that could not start.</summary>
     public const int ExitCode = 1;
 
-    private readonly CrashLog       _log;
+    private readonly ILogger        _log;
+    private readonly Func<string>   _logPath;
     private readonly Action         _releaseInstance;
     private readonly Action<string> _tell;
     private readonly Action<int>    _exit;
 
-    /// <param name="log">Where the fault is recorded.</param>
+    /// <param name="log">Where the fault is recorded — the process's logs, whose crash log keeps it.</param>
+    /// <param name="logPath">The crash log's file, which the user is told holds the details.</param>
     /// <param name="releaseInstance">Gives up the single-instance guard, so the next launch starts for itself.</param>
     /// <param name="tell">Shows the user a message. Called only for a launch someone is watching.</param>
     /// <param name="exit">Ends the process with the given exit code.</param>
-    public StartupFailure(CrashLog log, Action releaseInstance, Action<string> tell, Action<int> exit)
+    public StartupFailure(ILogger log, Func<string> logPath, Action releaseInstance, Action<string> tell, Action<int> exit)
     {
         _log             = log;
+        _logPath         = logPath;
         _releaseInstance = releaseInstance;
         _tell            = tell;
         _exit            = exit;
@@ -37,9 +42,9 @@ internal sealed class StartupFailure
     /// </summary>
     public void Handle(Exception fault, bool attended)
     {
-        _log.Record(fault);
+        _log.LogCritical(fault, "the launch could not start");
         _releaseInstance();
-        if (attended) _tell(MessageFor(fault, _log.CurrentPath));
+        if (attended) _tell(MessageFor(fault, _logPath()));
         _exit(ExitCode);
     }
 

@@ -366,16 +366,152 @@
           }
         ]
       }
+    },
+    "crash-log": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/App.xaml.cs",
+          "class": "App",
+          "method": "OnDispatcherUnhandledException"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/StartupFailure.cs",
+          "class": "StartupFailure"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Logging/CrashLogProvider.cs",
+          "class": "CrashLogProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/DispatcherFaultPolicy.cs",
+          "class": "DispatcherFaultPolicy"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Logging/ShellLogging.cs",
+          "class": "ShellLogging"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/CrashLogTests.cs",
+            "class": "CrashLogTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/StartupFailureTests.cs",
+            "class": "StartupFailureTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/DispatcherFaultPolicyTests.cs",
+            "class": "DispatcherFaultPolicyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ShellLoggingTests.cs",
+            "class": "ShellLoggingTests"
+          }
+        ]
+      }
+    },
+    "safety-log": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Logging/SessionLogFile.cs",
+          "class": "SessionLogFile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost/HostLog.cs",
+          "class": "HostLog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig",
+          "method": "SafetyLogging"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.AiHost/Nexaflow.AiHost.Client/HostErrorOutput.cs",
+          "class": "HostErrorOutput"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Logging/SessionLogProvider.cs",
+          "class": "SessionLogProvider"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/SessionLogFileTests.cs",
+            "class": "SessionLogFileTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/RealHostTests.cs",
+            "class": "RealHostTests",
+            "method": "TheHostLogs_InTheFolderTheAppNames"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.AiHost/HostErrorOutputTests.cs",
+            "class": "HostErrorOutputTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/SafetyLogTests.cs",
+            "class": "SafetyLogTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ShellLoggingTests.cs",
+            "class": "ShellLoggingTests"
+          }
+        ]
+      }
+    },
+    "binding-error-log": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Infrastructure/KnownBindingErrors.cs",
+          "class": "KnownBindingErrors"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/Logging/BindingErrorLogProvider.cs",
+          "class": "BindingErrorLogProvider"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/BindingErrorTrace.cs",
+          "class": "BindingErrorTrace"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 18,
+  "changed_sets": 23,
   "touched_nodes": [
+    "binding-error-log",
+    "crash-log",
     "feature-startup",
     "messages-workspace-tag",
     "opt-about",
     "opt-section-workspaces",
     "options",
+    "safety-log",
     "shell-session",
     "ws-delete",
     "ws-dormant-time",

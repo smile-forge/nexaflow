@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
@@ -81,18 +82,29 @@ public sealed class FeatureManager
     /// <summary>The session's configuration, which every feature's global config is registered in and saved through.</summary>
     private readonly ConfigManager _config;
 
+    /// <summary>The session's logs: what makes the <see cref="ILogger{T}"/> a feature's constructor asks for.</summary>
+    private readonly ILoggerFactory _logs;
+
+    /// <summary>Where a feature's setup that failed is put on record.</summary>
+    private readonly ILogger<FeatureManager> _log;
+
     /// <summary>
     /// The session's feature system over <paramref name="catalog"/>: builds the catalog's (cached) discovery index — no feature
     /// assemblies are loaded on the cache-hit path — and activates Core. A feature's global configs are registered in
     /// <paramref name="config"/>, its theme is folded in on <paramref name="ui"/>, however its assembly came to load, and its
-    /// location backends are registered in <paramref name="locationProviders"/>.
+    /// location backends are registered in <paramref name="locationProviders"/>. A feature whose constructor asks for an
+    /// <see cref="ILogger{T}"/> is given one made by <paramref name="logs"/>, the session's logs, which also hear of a feature's setup
+    /// that failed.
     /// </summary>
-    public FeatureManager(FeatureCatalog catalog, ConfigManager config, IUiThread ui, LocationProviderRegistry locationProviders)
+    public FeatureManager(FeatureCatalog catalog, ConfigManager config, IUiThread ui, LocationProviderRegistry locationProviders,
+                          ILoggerFactory logs)
     {
         Catalog            = catalog;
         _config            = config;
         _ui                = ui;
         _locationProviders = locationProviders;
+        _logs              = logs;
+        _log               = logs.CreateLogger<FeatureManager>();
         _subfeatures       = new SubfeatureCatalog(catalog, this);
         catalog.Initialize(OnAssemblyActivated);
     }
@@ -178,7 +190,7 @@ public sealed class FeatureManager
         {
             if (!te.Contracts.Contains(FeatureStartupName) || asm.GetType(te.Name) is not { } startupType) continue;
             try { ((IFeatureStartup)Activator.CreateInstance(startupType)!).Start(StartupContext()); }
-            catch (Exception ex) { ShellSafetyLog.Instance.Failed($"setting up {startupType.FullName} for the session", ex); }
+            catch (Exception ex) { _log.LogWarning(ex, "setting up {Feature} for the session", startupType.FullName); }
         }
 
         if (themeChanged)
@@ -340,6 +352,11 @@ public sealed class FeatureManager
                 // The locations this runtime has mounted, as a page lists them — the same runtime file system.
                 args[i] = workspace.Vfs;
             }
+            else if (pt.IsGenericType && pt.GetGenericTypeDefinition() == typeof(ILogger<>))
+            {
+                // The feature's own log, in the session's: its entries reach every destination under the category the type argument names.
+                args[i] = Activator.CreateInstance(typeof(Logger<>).MakeGenericType(pt.GetGenericArguments()), _logs);
+            }
             else if (_tools.TryGetValue(pt, out var tool))
             {
                 args[i] = tool;
@@ -398,7 +415,7 @@ public sealed class FeatureManager
             else
             {
                 return Defect(out defect, $"parameter '{name}' is of type '{pt.Name}', which the feature DI "
-                    + "does not supply (it injects IShellServices, IAIService, IVirtualFileSystem, ILocationPublisher, WorkspaceRuntime, the app-wide tools such as IPictureTools, "
+                    + "does not supply (it injects IShellServices, IAIService, IVirtualFileSystem, ILocationPublisher, WorkspaceRuntime, ILogger<T>, the app-wide tools such as IPictureTools, "
                     + "IFeatureConfig, a feature's own [FeatureService] classes, and subfeature sets as IReadOnlyList<ISubfeatureHandle<T>> or "
                     + "IReadOnlyList<T>). If you meant a subfeature set, check that at least one type "
                     + "carrying [Subfeature] implements that contract and shipped as a scanned "

@@ -33,7 +33,7 @@ public class LocalizedStringsTests
     {
         foreach (var code in packs.Keys)
             File.WriteAllBytes(Path.Combine(_dir, $"Nexaflow.Language.{code}.dll"), []);
-        return new LanguageManager(_dir, (code, _) => { loads?.Add(code); return packs[code]; });
+        return new LanguageManager(_dir, (code, _) => { loads?.Add(code); return packs[code]; }, TestRuntimes.LoggerFor<LanguageManager>());
     }
 
     [TestMethod]

@@ -11,7 +11,8 @@ namespace Nexaflow.Tests.Core.Unit;
 public class PaneTests
 {
     /// <summary>Page views for panes whose pages are never drawn.</summary>
-    private static readonly PageViews Undrawn = new(new ViewRegistry(_ => null), (_, _) => throw new InvalidOperationException("a pane under test draws nothing"));
+    private static readonly PageViews Undrawn = new(new ViewRegistry(_ => null), (_, _) => throw new InvalidOperationException("a pane under test draws nothing"),
+    TestRuntimes.LoggerFor<PageViews>());
 
     private static Page MakePage(string title = "Page") => new() { Title = title };
 
