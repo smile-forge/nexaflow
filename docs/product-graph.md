@@ -273,7 +273,7 @@ the write is deferred.
 
 ```powershell
 & $nfi pending                  # what this branch has changed and not merged — review before committing
-& $nfi promote [--dry-run]      # fold arrived sets into the shared tree, delete them, and commit that
+& $nfi promote [--dry-run]      # fold arrived sets into the shared tree, delete them, and stage the deletion
 ```
 
 **Commit that file with your change.** It is under the committed export dir on purpose: it rides along with the PR,
@@ -283,7 +283,10 @@ merges, so its set never arrives and there is nothing to clean up.
 
 ### Promote is run deliberately, from the main checkout
 
-`promote` is the only verb that writes to git. Everything else only reads — including `validate`, which the
+`promote` is the only verb that touches git, and it stops at the index: it stages the deletion of the sets it folded
+in and commits nothing, printing the message to commit them with. When that lands on main, and beside what, is
+decided by whoever commits — a commit made for you sits between your own work and the remote, and the first you hear
+of it is a refused push. Everything else only reads — including `validate`, which the
 installer's release gate, the Product page and every agent run: it *reports* arrived sets
 (`note: N merged link set(s) … Fold them in with: nfi promote`) and writes nothing, so running it never moves the
 branch its caller stands on. `promote` from a linked worktree is refused: a pending set there is that branch's own

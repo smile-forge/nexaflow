@@ -151,17 +151,22 @@ public class ValidateWriteFreedomTests
     // ── promote writes ──────────────────────────────────────────────────────
 
     [TestMethod]
-    public void Promote_IsTheVerbThatFoldsInAndCommits()
+    public void Promote_FoldsInAndStagesTheRemoval_LeavingTheCommitToTheCaller()
     {
         ArrivedPendingSet("feature");
         var before = Head();
+        var pendingFile = Path.GetRelativePath(_main, Pending.PathFor("feature")).Replace('\\', '/');
 
         Assert.AreEqual(0, Run(_main, "promote", _main));
 
-        Assert.AreNotEqual(before, Head(), "promote is named for the write, so it makes it");
+        Assert.AreEqual(before, Head(), "promote stages; when the removal lands, and beside what, is the caller's commit");
         Assert.AreEqual(0, Pending.All().Count);
         Assert.AreEqual(2, new ProductStore(_main).Load().Nodes["leaf"].Snaplinks!.Count,
-            "and the shared tree now holds what merged");
+            "the arrived set is folded into the shared tree");
+
+        using var repo = new Repository(_main);
+        Assert.AreEqual(FileStatus.DeletedFromIndex, repo.RetrieveStatus(pendingFile),
+            "the removal is staged, ready for the caller's next commit");
     }
 
     [TestMethod]

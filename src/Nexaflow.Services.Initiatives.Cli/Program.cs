@@ -3285,8 +3285,8 @@ internal static class Program
             "scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]", Access: Reads);
         public static readonly VerbSpec Pending = new("pending", 0, None, ["--all"],
             "pending [<root>] [--all]", Access: Reads);
-        public static readonly VerbSpec Promote = new("promote", 0, ["--branch"], ["--dry-run", "--no-commit"],
-            "promote [<root>] [--branch <name>] [--dry-run] [--no-commit]", Access: WritesProduct);
+        public static readonly VerbSpec Promote = new("promote", 0, ["--branch"], ["--dry-run"],
+            "promote [<root>] [--branch <name>] [--dry-run]", Access: WritesProduct);
         public static readonly VerbSpec Batch = new("batch", 1, None, ["--dry-run"],
             "batch <script-file> [<root>] [--dry-run]", Access: WritesProduct);
         public static readonly VerbSpec Doctor = new("doctor", 0, None, ["--fix"],
@@ -3589,7 +3589,7 @@ internal static class Program
     /// being the merged signal.
     /// <para>
     /// Reading them is all this does. <c>validate</c> overlays them to answer for the tree as it will stand,
-    /// and <see cref="Promote"/> is the one verb that folds them in and commits — deliberately, because a
+    /// and <see cref="Promote"/> is the one verb that folds them in and stages their removal — deliberately, because a
     /// command that writes to git as a side effect of being asked a question moves whatever branch its caller
     /// happened to be standing on.
     /// </para>
@@ -3704,14 +3704,13 @@ internal static class Program
 
         Console.WriteLine($"Promoted {applied} link set(s) from {sets.Count} branch(es) into the shared tree.");
 
-        if (!a.Has("--no-commit"))
-        {
-            var (ok, error) = new ProductGit(PendingRoot(root)).CommitPaths(
-                paths, $"Product: consolidate snaplinks from {string.Join(", ", sets.Select(s => s.Branch))}");
-            Console.WriteLine(ok
-                ? "Committed the consolidated pending file(s) as merged."
-                : $"note: the pending file(s) were removed but not committed ({error}).");
-        }
+        // Staged, never committed: a commit made here lands on main in the middle of whatever the caller is doing,
+        // ahead of their own work and behind the remote, and they find out when the push is refused.
+        var (staged, error) = new ProductGit(PendingRoot(root)).StagePaths(paths);
+        var message = $"Product: consolidate snaplinks from {string.Join(", ", sets.Select(s => s.Branch))}";
+        Console.WriteLine(staged
+            ? $"Staged the removed pending file(s) — nothing is committed. Commit them when you commit, e.g.:\n  git commit -m \"{message}\""
+            : $"note: the pending file(s) were removed but not staged ({error}).");
 
         var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         new ProductStore(root).SaveIntegrity(report);

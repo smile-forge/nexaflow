@@ -152,7 +152,7 @@ working copy root, the baseline copy, a branch name, the linked worktrees. That 
 | `IsIgnored(paths)` / `EnumerateTracked()` | per-file `repo.Ignore.IsPathIgnored` | no — configured globs apply either way |
 | `ContentId(path)` | nothing today; skips hashing when the system already knows a digest | no |
 | `Renames(from, to)` | `git log -M` | no — the change journal sees renames as they happen |
-| `Submit(paths, message)`, `Label(name)` | `CommitPaths`, `CommitAndTag` | no — promote and snapshots export without them |
+| `Stage(paths)`, `Submit(paths, message)`, `Label(name)` | `StagePaths`, `CommitAndTag` | no — promote and snapshots export without them |
 
 "Has this change set merged" needs no operation, and stays that way: a pending set is a file that travels with
 the change, and it has merged when it is present in the baseline copy. The one requirement on a version control

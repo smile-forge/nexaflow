@@ -4,8 +4,8 @@ using LibGit2Sharp;
 namespace Nexaflow.Services.Initiatives.Product.Services;
 
 /// <summary>
-/// The thin git surface the snapshot workflow needs: detect a repo, check a tag, and commit the exported
-/// snapshot files + tag them. Read-only / best-effort; never throws for an expected outcome.
+/// The thin git surface the product workflows need: detect a repo, check a tag, stage the pending files promote
+/// removed, and commit the exported snapshot files + tag them. Best-effort; never throws for an expected outcome.
 /// </summary>
 public sealed class ProductGit(string productRoot)
 {
@@ -39,25 +39,20 @@ public sealed class ProductGit(string productRoot)
     }
 
     /// <summary>
-    /// Stages exactly <paramref name="relativePaths"/> — including deletions — and commits only those.
+    /// Stages exactly <paramref name="relativePaths"/> — including deletions — and nothing else, and commits nothing.
     /// <para>
-    /// Deliberately narrow: this runs as a side effect of an ordinary command, so it must never sweep up
-    /// whatever else the working tree happens to have staged. Nothing is pushed.
+    /// Deliberately narrow: this runs as a side effect of an ordinary command, so it must never sweep up whatever
+    /// else the working tree holds, and never decide when anything lands on the branch — that is the caller's
+    /// commit, made alongside whatever else they mean to send.
     /// </para>
     /// </summary>
-    public (bool Ok, string? Error) CommitPaths(IReadOnlyList<string> relativePaths, string message)
+    public (bool Ok, string? Error) StagePaths(IReadOnlyList<string> relativePaths)
     {
         if (relativePaths.Count == 0) return (true, null);
         try
         {
             using var repo = new Repository(productRoot);
             foreach (var rel in relativePaths) Commands.Stage(repo, rel);
-
-            var sig = repo.Config.BuildSignature(DateTimeOffset.Now)
-                      ?? new Signature(Environment.UserName, $"{Environment.UserName}@local", DateTimeOffset.Now);
-
-            try { repo.Commit(message, sig, sig); }
-            catch (EmptyCommitException) { }   // already committed by someone else — not a failure
             return (true, null);
         }
         catch (RepositoryNotFoundException) { return (false, "Not a git repository."); }

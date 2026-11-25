@@ -6,7 +6,7 @@ using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Initiatives.Product;
 
-/// <summary>The git surface used by Take Snapshot: repo detection, tag checks, and commit-and-tag.</summary>
+/// <summary>The git surface used by Take Snapshot and promote: repo detection, tag checks, staging, and commit-and-tag.</summary>
 [TestClass]
 [CoversNode("product-version-bar")]
 public class ProductGitTests
@@ -106,5 +106,28 @@ public class ProductGitTests
 
         Assert.IsTrue(new ProductGit(dir).HasTag("v0.4.0"));
         Assert.IsFalse(new ProductGit(dir).HasTag("v9.9.9"));
+    }
+
+    [TestMethod]
+    public void StagePaths_StagesOnlyThosePaths_AndCommitsNothing()
+    {
+        var dir = InitRepo();
+        Write(dir, "keep.txt", "one");
+        Write(dir, "gone.txt", "two");
+        CommitAll(dir, "init");
+
+        File.Delete(Path.Combine(dir, "gone.txt"));
+        Write(dir, "keep.txt", "edited");
+        string before;
+        using (var r = new Repository(dir)) before = r.Head.Tip.Sha;
+
+        var (ok, err) = new ProductGit(dir).StagePaths(["gone.txt"]);
+
+        Assert.IsTrue(ok, err);
+        using var repo = new Repository(dir);
+        Assert.AreEqual(before, repo.Head.Tip.Sha, "staging is all it does — the commit is the caller's");
+        Assert.AreEqual(FileStatus.DeletedFromIndex, repo.RetrieveStatus("gone.txt"));
+        Assert.AreEqual(FileStatus.ModifiedInWorkdir, repo.RetrieveStatus("keep.txt"),
+            "a path it was not given is left exactly as it was");
     }
 }
