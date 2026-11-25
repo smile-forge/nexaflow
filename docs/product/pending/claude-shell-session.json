@@ -142,8 +142,47 @@
           "type": "code",
           "doc": "src/Nexaflow.Session/ConfigManager.cs",
           "class": "ConfigManager"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Host/ShellHost.cs",
+          "class": "ShellPlatform"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Session/Services/IWorkspaceAssistant.cs",
+          "class": "IWorkspaceAssistant"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Assistant/WorkspaceAssistants.cs",
+          "class": "WorkspaceAssistants"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Session/Services/IWindowHost.cs",
+          "class": "IWindowHost"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/FolderActivityTests.cs",
+            "class": "FolderActivityTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/CoreSingletonRatchetTests.cs",
+            "class": "CoreSingletonRatchetTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/SessionAssemblyRulesTests.cs",
+            "class": "SessionAssemblyRulesTests"
+          }
+        ]
+      }
     },
     "model-residency": {
       "links": [
@@ -2211,10 +2250,49 @@
           "class": "BarConversation"
         }
       ]
+    },
+    "feature-startup": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/IFeatureStartup.cs",
+          "class": "IFeatureStartup"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/WindowsFileSystemStartup.cs",
+          "class": "WindowsFileSystemStartup"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Session/Services/FeatureActivation.cs",
+          "class": "FeatureActivation",
+          "method": "OnAssemblyActivated"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Session/Services/ActivatedFeature.cs",
+          "class": "ActivatedFeature"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/FeatureStartupTests.cs",
+            "class": "FeatureStartupTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/FeatureActivationTests.cs",
+            "class": "FeatureActivationTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 87,
+  "changed_sets": 90,
   "touched_nodes": [
     "add-workspace",
     "agent-call-repair",
@@ -2245,6 +2323,7 @@
     "console-gt-prefix",
     "crash-log",
     "document-work-underway",
+    "feature-startup",
     "help-ai-tools",
     "help-library",
     "help-search",
