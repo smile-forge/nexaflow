@@ -1,3 +1,4 @@
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Agent;
@@ -12,45 +13,45 @@ using System.Windows;
 
 namespace Nexaflow.Core.Services;
 
+/// <summary>
+/// The saved workspaces — the list the selector and the taskbar's jump list show — and what adds, clones, renames and deletes
+/// them, each written back to disk. The live runtimes are not here (<see cref="WorkspaceRuntimes"/>). The session makes one
+/// (<see cref="ShellHost"/>) and hands it to what reads or changes the list.
+/// </summary>
 public sealed class WorkspaceManager
 {
-    public static WorkspaceManager Instance { get; } = new();
-
     /// <summary>
     /// Saved workspace configurations — what the dropdown and taskbar JumpList show.
-    /// Populated by <see cref="Initialize"/>; never contains runtime-only data.
+    /// Never contains runtime-only data.
     /// </summary>
     public ObservableCollection<Workspace> Workspaces { get; } = [];
 
     /// <summary>
-    /// Fired after <see cref="Initialize"/> or when workspaces are added/removed, so listeners
+    /// Fired when workspaces are added/removed, so listeners
     /// (JumpList, ShellViewModel) can refresh their derived state.
     /// </summary>
     public event EventHandler? WorkspacesRefreshed;
 
-    private WorkspacesConfig? _savedConfig;
+    /// <summary>The saved workspace list on disk, which <see cref="SaveWorkspaces"/> writes.</summary>
+    private readonly WorkspacesConfig _savedConfig;
 
-    /// <summary>The session's live workspaces, which a saved workspace's runtime is found in: set by the session at start, for what
-    /// asks about them without being handed them.</summary>
-    internal WorkspaceRuntimes? Runtimes { get; set; }
-
-    private WorkspaceManager() { }
+    /// <summary>The session's provider pool, which a workspace's provider configs are read through.</summary>
+    private readonly ProviderManager _providers;
 
     /// <summary>
-    /// Loads workspace configurations (workspaces) from <paramref name="config"/>. Does NOT create
-    /// any runtime <see cref="WorkspaceRuntime"/> objects — those are created lazily when windows open.
-    /// Must be called AFTER <see cref="ProviderManager"/> has loaded its assemblies.
+    /// The saved workspaces <paramref name="config"/> holds, or one default workspace where it holds none. The list alone: no
+    /// runtime is made until a window opens one.
     /// </summary>
-    public void Initialize(WorkspacesConfig config)
+    /// <param name="config">The saved workspace list, which <see cref="SaveWorkspaces"/> writes back.</param>
+    /// <param name="providers">The session's provider pool, which a workspace's provider configs are read through.</param>
+    public WorkspaceManager(WorkspacesConfig config, ProviderManager providers)
     {
         _savedConfig = config;
-        Workspaces.Clear();
+        _providers   = providers;
 
         var workspaces = config.Contexts is { Count: > 0 } saved ? saved : [new Workspace()];
         foreach (var p in workspaces)
             Workspaces.Add(p);
-
-        WorkspacesRefreshed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>The reserved sub-folder of <c>Contexts\</c> that orphaned workspace data is moved into
@@ -107,7 +108,7 @@ public sealed class WorkspaceManager
     /// HARD-GATED on <paramref name="listIsAuthoritative"/>: the list is only trustworthy when it actually
     /// loaded (or migrated) from disk. When it defaulted — missing or unreadable <c>workcontexts.json</c> —
     /// EVERY folder looks orphaned, and moving them all would be the very data-loss this guards against, so
-    /// it is skipped entirely. Call once at startup, right after <see cref="Initialize"/>. Returns the
+    /// it is skipped entirely. Call once at startup, right after the list is made. Returns the
     /// folder names quarantined (for logging / tests).
     /// </summary>
     public IReadOnlyList<string> QuarantineOrphanedDataFolders(bool listIsAuthoritative)
@@ -179,14 +180,13 @@ public sealed class WorkspaceManager
 
     /// <summary>
     /// Makes <paramref name="model"/> <paramref name="workspace"/>'s <paramref name="slot"/> model — a download a choice waited on
-    /// has landed — saving it, and having the workspace's runtime take it up without closing its tabs.
+    /// has landed — and saves it. The workspace's runtime takes it up through the session (<see cref="WorkspaceRuntimes.Reacquire"/>).
     /// </summary>
     public void UseLocalModel(Workspace workspace, LocalSlot slot, ProviderModelPair model)
     {
-        workspace.EnsureSharedServicesLoaded();
+        workspace.EnsureSharedServicesLoaded(_providers);
         LocalColumns.Use(workspace.AiConfig, slot, model);
         ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
-        Runtimes?.Reacquire(workspace);
     }
 
     /// <summary>Adds a new workspace with a random icon/colour to <see cref="Workspaces"/>.</summary>
@@ -209,7 +209,7 @@ public sealed class WorkspaceManager
         var workspace = new Workspace { Name = name, Icon = icon, Color = color };
         var destDir = WorkspaceDir(name);
 
-        source.EnsureSharedServicesLoaded();
+        source.EnsureSharedServicesLoaded(_providers);
         ConfigManager.Instance.SaveTo(destDir, source.AiConfig, source.AiConfig.ConfigName);
         ConfigManager.Instance.SaveTo(destDir, source.Persona, source.Persona.ConfigName);
         foreach (var cfg in source.ProviderConfigs)
@@ -280,14 +280,11 @@ public sealed class WorkspaceManager
     /// <summary>
     /// Permanently deletes <paramref name="workspace"/>: removes it from the list, deletes its on-disk
     /// data folder (config + every conversation), and persists the list. Refuses to delete the last
-    /// remaining workspace. By default also refuses one a live workspace is using; pass
-    /// <paramref name="force"/> when the caller has already (or is about to) tear down that workspace's
-    /// windows — used by the Configure panel's "Delete Workspace" action, which has no separate Save step.
-    /// Returns true when deleted.
+    /// remaining workspace. The caller ends its runtime first (<see cref="WorkspaceRuntimes.Close"/>) — used by the
+    /// Configure panel's "Delete Workspace" action, which has no separate Save step. Returns true when deleted.
     /// </summary>
-    public bool DeleteWorkspace(Workspace workspace, bool force = false)
+    public bool DeleteWorkspace(Workspace workspace)
     {
-        if (!force && Runtimes?.HasWindows(workspace) == true) return false;
         if (!RemoveWorkspace(workspace)) return false;   // removes + deletes the folder
         SaveWorkspaces();
         return true;
@@ -351,7 +348,6 @@ public sealed class WorkspaceManager
     /// <summary>Persists the workspace list (names/colours/icons only).</summary>
     public void SaveWorkspaces()
     {
-        if (_savedConfig is null) return;
         _savedConfig.Contexts = [.. Workspaces];
         ConfigManager.Instance.Save(_savedConfig, _savedConfig.ConfigName);
     }
@@ -372,14 +368,16 @@ public sealed class WorkspaceManager
 
     /// <summary>
     /// Folds a grid saved before the Local column's models on this machine into it, once, and turns the Local column on where this
-    /// machine runs a model; each job it is used for keeps a model the job offers here. Nothing is downloaded. Saved when it
-    /// changed — before the workspace runs, the setup wizard does it so it can offer what the column now needs.
+    /// machine runs a model; each job it is used for keeps a model the job offers here, read from <paramref name="assets"/>. Nothing
+    /// is downloaded. Saved when it changed — before the workspace runs, the setup wizard does it so it can offer what the column
+    /// now needs.
     /// </summary>
+    /// <param name="assets">The files local models need; null where the session keeps none, when only the column is gathered.</param>
     /// <returns>Whether the grid changed.</returns>
-    internal static bool FoldInLocalColumns(Workspace workspace, ProviderSet providers)
+    internal static bool FoldInLocalColumns(Workspace workspace, ProviderSet providers, IModelAssetStore? assets)
     {
         var folded = LocalColumns.Gather(workspace.AiConfig, providers.IsLocal);
-        if (ProviderManager.Instance.Assets is { } assets)
+        if (assets is not null)
         {
             var shelf = new LocalModelShelf(providers, assets);
             IReadOnlyList<(ProviderModelPair, bool, bool, bool)> Offered(LocalSlot slot)

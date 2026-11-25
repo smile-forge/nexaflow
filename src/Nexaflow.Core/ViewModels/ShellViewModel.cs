@@ -231,8 +231,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>This window's workspace was removed (in the Options panel, or by another window): it shows the first left.</summary>
     private void OnWorkspacesRefreshed(object? sender, EventArgs e)
     {
-        if (CurrentRuntime is null || WorkspaceManager.Instance.Workspaces.Contains(CurrentRuntime.Workspace)) return;
-        var fallback = WorkspaceManager.Instance.Workspaces.FirstOrDefault();
+        if (CurrentRuntime is null || _session.SavedWorkspaces.Workspaces.Contains(CurrentRuntime.Workspace)) return;
+        var fallback = _session.SavedWorkspaces.Workspaces.FirstOrDefault();
         if (fallback is not null)
             _ui.Invoke(() => MoveToWorkspace(fallback));
     }
@@ -289,7 +289,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void RecomputeLocalAiNotice()
     {
-        LocalAiNotice = ProviderManager.Instance.Service<IAiHost>() is { Unreachable: { } why } && CurrentRuntime.AiService is { UsesOwnModels: true }
+        LocalAiNotice = _session.Providers.Service<IAiHost>() is { Unreachable: { } why } && CurrentRuntime.AiService is { UsesOwnModels: true }
             ? Str.Format("Shell.AiBar.LocalAiUnreachable", why)
             : null;
     }
@@ -447,8 +447,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
     private OptionsViewModel BuildOptionsPanel()
     {
-        var vm = new OptionsViewModel(new ConfigPageModels(_session.Dependencies, _session.Language, _session.Features), _session.Features,
-                                      _shellServices);
+        var vm = new OptionsViewModel(new ConfigPageModels(_session), _session.Features, _runtimes, _shellServices);
         vm.SaveError           += ShowErrorToast;
         vm.TabRefreshRequested += RefreshTabs;
         vm.SaveCompleted       += () =>
@@ -471,7 +470,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private WorkspaceConfigViewModel BuildWorkspaceConfigPanel()
     {
         var workspace = ConfigureTargetWorkspace ?? CurrentRuntime.Workspace;
-        var vm = new WorkspaceConfigViewModel(workspace, _session.Features, _shellServices);
+        var vm = new WorkspaceConfigViewModel(workspace, _session, _shellServices);
         vm.ApplyError += ShowErrorToast;
         if (RequestedConfigureSection is { } section)
         {
@@ -509,7 +508,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     [ObservableProperty, NotifyPropertyChangedFor(nameof(BreadcrumbDisplayFilters))] private WorkspaceRuntime _currentRuntime = null!;
 
     /// <summary>The saved workspaces shown in the dropdown.</summary>
-    public ObservableCollection<Workspace> Workspaces => WorkspaceManager.Instance.Workspaces;
+    public ObservableCollection<Workspace> Workspaces => _session.SavedWorkspaces.Workspaces;
 
     /// <summary>False while a modal overlay (Options / Manage-AI) is open — blocks workspace switching.</summary>
     public bool CanSwitchWorkspace => !OptionsOpen && !WorkspaceConfigOpen;
@@ -778,13 +777,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _help = new HelpPaneController(this);   // before the panes exist: their first page change already asks it
         WireRootPane();
 
-        WorkspaceManager.Instance.WorkspacesRefreshed += OnWorkspacesRefreshed;
+        _session.SavedWorkspaces.WorkspacesRefreshed += OnWorkspacesRefreshed;
 
         // ── Voice input availability + the AI's line ─────────────────────────
         // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away. What the
         // workspace's own models need is the host they run in: out of reach, the AI's line says so.
         workspace.ProvidersChanged += OnRuntimeProvidersChanged;
-        if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged += OnHostReachabilityChanged;
+        if (_session.Providers.Service<IAiHost>() is { } host) host.ReachabilityChanged += OnHostReachabilityChanged;
 
         // A spoken conversation owns the bar as dictation does: what is heard fills the box, and the mic stops it.
         Voice.Heard += text => AiInputText = text;
@@ -825,11 +824,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _inbox.MessagePosted -= OnMessagePosted;
 
         // The host outlives its windows: unhooked, or this window stays rooted by it.
-        if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged -= OnHostReachabilityChanged;
+        if (_session.Providers.Service<IAiHost>() is { } host) host.ReachabilityChanged -= OnHostReachabilityChanged;
 
         // The workspace list and the runtime outlive their windows: unhook them, or a closed window stays rooted and keeps
         // switching the runtime other windows show. A window that closes while listening stops listening.
-        WorkspaceManager.Instance.WorkspacesRefreshed -= OnWorkspacesRefreshed;
+        _session.SavedWorkspaces.WorkspacesRefreshed -= OnWorkspacesRefreshed;
         CurrentRuntime.ProvidersChanged -= OnRuntimeProvidersChanged;
         _ = Voice.StopAsync();
 
@@ -1218,7 +1217,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (CurrentRuntime?.Workspace is not { } source) return;
 
-        var mgr   = WorkspaceManager.Instance;
+        var mgr   = _session.SavedWorkspaces;
         var clone = mgr.CloneWorkspace(source, mgr.UniqueWorkspaceName($"{source.Name} copy"));
         mgr.SaveWorkspaces();        // persist the new workspace in the dropdown list immediately
 
@@ -1238,7 +1237,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         var tabs = CaptureLayout();
         workspace.DefaultTabs = tabs;
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _session.SavedWorkspaces.SaveWorkspaces();
 
         ShowInfoToast(Str.Get("Shell.Workspace.DefaultTabs.Set"),
         tabs.Count == 0 ? Str.Get("Shell.Workspace.DefaultTabs.SavedNone")
@@ -1283,7 +1282,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// </summary>
     public void RequestDeleteWorkspace(Workspace workspace)
     {
-        var mgr = WorkspaceManager.Instance;
+        var mgr = _session.SavedWorkspaces;
         if (mgr.Workspaces.Count <= 1) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
 
         var liveWs = _runtimes.Find(workspace);
@@ -1299,7 +1298,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void DeleteWorkspace(Workspace workspace, WorkspaceRuntime? liveWs)
     {
-        var mgr = WorkspaceManager.Instance;
+        var mgr = _session.SavedWorkspaces;
 
         if (ReferenceEquals(liveWs, CurrentRuntime))
         {
@@ -1314,7 +1313,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         // Its runtime ends now — any other window still showing it closes — rather than staying dormant for a workspace that is gone.
         _runtimes.Close(workspace);
-        mgr.DeleteWorkspace(workspace, force: true);
+        mgr.DeleteWorkspace(workspace);
         WorkspaceConfigOpen = false;
     }
 

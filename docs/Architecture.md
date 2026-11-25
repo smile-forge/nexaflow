@@ -80,10 +80,10 @@ A launch of a workspace already live opens a window on its runtime; tear-off and
 | Singleton | Owns | NOT responsible for |
 |-----------|------|---------------------|
 | `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-workspace config in that workspace's folder | — |
-| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — creating one loads nothing; cooled + disposed on last release | Holds provider **configs** — those live on the saved `Workspace` |
+| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — creating one loads nothing; cooled + disposed on last release. One per session, made by `ShellHost` with the app-wide services a provider may take, and handed to every window (`WindowServices`) and runtime (`RuntimeSessionServices`; the runtime carries it as `WorkspaceRuntime.ProviderPool`) | Holds provider **configs** — those live on the saved `Workspace` |
 | `ModelResidency` | Which pooled models stay loaded: those `ModelPreloadConfig` (**global**) loads ahead, warmed after the first window draws; any other let go once idle. Counts each use in `ModelUseHistory` — **machine-local**, `model-use.json` in the AI folder beside the models, not per workspace: the models are loaded once for every workspace, and what is worth loading ahead depends on this machine | Loading a model before first paint |
 | `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
-| `WorkspaceManager` | The `Workspaces` list (dropdown source): saved workspaces — add, clone, rename, delete, persist | Live runtimes (`WorkspaceRuntimes`) |
+| `WorkspaceManager` | The `Workspaces` list (dropdown source): saved workspaces — add, clone, rename, delete, persist. Made by the session over the saved `WorkspacesConfig` and handed to every window (`WindowServices.SavedWorkspaces`) and runtime (`RuntimeSessionServices`), and through them to the Options and Configure pages by their view-models | Live runtimes (`WorkspaceRuntimes`) |
 | `WorkspaceRuntimes` | The live workspaces: one runtime per `Workspace`, opened, resumed, made dormant and ended | Building a runtime (`WorkspaceRuntimeFactory`) |
 | `WorkspaceRuntimeFactory` | Builds every runtime from the session's services (`RuntimeSessionServices`), and ends those still running when the session ends | — |
 | `FolderActivity` | The session's file and folder watches — one per path, however many workspaces follow it — and its busy folders, so a folder being changed shows its wait in every workspace | — |
@@ -91,7 +91,7 @@ A launch of a workspace already live opens a window on its runtime; tear-off and
 | `FeatureCatalog` | The discovery engine, one per session (`ShellHost.Catalog`): a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
 | `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. The session makes it, points `Str` at it, and hands it to every window (`WindowServices`) and runtime (`RuntimeSessionServices`). A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
 | `HelpLibrary` | The help pages, read through the `LanguageManager`. The Help page's registration is given it by the feature injection (an app-wide tool, `FeatureManager.ProvideTool`); every runtime's assistant gets the tools that read it (`RuntimeSessionServices.HelpTools`) | — |
-| `ExternalDependencyRegistry` | The third-party components features declare (`IExternalDependency`), probed off the UI thread and cached; each finished probe announced on the session's `IUiThread`. Handed to every window — for About and the panel a page that could not be made is drawn with — and every runtime's `ShellServices`, which answers a feature's `GetDependencyStatus` | Installing a component |
+| `ExternalDependencyRegistry` | The third-party components features declare (`IExternalDependency`), probed off the UI thread and cached; each finished probe announced on the session's `IUiThread`. A declaration of the session's own takes what it is judged from in its constructor — what Nexaflow's own models need, the AI host's reading of its runtime (`AiHostReading`) — and the registry builds it with the services the session made it with. Handed to every window — for About and the panel a page that could not be made is drawn with — and every runtime's `ShellServices`, which answers a feature's `GetDependencyStatus` | Installing a component |
 | `PageViews` | The view each open page is drawn with, made on first show and kept until its tab closes, so a tab moved between panes or windows keeps it. Made by the app (`ShellPlatform.Views` — only the app knows the views): every window's panes draw with it, every runtime's `ShellServices` lets a closed page's go | The page's view-model (the `Page` holds it) |
 | `FileMapManager`, `ExternalAppRegistry`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 | `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`LocalAiFolder`; `NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume by the AI host SDK's store | — |
@@ -178,8 +178,8 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`/`Vfs`) |
 | `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue |
 | `Services/Agent/ClientBlockParser.cs`, `ParsedAssistantTurn.cs` | The assistant wire-protocol parser the agent loop reads fenced `client_tool` blocks with. Core-only, so it lives in Core — not a feature contract |
-| `Services/WorkspaceManager.cs` | Singleton: the saved `Workspaces` list; `Initialize`, `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
-| `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); an execution instance is followed by `ModelResidency`, which loads its model ahead or lets it go idle, and cools with its pool lifetime |
+| `Services/WorkspaceManager.cs` | One per session, made by `ShellHost`: the saved `Workspaces` list; `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
+| `ProviderManager.cs` | One per session, made by `ShellHost`: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); an execution instance is followed by `ModelResidency`, which loads its model ahead or lets it go idle, and cools with its pool lifetime |
 | `ProviderSet.cs` | A runtime's acquired provider **instances** + the workspace's configs + assembly map + pool keys |
 | `Services/AIService.cs` | `IAIService` impl — **per-`WorkspaceRuntime`**: provider registry, ability→model resolution, the agent loop, conversation history |
 | `AI/AiConfig.cs` | Per-workspace AI ability config (`Columns` + each ability's `AbilityChain` of columns in `Assignments`); rendered by `AiAbilityGridControl` |
@@ -278,7 +278,7 @@ a cloud API or a local server like Ollama — or owned, where Nexaflow is the wh
 run in the **AI host** (`src/Nexaflow.AiHost/`): `Nexaflow.AiHost.exe` beside the app, started on the first request
 by the app's one `AiHostClient`, bound to the kill-on-close job, and replaced when it dies or stops answering
 ([local-ai.md](local-ai.md)). The provider for them, "Nexaflow" (`Nexaflow.Providers.AiHost`), gets the client the way
-any provider gets an app-wide service: `ProviderManager.Initialize` is handed the services, and a provider constructor
+any provider gets an app-wide service: the session's `ProviderManager` is made with the services, and a provider constructor
 parameter of a service's type receives it. A request says how urgent it is (`LlmUrgency`), which the host schedules
 the GPU by. A new workspace's setup asks who runs its AI where the machine can run an owned model
 (`WorkspaceAiDefaults`).
@@ -593,7 +593,7 @@ The title and each label are string-table keys, so the section reads in the acti
 
 For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]` to the config class and implement `ICustomConfigApply` on the control.
 The control is made by its parameterless constructor and bound to the config. It reaches no service itself: a Core page that
-shows the session — About, Shell — is bound instead to a view-model `ConfigPageModels` makes from the session's services,
+shows the session — About, Shell, Workspaces — is bound instead to a view-model `ConfigPageModels` makes from the session's services,
 which the window hands its Options and the app its setup wizard.
 
 ---
@@ -763,8 +763,7 @@ app's files go. It takes no other input and restores only what the admin-owned m
 App.OnStartup
   → single-instance IPC listener                            ← a later launch never waits behind start-up
   → new ShellHost(options, ShellPlatform(WPF UI thread, clipboard, folder watcher, ApplyAppearance, page views)):
-      → the feature catalogue (its index not yet built), the component registry (ExternalDependencyRegistry) over it, and the
-            page views made over both
+      → the feature catalogue (its index not yet built)
       → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
       → register GLOBAL configs: ShellConfig (+ App applies the theme), WorkspacesConfig,
         FileMapConfig, ExternalAppsConfig
@@ -773,11 +772,13 @@ App.OnStartup
             the language is selected again, before the first window's strings resolve
       → HelpLibrary over the language, for the Help page and the assistant's help tools
       → the AI host client, model residency, local tools
-      → ProviderManager.Initialize(Activities, …)           ← records the shared ActivityManager
+      → new ProviderManager(Activities, model store, residency, app-wide services)   ← the provider pool
+      → the component registry (ExternalDependencyRegistry) over the catalogue and the AI host's reading, and the page
+            views made over both
       → for each saved workspace: temp AiConfig ← ConfigManager.LoadFrom(workspace dir)
             (need each workspace's columns to know which provider DLLs to load)
-      → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all workspaces' AiConfigs)
-      → WorkspaceManager.Initialize(wcConfig)               ← loads the saved Workspaces list ONLY (no runtimes)
+      → providers.LoadConfigured(⋃ AssemblyFileName across all workspaces' AiConfigs)
+      → new WorkspaceManager(wcConfig, providers)           ← the saved Workspaces list ONLY (no runtimes)
       → new FeatureManager(catalog, ui, location backends)  ← FeatureCatalog.Initialize: load the cached
             discovery index (no feature DLLs loaded) or, after an app update, one full rescan. Feature
             assemblies load + activate lazily later (first use, or the post-paint background warm-up); the file

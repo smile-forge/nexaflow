@@ -289,7 +289,7 @@ to write: [Architecture.md → Ownership & Lifetime](docs/Architecture.md#owners
 | `src/Nexaflow.Core/Services/ShellServices.cs` | the `IShellServices` implementation |
 | `src/Nexaflow.Core/FeatureManager.cs` | per-`WorkspaceRuntime` constructor injection for features |
 | `src/Nexaflow.Core/Services/FeatureCatalog.cs` | cached feature discovery; Debug builds always rescan — never clear the cache by hand |
-| `src/Nexaflow.Core/Services/WorkspaceManager.cs` | the workspace list + live runtimes: create / switch / reconfigure / dispose |
+| `src/Nexaflow.Core/Services/WorkspaceManager.cs` | the saved workspace list: add / clone / rename / delete / persist — the live runtimes are `WorkspaceRuntimes` |
 | `src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FileSystemFeatureRegistry.cs` | discovery for `IFileAction` / `IFolderAction` / `IFileCreateAction` / `IFolderViewlet` / `IThisPcItemProvider` — not `FeatureManager` |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | contracts (`IPageRegistration`, `Page`, …) — changes here affect everything |
 | `src/Nexaflow.Core/Themes/Styles.xaml` | app-merged shared styles and brushes, referenced from any feature by `{StaticResource …}` |

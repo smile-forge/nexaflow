@@ -20,20 +20,19 @@ public static class JumpListService
     private const string CategoryName = "Workspaces";
 
     /// <summary>
-    /// Applies the initial JumpList and subscribes to context-list changes so it stays in sync.
-    /// Call once after <see cref="WorkspaceManager"/> has been initialised.
+    /// Applies the initial JumpList from <paramref name="savedWorkspaces"/> and follows its changes so it stays in sync.
     /// </summary>
-    public static void Initialize()
+    public static void Initialize(WorkspaceManager savedWorkspaces)
     {
         // Captured on the UI thread (this runs as the app opens the session); the workspace-list change can
         // arrive on any thread, so marshal the rebuild back onto it.
         var ui = Dispatcher.CurrentDispatcher;
-        WorkspaceManager.Instance.WorkspacesRefreshed += (_, _) => ui.Invoke(Refresh);
-        Refresh();
+        savedWorkspaces.WorkspacesRefreshed += (_, _) => ui.Invoke(() => Refresh(savedWorkspaces.Workspaces));
+        Refresh(savedWorkspaces.Workspaces);
     }
 
-    /// <summary>Rebuilds the JumpList from the current set of saved Workspaces.</summary>
-    public static void Refresh()
+    /// <summary>Rebuilds the JumpList from the saved <paramref name="workspaces"/>.</summary>
+    public static void Refresh(IEnumerable<Models.Workspace> workspaces)
     {
         if (Application.Current is null) return;
 
@@ -42,7 +41,7 @@ public static class JumpListService
 
         var jumpList = new JumpList { ShowRecentCategory = false, ShowFrequentCategory = false };
 
-        foreach (var cfg in WorkspaceManager.Instance.Workspaces)
+        foreach (var cfg in workspaces)
             jumpList.JumpItems.Add(new JumpTask
             {
                 Title            = cfg.Name,

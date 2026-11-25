@@ -7,10 +7,12 @@ using Nexaflow.Visuals.Common.Localization;
 namespace Nexaflow.Core.Services.LocalAi;
 
 // What Nexaflow's own models need to run on a GPU, declared like any feature's component so Options → About lists each
-// with the rest. The judging is LocalAiRequirements'; these name each requirement and hand it the AI host's answer.
+// with the rest. The judging is LocalAiRequirements'; these name each requirement and hand it the AI host's answer, asked through
+// the session's AiHostReading — given to each by the components registry, which builds them.
 
 /// <summary>An NVIDIA GPU with memory of its own: where Nexaflow's own models run, where there is one.</summary>
-internal sealed class NvidiaGpuDependency : IExternalDependency
+/// <param name="host">The AI host's reading of the machine, which the GPU is judged from.</param>
+internal sealed class NvidiaGpuDependency(AiHostReading host) : IExternalDependency
 {
     public string Id          => "nvidia-gpu";
     public string DisplayName => Str.Get("Shell.Components.NvidiaGpu.Name");
@@ -18,11 +20,12 @@ internal sealed class NvidiaGpuDependency : IExternalDependency
     public ExternalDependencyKind Kind => ExternalDependencyKind.Optional;
     public string? InstallUrl => null;
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(LocalAiRequirements.AskedOfHost, host => LocalAiRequirements.Gpu(host.Machine, LocalAiRequirements.Adapters));
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(host.Now(), host => LocalAiRequirements.Gpu(host.Machine, LocalAiRequirements.Adapters));
 }
 
 /// <summary>NVIDIA's driver, new enough for the CUDA the pack's libraries are built for.</summary>
-internal sealed class CudaDriverDependency : IExternalDependency
+/// <param name="host">The AI host's reading of the machine, which the driver is judged from.</param>
+internal sealed class CudaDriverDependency(AiHostReading host) : IExternalDependency
 {
     public string Id          => "nvidia-cuda-driver";
     public string DisplayName => Str.Get("Shell.Components.CudaDriver.Name");
@@ -30,11 +33,12 @@ internal sealed class CudaDriverDependency : IExternalDependency
     public ExternalDependencyKind Kind => ExternalDependencyKind.Optional;
     public string? InstallUrl => "https://www.nvidia.com/Download/index.aspx";
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(LocalAiRequirements.AskedOfHost, host => LocalAiRequirements.CudaDriver(host.Machine));
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(host.Now(), host => LocalAiRequirements.CudaDriver(host.Machine));
 }
 
 /// <summary>The CUDA pack the models' runtime loads its GPU libraries from, downloaded into the model store.</summary>
-internal sealed class CudaRuntimePackDependency : IExternalDependency
+/// <param name="host">The AI host's reading of its runtime, which the pack is judged from.</param>
+internal sealed class CudaRuntimePackDependency(AiHostReading host) : IExternalDependency
 {
     public string Id          => "cuda-runtime-pack";
     public string DisplayName => Str.Get("Shell.Components.CudaPack.Name");
@@ -44,7 +48,7 @@ internal sealed class CudaRuntimePackDependency : IExternalDependency
     /// <summary>No link: it is downloaded by the app, with the models.</summary>
     public string? InstallUrl => null;
 
-    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(LocalAiRequirements.AskedOfHost, host => LocalAiRequirements.CudaPack(host.Machine, host.RuntimePack, host.PackFilesHere));
+    public ExternalDependencyStatus Probe() => LocalAiRequirements.Judged(host.Now(), host => LocalAiRequirements.CudaPack(host.Machine, host.RuntimePack, host.PackFilesHere));
 }
 
 /// <summary>The process every model Nexaflow runs itself is loaded in, installed with the app.</summary>

@@ -53,7 +53,7 @@ public sealed class WorkspaceRuntimeFactory(RuntimeSessionServices session)
 
     private WorkspaceRuntime Started(Workspace workspace, bool standby)
     {
-        workspace.EnsureSharedServicesLoaded();
+        workspace.EnsureSharedServicesLoaded(Providers);
         var runtime = Built(workspace, standby);
         runtime.Start();
         return runtime;
@@ -76,7 +76,7 @@ public sealed class WorkspaceRuntimeFactory(RuntimeSessionServices session)
     internal AIService NewAiService(WorkspaceRuntime runtime)
     {
         var jobs    = Session.Tasks is { } tasks ? new BackgroundJobs(tasks, runtime, Session.Notify) : null;
-        var service = new AIService(runtime, Session.Features, runtime.Workspace.ConversationsDir, Session.HelpTools, jobs);
+        var service = new AIService(runtime, Session.Features, Session.Providers, runtime.Workspace.ConversationsDir, Session.HelpTools, jobs);
         service.LoadAbilityConfig(runtime.Workspace.AiConfig);
         return service;
     }

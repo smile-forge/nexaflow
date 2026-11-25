@@ -18,14 +18,15 @@ namespace Nexaflow.Core.Controls;
 /// <summary>
 /// The Workspaces section of Options: the saved list, edited as row copies and written back on Apply. Bound to a
 /// <see cref="WorkspacesConfigViewModel"/> the settings panel makes (<see cref="ViewModels.ConfigPageModels"/>), which carries the
-/// setup a workspace added here is taken through.
+/// saved workspaces, which of them a window shows, and the setup a workspace added here is taken through.
 /// </summary>
 public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ObservableCollection<Workspace>? _editWorkspaces;
     private WorkspacesConfig?              _config;
 
-    /// <summary>What the page is bound to: the saved list, and the setup a workspace added here is taken through.</summary>
+    /// <summary>What the page is bound to: the saved list, which of it a window shows, and the setup a workspace added here is
+    /// taken through.</summary>
     private WorkspacesConfigViewModel?     _model;
 
     private static readonly Random _rng = new();
@@ -80,7 +81,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
                 Name    = p.Name,
                 Color   = p.Color,
                 Icon    = p.Icon,
-                IsInUse = WorkspaceManager.Instance.Runtimes?.HasWindows(p) == true,   // hides Delete on the live workspace
+                IsInUse = _model?.Runtimes.HasWindows(p) == true,   // hides Delete on the live workspace
             };
             _editToOriginal[edit] = p;
             _editWorkspaces.Add(edit);
@@ -127,9 +128,10 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
 
     public void Apply()
     {
-        if (_config is null || _editWorkspaces is null) return;
+        if (_config is null || _editWorkspaces is null || _model is null) return;
 
-        var mgr       = WorkspaceManager.Instance;
+        var mgr       = _model.Saved;
+        var runtimes  = _model.Runtimes;
         var survivors = new HashSet<Workspace>();
         var ordered   = new List<Workspace>();
 
@@ -164,8 +166,8 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
 
         // Remove workspaces the user deleted — but never one a window shows, and never the last. One left dormant ends with it.
         foreach (var workspace in mgr.Workspaces.ToList())
-            if (!survivors.Contains(workspace) && mgr.Runtimes?.HasWindows(workspace) != true && mgr.RemoveWorkspace(workspace))
-                mgr.Runtimes?.Close(workspace);
+            if (!survivors.Contains(workspace) && !runtimes.HasWindows(workspace) && mgr.RemoveWorkspace(workspace))
+                runtimes.Close(workspace);
 
         // Sync the live Workspaces order to the edited order (drag-reorder), so the dropdown and the
         // persisted list match. SaveWorkspaces rebuilds Contexts from Workspaces, so order must live here.
@@ -193,12 +195,12 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
         var (icon, _) = WorkspaceStyle.Random();
         // Unique name => a fresh, empty config folder (avoids a re-used "New Workspace" dir picking up
         // a previous workspace's saved provider/model).
-        var workspace = WorkspaceManager.Instance.AddWorkspace(
-            WorkspaceManager.Instance.UniqueWorkspaceName(Str.Get("Shell.Workspace.DefaultName")));
+        var saved     = _model.Saved;
+        var workspace = saved.AddWorkspace(saved.UniqueWorkspaceName(Str.Get("Shell.Workspace.DefaultName")));
         workspace.Icon  = icon;
         workspace.Color = RandomSwatchColor();
-        WorkspaceManager.Instance.Workspaces.Move(WorkspaceManager.Instance.Workspaces.Count - 1, 0);
-        WorkspaceManager.Instance.SaveWorkspaces();
+        saved.Workspaces.Move(saved.Workspaces.Count - 1, 0);
+        saved.SaveWorkspaces();
 
         var wizard = _model.SetupFor(workspace);
         new SetupWizardWindow(wizard) { Owner = Window.GetWindow(this) }.ShowDialog();
@@ -261,7 +263,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
 
         // Cannot delete a workspace a live workspace is using (incl. the active one).
         if (_editToOriginal.TryGetValue(edit, out var original)
-            && WorkspaceManager.Instance.Runtimes?.HasWindows(original) == true)
+            && _model?.Runtimes.HasWindows(original) == true)
         {
             shell?.ShowErrorToast(Str.Get("Shell.Workspace.InUse"));
             return;

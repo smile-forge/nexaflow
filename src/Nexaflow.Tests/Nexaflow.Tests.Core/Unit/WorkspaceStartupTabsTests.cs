@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Core.Unit;
 /// as, what a closing window records, and what the "never offer to restore" opt-out changes. Reopening
 /// itself needs the feature registry to build the pages, so what is asserted here is the plan the
 /// restore follows — pane, order and which tab ends up selected — plus the recording that feeds it.
-/// Shares the <see cref="WorkspaceManager"/>/<see cref="ConfigManager"/> singletons, so it runs in the
+/// Each test saves its workspace in a list of its own; the <see cref="ConfigManager"/> singleton is shared, so it runs in the
 /// non-parallel phase against a temp config root.
 /// </summary>
 [TestClass]
@@ -94,7 +94,7 @@ public class WorkspaceStartupTabsTests
     public void ADefaultTabsetIsPersisted_AndComesBackFieldForField()
     {
         var workspace = new Workspace { Name = "Dev" };
-        WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [workspace] });
+        var saved     = TestRuntimes.SavedListOf(workspace);
 
         // What "Use Tabset as Default" writes: the captured layout, its panes, params and selection.
         workspace.DefaultTabs =
@@ -110,7 +110,7 @@ public class WorkspaceStartupTabsTests
             new DefaultTabDescriptor { PageKind = "Terminal", Pane = 1, Title = "Terminal", IsActive = true },
         ];
 
-        WorkspaceManager.Instance.SaveWorkspaces();
+        saved.SaveWorkspaces();
 
         var reloaded = ReadBack().Contexts.Single(w => w.Name == "Dev");
         Assert.AreEqual(2, reloaded.DefaultTabs.Count);
@@ -139,8 +139,7 @@ public class WorkspaceStartupTabsTests
     public void AnEmptyDefaultTabset_IsHonoured_ButANullOneIsReseeded()
     {
         var workspace = new Workspace { Name = "Blank", DefaultTabs = [] };
-        WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [workspace] });
-        WorkspaceManager.Instance.SaveWorkspaces();
+        TestRuntimes.SavedListOf(workspace).SaveWorkspaces();
 
         Assert.AreEqual(0, ReadBack().Contexts.Single().DefaultTabs.Count,
                         "starting with no tabs is a choice, not a missing value");
@@ -205,8 +204,7 @@ public class WorkspaceStartupTabsTests
     public void AStandbyWindow_RecordsNoSession_ForItWasNeverShownToAnyone()
     {
         var workspace = new Workspace { Name = "Ready", DefaultTabs = [Tab("FileSystem")] };
-        WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [workspace] });
-        var shell = TestRuntimes.Unstarted(workspace, standby: true).ShellServices;
+        var shell = TestRuntimes.Unstarted(workspace, standby: true).ShellServices;   // saved in a list of its own
         var host  = new FakeWindowHost
         {
             Layout            = [Tab("FileSystem"), Tab("Terminal")],
@@ -226,8 +224,7 @@ public class WorkspaceStartupTabsTests
     public void TheOptOut_RoundTripsWithTheWorkspace()
     {
         var workspace = new Workspace { Name = "Fixed", SuppressSessionRestore = true };
-        WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [workspace] });
-        WorkspaceManager.Instance.SaveWorkspaces();
+        TestRuntimes.SavedListOf(workspace).SaveWorkspaces();
 
         Assert.IsTrue(ReadBack().Contexts.Single().SuppressSessionRestore);
     }
@@ -247,9 +244,7 @@ public class WorkspaceStartupTabsTests
     private static (Workspace, ShellServices, FakeWindowHost) LiveWorkspace(string name)
     {
         var workspace = new Workspace { Name = name };
-        WorkspaceManager.Instance.Initialize(new WorkspacesConfig { Contexts = [workspace] });
-
-        var runtime = TestRuntimes.Unstarted(workspace);
+        var runtime   = TestRuntimes.Unstarted(workspace);   // saved in a list of its own, which its window closing writes
         var shell   = runtime.ShellServices;
         var host    = new FakeWindowHost();
         shell.RegisterWindow(host);

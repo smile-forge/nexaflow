@@ -11,6 +11,11 @@ namespace Nexaflow.Core.Services;
 /// <param name="Views">The view each open page is drawn with, which the window's panes show.</param>
 /// <param name="Features">The feature system: the pages the window opens, the handlers its chat bar and ribbon offer, and what
 /// its Options and Configure panels list.</param>
+/// <param name="Providers">The provider pool: the AI host the window's AI line watches, and the providers and models on this
+/// machine its Configure panel and a new workspace's setup offer.</param>
+/// <param name="SavedWorkspaces">The saved workspaces: the window's selector lists them, and its Options and Configure panels
+/// add, rename and delete them.</param>
+/// <param name="Updates">Where this build stands against its newest release, which the window's About page shows.</param>
 public sealed record WindowServices(
     BackgroundActivityManager Activities,
     WorkspaceRuntimes Workspaces,
@@ -18,4 +23,7 @@ public sealed record WindowServices(
     ExternalDependencyRegistry Dependencies,
     LanguageManager Language,
     PageViews Views,
-    FeatureManager Features);
+    FeatureManager Features,
+    ProviderManager Providers,
+    WorkspaceManager SavedWorkspaces,
+    AppUpdates Updates);

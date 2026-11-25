@@ -25,10 +25,11 @@ public sealed class PageViews(ViewRegistry registry, Func<Page, Exception?, Fram
 
     /// <summary>
     /// The app's: each page drawn by the view <paramref name="catalog"/> marks as drawing its view-model, and one that could not be
-    /// made by <see cref="PageLoadErrorView"/>, naming any of <paramref name="dependencies"/> missing as the likely cause.
+    /// made by <see cref="PageLoadErrorView"/>, naming any of <paramref name="dependencies"/> missing as the likely cause and offering
+    /// them on the About page through <paramref name="showComponents"/>.
     /// </summary>
-    public static PageViews FromCatalog(FeatureCatalog catalog, ExternalDependencyRegistry dependencies)
-        => new(new ViewRegistry(catalog.ViewTypeFor), (page, error) => new PageLoadErrorView(page, error, dependencies));
+    public static PageViews FromCatalog(FeatureCatalog catalog, ExternalDependencyRegistry dependencies, Action showComponents)
+        => new(new ViewRegistry(catalog.ViewTypeFor), (page, error) => new PageLoadErrorView(page, error, dependencies, showComponents));
 
     /// <summary>The app's views, which every window hands down so a feature's hosts draw with them too.</summary>
     public ViewRegistry Registry => registry;

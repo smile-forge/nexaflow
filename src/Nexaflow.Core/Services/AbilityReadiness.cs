@@ -16,9 +16,11 @@ namespace Nexaflow.Core.Services;
 /// <param name="config">The workspace's ability grid, as the service holds it.</param>
 /// <param name="registered">The provider registered for a column, available or not.</param>
 /// <param name="providers">The runtime's provider set, which the models on this machine are read from.</param>
+/// <param name="pool">The session's provider pool: the files local models need, the app's downloads of them, and the host
+/// they run in.</param>
 /// <param name="shell">Where the offer of a download is asked and its start said.</param>
 internal sealed class AbilityReadiness(Func<AiConfig?> config, Func<string, IAiProvider?> registered,
-                                       Func<ProviderSet?> providers, Func<IShellServices?> shell)
+                                       Func<ProviderSet?> providers, ProviderManager pool, Func<IShellServices?> shell)
 {
     public AiAbilityStatus StatusOf(AiAbility ability)
     {
@@ -86,10 +88,10 @@ internal sealed class AbilityReadiness(Func<AiConfig?> config, Func<string, IAiP
                       .FirstOrDefault(o => o is { Runs: true } && !shelf.IsReady(o));
     }
 
-    private LocalModelShelf? Shelf() => providers() is { } set && ProviderManager.Instance.Assets is { } store ? new(set, store) : null;
+    private LocalModelShelf? Shelf() => providers() is { } set && pool.Assets is { } store ? new(set, store) : null;
 
-    private static LocalModelDownloads? Downloads => ProviderManager.Instance.Service<LocalModelDownloads>();
+    private LocalModelDownloads? Downloads => pool.Service<LocalModelDownloads>();
 
     /// <summary>The host Nexaflow's own models run in cannot be reached — the machine's AI host service stopped, say.</summary>
-    private static bool LocalHostUnreachable => ProviderManager.Instance.Service<Nexaflow.AiHost.Client.IAiHost>() is { Unreachable: not null };
+    private bool LocalHostUnreachable => pool.Service<Nexaflow.AiHost.Client.IAiHost>() is { Unreachable: not null };
 }

@@ -352,7 +352,7 @@ on the Local AI page. `PictureCheckingTests` runs the host with it on the CPU; `
 4. Its front in `Providers.AiHost`, deriving `OwnedToolFront`; its contract in `Features.Common`, extending
    `IToolModels`; and Core's service, deriving `LocalToolModels` and implementing the contract — each job asked through
    `AskedAsync`, or `ToldAsync` for one that hands over as it goes — built in
-   `ShellHost`, passed to `ProviderManager.Initialize` and given to features with `FeatureManager.ProvideTool`.
+   `ShellHost`, handed to the session's `ProviderManager` as it is made and given to features with `FeatureManager.ProvideTool`.
 5. The pages that use it, and their client tools: on the page that shows what the tool works on, acting only on what
    that page has open — the assistant reaches no further than the tabs the user opened. An edit a tool makes to a photo
    is a recipe section and a `ToolEdit` — naming the tools each ask needs, and the picture it is made from where that is

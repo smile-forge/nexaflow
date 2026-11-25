@@ -33,8 +33,13 @@ public partial class WorkspaceDefaultTabsControl : UserControl, IConfigChangeTra
     private bool _dirty;
     private bool _loading;   // true while LoadRows sets the controls, so that isn't taken for an edit
 
-    public WorkspaceDefaultTabsControl()
+    /// <summary>The saved workspaces, written back when the edited tabset is applied.</summary>
+    private readonly WorkspaceManager _savedWorkspaces;
+
+    /// <param name="savedWorkspaces">The saved workspaces the edited one is among, written back on <see cref="Apply"/>.</param>
+    public WorkspaceDefaultTabsControl(WorkspaceManager savedWorkspaces)
     {
+        _savedWorkspaces = savedWorkspaces;
         InitializeComponent();
         RowsList.ItemsSource = Rows;
         DataContextChanged += OnTargetChanged;
@@ -108,7 +113,7 @@ public partial class WorkspaceDefaultTabsControl : UserControl, IConfigChangeTra
         // than the start of waiting for the next close to clear it.
         if (_target.SuppressSessionRestore) _target.LastSessionTabs = null;
 
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _savedWorkspaces.SaveWorkspaces();
         _dirty = false;
         HasChangesChanged?.Invoke(this, EventArgs.Empty);
     }

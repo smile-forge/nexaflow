@@ -12,18 +12,17 @@ namespace Nexaflow.Core.ViewModels;
 /// its Options, by the app for the setup wizard. A Core page that comes to need a session service takes it on its view-model, and
 /// the view-model is made here.
 /// </summary>
-/// <param name="dependencies">The third-party components the features declare, which the About page lists.</param>
-/// <param name="language">The UI language, whose installed packs the Shell page offers.</param>
-/// <param name="features">The feature system, which knows the workspace-scoped configs the Workspaces page's new workspace is set
-/// up with.</param>
-public sealed class ConfigPageModels(ExternalDependencyRegistry dependencies, LanguageManager language, FeatureManager features)
+/// <param name="session">What the window — or, for the setup wizard, the app — has of the session: the components the About page
+/// lists and the update it offers, the language whose installed packs the Shell page offers, and the saved workspaces and live
+/// runtimes the Workspaces page edits, with what a workspace it adds is set up with.</param>
+public sealed class ConfigPageModels(WindowServices session)
 {
     /// <summary>What the page for <paramref name="config"/> is bound to: its view-model where it shows the session, else the config.</summary>
     public object ModelFor(object config) => config switch
     {
-        AboutConfig           => new AboutViewModel(dependencies),
-        ShellConfig shell     => new ShellConfigViewModel(shell, language),
-        WorkspacesConfig list => new WorkspacesConfigViewModel(list, features),
+        AboutConfig           => new AboutViewModel(session.Dependencies, session.Updates, session.Workspaces),
+        ShellConfig shell     => new ShellConfigViewModel(shell, session.Language),
+        WorkspacesConfig list => new WorkspacesConfigViewModel(list, session),
         _                     => config,
     };
 }

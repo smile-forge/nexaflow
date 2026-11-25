@@ -116,7 +116,7 @@ public sealed class AIService : IAIService, IDisposable
     private static bool AllowsAdultContent => !ProtectedAudience.IsOn;
 
         /// <summary>The check every picture made passes while Enhanced AI Protection Mode is on; null while it is off.</summary>
-        private static Generation.IPictureCheck? PictureCheck => ProtectedAudience.IsOn ? ProviderManager.Instance.Service<Tools.PictureChecking>() : null;
+        private Generation.IPictureCheck? PictureCheck => ProtectedAudience.IsOn ? _pool.Service<Tools.PictureChecking>() : null;
 
     /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
     private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model, bool allowsAdultContent)
@@ -285,7 +285,7 @@ public sealed class AIService : IAIService, IDisposable
         if (GetProvider(AiAbility.Documents) is null || _workspace.ShellServices is not { } shell) return null;
 
         return new Documents.DocumentTools(new Documents.DocumentJob(DocumentModelAsync, _workspace.Workspace.DocumentNotesDir, scope, written,
-                                                                     Generation.GeneratedFiles.For(shell, scope), ProviderManager.Instance.ActivityManager,
+                                                                     Generation.GeneratedFiles.For(shell, scope), _pool.ActivityManager,
                                                                                                                                   _documentWork));
     }
 
@@ -541,13 +541,13 @@ public sealed class AIService : IAIService, IDisposable
     public bool UsesOwnModels => OwnedModelsInUse().Count > 0;
 
     public Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default)
-    => ProviderManager.Instance.Service<HostHolds>() is { } holds
+    => _pool.Service<HostHolds>() is { } holds
     ? LocalAiSetupReader.DescribeAsync(holds, OwnedModelsInUse(),
-                                               ModelPlacement.Expected(ProviderManager.Instance.Service<MachineCards>() ?? MachineCards.Probe()), ct)
+                                               ModelPlacement.Expected(_pool.Service<MachineCards>() ?? MachineCards.Probe()), ct)
             : Task.FromResult<LocalAiSetup?>(null);
 
     public Task<LocalAiCheck> CheckLocalAiAsync(IProgress<LocalAiCheckProgress> progress, CancellationToken ct = default)
-        => ProviderManager.Instance.Service<HostHolds>() is { } holds
+        => _pool.Service<HostHolds>() is { } holds
             ? new LocalAiChecker(holds, OwnedModelsInUse(), Path.Combine(LocalAiFolder.Root(), "reports")).RunAsync(progress, ct)
             : throw new InvalidOperationException("Nexaflow's own models are not set up in this session.");
 
@@ -565,6 +565,10 @@ public sealed class AIService : IAIService, IDisposable
     /// <summary>The session's feature system: the query handlers it scores, and the pages a conversation reopens.</summary>
     private readonly FeatureManager _features;
 
+    /// <summary>The session's provider pool: the app-wide services on this machine — the AI host, the picture check — and the
+    /// background tasks a document job reports to.</summary>
+    private readonly ProviderManager _pool;
+
     /// <summary>Where each ability stands, and the offer of a download it waits on.</summary>
     private readonly AbilityReadiness _readiness;
 
@@ -574,18 +578,20 @@ public sealed class AIService : IAIService, IDisposable
 
     /// <param name="workspace">The runtime this assistant serves.</param>
     /// <param name="features">The session's feature system, which builds the runtime's query handlers and reopens a conversation's pages.</param>
+    /// <param name="pool">The session's provider pool, whose app-wide services the assistant uses.</param>
     /// <param name="conversationsDir">Full path to the directory where this workspace's conversations are stored.</param>
     /// <param name="helpTools">The tools that read the help the app ships — the session's, none where it ships no help.</param>
     /// <param name="jobs">Where slow tool calls run on in the background; without it, every call is waited for.</param>
-    public AIService(WorkspaceRuntime workspace, FeatureManager features, string conversationsDir, IReadOnlyList<IClientTool> helpTools,
-                     BackgroundJobs? jobs = null)
+    public AIService(WorkspaceRuntime workspace, FeatureManager features, ProviderManager pool, string conversationsDir,
+                     IReadOnlyList<IClientTool> helpTools, BackgroundJobs? jobs = null)
     {
         _workspace = workspace;
         _features  = features;
+        _pool      = pool;
         _baseDir   = conversationsDir;
         _helpTools = helpTools;
         _jobs      = jobs;
-        _readiness = new(() => _abilityConfig, id => _providers.GetValueOrDefault(id), () => workspace.Providers, () => workspace.ShellServices);
+        _readiness = new(() => _abilityConfig, id => _providers.GetValueOrDefault(id), () => workspace.Providers, pool, () => workspace.ShellServices);
     }
 
     public IReadOnlyList<Page> RestoreContextPages(ConversationRecord conversation)

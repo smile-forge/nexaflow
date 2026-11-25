@@ -30,13 +30,14 @@ internal sealed record ShellHostOptions(bool Reset, bool UiTest);
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
 /// <param name="Views">Makes the view each open page is drawn with, from the toolkit's views the feature catalogue marks as drawing
-/// it; a page that could not be made is drawn naming the session's missing components that may be why.</param>
+/// it; a page that could not be made is drawn naming the session's missing components that may be why, with the way to the
+/// About page that lists them all.</param>
 internal sealed record ShellPlatform(
     IUiThread Ui,
     IShellClipboard Clipboard,
     Func<ShellFolderWatcher> FolderWatchers,
     Action<ShellConfig> ApplyAppearance,
-    Func<FeatureCatalog, ExternalDependencyRegistry, PageViews> Views);
+    Func<FeatureCatalog, ExternalDependencyRegistry, Action, PageViews> Views);
 
 /// <summary>
 /// The shell session: everything that lives as long as the process — from login when the app starts with Windows, otherwise
@@ -111,20 +112,25 @@ internal sealed class ShellHost : IAsyncDisposable
     /// configs and the app-wide tools they are given.</summary>
     public FeatureManager Features { get; }
 
+    /// <summary>The provider pool: the provider assemblies the workspaces name, and the instances every runtime acquires from it.</summary>
+    public ProviderManager Providers { get; }
+
+    /// <summary>The saved workspaces: the list the selector and the jump list show, and what adds, renames and deletes them.</summary>
+    public WorkspaceManager SavedWorkspaces { get; }
+
     /// <summary>
     /// Opens the session up to what the first window needs: the configuration and the shell's settings, the AI host, the
     /// providers every workspace names, the workspace list, the feature catalogue and the runtime factory. Runs on the UI
     /// thread; a throw ends the launch.
     /// </summary>
-    public ShellHost(ShellHostOptions options, ShellPlatform platform)
+    /// <param name="updates">Where this build stands against its newest release, which every window's About page shows.</param>
+    public ShellHost(ShellHostOptions options, ShellPlatform platform, AppUpdates updates)
     {
         _options = options;
         Ui       = platform.Ui;
         Folders  = new FolderActivity(platform.Ui, platform.FolderWatchers);
         Inbox    = new MessageCenter(platform.Ui);
         Discovered = new DiscoveredLocations(LocationProviders);
-        Dependencies = new ExternalDependencyRegistry(platform.Ui, Catalog);
-        Views = platform.Views(Catalog, Dependencies);
 
         // ── 0. Base path — single source of truth for all app-data paths ─────
         // NEXAFLOW_CONFIG_DIR overrides the default (used by UI tests for an isolated, fresh config
@@ -215,11 +221,16 @@ internal sealed class ShellHost : IAsyncDisposable
         var sceneDepth       = new SceneDepthEstimation(new OwnedSceneDepth(Activities, assets, _aiHost, holds, hardware), assets, Activities);
         // Not a feature's tool: the check Enhanced AI Protection Mode holds every picture made to, which Core runs itself.
         var pictureChecking  = new PictureChecking(new OwnedPictureChecking(Activities, assets, _aiHost, holds, hardware), assets, Activities);
-        ProviderManager.Instance.Initialize(Activities, assets, _residency,
-            _aiHost, holds, hardware,
-            new LocalModelDownloads(assets, Activities, WorkspaceManager.Instance.UseLocalModel), _cudaPack, pictureTools, pictureSelection,
-            pageReading, pictureErasing, sceneDepth, pictureChecking);
+        Providers = new ProviderManager(Activities, assets, _residency,
+            [_aiHost, holds, hardware,
+             new LocalModelDownloads(assets, Activities, UseLocalModel), _cudaPack, pictureTools, pictureSelection,
+             pageReading, pictureErasing, sceneDepth, pictureChecking]);
         StartupTimings.Mark("Init.LocalTools");
+
+        // The components the features declare, and what Nexaflow's own models need, judged from the host's own reading of its
+        // runtime. A page that could not be made names those missing, and offers the About page that lists them all.
+        Dependencies = new ExternalDependencyRegistry(platform.Ui, Catalog, [new AiHostReading(holds)]);
+        Views = platform.Views(Catalog, Dependencies, ShowComponents);
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
         // assemblies are needed before loading them. Workspace has no runtime fields yet, so use a
@@ -234,21 +245,21 @@ internal sealed class ShellHost : IAsyncDisposable
             })
             .Concat(LocalColumns.Assemblies)   // every workspace has the Local column
             .Distinct();
-        ProviderManager.Instance.LoadConfigured(allProviderFiles);
+        Providers.LoadConfigured(allProviderFiles);
         StartupTimings.Mark("Init.Providers");
 
         // ── 4. Workspaces — the list ─────────────────────────────────────────
-        WorkspaceManager.Instance.Initialize(wcConfig);
+        SavedWorkspaces = new WorkspaceManager(wcConfig, Providers);
 
         // Quarantine workspace data folders orphaned by an older build's version-bump config reset (before
         // forward-migration existed): the list is authoritative only when workcontexts.json actually
         // loaded — a defaulted (missing/unreadable) list would make every folder look orphaned, so gate on it.
         var listIsAuthoritative = !ConfigManager.Instance.GetDefaultedConfigs()
             .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
-        WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative);
+        SavedWorkspaces.QuarantineOrphanedDataFolders(listIsAuthoritative);
 
         // Persist the rebuilt list at once, so the recovery holds even if this session ends badly.
-        if (listUnreadable) WorkspaceManager.Instance.SaveWorkspaces();
+        if (listUnreadable) SavedWorkspaces.SaveWorkspaces();
 
         // ── 5. Feature system ────────────────────────────────────────────────
         // Builds the (cached) discovery index — on a normal launch this loads NO feature assemblies.
@@ -274,16 +285,16 @@ internal sealed class ShellHost : IAsyncDisposable
 
         // ── 6. Runtimes — the factory each is built by, the live ones, and what each window is given ──
         RuntimeFactory = new WorkspaceRuntimeFactory(new RuntimeSessionServices(
-            ProviderManager.Instance, Features, Activities, Inbox.Post, VirtualFileSystem.Instance,
+            Providers, SavedWorkspaces, Features, Activities, Inbox.Post, VirtualFileSystem.Instance,
             LocationProviders, Discovered,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
             platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard,
             Dependencies, Language, Views, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools]));
         // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
-                                           workspace => WorkspaceManager.Instance.Workspaces.Contains(workspace), TimeProvider.System);
-        WorkspaceManager.Instance.Runtimes = Workspaces;
-        Windows = new WindowServices(Activities, Workspaces, Inbox, Dependencies, Language, Views, Features);
+                                           SavedWorkspaces.Workspaces.Contains, TimeProvider.System);
+        Windows = new WindowServices(Activities, Workspaces, Inbox, Dependencies, Language, Views, Features, Providers, SavedWorkspaces,
+                                     updates);
         StartupTimings.Mark("Init.Workspaces");
 
         // ── 7. Damaged config: say so, say what came back ────────────────────
@@ -305,6 +316,21 @@ internal sealed class ShellHost : IAsyncDisposable
             Features.EnsureLocationProviders();
             return Discovered.StartAsync();
         });
+    }
+
+    /// <summary>A download a choice waited on has landed: <paramref name="model"/> becomes <paramref name="workspace"/>'s
+    /// <paramref name="slot"/> model, saved, and the workspace's runtime takes it up without closing its tabs.</summary>
+    private void UseLocalModel(Workspace workspace, LocalSlot slot, ProviderModelPair model)
+    {
+        SavedWorkspaces.UseLocalModel(workspace, slot, model);
+        Workspaces.Reacquire(workspace);
+    }
+
+    /// <summary>Opens the About page, which lists every component and what the last probe found of each, in a window open on the
+    /// session; nothing while none is open.</summary>
+    private void ShowComponents()
+    {
+        if (Workspaces.FirstWithWindows?.ShellServices is IShellServices shell) shell.OpenOptions("about");
     }
 
     /// <summary>The first window has drawn: the models assigned to the open workspaces load ahead from now, so none of their

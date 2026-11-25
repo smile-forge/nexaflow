@@ -10,6 +10,7 @@ namespace Nexaflow.Core.Services;
 
 /// <summary>What every workspace runtime shares with the session it runs in, handed to <see cref="WorkspaceRuntimeFactory"/>.</summary>
 /// <param name="Providers">The pool every runtime acquires its provider instances from.</param>
+/// <param name="SavedWorkspaces">The saved workspaces, which a runtime writes back when its workspace's tabs or placement change.</param>
 /// <param name="Features">The feature system: builds each runtime's feature instances, and the pages it opens.</param>
 /// <param name="Tasks">Where each runtime's assistant runs its slow work; null where nothing runs in the background.</param>
 /// <param name="Notify">How a runtime's background work tells the user it ended.</param>
@@ -29,6 +30,7 @@ namespace Nexaflow.Core.Services;
 /// <param name="HelpTools">The tools that read the help the app ships, which each runtime's assistant offers on every page.</param>
 public sealed record RuntimeSessionServices(
     ProviderManager Providers,
+    WorkspaceManager SavedWorkspaces,
     FeatureManager Features,
     BackgroundActivityManager? Tasks,
     Action<NotificationItem> Notify,

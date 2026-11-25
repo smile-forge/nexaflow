@@ -27,8 +27,8 @@ namespace Nexaflow.Core.Services;
 
 /// <summary>
 /// Per-Workspace shell service that owns that workspace's tab + window registry.
-/// One instance per <see cref="WorkspaceRuntime"/> (created by <see cref="WorkspaceManager"/>
-/// during bootstrap, before any window); each <see cref="MainWindow"/> showing this
+/// One instance per <see cref="WorkspaceRuntime"/> (created with it by <see cref="WorkspaceRuntimeFactory"/>,
+/// before any window); each <see cref="MainWindow"/> showing this
 /// workspace registers its <see cref="IWindowHost"/> on activation and unregisters on close.
 /// </summary>
 public sealed class ShellServices : IShellServices, IDisposable
@@ -59,6 +59,9 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// <summary>The session's feature system: the pages this runtime opens, and the features it builds for them.</summary>
     private readonly FeatureManager _features;
 
+    /// <summary>The saved workspaces, written back when this runtime's workspace records its last session or lets one go.</summary>
+    private readonly WorkspaceManager _savedWorkspaces;
+
     internal ShellServices(WorkspaceRuntime workspace, RuntimeSessionServices session)
     {
         _workspace    = workspace;
@@ -71,6 +74,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         _language     = session.Language;
         _views        = session.Views;
         _features     = session.Features;
+        _savedWorkspaces = session.SavedWorkspaces;
         Clipboard     = session.Clipboard;
         _folders.Busy.Changed += OnBusyFoldersChanged;
     }
@@ -450,7 +454,7 @@ public sealed class ShellServices : IShellServices, IDisposable
                 ? layout.ToList()
                 : null;
         }
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _savedWorkspaces.SaveWorkspaces();
     }
 
     /// <summary>Once the default tabs are up, offers a one-click restore of the recorded last session.</summary>
@@ -481,7 +485,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         CloseAllTabs();
         RestoreTabLayout(session);
         _workspace.Workspace.LastSessionTabs = null;   // consumed — don't offer it again
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _savedWorkspaces.SaveWorkspaces();
     }
 
     /// <summary>Order-independent (per pane) equality of two tabsets by pane + kind + params (ignores the

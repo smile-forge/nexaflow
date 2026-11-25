@@ -42,7 +42,7 @@ public partial class App : Application
 {
     /// <summary>
     /// Where this build stands against its newest release — one per process, shared by the startup check's toast and
-    /// Options → About, so an offer outlives the toast that announced it.
+    /// Options → About (the session hands it to every window), so an offer outlives the toast that announced it.
     /// </summary>
     internal static readonly AppUpdates Updates = new(
         new UpdatumReleaseSource(HandOverToInstaller, StrandedMidUpdate),
@@ -215,7 +215,7 @@ public partial class App : Application
         // Drafts are the app's to clear, never Windows': a little after start-up, and daily while the app runs, every draft no tab
         // shows or would open again that has gone untouched too long, or is past the drafts' budget. What the tabs name is asked
         // only once the window has nothing else to do, and the sweep itself is off the UI thread.
-        _draftSweeping = new DraftSweeping(() => Dispatcher.InvokeAsync(() => WorkspaceManager.Instance.TabPaths(_host!.Workspaces.OpenTabs()), DispatcherPriority.ApplicationIdle).Task,
+        _draftSweeping = new DraftSweeping(() => Dispatcher.InvokeAsync(() => _host!.SavedWorkspaces.TabPaths(_host!.Workspaces.OpenTabs()), DispatcherPriority.ApplicationIdle).Task,
                                            paths => DraftLocation.Sweep(paths), TimeProvider.System);
         _draftSweeping.Start();
 
@@ -249,7 +249,8 @@ public partial class App : Application
     {
         var host = new ShellHost(new ShellHostOptions(_resetRequested, UiTest),
                                  new ShellPlatform(ui, new ShellClipboard(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
-                                                   PageViews.FromCatalog));
+                                                                     PageViews.FromCatalog),
+                                                   Updates);
         _host = host;
 
         // The window a runtime opens into for a tear-off, a "new window" or a workspace rebuild: the session cannot name MainWindow.
@@ -260,7 +261,7 @@ public partial class App : Application
         host.Workspaces.LastWindowClosed += (_, _) => { if (!IsResident && !IsUpdating) Current.Shutdown(); };
 
         // Taskbar JumpList — one entry per Workspace.
-        JumpListService.Initialize();
+        JumpListService.Initialize(host.SavedWorkspaces);
         StartupTimings.Mark("Init.JumpList");
         return host;
     }
@@ -384,11 +385,11 @@ public partial class App : Application
         var named = ResolveWorkspace(launch.WorkspaceName);
         if (launch.OpenPath is not { } path)
         {
-            EnsureConfiguredThenCreateWindow(activityManager, named ?? WorkspaceManager.Instance.Workspaces[0], activate);
+            EnsureConfiguredThenCreateWindow(activityManager, named ?? _host!.SavedWorkspaces.Workspaces[0], activate);
             return;
         }
 
-        var workspace = named ?? WorkspaceManager.Instance.WorkspaceForOpenedPath(_host!.Workspaces.WithWindows);
+        var workspace = named ?? _host!.SavedWorkspaces.WorkspaceForOpenedPath(_host.Workspaces.WithWindows);
         if (_host.Workspaces.Find(workspace)?.ShellServices is { HasWindows: true } shell)
             shell.OpenFromOutside(path);
         else
@@ -434,7 +435,7 @@ public partial class App : Application
             // stamped so post-update detection stays consistent.
             if (!UiTest && !StartupTimings.Enabled)
             {
-                var wizard = SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Features);
+                var wizard = SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Features, _host.Providers, _host.SavedWorkspaces);
                 if (wizard is not null)
                 {
                     var wizardWin = new SetupWizardWindow(wizard);
@@ -503,7 +504,7 @@ public partial class App : Application
     {
     if (IsUpdating || OpenTabKind is not null || _host?.Workspaces.AnyWindowsOpen == true) return null;
         if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is not { KeepWindowReady: true }) return null;
-        if (WorkspaceManager.Instance.Workspaces is not [var first, ..]) return null;
+        if (_host?.SavedWorkspaces.Workspaces is not [var first, ..]) return null;
         return SettleSetupAhead(first) ? first : null;
     }
 
@@ -514,7 +515,7 @@ public partial class App : Application
     private static bool SettleSetupAhead(Workspace workspace)
     {
         if (_setupShown) return true;
-        if (!UiTest && !StartupTimings.Enabled && SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Features) is not null) return false;
+        if (!UiTest && !StartupTimings.Enabled && SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Features, _host.Providers, _host.SavedWorkspaces) is not null) return false;
         _setupShown = true;
         FinishSetup();
         return true;
@@ -529,8 +530,9 @@ public partial class App : Application
             _host!.Language.Select(shell.Language);
     }
 
-    /// <summary>What the setup wizard binds a settings page to: for a Core page that shows the session, its view-model over the session's services.</summary>
-    private static ConfigPageModels ConfigPages() => new(_host!.Dependencies, _host.Language, _host.Features);
+    /// <summary>What the setup wizard binds a settings page to: for a Core page that shows the session, its view-model over the
+    /// session's services — those it hands every window.</summary>
+    private static ConfigPageModels ConfigPages() => new(_host!.Windows);
 
     /// <summary>
     /// Centres <paramref name="win"/> within <paramref name="workArea"/> (a monitor's work area in WPF
@@ -585,7 +587,7 @@ public partial class App : Application
     private static Workspace? ResolveWorkspace(string? name)
         => string.IsNullOrEmpty(name)
             ? null
-            : WorkspaceManager.Instance.Workspaces.FirstOrDefault(
+            : _host!.SavedWorkspaces.Workspaces.FirstOrDefault(
                 p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>

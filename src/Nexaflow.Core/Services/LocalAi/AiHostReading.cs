@@ -33,8 +33,11 @@ internal sealed record HostRuntimeAnswer(HostRuntimeReading? Reading, string Why
 /// <summary>
 /// Asks the AI host how it set its runtime up — starting it where none runs, joining the machine's service where that is installed —
 /// for the rows Options → About probes together: one question answers them all, asked again once it is <see cref="Fresh"/> no longer.
+/// The session makes one over its host (<see cref="ShellHost"/>) and hands it to the declarations of what Nexaflow's own models
+/// need (<c>LocalAiDependencies.cs</c>), through the components registry that builds them.
 /// </summary>
-internal static class AiHostReading
+/// <param name="holds">The AI host the models are held in; null where the session runs none, when every row says so.</param>
+internal sealed class AiHostReading(HostHolds? holds)
 {
     /// <summary>How long one answer serves: the rows of one look at the page, not a later one.</summary>
     private static readonly TimeSpan Fresh = TimeSpan.FromSeconds(2);
@@ -42,15 +45,15 @@ internal static class AiHostReading
     /// <summary>How long a row waits for the answer — starting a host takes seconds.</summary>
     private static readonly TimeSpan Patience = TimeSpan.FromMinutes(1);
 
-    private static readonly Lock Gate = new();
-    private static Task<HostRuntimeAnswer>? _asked;
-    private static DateTime _askedAt;
+    private readonly Lock _gate = new();
+    private Task<HostRuntimeAnswer>? _asked;
+    private DateTime _askedAt;
 
     /// <summary>The host's answer, asked now or a moment ago for another row. Called off the UI thread, as a row's probe is.</summary>
-    public static HostRuntimeAnswer Now()
+    public HostRuntimeAnswer Now()
     {
         Task<HostRuntimeAnswer> asked;
-        lock (Gate)
+        lock (_gate)
         {
             if (_asked is null || DateTime.UtcNow - _askedAt > Fresh)
             {
@@ -62,9 +65,9 @@ internal static class AiHostReading
         return asked.Wait(Patience) ? asked.Result : HostRuntimeAnswer.Unanswered(Str.Get("Shell.Components.LocalAi.HostSilent"));
     }
 
-    private static async Task<HostRuntimeAnswer> AskAsync()
+    private async Task<HostRuntimeAnswer> AskAsync()
     {
-        if (ProviderManager.Instance.Service<HostHolds>() is not { } holds)
+        if (holds is null)
             return HostRuntimeAnswer.Unanswered(Str.Get("Shell.Components.LocalAi.NotSetUp"));
         try
         {

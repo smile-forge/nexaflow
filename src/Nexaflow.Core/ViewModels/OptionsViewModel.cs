@@ -45,6 +45,9 @@ public partial class PropertyEditViewModel : ObservableObject
     private readonly Action       _onChanged;   // notifies ConfigEditViewModel to recheck validity
     private readonly string[]     _fileExtensions = [];   // allowed extensions for FilePath editors
 
+    /// <summary>The window's shell, whose pickers a path is browsed for with; null where there is no window yet.</summary>
+    private readonly Nexaflow.Features.Common.IShellServices? _shell;
+
     public string             Label        { get; }
     public string             PropertyName { get; }
     public PropertyEditorKind EditorKind   { get; }
@@ -140,23 +143,32 @@ public partial class PropertyEditViewModel : ObservableObject
         return value;
     }
 
+    /// <summary>Picks the folder through the window's shell, whose picker lists its workspace's places; without one — the setup
+    /// wizard, before any window — through a picker that lists none.</summary>
     [RelayCommand]
-    private void BrowseFolder()
+    private async Task BrowseFolder()
     {
-        var selected = FolderBrowserWindow.Show(Value as string);
+        var selected = _shell is null ? FolderBrowserWindow.Show(Value as string) : await _shell.PickFolderAsync(Value as string);
         if (selected is not null) Value = selected;
     }
 
+    /// <summary>Picks the file through the window's shell, whose picker lists its workspace's places; without one — the setup
+    /// wizard, before any window — through a picker that lists none.</summary>
     [RelayCommand]
-    private void BrowseFile()
+    private async Task BrowseFile()
     {
-        var selected = FileBrowserWindow.Show(Value as string, _fileExtensions);
+        var selected = _shell is null
+            ? FileBrowserWindow.Show(Value as string, _fileExtensions)
+            : await _shell.PickOpenFileAsync(_fileExtensions, Value as string);
         if (selected is not null) Value = selected;
     }
 
-    public PropertyEditViewModel(PropertyInfo pi, object editingClone, Action onChanged)
+    /// <param name="shell">The window's shell, whose pickers a path is browsed for with; null where there is no window yet.</param>
+    public PropertyEditViewModel(PropertyInfo pi, object editingClone, Action onChanged,
+                                 Nexaflow.Features.Common.IShellServices? shell = null)
     {
         _pi          = pi;
+        _shell       = shell;
         _editingClone = editingClone;
         _onChanged   = onChanged;
 
@@ -377,7 +389,7 @@ public partial class ConfigEditViewModel : ObservableObject
         }
 
         foreach (var pi in EditableProperties(EditingClone.GetType()))
-            Properties.Add(new PropertyEditViewModel(pi, EditingClone, RecheckValidity));
+            Properties.Add(new PropertyEditViewModel(pi, EditingClone, RecheckValidity, shell));
 
         WireConditionalEnables();
         RecheckValidity();
@@ -448,14 +460,19 @@ public partial class OptionsViewModel : ObservableObject
     /// <summary>The session's feature system: every feature's config, and the pages a changed one refreshes.</summary>
     private readonly FeatureManager _features;
 
+    /// <summary>The live workspaces, in the first with a window of which the tabs a saved setting changes are reopened.</summary>
+    private readonly WorkspaceRuntimes _runtimes;
+
     /// <param name="pages">What each <c>[CustomControl]</c> section is bound to: the session's view-model for a Core page that shows
     /// it, else its config.</param>
     /// <param name="features">The session's feature system: every feature is activated so its config is listed, and a changed
     /// config refreshes the pages built with it.</param>
     /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed.</param>
-    public OptionsViewModel(ConfigPageModels pages, FeatureManager features, Nexaflow.Features.Common.IShellServices? shell = null)
+    public OptionsViewModel(ConfigPageModels pages, FeatureManager features, WorkspaceRuntimes runtimes,
+                            Nexaflow.Features.Common.IShellServices? shell = null)
     {
         _features = features;
+        _runtimes = runtimes;
         // Options lists every feature's global config. With lazy feature loading a config is registered only
         // when its assembly activates, so make sure they're all activated before reading the registry —
         // otherwise the panel would be missing sections for features not yet warmed up.
@@ -522,7 +539,7 @@ public partial class OptionsViewModel : ObservableObject
         // Request tab refresh for the feature configs that changed (only meaningful when a window is open).
         // A refresh closes and reopens the tab, so reopening every feature's tabs on any save threw away
         // pages whose settings nobody touched — a Network sweep in flight among them.
-        var activeCtx = WorkspaceManager.Instance.Runtimes?.FirstWithWindows;
+        var activeCtx = _runtimes.FirstWithWindows;
         var pageKindsToRefresh = activeCtx is null ? [] : changed
             .SelectMany(type => _features.GetPageKindsForConfig(type, activeCtx))
             .Distinct()

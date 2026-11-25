@@ -62,9 +62,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     /// pages.</summary>
     public FeatureManager FeatureManager { get; }
 
+    /// <summary>The session's provider pool, which <see cref="Providers"/> is acquired from and the workspace's provider configs are
+    /// read through.</summary>
+    internal ProviderManager ProviderPool => _session.Providers;
+
     /// <summary>
     /// True while this runtime stands ready for a launch that has not come yet (<see cref="StandbyWindow"/>): its window is
-    /// built but not shown, it is not among <see cref="WorkspaceManager"/>'s live runtimes, its models are not weighed for
+    /// built but not shown, it is not counted among the open workspaces, its models are not weighed for
     /// loading ahead, and its window closing records no session. Cleared when a launch adopts it.
     /// </summary>
     public bool IsStandby { get; internal set; }
@@ -111,7 +115,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         var fresh = pool.AcquireProviderSet(Workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(Workspace.AiConfig));
 
         StartupTimings.Mark("Workspace.ProvidersAcquired");
-        if (WorkspaceManager.FoldInLocalColumns(Workspace, fresh))
+        if (WorkspaceManager.FoldInLocalColumns(Workspace, fresh, pool.Assets))
         {
             var again = pool.AcquireProviderSet(Workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(Workspace.AiConfig));
             pool.ReleaseProviderSet(fresh);

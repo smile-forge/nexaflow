@@ -22,14 +22,17 @@ public partial class PageLoadErrorView : UserControl
 {
     private readonly string _details;
     private readonly ExternalDependencyRegistry _dependencies;
+    private readonly Action _showComponents;
 
     /// <param name="page">The page that failed, for its title and kind; null when there is none to name.</param>
     /// <param name="error">The exception the content factory threw.</param>
     /// <param name="dependencies">The session's components, any missing one of which is named as the likely cause — given by
     /// the session's <see cref="PageViews"/>, which makes this view.</param>
-    public PageLoadErrorView(Page? page, Exception? error, ExternalDependencyRegistry dependencies)
+    /// <param name="showComponents">Opens the About page, which lists every component, in a window open on the session.</param>
+    public PageLoadErrorView(Page? page, Exception? error, ExternalDependencyRegistry dependencies, Action showComponents)
     {
-        _dependencies = dependencies;
+        _dependencies   = dependencies;
+        _showComponents = showComponents;
         InitializeComponent();
 
         var what = Describe(page);
@@ -96,10 +99,7 @@ public partial class PageLoadErrorView : UserControl
 
     private void OnComponentsClick(object sender, RoutedEventArgs e)
     {
-        // Via the interface, like AboutControl's reset button: the concrete ShellServices implements the
-        // options members explicitly.
-        IShellServices? shell = WorkspaceManager.Instance.Runtimes?.FirstWithWindows?.ShellServices;
-        try { shell?.OpenOptions("about"); }
+        try { _showComponents(); }
         catch { }
     }
 }

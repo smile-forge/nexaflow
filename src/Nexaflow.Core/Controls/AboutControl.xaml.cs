@@ -17,11 +17,14 @@ namespace Nexaflow.Core.Controls;
 /// About page for the Options panel: app version and whether a newer release is offered (with Check for updates /
 /// Update), source link, the system components Nexaflow relies on, and the bundled third-party notices (rendered from
 /// <c>Assets/ThirdPartyNotices.md</c>). Bound to an <see cref="AboutViewModel"/> the settings panel makes
-/// (<see cref="ConfigPageModels"/>), which carries the session's components.
+/// (<see cref="ConfigPageModels"/>), which carries the session's components and its update offer.
 /// </summary>
 public partial class AboutControl : UserControl
 {
-    /// <summary>The components the page lists while it is on screen: its view-model's, taken as it loads.</summary>
+    /// <summary>What the page shows while it is on screen: its view-model, taken as it loads.</summary>
+    private AboutViewModel? _model;
+
+    /// <summary>The components the page lists while it is on screen: its view-model's.</summary>
     private ExternalDependencyRegistry? _dependencies;
 
     public AboutControl()
@@ -36,18 +39,23 @@ public partial class AboutControl : UserControl
         VersionText.Text  = Str.Format("Shell.About.VersionFormat", SetupWizardViewModel.CurrentVersion());
         NoticesView.Document = new EditedDocument(LoadNotices());
 
-        Follow((DataContext as AboutViewModel)?.Dependencies);
+        _model = DataContext as AboutViewModel;
+        Follow(_model?.Dependencies);
 
         // The startup check, a toast's Update or this page's own buttons can each move it on while the page is open.
-        App.Updates.Changed -= OnUpdatesChanged;
-        App.Updates.Changed += OnUpdatesChanged;
+        if (_model is { } model)
+        {
+            model.Updates.Changed -= OnUpdatesChanged;
+            model.Updates.Changed += OnUpdatesChanged;
+        }
         ShowUpdateStatus();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Follow(null);
-        App.Updates.Changed -= OnUpdatesChanged;
+        if (_model is { } model) model.Updates.Changed -= OnUpdatesChanged;
+        _model = null;
     }
 
     /// <summary>Lists <paramref name="dependencies"/> and follows its probes, letting go of the one followed before; nothing
@@ -122,7 +130,8 @@ public partial class AboutControl : UserControl
     /// </summary>
     private void ShowUpdateStatus()
     {
-        var status = App.Updates.Status;
+        if (_model is not { } model) return;
+        var status = model.Updates.Status;
 
         UpdateStatusText.Text = status.Stage switch
         {
@@ -150,9 +159,15 @@ public partial class AboutControl : UserControl
         CheckUpdatesButton.IsEnabled   = status.CanCheck;
     }
 
-    private void OnCheckUpdatesClick(object sender, RoutedEventArgs e) => _ = App.Updates.CheckAsync();
+    private void OnCheckUpdatesClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is { } model) _ = model.Updates.CheckAsync();
+    }
 
-    private void OnInstallUpdateClick(object sender, RoutedEventArgs e) => _ = App.Updates.InstallAsync();
+    private void OnInstallUpdateClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is { } model) _ = model.Updates.InstallAsync();
+    }
 
     private static string LoadNotices()
     {
@@ -174,15 +189,12 @@ public partial class AboutControl : UserControl
     }
 
     /// <summary>
-    /// "Reset Config" — confirms via the shell overlay, then wipes all app-data and relaunches.
-    /// Reaches the shell directly (rather than a RelativeSource-bound command) because this control is
-    /// hosted in the Options panel's ContentControl with its DataContext set to the config POCO.
+    /// "Reset Config" — confirms in a window open on the session (its view-model's <see cref="AboutViewModel.Shell"/>), then
+    /// wipes all app-data and relaunches.
     /// </summary>
     private void OnResetClick(object sender, RoutedEventArgs e)
     {
-        Nexaflow.Features.Common.IShellServices? shell =
-            WorkspaceManager.Instance.Runtimes?.FirstWithWindows?.ShellServices;
-        shell?.ShowConfirmation(
+        _model?.Shell?.ShowConfirmation(
             Str.Get("Shell.About.Reset.Ask"),
             Str.Get("Shell.About.Reset.AskBody"),
             App.ResetAndRestart,

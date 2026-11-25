@@ -18,14 +18,11 @@ namespace Nexaflow.Core.Services.LocalAi;
 /// so the page says where the models run rather than a guess beside it.
 /// <para>
 /// The judgements take the host's reading as arguments, so they are tested on made-up machines; the declarations in
-/// <c>LocalAiDependencies.cs</c> hand them the host's answer.
+/// <c>LocalAiDependencies.cs</c> hand them the host's answer, asked through the session's <see cref="AiHostReading"/>.
 /// </para>
 /// </summary>
 internal static class LocalAiRequirements
 {
-    /// <summary>What the AI host decided its runtime by, asked of the host — see <see cref="AiHostReading"/>.</summary>
-    public static HostRuntimeAnswer AskedOfHost => AiHostReading.Now();
-
     /// <summary><paramref name="judge"/>'s judgement of the host's reading, or unknown — with why — where no host could be asked: a
     /// guess beside the host's own word could only disagree with where the models run.</summary>
     public static ExternalDependencyStatus Judged(HostRuntimeAnswer answer, Func<HostRuntimeReading, ExternalDependencyStatus> judge)

@@ -120,6 +120,12 @@ public sealed partial class WizardModelKindsContent : ObservableObject
 internal sealed class WorkspaceSetupContext
 {
     public required Workspace Workspace;
+
+    /// <summary>The session's provider pool, which the providers offered and the models on this machine are read from.</summary>
+    public required ProviderManager Providers;
+
+    /// <summary>The saved workspaces, written back as each step commits.</summary>
+    public required WorkspaceManager SavedWorkspaces;
     public IReadOnlyList<IProviderConfig> AvailableProviders = [];
     public IProviderConfig? ChosenProvider;
     public ProviderSet?     ProviderSet;   // acquired after the provider config is saved (for model listing)
@@ -216,8 +222,8 @@ internal sealed class HarnessStep : ObservableObject, IWizardStep
         if (_ctx.Harness != WorkspaceHarness.Owned) return;
 
         WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, bridged: null, _ctx.Owned!.Columns());
-        WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _ctx.SavedWorkspaces.SaveWorkspaceAiConfig(_ctx.Workspace);
+        _ctx.SavedWorkspaces.SaveWorkspaces();
     }
 }
 
@@ -284,8 +290,8 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
         ConfigManager.Instance.SaveTo(_ctx.Workspace.Dir, _ctx.ChosenProvider, _ctx.ChosenProvider.ConfigName);
 
         // (Re)acquire a provider set from the now-saved configs so the model step can enumerate models.
-        if (_ctx.ProviderSet is not null) ProviderManager.Instance.ReleaseProviderSet(_ctx.ProviderSet);
-        _ctx.ProviderSet = ProviderManager.Instance.AcquireProviderSet(_ctx.Workspace.ProviderConfigs, []);
+        if (_ctx.ProviderSet is not null) _ctx.Providers.ReleaseProviderSet(_ctx.ProviderSet);
+        _ctx.ProviderSet = _ctx.Providers.AcquireProviderSet(_ctx.Workspace.ProviderConfigs, []);
     }
 }
 
@@ -354,8 +360,8 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
         // The chosen language model serves every reasoning role; abilities of other kinds need models of their own.
         WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, null);
 
-        WorkspaceManager.Instance.SaveWorkspaceAiConfig(_ctx.Workspace);
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _ctx.SavedWorkspaces.SaveWorkspaceAiConfig(_ctx.Workspace);
+        _ctx.SavedWorkspaces.SaveWorkspaces();
     }
 }
 
@@ -434,8 +440,8 @@ internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObje
         if (chosen.Count == 0) return;
 
         WorkspaceAiDefaults.AssignKinds(ctx.Workspace.AiConfig, set, chosen);
-        WorkspaceManager.Instance.SaveWorkspaceAiConfig(ctx.Workspace);
-        WorkspaceManager.Instance.SaveWorkspaces();
+        ctx.SavedWorkspaces.SaveWorkspaceAiConfig(ctx.Workspace);
+        ctx.SavedWorkspaces.SaveWorkspaces();
     }
 }
 
@@ -540,7 +546,7 @@ public partial class SetupWizardViewModel : ObservableObject
     {
         if (_ctx?.ProviderSet is not null)
         {
-            ProviderManager.Instance.ReleaseProviderSet(_ctx.ProviderSet);
+            _ctx.Providers.ReleaseProviderSet(_ctx.ProviderSet);
             _ctx.ProviderSet = null;
         }
     }
@@ -556,7 +562,12 @@ public partial class SetupWizardViewModel : ObservableObject
     /// <param name="startupWorkspace">The workspace the first window opens on, whose AI setup is asked for when it has none.</param>
     /// <param name="pages">What a <c>[CustomControl]</c> page among the steps is bound to.</param>
     /// <param name="features">The session's feature system, whose workspace-scoped configs the workspace's setup asks for.</param>
-    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages, FeatureManager features)
+    /// <param name="providers">The session's provider pool, which the providers offered and the models on this machine are read
+    /// from.</param>
+    /// <param name="savedWorkspaces">The saved workspaces: each step writes back, and after an update each one's Local column is
+    /// offered its models.</param>
+    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages, FeatureManager features,
+                                              ProviderManager providers, WorkspaceManager savedWorkspaces)
     {
         var steps = new List<IWizardStep>();
 
@@ -594,18 +605,18 @@ public partial class SetupWizardViewModel : ObservableObject
 
         // 3. First-workspace setup, if the startup workspace has no usable AI assignment — or if anything
         //    was unreadable, in which case the assignment that IS there is exactly what needs confirming.
-        startupWorkspace.EnsureSharedServicesLoaded();
+        startupWorkspace.EnsureSharedServicesLoaded(providers);
         WorkspaceSetupContext? ctx = null;
-        if (unreadable.Count > 0 || !IsWorkspaceConfigured(startupWorkspace))
-            ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace, features);
+        if (unreadable.Count > 0 || !IsWorkspaceConfigured(startupWorkspace, providers))
+            ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace, features, providers, savedWorkspaces);
 
         // 4. After an update, the models every workspace's Local column holds that are not here yet — a grid from before the
         //    column has it turned on here, before the workspace first runs — are offered for download in one step, each once
         //    however many workspaces use it, as they are to a new workspace that chooses Nexaflow's own models, rather than
         //    found missing on first use. A startup workspace being set up above is offered its own there.
         if (WasUpdated()
-            && OwnedAwaited(WorkspaceManager.Instance.Workspaces.Where(w => ctx is null || !ReferenceEquals(w, startupWorkspace))) is { Count: > 0 } awaited)
-            steps.Add(new ModelDownloadStep(() => true, awaited));
+            && OwnedAwaited(savedWorkspaces.Workspaces.Where(w => ctx is null || !ReferenceEquals(w, startupWorkspace)), providers) is { Count: > 0 } awaited)
+            steps.Add(new ModelDownloadStep(() => true, awaited, providers));
 
         return steps.Count == 0 ? null : new SetupWizardViewModel(steps, ctx);
     }
@@ -620,23 +631,26 @@ public partial class SetupWizardViewModel : ObservableObject
     /// Builds a wizard containing ONLY the workspace-setup steps (provider → key → model, plus any
     /// [MandatorySetup] persona / per-workspace configs) for <paramref name="workspace"/>. Used by the
     /// Workspaces tab's "Add Workspace" to configure a freshly-created workspace; <paramref name="features"/> knows its
-    /// per-workspace configs.
+    /// per-workspace configs, <paramref name="providers"/> the providers offered, and <paramref name="savedWorkspaces"/> is
+    /// written back as each step commits.
     /// </summary>
-    public static SetupWizardViewModel BuildWorkspaceSetup(Workspace workspace, FeatureManager features)
+    public static SetupWizardViewModel BuildWorkspaceSetup(Workspace workspace, FeatureManager features, ProviderManager providers,
+                                                           WorkspaceManager savedWorkspaces)
     {
-        workspace.EnsureSharedServicesLoaded();
+        workspace.EnsureSharedServicesLoaded(providers);
         var steps = new List<IWizardStep>();
-        var ctx   = AppendWorkspaceSetupSteps(steps, workspace, features);
+        var ctx   = AppendWorkspaceSetupSteps(steps, workspace, features, providers, savedWorkspaces);
         return new SetupWizardViewModel(steps, ctx);
     }
 
     /// <summary>Appends provider-pick → provider-config → model-pick (+ mandatory persona/scoped
-    /// configs) for <paramref name="workspace"/>, its scoped configs those <paramref name="features"/> knows; returns the shared
-    /// setup context.</summary>
-    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace, FeatureManager features)
+    /// configs) for <paramref name="workspace"/>, its scoped configs those <paramref name="features"/> knows, its providers those
+    /// <paramref name="providers"/> loads; returns the shared setup context, which writes back to <paramref name="savedWorkspaces"/>.</summary>
+    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace, FeatureManager features,
+                                                                   ProviderManager providers, WorkspaceManager savedWorkspaces)
     {
-        ProviderManager.Instance.DiscoverAll();
-        workspace.ReloadProviderConfigs();
+        providers.DiscoverAll();
+        workspace.ReloadProviderConfigs(providers);
         // Materialize every workspace-scoped config so a [MandatorySetup] one (e.g. Projects) gets a wizard
         // step. WorkspaceConfigs otherwise returns only configs already lazily materialized, so on first run
         // the scoped Projects config is absent and its step silently never shows.
@@ -644,18 +658,20 @@ public partial class SetupWizardViewModel : ObservableObject
 
         var ctx = new WorkspaceSetupContext
         {
-            Workspace            = workspace,
+            Workspace          = workspace,
+            Providers          = providers,
+            SavedWorkspaces    = savedWorkspaces,
             AvailableProviders = workspace.ProviderConfigs,
         };
 
         // Who runs the AI — asked only where this machine can run Nexaflow's own model. A provider set is acquired
         // just long enough to find it among the providers by its harness.
-        var hardware = ProviderManager.Instance.Service<MachineCards>() ?? MachineCards.Probe();
-        var offers = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, []);
-        try { ctx.Owned = OwnedModelOffer.Find(offers, hardware, ProviderManager.Instance.Assets); }
-        finally { ProviderManager.Instance.ReleaseProviderSet(offers); }
+        var hardware = providers.Service<MachineCards>() ?? MachineCards.Probe();
+        var offers = providers.AcquireProviderSet(workspace.ProviderConfigs, []);
+        try { ctx.Owned = OwnedModelOffer.Find(offers, hardware, providers.Assets); }
+        finally { providers.ReleaseProviderSet(offers); }
         steps.Add(new HarnessStep(ctx));
-        steps.Add(new ModelDownloadStep(() => ctx.Harness == WorkspaceHarness.Owned, ctx.Owned?.Downloads ?? []));
+        steps.Add(new ModelDownloadStep(() => ctx.Harness == WorkspaceHarness.Owned, ctx.Owned?.Downloads ?? [], providers));
 
         // Essential AI bootstrap — unless Nexaflow runs the workspace's AI itself.
         steps.Add(new ProviderPickStep(ctx));
@@ -668,20 +684,21 @@ public partial class SetupWizardViewModel : ObservableObject
         if (IsMandatory(persona))
             steps.Add(new ConfigEditStep(persona.FriendlyName,
                 new ConfigEditViewModel(persona, persona.ConfigName, persona.FriendlyName),
-                _ => WorkspaceManager.Instance.SaveWorkspacePersona(workspace)));
+                _ => savedWorkspaces.SaveWorkspacePersona(workspace)));
 
         foreach (var wc in workspace.WorkspaceConfigs)
             if (IsMandatory(wc))
                 steps.Add(new ConfigEditStep(wc.FriendlyName,
                     new ConfigEditViewModel(wc, wc.ConfigName, wc.FriendlyName),
-                    e => WorkspaceManager.Instance.SaveWorkspaceScopedConfig(workspace, (IFeatureConfig)e.RealConfig)));
+                    e => savedWorkspaces.SaveWorkspaceScopedConfig(workspace, (IFeatureConfig)e.RealConfig)));
 
         return ctx;
     }
 
     /// <summary>True when the workspace has a language ability assigned to a provider that is ready: one whose required
-    /// config (e.g. API key) is satisfied, or one that takes no config at all — Nexaflow's own model.</summary>
-    public static bool IsWorkspaceConfigured(Workspace p)
+    /// config (e.g. API key) is satisfied, or one whose assembly <paramref name="providers"/> has loaded takes no config at all —
+    /// Nexaflow's own model.</summary>
+    public static bool IsWorkspaceConfigured(Workspace p, ProviderManager providers)
     {
         var ai = p.AiConfig;
         var assignedColumnIds = ai.AssignedColumnIds();
@@ -692,7 +709,7 @@ public partial class SetupWizardViewModel : ObservableObject
             .Where(c => c.Kind == ModelKind.Language && assignedColumnIds.Contains(c.Id))
             .Any(c => byName.TryGetValue(c.ProviderName, out var cfg)
                       ? ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg)
-                      : ProviderManager.Instance.TakesNoConfig(c.AssemblyFileName));
+                      : providers.TakesNoConfig(c.AssemblyFileName));
     }
 
     /// <summary>The jobs the Download models step offers models for; pictures, video and tools are offered on first use.</summary>
@@ -701,24 +718,24 @@ public partial class SetupWizardViewModel : ObservableObject
     /// <summary>
     /// The models the Local columns of <paramref name="workspaces"/> hold for language and speech that are not here yet, each
     /// once, after the column is folded into each grid — as opening the workspace would — with a provider set acquired just long
-    /// enough to read the models on this machine.
+    /// enough from <paramref name="pool"/> to read the models on this machine.
     /// </summary>
-    private static IReadOnlyList<LocalModelOption> OwnedAwaited(IEnumerable<Workspace> workspaces)
+    private static IReadOnlyList<LocalModelOption> OwnedAwaited(IEnumerable<Workspace> workspaces, ProviderManager pool)
     {
-        if (ProviderManager.Instance.Assets is not { } assets) return [];
-        ProviderManager.Instance.DiscoverAll();
+        if (pool.Assets is not { } assets) return [];
+        pool.DiscoverAll();
         var awaited = new List<LocalModelOption>();
         foreach (var workspace in workspaces.ToList())
         {
-            workspace.EnsureSharedServicesLoaded();
-            var providers = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(workspace.AiConfig));
+            workspace.EnsureSharedServicesLoaded(pool);
+            var providers = pool.AcquireProviderSet(workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(workspace.AiConfig));
             try
             {
-                WorkspaceManager.FoldInLocalColumns(workspace, providers);
+                WorkspaceManager.FoldInLocalColumns(workspace, providers, assets);
                 foreach (var option in LocalDownloadPlan.Awaited(workspace.AiConfig, new LocalModelShelf(providers, assets), OfferedSlots))
                     if (!awaited.Any(a => a.IsIn(option.Column()))) awaited.Add(option);
             }
-            finally { ProviderManager.Instance.ReleaseProviderSet(providers); }
+            finally { pool.ReleaseProviderSet(providers); }
         }
         return awaited;
     }

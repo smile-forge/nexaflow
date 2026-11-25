@@ -27,17 +27,20 @@ namespace Nexaflow.Core.ViewModels;
 /// </summary>
 /// <param name="asked">Whether the step is asked, given what earlier steps chose.</param>
 /// <param name="options">The models it offers.</param>
+/// <param name="providers">The session's provider pool: the files on this machine, and the app's downloads of more.</param>
 internal sealed class ModelDownloadStep : ObservableObject, IWizardStep
 {
     private readonly Func<bool> _asked;
     private readonly IReadOnlyList<LocalModelOption> _options;
+    private readonly ProviderManager _providers;
     private readonly WizardModelDownloadContent _content;
     private LocalDownloadPlan? _plan;
 
-    public ModelDownloadStep(Func<bool> asked, IReadOnlyList<LocalModelOption> options)
+    public ModelDownloadStep(Func<bool> asked, IReadOnlyList<LocalModelOption> options, ProviderManager providers)
     {
-        _asked   = asked;
-        _options = options;
+        _asked     = asked;
+        _options   = options;
+        _providers = providers;
         _content = new WizardModelDownloadContent(DownloadNow);
         _content.PropertyChanged += (_, e) =>
         {
@@ -53,7 +56,7 @@ internal sealed class ModelDownloadStep : ObservableObject, IWizardStep
 
     /// <summary>The plan as it stood when last read: the files on disk do not change while the wizard asks.</summary>
     private LocalDownloadPlan? Plan()
-        => _plan ??= ProviderManager.Instance.Assets is { } store ? LocalDownloadPlan.For(_options, store) : null;
+        => _plan ??= _providers.Assets is { } store ? LocalDownloadPlan.For(_options, store) : null;
 
     /// <summary>Weighs the download afresh — the drive's room may have changed since the step was last shown — unless it has
     /// been decided.</summary>
@@ -88,7 +91,7 @@ internal sealed class ModelDownloadStep : ObservableObject, IWizardStep
     /// a runtime's row says it comes with them.</summary>
     private void DownloadNow()
     {
-        if (ProviderManager.Instance.Service<LocalModelDownloads>() is not { } downloads || _plan is not { } plan) return;
+        if (_providers.Service<LocalModelDownloads>() is not { } downloads || _plan is not { } plan) return;
         foreach (var (row, line) in plan.Rows.Zip(_content.Rows))
         {
             if (row.Option is { } option) line.Follow(downloads.Fetch(option));

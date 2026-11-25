@@ -59,7 +59,7 @@ public class ExternalDependencyRegistryTests
         public ExternalDependencyStatus Probe() => throw new InvalidOperationException("probe blew up");
     }
 
-    /// <summary>No parameterless constructor, so it cannot be built at all.</summary>
+    /// <summary>Asks for what no session holds, so it cannot be built at all.</summary>
 #pragma warning disable CS9113 // the unused parameter IS the point: it removes the parameterless ctor
     private sealed class Unconstructable(string requiredArgument) : IExternalDependency
 #pragma warning restore CS9113
@@ -72,12 +72,29 @@ public class ExternalDependencyRegistryTests
         public ExternalDependencyStatus Probe() => Present();
     }
 
+    /// <summary>What a session holds that a declaration of its own is judged from.</summary>
+    private sealed class SessionReading(string version)
+    {
+        public string Version => version;
+    }
+
+    /// <summary>A declaration judged from what the session holds, which it takes in its constructor.</summary>
+    private sealed class SessionBacked(SessionReading reading) : IExternalDependency
+    {
+        public string Id          => "session-backed";
+        public string DisplayName => "Session backed";
+        public string Description => "";
+        public ExternalDependencyKind Kind => ExternalDependencyKind.Optional;
+        public string? InstallUrl => null;
+        public ExternalDependencyStatus Probe() => new(ExternalDependencyState.Present, reading.Version);
+    }
+
     // ── Tests ─────────────────────────────────────────────────────────────
 
     [TestMethod]
     public void TwoFeaturesDeclaringTheSameComponent_MergeIntoOneRow()
     {
-        var reports = ExternalDependencyRegistry.BuildReports([typeof(AlphaRequired), typeof(BetaOptional)]);
+        var reports = ExternalDependencyRegistry.BuildReports([typeof(AlphaRequired), typeof(BetaOptional)], []);
 
         // One runtime, listed once. Listing it twice would read as two separate things to go and install —
         // which is exactly what two features needing one runtime would produce without this.
@@ -96,7 +113,7 @@ public class ExternalDependencyRegistryTests
                      new[] { typeof(BetaOptional), typeof(AlphaRequired) },
                  })
         {
-            var shared = ExternalDependencyRegistry.BuildReports(order).Single(r => r.Id == "shared-thing");
+            var shared = ExternalDependencyRegistry.BuildReports(order, []).Single(r => r.Id == "shared-thing");
             Assert.AreEqual(ExternalDependencyKind.Required, shared.Kind);
             Assert.IsTrue(shared.IsBlocking, "required + missing is what the About page flags");
         }
@@ -105,7 +122,7 @@ public class ExternalDependencyRegistryTests
     [TestMethod]
     public void AThrowingProbe_ReportsUnknown_NotMissing()
     {
-        var report = ExternalDependencyRegistry.BuildReports([typeof(ThrowingProbe)]).Single();
+        var report = ExternalDependencyRegistry.BuildReports([typeof(ThrowingProbe)], []).Single();
 
         // "Missing" would be a lie: the check failed, so nothing was learned about the machine. It would also
         // put a red row on About — and, via the page-load error panel, blame this component for unrelated
@@ -119,7 +136,7 @@ public class ExternalDependencyRegistryTests
     public void ABrokenDeclaration_IsSkipped_WithoutLosingTheRest()
     {
         var reports = ExternalDependencyRegistry.BuildReports(
-            [typeof(Unconstructable), typeof(Standalone)]);
+            [typeof(Unconstructable), typeof(Standalone)], []);
 
         // One feature shipping an un-instantiable declaration must not blank the whole About list.
         Assert.IsFalse(reports.Any(r => r.Id == "unconstructable"));
@@ -127,10 +144,22 @@ public class ExternalDependencyRegistryTests
     }
 
     [TestMethod]
+    public void ADeclarationTakingWhatTheSessionHolds_IsBuiltWithIt_AndDeclaresNothingWithoutIt()
+    {
+        var held = ExternalDependencyRegistry.BuildReports([typeof(SessionBacked)], [new SessionReading("4.5.6")]);
+        Assert.AreEqual("4.5.6", held.Single(r => r.Id == "session-backed").Status.DetectedVersion,
+            "judged from the session's own reading, handed to it as it is built");
+
+        var without = ExternalDependencyRegistry.BuildReports([typeof(SessionBacked), typeof(Standalone)], []);
+        Assert.IsFalse(without.Any(r => r.Id == "session-backed"), "a session holding none of it builds none of it");
+        Assert.IsTrue(without.Any(r => r.Id == "standalone"));
+    }
+
+    [TestMethod]
     public void BlockingComponentsSortFirst()
     {
         var reports = ExternalDependencyRegistry.BuildReports(
-            [typeof(Standalone), typeof(AlphaRequired)]);
+            [typeof(Standalone), typeof(AlphaRequired)], []);
 
         // The page exists to answer "what is wrong with this PC", so the answer goes at the top.
         Assert.AreEqual("shared-thing", reports[0].Id);
@@ -141,7 +170,7 @@ public class ExternalDependencyRegistryTests
     {
         // The pre-flight contract: features must be able to ask about anything and get a safe "carry on"
         // rather than a false "missing" that would suppress a viewer that would have worked.
-        var status = new ExternalDependencyRegistry(Substitute.For<IUiThread>(), new FeatureCatalog()).StatusOf("nothing-declares-this");
+        var status = new ExternalDependencyRegistry(Substitute.For<IUiThread>(), new FeatureCatalog(), []).StatusOf("nothing-declares-this");
         Assert.AreEqual(ExternalDependencyState.Unknown, status.State);
     }
 
@@ -153,7 +182,7 @@ public class ExternalDependencyRegistryTests
         var ui = Substitute.For<IUiThread>();
         Action? queued = null;
         ui.When(u => u.Post(Arg.Any<Action>())).Do(call => queued = call.Arg<Action>());
-        var registry = new ExternalDependencyRegistry(ui, new FeatureCatalog());
+        var registry = new ExternalDependencyRegistry(ui, new FeatureCatalog(), []);
         var raised = 0;
         registry.Updated += (_, _) => raised++;
 
@@ -169,7 +198,7 @@ public class ExternalDependencyRegistryTests
     [TestMethod]
     public void RequiredBy_NamesTheDeclaringFeature()
     {
-        var label = ExternalDependencyRegistry.BuildReports([typeof(Standalone)]).Single().RequiredByLabel;
+        var label = ExternalDependencyRegistry.BuildReports([typeof(Standalone)], []).Single().RequiredByLabel;
 
         // Derived from the declaring assembly, so a user can map an unfamiliar component name onto the part
         // of the app that wants it. (Here that assembly is the test suite itself.)

@@ -24,7 +24,9 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 /// <param name="ui">The thread <see cref="Updated"/> is raised on.</param>
 /// <param name="catalog">The feature catalogue, which finds every declaration the features ship.</param>
-public sealed class ExternalDependencyRegistry(IUiThread ui, FeatureCatalog catalog)
+/// <param name="services">What a declaration may take in its constructor, matched by type — the AI host's reading of its runtime,
+/// which what Nexaflow's own models need is judged from. A declaration asking for what is not here declares nothing.</param>
+public sealed class ExternalDependencyRegistry(IUiThread ui, FeatureCatalog catalog, IReadOnlyList<object> services)
 {
     private readonly object _gate = new();
     private IReadOnlyList<ExternalDependencyReport> _reports = [];
@@ -87,14 +89,15 @@ public sealed class ExternalDependencyRegistry(IUiThread ui, FeatureCatalog cata
         ui.Post(() => Updated?.Invoke(this, EventArgs.Empty));
     }
 
-    private List<ExternalDependencyReport> BuildReports() => BuildReports(Discover());
+    private List<ExternalDependencyReport> BuildReports() => BuildReports(Discover(), services);
 
     /// <summary>
     /// The merge, with the declaring types handed in rather than discovered — the dedup, the Required-wins
     /// precedence and the tolerance of a broken declaration are the parts worth testing, and they cannot be
-    /// exercised through a live <see cref="FeatureCatalog"/> scan.
+    /// exercised through a live <see cref="FeatureCatalog"/> scan. Each declaration is built with what
+    /// <paramref name="services"/> holds of its constructor's parameters.
     /// </summary>
-    internal static List<ExternalDependencyReport> BuildReports(IEnumerable<Type> types)
+    internal static List<ExternalDependencyReport> BuildReports(IEnumerable<Type> types, IReadOnlyList<object> services)
     {
         // Keyed on the component's id, not the declaring type: one runtime can be declared by several features,
         // and the user cares about it listed once, naming each.
@@ -105,7 +108,7 @@ public sealed class ExternalDependencyRegistry(IUiThread ui, FeatureCatalog cata
             IExternalDependency decl;
             try
             {
-                if (Activator.CreateInstance(type) is not IExternalDependency d) continue;
+                if (Declare(type, services) is not IExternalDependency d) continue;
                 decl = d;
             }
             catch { continue; }   // a declaration that cannot be built simply declares nothing
@@ -129,6 +132,20 @@ public sealed class ExternalDependencyRegistry(IUiThread ui, FeatureCatalog cata
             .ThenBy(r => r.Kind)                                     // then Required above Optional
             .ThenBy(r => r.DisplayName, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
+    }
+
+    /// <summary>
+    /// <paramref name="type"/>'s declaration, built with the constructor whose every parameter <paramref name="services"/> holds
+    /// one of, the widest first — a feature's, which takes nothing, by its parameterless one; null where none can be built.
+    /// </summary>
+    private static object? Declare(Type type, IReadOnlyList<object> services)
+    {
+        foreach (var ctor in type.GetConstructors().OrderByDescending(c => c.GetParameters().Length))
+        {
+            var args = ctor.GetParameters().Select(p => services.FirstOrDefault(p.ParameterType.IsInstanceOfType)).ToArray();
+            if (args.All(arg => arg is not null)) return ctor.Invoke(args);
+        }
+        return null;
     }
 
     private IEnumerable<Type> Discover()

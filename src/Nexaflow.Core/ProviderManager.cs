@@ -31,13 +31,10 @@ namespace Nexaflow.Core;
 /// </summary>
 public sealed class ProviderManager
 {
-    public static ProviderManager Instance { get; } = new();
-
-    private IBackgroundActivityManager? _activityManager;
-    private IModelAssetStore?            _assets;
-
-    private ModelResidency? _residency;
-    private IReadOnlyList<object>       _services = [];
+    private readonly IBackgroundActivityManager? _activityManager;
+    private readonly IModelAssetStore?           _assets;
+    private readonly ModelResidency?             _residency;
+    private readonly IReadOnlyList<object>       _services;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
@@ -61,12 +58,15 @@ public sealed class ProviderManager
         IReadOnlyList<Type>                                ConfigTypes,
         IReadOnlyList<(Type Type, ConstructorInfo Ctor)>  Providers);
 
-    private ProviderManager() { }
-
-    /// <summary>Must be called once at startup before any Load method.</summary>
+    /// <summary>The session's provider pool, holding what a provider may take in its constructor.</summary>
+    /// <param name="activityManager">The session's background tasks, which a provider reports its slow work to; null where none
+    /// is kept.</param>
+    /// <param name="assets">The files local models need; null where the session keeps none.</param>
+    /// <param name="residency">Which of the pool's models stay loaded; null where none is loaded ahead.</param>
     /// <param name="services">App-wide services a provider may take in its constructor, matched by type — the AI host,
     /// the machine's compute hardware.</param>
-    public void Initialize(IBackgroundActivityManager activityManager, IModelAssetStore assets, ModelResidency residency, params object[] services)
+    public ProviderManager(IBackgroundActivityManager? activityManager, IModelAssetStore? assets, ModelResidency? residency,
+                           IReadOnlyList<object> services)
     {
         _activityManager = activityManager;
         _assets          = assets;
@@ -74,16 +74,16 @@ public sealed class ProviderManager
         _services        = services;
     }
 
-    /// <summary>Which of the pool's models stay loaded — null until <see cref="Initialize"/>.</summary>
+    /// <summary>Which of the pool's models stay loaded; null where none is loaded ahead.</summary>
     public ModelResidency? Residency => _residency;
 
-    /// <summary>The files local models need, set by <see cref="Initialize"/>; null before startup.</summary>
+    /// <summary>The files local models need; null where the session keeps none.</summary>
     public IModelAssetStore? Assets => _assets;
 
-    /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
+    /// <summary>The session's background tasks; null where none is kept.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;
 
-    /// <summary>An app-wide service given to <see cref="Initialize"/>, or null.</summary>
+    /// <summary>An app-wide service the pool was made with, or null.</summary>
     public T? Service<T>() where T : class => _services.OfType<T>().FirstOrDefault();
 
     /// <summary>Every app-wide service of <typeparamref name="T"/> — each tool on this machine, say.</summary>

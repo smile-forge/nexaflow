@@ -330,10 +330,36 @@
           "class": "WorkspacesConfigViewModel"
         }
       ]
+    },
+    "ws-delete": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceManagerTests.cs",
+            "class": "WorkspaceManagerTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceManagerTests.cs",
+            "class": "WorkspaceManagerTests",
+            "method": "DeleteWorkspace_LastRemaining_IsRefused"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceManagerTests.cs",
+            "class": "WorkspaceManagerTests",
+            "method": "DeleteWorkspace_RemovesFolderConversations_AndList_AndPersists"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 17,
+  "changed_sets": 18,
   "touched_nodes": [
     "feature-startup",
     "messages-workspace-tag",
@@ -341,6 +367,7 @@
     "opt-section-workspaces",
     "options",
     "shell-session",
+    "ws-delete",
     "ws-dormant-time",
     "ws-lifetimes",
     "ws-prestart-daemon",

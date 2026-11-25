@@ -147,10 +147,11 @@ public sealed partial class Workspace : ObservableObject
     public void RaiseRibbonChanged() => RibbonChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
-    /// Idempotently loads this workspace's shared services from its folder. Called the first time a
-    /// Workspace is created for the workspace (and on switch). Safe to call repeatedly.
+    /// Idempotently loads this workspace's shared services from its folder, its provider configs those
+    /// <paramref name="providers"/> has loaded. Called the first time a Workspace is created for the workspace
+    /// (and on switch). Safe to call repeatedly.
     /// </summary>
-    internal void EnsureSharedServicesLoaded()
+    internal void EnsureSharedServicesLoaded(ProviderManager providers)
     {
         if (RibbonService is not null) return;
         ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
@@ -158,31 +159,32 @@ public sealed partial class Workspace : ObservableObject
             ConfigManager.Instance.SaveTo(Dir, AiConfig, AiConfig.ConfigName);
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService    = new RibbonLayoutService(Dir);
-        ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        ProviderConfigs  = providers.LoadProviderConfigs(Dir);
         Connections      = new WorkspaceConnections(Dir, CredentialManagerStore.Default);
         // Scoped feature configs are materialized lazily (see FindWorkspaceConfig) so a feature whose only
         // footprint here is a scoped config isn't force-loaded at startup.
     }
 
     /// <summary>
-    /// Re-reads the provider configs from disk (picks up provider assemblies discovered after the
-    /// first load, e.g. when the Manage-AI panel runs <see cref="ProviderManager.DiscoverAll"/>).
+    /// Re-reads the provider configs from disk through <paramref name="providers"/> (picks up provider assemblies
+    /// discovered after the first load, e.g. when the Manage-AI panel runs <see cref="ProviderManager.DiscoverAll"/>).
     /// </summary>
-    internal void ReloadProviderConfigs()
-        => ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
+    internal void ReloadProviderConfigs(ProviderManager providers)
+        => ProviderConfigs = providers.LoadProviderConfigs(Dir);
 
     /// <summary>
     /// Re-reads ALL shared config (ability grid, persona, provider + per-workspace feature configs)
-    /// from disk into the live instances. Called when the Configure panel closes after edits were
+    /// from disk into the live instances — the provider configs through <paramref name="providers"/>, the scoped ones those
+    /// <paramref name="features"/> knows. Called when the Configure panel closes after edits were
     /// applied to disk, so a subsequent <see cref="WorkspaceRuntimes.Restart"/> rebuilds the
     /// workspace from the saved values (the panel deliberately leaves the live instances untouched
     /// while editing).
     /// </summary>
-    internal void ReloadSharedConfigs(FeatureManager features)
+    internal void ReloadSharedConfigs(FeatureManager features, ProviderManager providers)
     {
         ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
-        ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        ProviderConfigs = providers.LoadProviderConfigs(Dir);
         lock (_scopedLock) _scoped.Clear();
         MaterializeAllScopedConfigs(features);
     }

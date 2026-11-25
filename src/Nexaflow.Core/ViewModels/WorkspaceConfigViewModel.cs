@@ -74,19 +74,33 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// <summary>The session's feature system, which knows the workspace-scoped configs the panel edits.</summary>
     private readonly FeatureManager _features;
 
+    /// <summary>The session's provider pool: the providers and their configs the panel edits, and the models on this machine.</summary>
+    private readonly ProviderManager _providers;
+
+    /// <summary>The saved workspaces: the configured one among them, and every grid a downloaded model is used by.</summary>
+    private readonly WorkspaceManager _savedWorkspaces;
+
+    /// <summary>The live workspaces, whose runtime of the configured one is rebuilt when an applied edit closes the panel.</summary>
+    private readonly WorkspaceRuntimes _runtimes;
+
     /// <param name="workspace">The workspace the panel configures.</param>
-    /// <param name="features">The session's feature system, which knows the workspace-scoped configs the panel edits.</param>
-    /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed.</param>
-    public WorkspaceConfigViewModel(Workspace workspace, FeatureManager features, Nexaflow.Features.Common.IShellServices? shell = null)
+    /// <param name="session">What the window has of the session: the feature system that knows the workspace-scoped configs, the
+    /// provider pool, the saved workspaces and the live runtimes.</param>
+    /// <param name="shell">The shell of the window the panel is in: an <see cref="Nexaflow.Features.Common.IShellAware"/> page is
+    /// handed it, and a path is browsed for with its pickers.</param>
+    public WorkspaceConfigViewModel(Workspace workspace, WindowServices session, Nexaflow.Features.Common.IShellServices? shell = null)
     {
-        _workspace = workspace;
-        _features  = features;
+        _workspace       = workspace;
+        _features        = session.Features;
+        _providers       = session.Providers;
+        _savedWorkspaces = session.SavedWorkspaces;
+        _runtimes        = session.Workspaces;
         _shell   = shell;
         _title   = Str.Format("Shell.Workspace.Configure.TitleFormat", workspace.Name);
 
         // Discover provider plugins, then make sure the workspace's folder + scoped-type list exist.
-        ProviderManager.Instance.DiscoverAll();
-        workspace.EnsureSharedServicesLoaded();
+        _providers.DiscoverAll();
+        workspace.EnsureSharedServicesLoaded(_providers);
 
         var dir = workspace.Dir;
 
@@ -96,13 +110,13 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _persona = new AiPersonaConfig();
         ConfigManager.Instance.LoadFrom(dir, _persona, _persona.ConfigName);
 
-        _providerConfigs  = ProviderManager.Instance.LoadProviderConfigs(dir);
-        _workspaceConfigs = LoadEditingWorkspaceConfigs(dir, features);
+        _providerConfigs  = _providers.LoadProviderConfigs(dir);
+        _workspaceConfigs = LoadEditingWorkspaceConfigs(dir, _features);
 
         // Capability instances for the ability grid's model lists (model-agnostic; columns: none).
-        _editingProviderSet  = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
-        _shelf               = ProviderManager.Instance.Assets is { } assets ? new LocalModelShelf(_editingProviderSet, assets) : null;
-        _downloads           = ProviderManager.Instance.Service<LocalModelDownloads>();
+        _editingProviderSet  = _providers.AcquireProviderSet(_providerConfigs, []);
+        _shelf               = _providers.Assets is { } assets ? new LocalModelShelf(_editingProviderSet, assets) : null;
+        _downloads           = _providers.Service<LocalModelDownloads>();
         _grid                = new AiAbilityGridViewModel(_aiConfig, _editingProviderSet, _shelf, _downloads);
 
         BuildSections();
@@ -122,12 +136,12 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     {
         // First page: the workspace identity (name/symbol/colour). The control edits the live workspace
         // directly on Apply, so it carries no per-folder config (special-cased in Apply below).
-        var identityControl = new WorkspaceIdentityControl { DataContext = _workspace };
+        var identityControl = new WorkspaceIdentityControl(_savedWorkspaces, _shell) { DataContext = _workspace };
         _identitySection = ConfigEditViewModel.ForCustomControl(identityControl, "workspace-identity", Str.Get("Shell.Config.WorkspaceIdentity"));
         Sections.Add(_identitySection);
 
         // Startup tabset editor (delete-only; captured via the workspace icon's "Use Tabset as Default").
-        var defaultTabsControl = new WorkspaceDefaultTabsControl { DataContext = _workspace };
+        var defaultTabsControl = new WorkspaceDefaultTabsControl(_savedWorkspaces) { DataContext = _workspace };
         _defaultTabsSection = ConfigEditViewModel.ForCustomControl(defaultTabsControl, "workspace-default-tabs", Str.Get("Shell.Config.WorkspaceDefaultTabs"));
         Sections.Add(_defaultTabsSection);
 
@@ -136,16 +150,16 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         // The models on this machine: a page choosing one for each job, and one of what is on disk.
         if (_shelf is not null && _downloads is not null)
         {
-            var tools = ProviderManager.Instance.Services<ILocalTool>();
+            var tools = _providers.Services<ILocalTool>();
             var local = new LocalModelsViewModel(_shelf, _grid, _workspace, _downloads, CommitLocalChoice, tools,
-                                                 ProviderManager.Instance.Service<CudaPackDownload>());
+                                                 _providers.Service<CudaPackDownload>());
             Sections.Add(GridSection(new LocalModelsControl(local, _grid), "local-models", Str.Get("Shell.Config.Local.Title")));
             Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids, tools)),
                                                               "downloaded-models", Str.Get("Shell.Config.Downloaded.Title")));
         }
-        Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName));
+        Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName, _shell));
         foreach (var config in _providerConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName));
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _shell));
 
         foreach (var config in _workspaceConfigs)
             Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _shell));
@@ -164,7 +178,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
     /// <summary>Every workspace's grid as saved, by name — this one's as this panel holds it — for who uses which model.</summary>
     private IReadOnlyList<(string Workspace, AiConfig Config)> SavedGrids()
-        => [.. WorkspaceManager.Instance.Workspaces.Select(w => (w.Name, ReferenceEquals(w, _workspace) ? _aiConfig : SavedGrid(w)))];
+        => [.. _savedWorkspaces.Workspaces.Select(w => (w.Name, ReferenceEquals(w, _workspace) ? _aiConfig : SavedGrid(w)))];
 
     private static AiConfig SavedGrid(Workspace workspace)
     {
@@ -211,7 +225,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     {
         if (_editingProviderSet is not null)
         {
-            ProviderManager.Instance.ReleaseProviderSet(_editingProviderSet);
+            _providers.ReleaseProviderSet(_editingProviderSet);
             _editingProviderSet = null;
         }
 
@@ -219,8 +233,8 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _dirty = false;
 
         // Pull the just-saved values into the live workspace, then rebuild the running workspace (if any).
-        _workspace.ReloadSharedConfigs(_features);
-        WorkspaceManager.Instance.Runtimes?.Restart(_workspace);
+        _workspace.ReloadSharedConfigs(_features, _providers);
+        _runtimes.Restart(_workspace);
         return true;
     }
 
@@ -326,10 +340,10 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
     private void ReacquireEditingProviderSet()
     {
-        var fresh = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
+        var fresh = _providers.AcquireProviderSet(_providerConfigs, []);
         var old   = _editingProviderSet;
         _editingProviderSet = fresh;
         _grid.UseProviders(fresh);
-        if (old is not null) ProviderManager.Instance.ReleaseProviderSet(old);
+        if (old is not null) _providers.ReleaseProviderSet(old);
     }
 }
