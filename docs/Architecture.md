@@ -30,7 +30,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Words | `Nexaflow.Localization` | WPF-free leaf: `Str`, which looks a UI string up in the active language, and the size / duration / time formatters — under everything that shows a person text, headless or drawn |
 | Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here. Names no UI toolkit (no WPF): what a contract hands out to be shown is a model, drawn by a `[ViewFor]` view; `ArchitectureRulesTests` keeps it so |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
-| Input vocabulary | `Nexaflow.Interaction` | WPF-free `net10.0` leaf the contracts speak: `KeyModifiers`, `IDragPayload` + `DragKinds`, `IDropTarget`. Beneath `Features.Common` rather than in it, so a shared control can take a drop without seeing `IShellServices` |
+| Input vocabulary | `Nexaflow.Interaction` | WPF-free `net10.0` leaf the contracts speak: `KeyModifiers`, `IDragPayload` + `DragKinds`, `IDropTarget`, `IPasteTarget` and the clipboard (`IShellClipboard`). Beneath `Features.Common` rather than in it, so a shared control can take a drop or a paste, or copy, without seeing `IShellServices` |
 | Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the `VirtualFileSystem` over archives and mounts, the remote-location contracts and each runtime's `LocationFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
 | Providers | `Nexaflow.Providers.Common` and `Nexaflow.Providers.OpenAICompatible` (the chat-completions wire format OpenAI and xAI share), `Nexaflow.Providers.Local` (what a provider whose models run here offers) + one project per backend (Claude, Gemini, OpenAI, xAI, Ollama, Aria, Whisper, AiHost) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
@@ -179,8 +179,8 @@ page — it only knows how to _host_ them — and nothing of the session's lives
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`: `WpfUiThread`, `ShellClipboard`, `WpfFilePickers`, `ShellFolderWatcher`, `WpfThemeHost`, `[ViewFor]` as the view marker, `ContentLanguages.Draws`, `WpfPictureFitting`, `PageViews`), hands it the app's version, applies the appearance settings, builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
-| `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
+| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`: `WpfUiThread`, `ShellClipboard`, `WpfFilePickers`, `ShellFolderWatcher`, `WpfThemeHost`, `[ViewFor]` as the view marker, `ContentLanguages.Draws`, `WpfPictureFitting`, `PageViews`), hands it the app's version, applies the appearance settings, offers the clipboard to every window (`ClipboardRouter.ServeEveryWindow`), builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
+| `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks; routes its drops (`DropRouter`) and pastes (`ClipboardRouter`) |
 | `ViewModels/ShellViewModel.cs` | Per-window VM and the session's `IWindowHost`: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open); showing, closing and placing its window, its pickers' owner |
 | `ViewModels/ConfigPageModels.cs` | The page a config is edited on where it has one of its own: the view marked `[ViewFor]` its model — its config, or the view-model a Core page that shows the session draws |
 | `Services/PageViews.cs` | The view each open page is drawn with (`IPageViews` to the session) |
@@ -251,10 +251,10 @@ The contract layer. Every feature depends on this; nothing else does.
 | `IPageRegistration.cs` | Interface a feature implements to advertise one page kind: `PageKind` + the cheap `CreatePageDefinition(params)` (plus optional `Parameters`, `CanBeContextItem`, `CreatePageDefinitions`). Each impl also exposes `static string StaticPageKind` so `FeatureManager` discovers it by reflection |
 | `IPageViewModel.cs` | What a page is, implemented by its view-model: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant` (the files and folders it shows — `ContextGrant.cs`), `Reinitialize` (shown again with parameters) |
 | `PlaceholderViewModel.cs` | A page that only says why it is empty (a missing feature, nothing to open) |
-| `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`), `WatchFolder(path, onChanged)` (a folder's own entries through the shell's change notifications, sync providers' included → `FolderChange`, one registration per folder, torn down with the workspace), `RunOnUiAsync(...)` (marshal work to the workspace UI thread), `CreateUiTimer` / `CreateUiDelay` (a timer that repeats, or a delay that runs once each time it is started, ticking on the UI thread → `IUiTimer`) and `Clipboard` (→ `IShellClipboard`). Features use these instead of `Application.Current.Dispatcher`, `DispatcherTimer` and `System.Windows.Clipboard`, so a view-model names no UI toolkit |
+| `IShellServices.cs` (under `Services/`) | The **active `WorkspaceRuntime`'s** shell handle injected into feature code (one impl per runtime, not an app singleton): `OpenTab`/`CloseTab`/`FindTab`, `QueueBackgroundTask`, `ShowError`/`ShowNotification`/`ShowPrompt`/`ShowConfirmation`, `ShowOverlay`/`CloseOverlay` (feature-defined shell-modal overlays), `PinToRibbon`, `DiscoverImplementations<T>`. Owns UI-thread access for features: `WatchFile(path, onChanged)` (shared, deduped, UI-marshalled, lifecycle-managed file watching → `IFileWatch`), `WatchFolder(path, onChanged)` (a folder's own entries through the shell's change notifications, sync providers' included → `FolderChange`, one registration per folder, torn down with the workspace), `RunOnUiAsync(...)` (marshal work to the workspace UI thread), `CreateUiTimer` / `CreateUiDelay` (a timer that repeats, or a delay that runs once each time it is started, ticking on the UI thread → `IUiTimer`) and `Clipboard` (→ `IShellClipboard`, in `Nexaflow.Interaction`). Features use these instead of `Application.Current.Dispatcher`, `DispatcherTimer` and `System.Windows.Clipboard`, so a view-model names no UI toolkit |
 | `IFileWatch.cs` (under `Services/`) | Handle from `WatchFile`: `Enabled` (hold + coalesce while false, flush on re-enable), `Dispose` to unwatch |
 | `IUiTimer.cs`, `UiTimerPriority.cs` (under `Services/`) | Handle from `CreateUiTimer` / `CreateUiDelay`: `Interval` (changeable while running), `Start`/`Stop`, `Restart` (a debounce, with a delay), `Dispose` (never ticks again). `Background` priority for polls and debounces, `Render` for a tick that draws every frame |
-| `IShellClipboard.cs` (under `Services/`) | The clipboard: `Read()` gives what it holds as an `IDragPayload`, read with the same kinds and readers as a drop (`Text()`, `Image()`, `Files()`, `DragKinds.FilesCut`); `Write(payload)` puts a `ComposedPayload` (`OfText`, `OfImage`, `OfFiles`, `With`) there; `Clear()`. A write or clear returns false while another application holds the clipboard open — nothing throws. UI thread only. Windows' formats are written by `Visuals.Common`'s `WindowsDataObject`, as `WindowsDragPayload` reads them |
+
 | `IAIService.cs` | Per-`WorkspaceRuntime` AI service: handler scoring/disambiguation, the `RunAgentAsync` agent loop, conversation load/save, analysis + artifacts |
 | `IBackgroundTask.cs` | Self-contained background work (`Description` + `RunAsync`) handed to `IShellServices.QueueBackgroundTask` |
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
@@ -673,7 +673,7 @@ public bool ProcessKey(ConsoleKey key, KeyModifiers modifiers)
 Every drag over a window — from Windows, another application or the app itself — goes through one `DropRouter`
 (`Nexaflow.Visuals.Common/Dropping/`, attached by `MainWindow`). A feature never sets `AllowDrop` for one or handles a
 drag event: it says what it takes (`AcceptedKinds`), what a drop would do (`OfferDrop`, asked as the pointer moves, so
-it touches no disk) and takes it (`AcceptDrop`). Nothing in the contract is WPF's.
+it touches no disk) and takes it (`AcceptDropAsync`). Nothing in the contract is WPF's.
 
 A target registers by where it is:
 
@@ -693,15 +693,45 @@ The tabs are Core's own target: a file dropped there is raised as a `FileViewReq
 - **Kinds, not formats.** `WindowsDragPayload` is the one place Windows' formats become `DragKinds`: `Files` (paths),
   `FileContents` (files that are only content — a mail's attachment, a file out of a zip), `Link`, `Text`, `Html`,
   `Image` (PNG bytes). A drag of the app's own names a kind of its own (`Page.DragKind`, `"FileAction"`).
-- **The payload lives as long as the drag.** Read it inside `AcceptDrop`, before the first await. `FilesOnDisk()` gives
-  paths that outlive it, writing content-only files to a staging folder (`DropStaging`) with their names made safe and
-  marked as from the internet.
+- **A target is handed the drop taken.** The drag's own payload lives only as long as the drag, so the router reads the
+  kinds the target takes in full as the drop lands (`DragPayloadReading.Take`) and hands it that: the target may await,
+  ask what to do, and use it later. Files that came as content are written to a staging folder (`DropStaging`), their
+  names made safe and marked as from the internet, and carried as `StagedFiles` — `FilesOnDisk()` gives them, and
+  `Contains(Files)` still tells files that were somewhere from content that had nowhere. A target that fails before it
+  first waits is reported and the source told nothing was done; one that fails later is reported once it does.
 - **The source is never told its files were moved**, which is leave to delete them: a target that moves does the whole
   move. A drag from elsewhere that nothing takes is refused — WPF's own default answer is Move.
 - **Looking never launches.** `FileViewRequest` opens the viewer for the type, or text or bytes where none is mapped.
 - **A control's own gesture stays its own**: a list reordering, a layer dragged onto another. It carries a kind of its
   own, and the router leaves it with the control that set `AllowDrop` for it.
 - **A native child window is outside all of it**: WebView2 takes the drops over itself.
+
+### `IPasteTarget` and the clipboard — copy and paste
+
+The clipboard is `IShellClipboard` (`Nexaflow.Interaction`), and it is asynchronous, as a clipboard on any platform may be:
+`ReadAsync(kinds)` gives what it holds of those kinds, taken as a drop is; `WriteAsync(payload)` puts a `ComposedPayload`
+there (`OfText`, `OfImage`, `OfFiles`, `With`, and an app's own kind that is words, as markdown is); `ClearAsync()`. None
+throws for a clipboard another application holds open: a read gives what it could, a write says whether it happened.
+`Kinds` says which shared kinds it holds without opening it — current after the app's own writes, and read again at the
+latest when the app is next activated, or sooner where the platform says so (`KindsChanged`) — so whether Paste can do
+anything is a question a command answers whenever asked. The WPF app's is `ShellClipboard`, through `WindowsDragPayload`
+and `WindowsDataObject`.
+
+- **A view-model reaches it as `IShellServices.Clipboard`.** A control with no view-model reaches the one its window
+  offers — `ClipboardRouter.Clipboard`, inherited by everything a window shows, popups included — and copies with
+  `ClipboardRouter.Write(element, payload)`. Nothing reads or writes the toolkit's own clipboard but the app's adapter.
+- **A paste is routed as a drop is.** The window's `ClipboardRouter` (beside `DropRouter`, attached by `MainWindow`) takes
+  Ctrl+V, Shift+Insert and the Paste command, and hands the nearest `IPasteTarget` that can take what the clipboard holds —
+  a page's view or view-model, or a control, from the focus out — what it held of its `PasteKinds`, taken; failing one
+  there, the active page's own. A control that takes keys itself, as the terminal does, raises the Paste command on itself.
+- **A text box pastes for itself**, as does any control binding the Paste command (an editor): a paste begun in one is
+  never taken from it.
+- **One way of taking content.** A page that takes both drops and pastes shares one method between them — the file list
+  queues pasted files as its strip's Paste does, Scratchpad makes notes of either, Artist layers a picture.
+- **The markdown surface asks its host first.** Copying raises `Copying`, which a host with its own say over what may leave
+  answers; otherwise the copy goes on the window's clipboard, and a cut takes the words away only once it is there. A paste
+  raises `Pasting` with what was pasted, for a host that makes something of more than words (a post-it, of a picture or a
+  file); otherwise its words and markdown are written.
 
 ---
 

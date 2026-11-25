@@ -46,6 +46,31 @@ public class DropRouterTests
         public void EndDropHover() => Ended++;
     }
 
+    /// <summary>A target that waits — for <paramref name="gate"/>, as one asking what to do would — before taking the drop.</summary>
+    private sealed class Waiting(Task gate, Exception? throws = null) : IDropTarget
+    {
+        public List<string> FilesTaken { get; } = [];
+
+        public IReadOnlyList<string> AcceptedKinds => [DragKinds.Files];
+
+        public DropOffer? OfferDrop(DropRequest request) => new(DropEffect.Copy);
+
+        public async Task AcceptDropAsync(DropRequest request)
+        {
+            await gate;
+            if (throws is not null) throw throws;
+            FilesTaken.AddRange(request.Payload.Files());
+        }
+    }
+
+    /// <summary>Runs what the drop left queued on the window's thread.</summary>
+    private static void Settle()
+    {
+        var frame = new DispatcherFrame();
+        Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, () => frame.Continue = false);
+        Dispatcher.PushFrame(frame);
+    }
+
     private static DataObject Files() => new(DataFormats.FileDrop, new[] { @"C:\drop\a.txt" });
 
     private static DataObject Words() => new(DataFormats.UnicodeText, "some words");
@@ -381,6 +406,54 @@ public class DropRouterTests
 
             Assert.AreEqual(DragDropEffects.None, drag.Drop(child));
             Assert.AreEqual("no", failures.Single().Message);
+        });
+    });
+
+    /// <summary>What a drop carried is taken while Windows still holds it, so a target that waits first still has it afterwards.</summary>
+    [TestMethod]
+    public void ATargetThatWaits_StillHasWhatTheDragCarried_AfterTheDropHasReturned() => UiThread.Run(() =>
+    {
+        var child = Plain();
+        var gate = new TaskCompletionSource();
+        var target = new Waiting(gate.Task);
+        DropSurface.SetTarget(child, target);
+
+        InWindow(child, (window, _, failures) =>
+        {
+            using (var drag = new OleDrag(window, Files()))
+            {
+                drag.Over(child);
+                Assert.AreEqual(DragDropEffects.Copy, drag.Drop(child));
+            }
+            Assert.AreEqual(0, target.FilesTaken.Count, "nothing is taken while the target waits");
+
+            gate.SetResult();
+            Settle();
+
+            CollectionAssert.AreEqual(new[] { @"C:\drop\a.txt" }, target.FilesTaken);
+            Assert.AreEqual(0, failures.Count);
+        });
+    });
+
+    [TestMethod]
+    public void WhatATargetThrowsAfterItWaits_IsReported_ThoughTheDropWasAnswered() => UiThread.Run(() =>
+    {
+        var child = Plain();
+        var gate = new TaskCompletionSource();
+        DropSurface.SetTarget(child, new Waiting(gate.Task, new InvalidOperationException("later")));
+
+        InWindow(child, (window, _, failures) =>
+        {
+            using (var drag = new OleDrag(window, Files()))
+            {
+                drag.Over(child);
+                Assert.AreEqual(DragDropEffects.Copy, drag.Drop(child));
+            }
+
+            gate.SetResult();
+            Settle();
+
+            Assert.AreEqual("later", failures.Single().Message);
         });
     });
 

@@ -21,7 +21,7 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | Help page | recommended | `Localization/en/help/<StaticPageKind>.md` in your project — what the page can do, shown by the Help pane beside it; snaplink it as the feature's `docs` concern ([localization.md](localization.md#help-pages)) |
 | `IQueryHandler` | optional | Handle AI input bar text |
 | `IFileAction` / `IFolderAction` | optional | File browser context actions |
-| `IKeyboardHandler` / `IDropTarget` | optional | Global keyboard shortcuts / what can be dropped on the page |
+| `IKeyboardHandler` / `IDropTarget` / `IPasteTarget` | optional | Global keyboard shortcuts / what can be dropped, or pasted, on the page |
 
 The wiring steps that used to fail silently are now **enforced**: `Nexaflow.Tests.Features/Architecture/FeatureTouchPointTests`
 goes red naming any feature directory missing its `Nexaflow.Core.csproj` or `Nexaflow.Tests.Features.csproj`
@@ -268,17 +268,22 @@ data beyond the `GetContext()` string. Handlers gate on it with a type check —
 
 ---
 
-## Keyboard & drag-drop — `IKeyboardHandler` / `IDropTarget`
+## Keyboard, drag-drop and paste — `IKeyboardHandler` / `IDropTarget` / `IPasteTarget`
 
-Implement either on the `UserControl` or the ViewModel. Neither contract is WPF's (`Nexaflow.Interaction`).
+Implement any of them on the `UserControl` or the ViewModel. None is WPF's (`Nexaflow.Interaction`).
 
 - **Keys:** the shell calls `CanProcessKey` before acting, on the **active** page only, with a `ConsoleKey` and
   `KeyModifiers`.
 - **Drops:** the window's router finds the target under the pointer, so never set `AllowDrop` or handle a drag event
-  for one. Name the kinds taken in `AcceptedKinds`, answer `OfferDrop` without side effects, and read the payload in
-  `AcceptDrop` before the first await. An area of a view is given a target with `DropSurface.Target`. The rules:
-  [Architecture.md → `IDropTarget`](Architecture.md#idroptarget--drag-and-drop). Canonical examples:
-  `CompressedViewModel.Dropping.cs` (a whole page, from its ViewModel), `PostItControl` (one control).
+    for one. Name the kinds taken in `AcceptedKinds` and answer `OfferDrop` without side effects; `AcceptDropAsync` is
+    handed what the drag carried, already taken, so it may await. An area of a view is given a target with
+    `DropSurface.Target`. The rules: [Architecture.md → `IDropTarget`](Architecture.md#idroptarget--drag-and-drop).
+    Canonical examples: `CompressedViewModel.Dropping.cs` (a whole page, from its ViewModel), `PostItControl` (one control).
+  - **Pastes:** never handle Ctrl+V or read the clipboard for one. Name the kinds taken in `PasteKinds`, and `PasteAsync` is
+    handed what the clipboard held of them — share one way of taking content with your drop. Copy through
+    `IShellServices.Clipboard` (`WriteAsync`) from a view-model, or `ClipboardRouter.Write` from a control with none. The
+    rules: [Architecture.md → `IPasteTarget`](Architecture.md#ipastetarget-and-the-clipboard--copy-and-paste). Canonical
+    examples: `FileSystemViewModel` (a page), `ScratchpadView` (a view sharing its drop's notes).
 
 ---
 
@@ -413,6 +418,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | `IGenericObjectHandler` | "Do the default thing with this object" (open a path / URL, a `FileByteRange`, a `FileViewRequest`, a `DraftFile`). |
 | `IKeyboardHandler` | Claims global keyboard shortcuts; queried against the active page before the key is consumed. |
 | `IDropTarget` (`Nexaflow.Interaction`) | Takes drops on a page, a control or an area; found under the pointer by the window's `DropRouter`. |
+| `IPasteTarget` (`Nexaflow.Interaction`) | Takes pastes on a page or a control; found from the focus by the window's `ClipboardRouter`. |
 
 ### File & folder actions (`FileActions/`) — discovered by `FileSystemFeatureRegistry`
 | Interface | What it's for |

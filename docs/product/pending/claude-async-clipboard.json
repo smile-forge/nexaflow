@@ -1,0 +1,205 @@
+{
+  "branch": "claude/async-clipboard",
+  "nodes": {
+    "shell-clipboard": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/IShellClipboard.cs",
+          "class": "IShellClipboard"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/ShellClipboard.cs",
+          "class": "ShellClipboard"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Dropping/WindowsDataObject.cs",
+          "class": "WindowsDataObject"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/ComposedPayload.cs",
+          "class": "ComposedPayload"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Dropping/ClipboardRouter.cs",
+          "class": "ClipboardRouter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/IPasteTarget.cs",
+          "class": "IPasteTarget"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/DragPayloadReading.cs",
+          "class": "DragPayloadReading",
+          "method": "Take"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Dropping/WindowsDataObjectTests.cs",
+            "class": "WindowsDataObjectTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Dropping/ClipboardRouterTests.cs",
+            "class": "ClipboardRouterTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Interaction/TakeTests.cs",
+            "class": "TakeTests"
+          }
+        ]
+      }
+    },
+    "markdown-copy": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "Copied"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.History.cs",
+          "class": "MarkdownSurface",
+          "method": "CopySelection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "Payload"
+        }
+      ]
+    },
+    "markdown-paste": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/HtmlToMarkdown.cs",
+          "class": "HtmlToMarkdown",
+          "method": "Convert"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "ReadBestMarkdown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.History.cs",
+          "class": "MarkdownSurface",
+          "method": "OnPaste"
+        },
+        {
+          "type": "node",
+          "target": "markdown-from-html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Writing.cs",
+          "class": "MarkdownSurface",
+          "method": "PasteAsync"
+        }
+      ]
+    },
+    "chrome-tabs-drop-open": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/DefaultFileOpener.cs",
+          "class": "DefaultFileOpener",
+          "method": "OpenInViewerAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/TabStrip.xaml.cs",
+          "class": "TabStrip",
+          "method": "AcceptDropAsync"
+        }
+      ]
+    },
+    "ribbon-pin-group": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonViewModel.cs",
+          "class": "RibbonViewModel",
+          "method": "InsertPin"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/features.md",
+          "title_path": [
+            "Building a Feature",
+            "Interface reference \u2014 \u0060Features.Common\u0060",
+            "Ribbon pinning (\u0060Ribbon/\u0060)"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "AcceptDropAsync"
+        }
+      ]
+    },
+    "winfs-drag-drop": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileSystemDropTarget.cs",
+          "class": "FileSystemDropTarget"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Operations/FileOperationDestinations.cs",
+          "class": "FileOperationDestinations"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "ScheduleTreeReveal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/DragArming.cs",
+          "class": "DragArming"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "AcceptDropAsync"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 7,
+  "touched_nodes": [
+    "chrome-tabs-drop-open",
+    "markdown-copy",
+    "markdown-paste",
+    "ribbon-pin-group",
+    "shell-clipboard",
+    "winfs-drag-drop"
+  ]
+}

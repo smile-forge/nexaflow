@@ -141,24 +141,34 @@ public sealed class DropRouter
             ? found.Request with { Modifiers = found.Request.Modifiers & ~KeyModifiers.Shift }
             : found.Request;
 
-            _hint.Hide();
-            try
-            {
-                // Read in full here, while Windows still holds the drag, so the target may take its time over what it was given.
-                var taken = request.Payload.Take(found.Target.AcceptedKinds, DropStaging.Default);
-                e.Effects = ToWpf(Told(found.Effect, found.Request.Payload));
-                _ = AcceptAsync(found.Target, request with { Payload = taken });
-            }
-            catch (Exception failure)
-            {
-                _failed(failure);
-            }
-        }
-
-        private async Task AcceptAsync(IDropTarget target, DropRequest request)
+        _hint.Hide();
+        try
         {
-            try { await target.AcceptDropAsync(request); }
-            catch (Exception failure) { _failed(failure); }
+            // Read in full here, while Windows still holds the drag, so the target may take its time over what it was given.
+            var taken = request.Payload.Take(found.Target.AcceptedKinds, DropStaging.Default);
+
+            // A target that fails before it first waits did nothing, and the source is told so; one that fails later is reported
+            // once it does, the drop long since answered.
+            var accepting = found.Target.AcceptDropAsync(request with { Payload = taken });
+            if (accepting.IsFaulted)
+            {
+                _failed(accepting.Exception!.GetBaseException());
+                return;
+            }
+
+            e.Effects = ToWpf(Told(found.Effect, found.Request.Payload));
+            _ = ReportLateFailureAsync(accepting);
+        }
+        catch (Exception failure)
+        {
+            _failed(failure);
+        }
+    }
+
+    private async Task ReportLateFailureAsync(Task accepting)
+    {
+        try { await accepting; }
+        catch (Exception failure) { _failed(failure); }
     }
 
     /// <summary>What the source is told of a drop: never that its files were moved, which is leave to delete them.</summary>
