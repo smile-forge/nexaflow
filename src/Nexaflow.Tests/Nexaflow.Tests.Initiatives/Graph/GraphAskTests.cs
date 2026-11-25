@@ -553,6 +553,24 @@ public class GraphAskTests
     }
 
     [TestMethod]
+    public void AnAnswerAnotherCommandKept_IsReadByMore_ButStartsNoQuestion()
+    {
+        var history = new AnswerHistory(_ => null);
+        var kept    = history.Keep("nfi build App.slnx", ["build: App - FAILED (2.1s)", "  a.cs(3,1): error CS0246: Widget"]);
+
+        var more = GraphAsk.Run(Repo(), $"@{kept} more", Read, history);
+        Assert.IsTrue(more.Ok, more.Text);
+        StringAssert.Contains(more.Text, "error CS0246");
+
+        var refused = GraphAsk.Run(Repo(), $"@{kept} | ids", Read, history);
+        Assert.IsFalse(refused.Ok);
+        StringAssert.Contains(refused.Text, $"nfi more @{kept}", "a command's text has no nodes to narrow - say how to read it instead");
+
+        var asked = GraphAsk.Run(Repo(), "search Reader", Read, history);
+        StringAssert.EndsWith(asked.Text, $"@{kept + 1}", "a question takes the next number after the command's");
+    }
+
+    [TestMethod]
     [CoversNode("graph-ask-diagnostics")]
     public void Diagnostics_AreCreditedToTheDeclarationTheyAreIn_KeepingOnlyTheIdsAskedFor()
     {

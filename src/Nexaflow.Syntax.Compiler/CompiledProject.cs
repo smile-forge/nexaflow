@@ -142,8 +142,8 @@ internal sealed class CompiledProject
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }   // cannot tell: trust it
 
-        return $"its packages are not restored, so nothing it uses from them can be read - `dotnet restore {Path.GetFileName(csproj)}` "
-             + "(or a build) and it is checked from then on";
+        // The same words for every project, so a check that meets many - a fresh worktree - says it once, naming them.
+        return "packages not restored, so nothing used from them can be read - checked once a build has restored them";
     }
 
     /// <summary>

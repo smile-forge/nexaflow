@@ -25,7 +25,42 @@ internal static class TestRunner
     /// <summary>A suite's tests that failed, kept so <c>--failed</c> can run exactly those again.</summary>
     internal sealed record Failed(string Project, List<string> Filters);
 
+    /// <summary>
+    /// Runs the tests a node's change touches. What the run concludes prints as it happens; the detail - the whole of each
+    /// failing test's trace, the failures past the first few - is kept by the resident process with the run's answer, so
+    /// the rest of a failing run is <c>nfi more</c>, not the run again.
+    /// </summary>
     public static int Run(string[] args, string productRoot, string? codeRoot)
+    {
+        // This process answers one command, so its console is the answer's to take for the length of the run.
+        var console = Console.Out;
+        var answer  = new AnswerWriter(live: console);
+        Console.SetOut(answer);
+        int code;
+        try { code = RunSuites(args, productRoot, codeRoot, answer.Detail); }
+        finally { Console.SetOut(console); }
+
+        console.Write(answer.FinishLive(lines => KeepAnswer(args, productRoot, codeRoot, lines)));
+        return code;
+    }
+
+    /// <summary>Hands a run's whole answer to the resident process to keep, and returns the number it is kept under - null
+    /// when it could not be kept, and the detail is printed instead.</summary>
+    private static int? KeepAnswer(string[] args, string productRoot, string? codeRoot, IReadOnlyList<string> lines)
+    {
+        try
+        {
+            var reply = DaemonClient.Capture(["keep", "nfi " + string.Join(' ', args), "--stdin"], productRoot, codeRoot,
+                                             string.Join('\n', lines));
+            return Regex.Match(reply.Out, @"kept as @(\d+)") is { Success: true } kept ? int.Parse(kept.Groups[1].Value) : null;
+        }
+        catch (DaemonUnavailableException)
+        {
+            return null;
+        }
+    }
+
+    private static int RunSuites(string[] args, string productRoot, string? codeRoot, TextWriter detail)
     {
         var root    = codeRoot ?? productRoot;
         var noBuild = args.Contains("--no-build");
@@ -84,7 +119,7 @@ internal static class TestRunner
                 continue;
             }
 
-            var outcome = Execute(project, name, assembly, suite.Filters);
+            var outcome = Execute(project, name, assembly, suite.Filters, detail);
             if (outcome is null)
             {
                 broken = true;
@@ -124,7 +159,7 @@ internal static class TestRunner
 
     private sealed record Outcome(List<string> Failed);
 
-    private static Outcome? Execute(string project, string name, string assembly, IReadOnlyList<string> filters)
+    private static Outcome? Execute(string project, string name, string assembly, IReadOnlyList<string> filters, TextWriter detail)
     {
         if (!File.Exists(assembly))
         {
@@ -149,7 +184,9 @@ internal static class TestRunner
         if (total is null)
         {
             Console.WriteLine($"run:   {name} — no summary (exit {code}, {took}); the end of its output:");
-            foreach (var line in lines.Where(l => l.Trim().Length > 0).TakeLast(12)) Console.WriteLine($"  {line}");
+            var said = lines.Where(l => l.Trim().Length > 0).ToList();
+            foreach (var line in said.SkipLast(12)) detail.WriteLine($"  {line}");
+            foreach (var line in said.TakeLast(12)) Console.WriteLine($"  {line}");
             return code == 0 ? new Outcome([]) : null;
         }
 
@@ -169,11 +206,13 @@ internal static class TestRunner
             if (Regex.Match(lines[i], @"^failed (\S+)") is not { Success: true } match) continue;
 
             names.Add(match.Groups[1].Value);
-            if (shown++ >= ShownFailures) continue;
 
-            Console.WriteLine($"  {lines[i].Trim()}");
-            foreach (var detail in lines.Skip(i + 1).TakeWhile(l => l.StartsWith("  ", StringComparison.Ordinal)).Take(FailureLines))
-                Console.WriteLine($"    {detail.Trim()}");
+            // The first failures, and the first lines of each, are what the run concluded; the rest is detail, kept for nfi more.
+            var printed = shown++ < ShownFailures;
+            (printed ? Console.Out : detail).WriteLine($"  {lines[i].Trim()}");
+            var trace = lines.Skip(i + 1).TakeWhile(l => l.StartsWith("  ", StringComparison.Ordinal)).ToList();
+            for (var t = 0; t < trace.Count; t++)
+                (printed && t < FailureLines ? Console.Out : detail).WriteLine($"    {trace[t].Trim()}");
         }
         return new Outcome([.. names.Distinct().Select(n => $".{n}")]);
     }

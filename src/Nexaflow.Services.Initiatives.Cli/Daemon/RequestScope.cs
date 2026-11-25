@@ -54,7 +54,7 @@ internal static class RequestScope
     private static readonly AsyncLocal<Scope?> Active = new();
     private static int _installed;
 
-    private sealed record Scope(TextWriter Out, TextWriter Error, RequestContext Context);
+    private sealed record Scope(TextWriter Out, TextWriter Error, RequestContext Context, TextWriter? Detail);
 
     /// <summary>The variables a client reports from its own environment, because the daemon's is whichever
     /// shell happened to start it.</summary>
@@ -65,6 +65,10 @@ internal static class RequestScope
     internal static TextWriter? Out => Active.Value?.Out;
 
     internal static TextWriter? Error => Active.Value?.Error;
+
+    /// <summary>Where this request writes detail: what a long answer keeps whole but folds out of what it prints (see
+    /// <see cref="AnswerWriter"/>). Outside a request, or when its output is not an answer, detail is output like any other line.</summary>
+    internal static TextWriter Detail => Active.Value is { } scope ? scope.Detail ?? scope.Out : Console.Out;
 
     /// <summary>The directory the caller ran the command in, or null when this is not serving one.</summary>
     internal static string? Directory => Active.Value?.Context.Directory;
@@ -124,7 +128,7 @@ internal static class RequestScope
     internal static IDisposable Begin(TextWriter output, TextWriter error, RequestContext context)
     {
         var restore = Active.Value;
-        Active.Value = new Scope(output, error, context);
+        Active.Value = new Scope(output, error, context, (output as AnswerWriter)?.Detail);
         return new Scoped(() => Active.Value = restore);
     }
 

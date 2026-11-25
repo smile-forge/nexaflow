@@ -200,6 +200,8 @@ internal static class Program
         "pending"     => Pending(args[1..]),
         "promote"     => Promote(args[1..]),
         "ask"         => Ask(args[1..]),
+        "more"        => MoreVerb(args[1..]),
+        "keep"        => KeepVerb(args[1..]),
         "test"        => TestVerb(args[1..]),
         "build"       => BuildVerb(args[1..]),
         "graph"       => Graph(args[1..]),
@@ -239,6 +241,8 @@ internal static class Program
               nfi lint       [<root>] [--under <id>] [--json]
               nfi doctor     [<root>] [--fix]
               nfi ask        '<stage> | <stage> ...' [<root>]   several graph questions, one answer
+              nfi more       [@<n>] [--all] [--grep <regex>]    the rest of an answer too long to print whole
+              nfi keep       [<label>] --stdin                  keep what is piped in, for more to read back
               nfi test       <node-id> [<root>] [--list] [--no-build]   build and run the tests that exercise a node
               nfi test       --failed [--no-build]                      run again exactly what failed last time
               nfi build      <project-or-solution> [<root>] [--project <another>]... [--target <t>]... [--property <n=v>]...
@@ -340,6 +344,14 @@ internal static class Program
                          ask 'grep "\.StartsWith" | files'    does anything still do this, and where
                          ask 'node <id> | callers | source'   who uses it, and what their code looks like
                          ask '@3 | like Tests | files'        continue answer @3 - every answer ends with its handle; @ is the last
+            more       An answer too long to print whole prints what the command concluded, with each run of detail - an
+                       edit's diff, the errors past the first 30, the whole of a failing test's trace - folded into one line
+                       naming the answer's handle, and the resident process keeps all of it. more @7 reads the next part of
+                       answer @7 (@, or nothing, for the newest kept), --all all of it, --grep <regex> the lines matching
+                       with two either side - instead of the edit, the build or the run done again. The last 50 answers are
+                       kept, in memory, until the resident process ends.
+            keep       Keeps what is piped in as an answer, for more to read back - how a test run, which runs outside the
+                       resident process, keeps its detail.
             test       Builds and runs the tests that exercise a node: the tests that use it, the tests of what uses it
                        (three steps out, by the compiler's binding), and the tests declaring coverage of its feature.
                        --list shows the choice and why, without building. The choosing is the resident process's, and so
@@ -351,8 +363,9 @@ internal static class Program
                        minutes - not a machine-sized set left behind by each build. --project adds entries, built side by
                        side so what they share is built once; --target/--property are -t:/-p:. An entry is restored only
                        when something its restore reads has changed since it last restored (--no-restore: never). Errors
-                       and warnings are listed (--all for every one); --json prints the report instead. A tree builds
-                       once at a time: a second build of it waits for the first. exit: 1 if it failed.
+                       and warnings are listed, the first 30 and 20 of each, the rest kept for more (--all lists every one);
+                       --json prints the report instead. A tree builds once at a time: a second build of it waits for the
+                       first. exit: 1 if it failed.
             graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.bin,
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
@@ -767,6 +780,8 @@ internal static class Program
                   checked afterwards, not assumed. `signature` keeps the attributes too, unless the
                   replacement opens with one of its own. Line endings, indentation and BOMs are the tool's problem:
                   write the replacement flush-left with \n and it lands indented, with the file's own endings.
+                  Inside a string literal that spans lines nothing is placed: the find must match its
+                  whitespace exactly, and the text lands exactly as written.
                   --dry-run prints the hunk and writes nothing. --expect S refuses unless the block still
                   contains S, for a caller pinning an edit to what it read.
 
@@ -1123,6 +1138,29 @@ internal static class Program
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// The answers given in the tree a command runs on (see <see cref="AnswerHistory"/>): kept by the resident process, so null
+    /// in any other.
+    /// </summary>
+    internal static AnswerHistory? HistoryFor(string productRoot, bool main)
+    {
+        if (!RequestScope.Serving) return null;
+        var tree = Path.GetFullPath(CodeRootFor(productRoot, main)).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return Histories.GetOrAdd($"{tree}|{main}",
+                                  _ => new AnswerHistory(rel => CodeFilePath(productRoot, rel, main) is { } full ? File.GetLastWriteTimeUtc(full) : null));
+    }
+
+    /// <summary>Keeps the whole of a long answer a command printed folded, and returns its number - null outside the resident process.</summary>
+    internal static int? KeepAnswer(string productRoot, IReadOnlyList<string> args, IReadOnlyList<string> lines) =>
+        HistoryFor(productRoot, args.Contains("--main"))?.Keep(LabelOf(args), lines);
+
+    /// <summary>A command as it was given, short enough to head what it printed.</summary>
+    private static string LabelOf(IReadOnlyList<string> args)
+    {
+        var label = "nfi " + string.Join(' ', args.Select(a => a.Length == 0 || a.Any(char.IsWhiteSpace) ? $"'{a}'" : a));
+        return label.Length <= 120 ? label : label[..119] + "…";
+    }
+
+    /// <summary>
     /// `nfi ask '<stage> | <stage>'` - several graph questions chained into one answer.
     /// <para>
     /// The vocabulary and the answer are <see cref="GraphAsk"/>'s, which knows nothing about working trees.
@@ -1145,14 +1183,69 @@ internal static class Program
         var main = a.Has("--main");
 
         // Kept by the process that answers, so only the resident process has a history for `@` to refer back to.
-        var history = RequestScope.Serving
-            ? Histories.GetOrAdd($"{CodeRootFor(root, main)}|{main}",
-                                 _ => new AnswerHistory(rel => CodeFilePath(root, rel, main) is { } full ? File.GetLastWriteTimeUtc(full) : null))
-            : null;
+        var history = HistoryFor(root, main);
         var answer = GraphAsk.Run(g, questions, rel => TryReadLines(root, rel, main), history,
                                   EditCheck.DiagnoseIn(g, CodeRootFor(root, main)));
         Console.WriteLine(answer.Text);
         return answer.Ok ? Clean : Error;
+    }
+
+    /// <summary>
+    /// <c>more [@n] [--all] [--grep &lt;regex&gt;]</c>: an answer too long to print whole, read back from where the resident
+    /// process kept it - its next part, all of it, or the lines matching a pattern - rather than the command run again.
+    /// </summary>
+    private static int MoreVerb(string[] args)
+    {
+        if (!TryRead(Specs.More, args, out var a, out var root, out var parseCode)) return parseCode;
+
+        int? number = null;
+        if (a.Positionals.FirstOrDefault(p => p.Length > 0) is { } handle && handle != "@")
+        {
+            if (!handle.StartsWith('@') || !int.TryParse(handle.AsSpan(1), out var n) || n <= 0)
+                return VerbUsage($"more reads a kept answer by its handle - @7, or @ for the newest - not '{handle}'");
+            number = n;
+        }
+
+        Regex? search = null;
+        if (a.Value("--grep") is { } pattern)
+        {
+            try { search = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5)); }
+            catch (ArgumentException ex) { return VerbUsage($"more: --grep '{pattern}' is not a pattern - {ex.Message}"); }
+        }
+
+        if (HistoryFor(root, a.Has("--main")) is not { } history)
+        {
+            Console.Error.WriteLine("error: answers are kept by nfi's resident process, and this is not it - there are none here.");
+            return Error;
+        }
+
+        var (text, ok) = history.Read(number, search, a.Has("--all"), GraphAsk.PageChars);
+        if (!ok)
+        {
+            Console.Error.WriteLine($"error: {text}");
+            return Error;
+        }
+        Console.WriteLine(text);
+        return Clean;
+    }
+
+    /// <summary>
+    /// <c>keep [&lt;label&gt;] --stdin</c>: keeps what is piped in as an answer, for <c>more</c> to read back. How a command that
+    /// runs outside the resident process - a test run - keeps its detail with every other answer's.
+    /// </summary>
+    private static int KeepVerb(string[] args)
+    {
+        if (!TryRead(Specs.Keep, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (HistoryFor(root, main: false) is not { } history)
+        {
+            Console.Error.WriteLine("error: answers are kept by nfi's resident process, and this is not it - nothing was kept.");
+            return Error;
+        }
+
+        var lines  = ReadStdin().Replace("\r", "").TrimEnd('\n').Split('\n');
+        var number = history.Keep(a.Positionals.FirstOrDefault(p => p.Length > 0) ?? "nfi keep", lines);
+        Console.WriteLine($"kept as @{number}, {lines.Length} line(s) - nfi more @{number} reads it, --grep <regex> searches it.");
+        return Clean;
     }
 
     /// <summary>
@@ -1680,7 +1773,7 @@ internal static class Program
         if (!run.Quiet)
             foreach (var step in outcome.Steps)
                 foreach (var change in step.Changes)
-                    PrintHunk(change, brief: step.Step is EditPlan.Move or EditPlan.Rewrite);
+                    PrintHunk(change);
         // Said once however many steps say it: a script setting eighteen ids is told one thing about ids, not eighteen.
         foreach (var said in outcome.Steps.SelectMany(s => s.Notes).Concat(notes).GroupBy(n => n, StringComparer.Ordinal))
             Console.WriteLine($"note: {said.Key}" + (said.Count() > 1 ? $" ({said.Count()} times)" : ""));
@@ -2177,35 +2270,29 @@ internal static class Program
     private static (string Text, Encoding Encoding)? ReadRaw(string productRoot, string rel, bool main) =>
         CodeFilePath(productRoot, rel, main) is { } full ? SourceFile.Read(full) : null;
 
-    /// <summary>The changed lines, the way a diff shows them — enough to see what an edit did without
-    /// re-reading the file.</summary>
-    /// <param name="brief">For a move: the lines that left one place are the lines that arrived in the other, so each
-    /// side shows where and how much, and a few lines to recognise it by, rather than the declaration twice over.</param>
-    private static void PrintHunk(GraphEdit.FileChange change, bool brief = false)
+    /// <summary>
+    /// One file's change: its header, then the lines it took out and put in. All of it is detail (see
+    /// <see cref="AnswerWriter"/>): a short edit prints whole, and a long one folds it into a line naming where it is kept, while
+    /// what the edit concluded - that it compiled, what it affects - prints in full either way.
+    /// </summary>
+    private static void PrintHunk(GraphEdit.FileChange change)
     {
+        var detail = RequestScope.Detail;
         switch (change.Kind)
         {
             case GraphEdit.ChangeKind.Created:
-                Console.WriteLine($"--- {change.RelativePath} (new, {change.Hunk.Added.Count} lines)");
+                detail.WriteLine($"--- {change.RelativePath} (new, {change.Hunk.Added.Count} lines)");
                 break;
             case GraphEdit.ChangeKind.Deleted:
-                Console.WriteLine($"--- {change.RelativePath} (removed, {change.Hunk.Removed.Count} lines)");
+                detail.WriteLine($"--- {change.RelativePath} (removed, {change.Hunk.Removed.Count} lines)");
                 return;
             default:
-                Console.WriteLine($"--- {change.RelativePath}:{change.Hunk.Line}");
+                detail.WriteLine($"--- {change.RelativePath}:{change.Hunk.Line}");
                 break;
         }
 
-        const int Glimpse = 3;
-        Print("-", change.Hunk.Removed);
-        Print("+", change.Hunk.Added);
-
-        void Print(string sign, IReadOnlyList<string> lines)
-        {
-            var shown = brief ? lines.Take(Glimpse).ToList() : lines;
-            foreach (var line in shown) Console.WriteLine($"{sign} {line}");
-            if (lines.Count > shown.Count) Console.WriteLine($"{sign} … {lines.Count - shown.Count} more line(s)");
-        }
+        foreach (var line in change.Hunk.Removed) detail.WriteLine($"- {line}");
+        foreach (var line in change.Hunk.Added) detail.WriteLine($"+ {line}");
     }
 
     private static bool TryRange(string s, out int a, out int b)
@@ -3281,6 +3368,11 @@ internal static class Program
         public static readonly VerbSpec Ask = new("ask", 32, None, ["--main", "--refresh", "--stdin"],
             "ask '<stage> | <stage> ...' ['<another question>' ...] [--main] [--refresh] | ask --stdin", TakesRoot: false, MinPositionals: 0,
             Access: Reads);
+
+        public static readonly VerbSpec More = new("more", 1, ["--grep"], ["--all", "--main"],
+            "more [@<n>] [--all] [--grep <regex>] [--main]", TakesRoot: false, MinPositionals: 0, Access: Reads);
+        public static readonly VerbSpec Keep = new("keep", 1, None, ["--stdin"],
+            "keep [<label>] --stdin", TakesRoot: false, MinPositionals: 0, Access: Reads);
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file",
              "--at", "--name"],
