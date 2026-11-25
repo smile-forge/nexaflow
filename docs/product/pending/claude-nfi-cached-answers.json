@@ -1,0 +1,69 @@
+{
+  "branch": "claude/nfi-cached-answers",
+  "nodes": {
+    "graph-ask-paging": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphAsk.cs",
+          "class": "GraphAsk",
+          "method": "Paged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/AnswerHistory.cs",
+          "class": "AnswerHistory",
+          "method": "Keep"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Daemon/AnswerWriter.cs",
+          "class": "AnswerWriter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/AnswerHistory.cs",
+          "class": "AnswerHistory",
+          "method": "Read"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Program.cs",
+          "class": "Program",
+          "method": "MoreVerb"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/TestRunner.cs",
+          "class": "TestRunner",
+          "method": "Run"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/GraphAskTests.cs",
+            "class": "GraphAskTests",
+            "method": "AnAnswerTooLongToRead_IsCutWhereItFits_AndMoreContinuesIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/AnswerHistoryTests.cs",
+            "class": "AnswerHistoryTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/AnswerWriterTests.cs",
+            "class": "AnswerWriterTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "graph-ask-paging"
+  ]
+}

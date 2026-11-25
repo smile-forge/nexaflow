@@ -62,9 +62,9 @@ internal static class DaemonClient
 
     /// <summary>Runs <paramref name="args"/> on the daemon and hands back its answer instead of printing it — for a verb
     /// that asks the resident process one question and then does its own work with the answer.</summary>
-    internal static DaemonResponse Capture(string[] args, string productRoot, string? codeRoot)
+    internal static DaemonResponse Capture(string[] args, string productRoot, string? codeRoot, string? stdin = null)
     {
-        var request = DaemonRequest.Command(DaemonRequest.NewTicket(), args, codeRoot, Directory.GetCurrentDirectory(), null,
+        var request = DaemonRequest.Command(DaemonRequest.NewTicket(), args, codeRoot, Directory.GetCurrentDirectory(), stdin,
                                             CallerShell());
         var pipe    = DaemonProtocol.PipeName(productRoot, DaemonProtocol.BuildStamp());
         return Send(pipe, request, connectMs: 200) ?? StartThenSend(pipe, productRoot, request);

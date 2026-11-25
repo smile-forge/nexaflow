@@ -57,18 +57,18 @@ internal static class BuildCommand
         var warnings = report.Diagnostics.Where(d => d.Severity != "error").ToList();
         Show(errors, all ? int.MaxValue : ShownErrors, "error");
         Show(warnings, all ? int.MaxValue : ShownWarnings, "warning");
-        if (!all && (errors.Count > ShownErrors || warnings.Count > ShownWarnings))
-            Console.WriteLine("  (--all lists every one)");
     }
 
+    /// <summary>The first <paramref name="limit"/> of what was raised, and the rest as detail - kept whole for nfi more, folded out
+    /// of a long answer.</summary>
     private static void Show(List<BuildDiagnostic> raised, int limit, string severity)
     {
-        foreach (var d in raised.Take(limit))
+        for (var i = 0; i < raised.Count; i++)
         {
+            var d    = raised[i];
             var at   = d.File.Length == 0 ? d.Project : d.Line > 0 ? $"{d.File}({d.Line},{d.Column})" : d.File;
             var code = d.Code.Length > 0 ? $" {d.Code}" : "";
-            Console.WriteLine($"  {at}: {severity}{code}: {d.Message}");
+            (i < limit ? Console.Out : RequestScope.Detail).WriteLine($"  {at}: {severity}{code}: {d.Message}");
         }
-        if (raised.Count > limit) Console.WriteLine($"  … and {raised.Count - limit} more {severity}(s)");
     }
 }

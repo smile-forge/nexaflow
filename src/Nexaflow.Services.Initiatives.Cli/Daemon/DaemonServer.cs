@@ -376,7 +376,7 @@ internal static class DaemonServer
     private static DaemonResponse? Execute(DaemonRequest request, InitiativesHost host, BuildPools? builds, WorkItem work, Taken taken,
                                            CancellationToken gone)
     {
-        var stdout   = new StringWriter();
+        var stdout   = new AnswerWriter();
         var stderr   = new StringWriter();
         var codeRoot = request.CodeRoot ?? "";
 
@@ -420,7 +420,9 @@ internal static class DaemonServer
             });
 
             var code = request.Args.Length == 0 ? 0 : Program.Execute(request.Args);
-            return new DaemonResponse(code, stdout.ToString(), stderr.ToString());
+            // Folded while the request is still in scope, so a long answer's detail is kept under the caller's own tree.
+            var said = stdout.Render(lines => Program.KeepAnswer(host.ProductRoot, request.Args, lines));
+            return new DaemonResponse(code, said, stderr.ToString());
         }
         catch (Exception ex)
         {

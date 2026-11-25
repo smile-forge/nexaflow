@@ -232,6 +232,8 @@ public static class GraphAsk
         var (oldest, newest) = history.Range;
         entry = history.Get(number);
         if (entry is not null) return null;
+        if (number is { } printed && history.PageOf(printed) is not null)
+            return $"{handle} is what a command printed, not a question's answer - nfi more {handle} reads it, --grep <regex> searches it.";
         return newest == 0 ? "there is no earlier answer to continue yet."
                            : $"there is no answer {handle} - the ones kept are @{oldest} to @{newest}.";
     }
@@ -239,12 +241,21 @@ public static class GraphAsk
     /// <summary><c>@3 more</c>: the next part of an answer that was too long to print whole.</summary>
     private static Answer More(string handle, AnswerHistory? history, int budget)
     {
-        if (Earlier(handle, history, out var entry) is { } refused) return new Answer($"ask: {refused}\n{Vocabulary}", false);
+        if (Earlier(handle, history, out var entry) is { } refused)
+        {
+            // An answer another command kept - an edit's, a build's - has no question behind it, but its text reads back the same way.
+            if (history is not null && int.TryParse(handle.AsSpan(1), out var number) && history.PageOf(number) is not null)
+            {
+                var (text, ok) = history.Read(number, null, false, budget);
+                return new Answer(text, ok);
+            }
+            return new Answer($"ask: {refused}\n{Vocabulary}", false);
+        }
 
         if (history!.PageOf(entry!.Number) is not { } kept || kept.Shown >= kept.Lines.Count)
             return new Answer($"@{entry.Number} printed all of itself - there is no more of it.   @{entry.Number}", true);
 
-        var (page, next) = Page(kept.Lines, kept.Shown, budget);
+        var (page, next) = AnswerHistory.Page(kept.Lines, kept.Shown, budget);
         history.Advance(entry.Number, next);
 
         var stale = history.IsCurrent(entry) ? ""
@@ -769,7 +780,7 @@ public static class GraphAsk
         if (body.Length + tally.Length <= budget) return body + tally;
 
         var lines = body.TrimEnd('\n').Split('\n');
-        var (page, next) = Page(lines, 0, budget - tally.Length);
+        var (page, next) = AnswerHistory.Page(lines, 0, budget - tally.Length);
         var left = lines.Length - next;
 
         if (history is null || number is not { } n)
@@ -777,34 +788,6 @@ public static class GraphAsk
 
         history.Keep(n, lines, next, tally);
         return page + Cut(left, n) + tally;
-    }
-
-    /// <summary>
-    /// Lines from <paramref name="from"/> that fit in <paramref name="budget"/> characters, ending where a block ends when
-    /// one does in the last part of the page — a declaration cut in half is two reads for one. Always at least one line.
-    /// </summary>
-    private static (string Page, int Next) Page(IReadOnlyList<string> lines, int from, int budget)
-    {
-        var end  = from;
-        var used = 0;
-        while (end < lines.Count && (end == from || used + lines[end].Length + 1 <= budget))
-            used += lines[end++].Length + 1;
-
-        if (end < lines.Count)
-        {
-            // A block starts at a header: `// id`, or a line that is not indented (a file a group of ids is under).
-            var floor = from + (end - from) * 2 / 3;
-            for (var i = end; i > floor; i--)
-                if (lines[i].StartsWith("// ", StringComparison.Ordinal) || (lines[i].Length > 0 && lines[i][0] != ' ' && !char.IsDigit(lines[i][0])))
-                {
-                    end = i;
-                    break;
-                }
-        }
-
-        var sb = new StringBuilder();
-        for (var i = from; i < end; i++) sb.Append(lines[i]).Append('\n');
-        return (sb.ToString(), end);
     }
 
     private static string Cut(int left, int number) =>
