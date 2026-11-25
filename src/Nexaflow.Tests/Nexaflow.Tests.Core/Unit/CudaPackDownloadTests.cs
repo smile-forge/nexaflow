@@ -3,7 +3,7 @@ using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.LocalAi;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;

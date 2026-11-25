@@ -1,7 +1,7 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Tests.Fixtures;
-using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using TaskStatus = Nexaflow.Session.Models.TaskStatus;
 
 namespace Nexaflow.Tests.Core.Unit;
 

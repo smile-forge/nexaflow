@@ -17,8 +17,8 @@ internal sealed class FakeWindowHost : IWindowHost
     public IReadOnlyList<Page> Tabs => _tabs;
     /// <summary>What this window reports as its open tabs — the tabset a capture records. Settable so a
     /// test can hand the shell a layout without the tab machinery behind it.</summary>
-    public IReadOnlyList<Nexaflow.Core.Models.DefaultTabDescriptor> Layout { get; set; } = [];
-    public IReadOnlyList<Nexaflow.Core.Models.DefaultTabDescriptor> CaptureTabLayout() => Layout;
+    public IReadOnlyList<Nexaflow.Session.Models.DefaultTabDescriptor> Layout { get; set; } = [];
+    public IReadOnlyList<Nexaflow.Session.Models.DefaultTabDescriptor> CaptureTabLayout() => Layout;
     public bool IsFocused { get; set; }
     public string Title => "";
     public void Show() { }

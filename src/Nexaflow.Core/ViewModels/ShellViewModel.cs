@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels.Overlays;
@@ -13,7 +13,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using Nexaflow.Core.Localization;
+
 using Nexaflow.Core.Help;
 using Nexaflow.Localization;
 using Nexaflow.Interaction;
@@ -848,7 +848,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                 ToggleVoiceCommand.NotifyCanExecuteChanged();
             }
             else if (e.PropertyName == nameof(VoiceConversationViewModel.State))
-                AiIsListening = Voice.State == Services.Voice.VoiceState.Listening;
+                AiIsListening = Voice.State == VoiceState.Listening;
         };
 
         RecomputeVoiceAvailable();

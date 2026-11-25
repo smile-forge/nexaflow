@@ -1,6 +1,6 @@
 using System.IO;
 using Nexaflow.AiHost.Client;
-using Nexaflow.Core.Services.LocalAi;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;

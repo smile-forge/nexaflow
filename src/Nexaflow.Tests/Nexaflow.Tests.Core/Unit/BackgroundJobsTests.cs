@@ -2,16 +2,16 @@ using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Text.Json.Nodes;
 using System.Windows.Threading;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.Agent;
+
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
-using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using TaskStatus = Nexaflow.Session.Models.TaskStatus;
 
 namespace Nexaflow.Tests.Core.Unit;
 

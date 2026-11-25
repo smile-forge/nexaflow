@@ -1,11 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.LocalAi;
-using Nexaflow.Core.Services.Tools;
+
+
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Localization;

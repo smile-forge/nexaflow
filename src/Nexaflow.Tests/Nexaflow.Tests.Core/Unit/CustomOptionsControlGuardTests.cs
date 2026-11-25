@@ -33,7 +33,7 @@ public class CustomOptionsControlGuardTests
     {
         var controls = ConfigLabelGuardTests.ConfigTypes().Select(CustomControlType).OfType<Type>().ToList();
 
-        Assert.IsTrue(controls.Any(c => c.Assembly == typeof(Nexaflow.Core.SecurityConfig).Assembly), "no Core custom page found");
+        Assert.IsTrue(controls.Any(c => c.Assembly == typeof(Nexaflow.Core.Controls.AboutControl).Assembly), "no Core custom page found");
         Assert.IsTrue(controls.Any(c => c.Assembly.GetName().Name!.StartsWith("Nexaflow.Features.", StringComparison.Ordinal)),
                       "no feature custom page found");
     }

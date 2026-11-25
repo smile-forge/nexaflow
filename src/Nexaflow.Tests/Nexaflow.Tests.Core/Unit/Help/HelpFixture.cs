@@ -1,6 +1,6 @@
 using System.IO;
 using Nexaflow.Core.Help;
-using Nexaflow.Core.Localization;
+
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 

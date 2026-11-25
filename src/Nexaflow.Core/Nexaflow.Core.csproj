@@ -39,6 +39,8 @@
     <Resource Include="Assets\ThirdPartyNotices.md" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The session, the assistant and the composition root over them: what this WPF app adapts. -->
+    <ProjectReference Include="..\Nexaflow.Host\Nexaflow.Host.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Code\Nexaflow.Features.Code.csproj" />

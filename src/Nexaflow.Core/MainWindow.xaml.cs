@@ -9,8 +9,8 @@ using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common;
-using TaskStatus = Nexaflow.Core.Models.TaskStatus;
-using WorkspaceRuntime = Nexaflow.Core.Models.WorkspaceRuntime;
+using TaskStatus = Nexaflow.Session.Models.TaskStatus;
+using WorkspaceRuntime = Nexaflow.Session.Models.WorkspaceRuntime;
 using Nexaflow.Localization;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
@@ -18,7 +18,7 @@ using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Viewing;
 using Microsoft.Extensions.Logging;
-using Nexaflow.Core.Services.Logging;
+
 
 namespace Nexaflow.Core;
 

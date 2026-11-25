@@ -3,7 +3,7 @@ using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.Tools;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
@@ -91,7 +91,7 @@ public class LocalToolModelsTests
                                                                  MachineCards.None), store, null);
 
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            ((Nexaflow.Core.Services.Tools.IPictureCheck)check).FitForGeneralAudienceAsync(new MediaBytes([1], "image/png"), CancellationToken.None));
+            ((Nexaflow.Session.Services.Tools.IPictureCheck)check).FitForGeneralAudienceAsync(new MediaBytes([1], "image/png"), CancellationToken.None));
 
         StringAssert.Contains(ex.Message, "could not be downloaded", "asking for a check started its download");
         StringAssert.Contains(ex.Message, "downloads are off", "and says why it did not come");

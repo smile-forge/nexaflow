@@ -2,11 +2,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Nexaflow.Core.Services.ShellAi;
+
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;

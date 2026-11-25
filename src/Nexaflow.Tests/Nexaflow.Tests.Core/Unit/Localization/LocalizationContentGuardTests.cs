@@ -130,8 +130,8 @@ public partial class LocalizationContentGuardTests
         {
             if (!AreasOf(project).Contains(key.Split('.')[0]))
                 problems.Add($"{file}: '{key}' is not in {project}'s area ({string.Join("/", AreasOf(project))})");
-            else if (!tables.TryGetValue(project, out var keys) || !keys.Contains(key))
-                problems.Add($"{file}: '{key}' is missing from {project}/Localization/en/strings.json");
+            else if (!SeenBy(project).Any(seen => tables.TryGetValue(seen, out var keys) && keys.Contains(key)))
+                problems.Add($"{file}: '{key}' is missing from {project}/Localization/en/strings.json, and from every project it references");
         }
 
         foreach (var table in StringTables())
@@ -326,12 +326,40 @@ public partial class LocalizationContentGuardTests
         }
     }
 
-    // The areas a project's keys live under: its short name (Nexaflow.Features.Markdown → Markdown); Core owns the
-    // shell's and the help pane's.
+    // The areas a project's keys live under: its short name (Nexaflow.Features.Markdown → Markdown); the shell's projects — the
+    // session, the assistant, the composition root and the app over them — own the shell's and the help pane's.
     private static HashSet<string> AreasOf(string project)
-        => project == CoreProject
+        => ShellProjects.Contains(project)
             ? new(StringComparer.Ordinal) { "Shell", "Help" }
             : new(StringComparer.Ordinal) { project.Split('.')[^1] };
+
+    private static readonly HashSet<string> ShellProjects = new(StringComparer.Ordinal)
+        { CoreProject, "Nexaflow.Session", "Nexaflow.Assistant", "Nexaflow.Host" };
+
+    // The projects whose tables a project's code may read a key from: its own, and every project it references, however far
+    // down — a key lives with the lowest project that shows it, and what references that project shows it too.
+    private static IReadOnlyCollection<string> SeenBy(string project)
+    {
+        var seen    = new HashSet<string>(StringComparer.Ordinal);
+        var pending = new Stack<string>([project]);
+        while (pending.TryPop(out var next))
+        {
+            if (!seen.Add(next)) continue;
+            if (ProjectFiles.Value.GetValueOrDefault(next) is not { } csproj) continue;
+            foreach (Match reference in ProjectReference().Matches(File.ReadAllText(csproj)))
+                pending.Push(Path.GetFileNameWithoutExtension(reference.Groups[1].Value.Replace('\\', '/').Split('/')[^1]));
+        }
+        return seen;
+    }
+
+    // Each project's file, by its name.
+    private static readonly Lazy<Dictionary<string, string>> ProjectFiles = new(() =>
+        ProjectDirs().SelectMany(dir => Directory.GetFiles(dir, "*.csproj"))
+                     .GroupBy(Path.GetFileNameWithoutExtension, StringComparer.Ordinal)
+                     .ToDictionary(g => g.Key!, g => g.First(), StringComparer.Ordinal));
+
+    [GeneratedRegex(@"<ProjectReference\s+Include=""([^""]+)""")]
+    private static partial Regex ProjectReference();
 
     // Page kinds each project registers, by reflection over the assemblies beside this test — a const-backed
     // StaticPageKind (FileSystem's) is invisible to a text search.

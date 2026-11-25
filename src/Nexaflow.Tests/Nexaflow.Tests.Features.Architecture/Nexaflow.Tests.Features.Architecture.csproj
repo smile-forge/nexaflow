@@ -47,6 +47,8 @@
          compiles against a suite, but every feature and test assembly has to land in bin for the guards
          to find. Removing one silently narrows what the rules check. -->
     <ProjectReference Include="..\Nexaflow.Tests.Features\Nexaflow.Tests.Features.csproj" />
+        <!-- The session, the assistant and the composition root, whose references SessionAssemblyRulesTests follows. -->
+        <ProjectReference Include="..\..\Nexaflow.Host\Nexaflow.Host.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Features.Viewers\Nexaflow.Tests.Features.Viewers.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Features.WindowsOS\Nexaflow.Tests.Features.WindowsOS.csproj" />
     <!-- The WPF-free backend suite (Services.Initiatives + its CLI). Its 265 tests came out of

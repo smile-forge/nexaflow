@@ -28,7 +28,7 @@ public static class JumpListService
     }
 
     /// <summary>Rebuilds the JumpList from the saved <paramref name="workspaces"/>.</summary>
-    public static void Refresh(IEnumerable<Models.Workspace> workspaces)
+    public static void Refresh(IEnumerable<Workspace> workspaces)
     {
         if (Application.Current is null) return;
 

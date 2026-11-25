@@ -1,7 +1,7 @@
 using System.Windows;
 using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Controls;
-using Nexaflow.Core.Services.Logging;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Viewing;
 

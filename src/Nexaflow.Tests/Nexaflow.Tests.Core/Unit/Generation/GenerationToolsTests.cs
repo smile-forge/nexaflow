@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Nexaflow.Core.Services.Generation;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
@@ -11,7 +11,8 @@ using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Core.Unit.Voice;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Localization;
-using Nexaflow.Core.Services.Tools;
+
+using Nexaflow.Core.Services;
 
 namespace Nexaflow.Tests.Core.Unit.Generation;
 
@@ -45,18 +46,21 @@ public class GenerationToolsTests
     private GeneratedFiles Files => new(new PathScope([], [Context]), Drafts, kind => Path.Combine(_home, "offered", kind.ToString()),
                                         made => { _opened.Add(made); return Task.CompletedTask; });
 
+    /// <summary>A starting picture fitted to a clip's frame as the app does it.</summary>
+    private static readonly IPictureFitting Framing = new WpfPictureFitting();
+
     private static readonly byte[] Drawn = [0x89, 0x50, 0x4E, 0x47, 1, 2, 3];
 
     [TestMethod]
     public void EachTool_IsOfferedOnlyWhereTheWorkspaceHasAModelForIt()
     {
         string[] Offered(IImageGenerationProvider? images, ITextToSpeechProvider? voice, IVideoGenerationProvider? videos)
-            => [.. new GenerationTools(images, null, null, voice, videos, null, Files).Tools.Select(t => t.Name)];
+            => [.. new GenerationTools(images, null, null, voice, videos, null, Files, Framing).Tools.Select(t => t.Name)];
 
         CollectionAssert.AreEqual(Array.Empty<string>(), Offered(null, null, null));
         CollectionAssert.AreEqual(new[] { "generate_image" }, Offered(new Painter(), null, null));
         CollectionAssert.AreEqual(new[] { "generate_image", "generate_speech", "generate_video" }, Offered(new Painter(), new FakeSpeaker(), new Filmer()));
-        CollectionAssert.AreEqual(new[] { "generate_video" }, new GenerationTools(null, null, null, null, null, new Filmer(), Files).Tools.Select(t => t.Name).ToArray(),
+        CollectionAssert.AreEqual(new[] { "generate_video" }, new GenerationTools(null, null, null, null, null, new Filmer(), Files, Framing).Tools.Select(t => t.Name).ToArray(),
                                   "a high-quality video model alone offers clips too");
     }
 
@@ -268,7 +272,7 @@ public class GenerationToolsTests
 
         var picture   = await new GenerateImageTool(painter, null, Files).InvokeAsync(new JsonObject { ["prompt"] = "fox", ["path"] = asked }, default);
         var recording = await new GenerateSpeechTool(voice, Files).InvokeAsync(new JsonObject { ["text"] = "Hello.", ["path"] = asked }, default);
-        var clip      = await new GenerateVideoTool(filmer, null, Files).InvokeAsync(new JsonObject { ["prompt"] = "waves", ["path"] = asked }, default);
+        var clip      = await new GenerateVideoTool(filmer, null, Files, Framing).InvokeAsync(new JsonObject { ["prompt"] = "waves", ["path"] = asked }, default);
 
         foreach (var result in new[] { picture, recording, clip }) Assert.IsTrue(result.IsError, result.ModelText);
         Assert.AreEqual(0, painter.Asked.Count + voice.Said.Count + filmer.Asked.Count, "nothing is made to be thrown away");
@@ -392,12 +396,12 @@ public class GenerationToolsTests
     [TestMethod]
     public void EditImage_IsOfferedOnlyWhereTheImageEditingRowHasAModelThatWorksFromPictures()
     {
-        string[] Offered(IImageGenerationProvider? edits) => [.. new GenerationTools(new Painter(), null, edits, null, null, null, Files).Tools.Select(t => t.Name)];
+        string[] Offered(IImageGenerationProvider? edits) => [.. new GenerationTools(new Painter(), null, edits, null, null, null, Files, Framing).Tools.Select(t => t.Name)];
 
         CollectionAssert.AreEqual(new[] { "generate_image", "edit_image" }, Offered(new Painter { Sources = 1 }));
         CollectionAssert.AreEqual(new[] { "generate_image" }, Offered(new Painter { Sources = 0 }));
         CollectionAssert.AreEqual(new[] { "generate_image" }, Offered(null));
-        CollectionAssert.AreEqual(new[] { "edit_image" }, new GenerationTools(null, null, new Painter(), null, null, null, Files).Tools.Select(t => t.Name).ToArray(),
+        CollectionAssert.AreEqual(new[] { "edit_image" }, new GenerationTools(null, null, new Painter(), null, null, null, Files, Framing).Tools.Select(t => t.Name).ToArray(),
                                   "a workspace that edits without drawing offers edits alone");
     }
 
@@ -460,7 +464,7 @@ public class GenerationToolsTests
     public async Task AClip_IsApprovedFirst_AndMadeAtTheNearestLengthTheModelHas()
     {
         var filmer = new Filmer();
-        var tool   = new GenerateVideoTool(filmer, null, Files);
+        var tool   = new GenerateVideoTool(filmer, null, Files, Framing);
 
         Assert.AreEqual(ToolSafety.RequiresApproval, tool.Safety, "a clip costs minutes and money");
         CollectionAssert.AreEqual(new[] { "landscape", "portrait", "16:9", "9:16" }, tool.Parameters.Single(p => p.Name == "shape").Choices!.ToArray());
@@ -482,7 +486,7 @@ public class GenerationToolsTests
             Made     = [4, 6, 8],
             Settings = new([new(16, 9), new(9, 16)]) { Resolutions = [new("720p"), new("1080p") { OnlyLengths = [8] }], Seeds = true },
         };
-        var tool = new GenerateVideoTool(filmer, null, Files);
+        var tool = new GenerateVideoTool(filmer, null, Files, Framing);
 
         var made = await tool.InvokeAsync(new JsonObject { ["prompt"] = "rain on a window", ["resolution"] = "1080P", ["seconds"] = 4, ["path"] = Context }, default);
         Assert.IsFalse(made.Success, "1080p makes 8 seconds only");
@@ -497,7 +501,7 @@ public class GenerationToolsTests
     [TestMethod]
     public void AClip_IsAnnouncedAtTheLengthItWillRun()
     {
-        var announced = new GenerateVideoTool(new Filmer(), null, Files).Announce(new JsonObject { ["prompt"] = "waves", ["seconds"] = 5 })!;
+        var announced = new GenerateVideoTool(new Filmer(), null, Files, Framing).Announce(new JsonObject { ["prompt"] = "waves", ["seconds"] = 5 })!;
 
         Assert.AreEqual(Str.Format("Shell.Generate.Announce.VideoFormat", 4), announced.Target);
         Assert.AreEqual(Str.Format("Shell.Generate.Announce.MakingVideoFormat", 4), announced.Doing);
@@ -510,7 +514,7 @@ public class GenerationToolsTests
         File.WriteAllBytes(frame, Picture(300, 100));
         var filmer = new Filmer { Frame = (64, 128) };
 
-        var result = await new GenerateVideoTool(filmer, null, Files).InvokeAsync(
+        var result = await new GenerateVideoTool(filmer, null, Files, Framing).InvokeAsync(
             new JsonObject { ["prompt"] = "the sun rises", ["shape"] = "portrait", ["first_frame"] = frame }, default);
 
         Assert.IsTrue(result.Success, result.ModelText);
@@ -527,7 +531,7 @@ public class GenerationToolsTests
         File.WriteAllBytes(frame, Picture(64, 36));
         var fast   = new Filmer { Pictures = false, Made = [5] };
         var finest = new Filmer { Made = [5] };
-        var tool   = new GenerateVideoTool(fast, finest, Files);
+        var tool   = new GenerateVideoTool(fast, finest, Files, Framing);
 
         Assert.IsTrue(tool.Parameters.Any(p => p.Name == "first_frame"), "the high-quality model starts from a picture, so the tool takes one");
 
@@ -542,7 +546,7 @@ public class GenerationToolsTests
     [TestMethod]
     public void WhereTheModelForPicturesMakesOtherLengths_TheToolSaysWhich()
     {
-        var tool = new GenerateVideoTool(new Filmer { Pictures = false, Made = [5] }, new Filmer { Made = [4, 8] }, Files);
+        var tool = new GenerateVideoTool(new Filmer { Pictures = false, Made = [5] }, new Filmer { Made = [4, 8] }, Files, Framing);
 
         StringAssert.Contains(tool.Parameters.Single(p => p.Name == "seconds").Description, "5 seconds (4, 8 seconds from a picture)");
     }
@@ -550,7 +554,7 @@ public class GenerationToolsTests
     [TestMethod]
     public void WhereNoModelStartsFromAPicture_NoneIsOffered()
     {
-        var tool = new GenerateVideoTool(new Filmer { Pictures = false }, null, Files);
+        var tool = new GenerateVideoTool(new Filmer { Pictures = false }, null, Files, Framing);
 
         Assert.IsFalse(tool.Parameters.Any(p => p.Name == "first_frame"));
     }

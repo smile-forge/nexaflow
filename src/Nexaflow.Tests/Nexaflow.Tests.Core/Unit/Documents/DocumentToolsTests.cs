@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
-using Nexaflow.Core.AI;
-using Nexaflow.Core.Services.Documents;
-using Nexaflow.Core.Services.Generation;
+
+
+
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
@@ -225,13 +225,13 @@ public class DocumentToolsTests
     [TestMethod]
     public async Task TheModelSaysHowEachAnswerEnded()
     {
-        var model = new WorkspaceDocumentModel(new Streaming([new LlmTextDelta("half"), new LlmReplyEnded(LlmReplyEnd.LengthLimit)]), "m", 8192, new Nexaflow.Core.ShellConfig());
+        var model = new WorkspaceDocumentModel(new Streaming([new LlmTextDelta("half"), new LlmReplyEnded(LlmReplyEnd.LengthLimit)]), "m", 8192, new Nexaflow.Session.ShellConfig());
         var cut = await model.AnswerAsync("i", "a", 100, CancellationToken.None);
 
         Assert.AreEqual("half", cut.Text);
         Assert.IsTrue(cut.RanOut);
 
-        var failing = new WorkspaceDocumentModel(new Streaming([], fails: true), "m", 8192, new Nexaflow.Core.ShellConfig());
+        var failing = new WorkspaceDocumentModel(new Streaming([], fails: true), "m", 8192, new Nexaflow.Session.ShellConfig());
         var failed = await failing.AnswerAsync("i", "a", 100, CancellationToken.None);
         Assert.AreEqual(DocumentReplyEnd.Failed, failed.Ended);
         StringAssert.Contains(failed.Failure, "gone", "and says why");
@@ -241,7 +241,7 @@ public class DocumentToolsTests
     public async Task AnAnswerRunningOnPastItsLongest_IsStoppedThere_AsOneThatRanOutOfRoom()
     {
         var streaming = new Streaming([.. Enumerable.Repeat<LlmStreamEvent>(new LlmTextDelta("again "), 1000), new LlmReplyEnded(LlmReplyEnd.Finished)]);
-        var reply = await new WorkspaceDocumentModel(streaming, "m", 8192, new Nexaflow.Core.ShellConfig()).AnswerAsync("i", "a", 60, CancellationToken.None);
+        var reply = await new WorkspaceDocumentModel(streaming, "m", 8192, new Nexaflow.Session.ShellConfig()).AnswerAsync("i", "a", 60, CancellationToken.None);
 
         Assert.AreEqual(DocumentReplyEnd.LengthLimit, reply.Ended);
         Assert.IsTrue(reply.Text.Length is > 60 and < 70, "read no further than the word that ran past it");

@@ -1,6 +1,6 @@
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Core;
-using Nexaflow.Core.Services.LocalAi;
+
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Tests.Fixtures;
 

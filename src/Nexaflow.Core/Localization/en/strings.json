@@ -42,16 +42,16 @@
     "Shell.Picker.TroubleFileRefused": "You are not allowed to replace the file already there.",
   
   "Shell.Prompt.Cancel": "Cancel",
-  "Shell.Ai.AbilityDisabled": "Disabled: Assign a different provider in the workspace configuration to enable",
+
   "Shell.Ai.AbilityDisabledFor": "{0} — Disabled: Assign a different provider in the workspace configuration to enable",
-  "Shell.Ai.DownloadTitle": "Download a model",
-  "Shell.Ai.DownloadAsk": "{0} uses {1}, which isn't downloaded yet ({2}). Download it now? It downloads in the background — try again once it's done.",
-  "Shell.Ai.DownloadConfirm": "Download",
-  "Shell.Ai.DownloadLater": "Not now",
-  "Shell.Ai.DownloadStarted": "Downloading {0} for {1}. It's ready to use once the download finishes.",
-  "Shell.Ai.ToolAwaitsDownload": "Waiting for a model to download",
-  "Shell.Ai.StillDownloading": "{0}'s model is still downloading ({1}%). Try again once it's done.",
-  "Shell.Ai.Room.ShortFormat": "Not enough disk space to download: it needs {0}, and only {1} is free on {2}.",
+
+
+
+
+
+
+
+
 
   "Shell.Wizard.Harness.Title": "Who runs the AI",
   "Shell.Wizard.Harness.Intro": "Nexaflow can run its own models on this machine, or use a cloud provider you choose.",
@@ -89,82 +89,82 @@
   "Shell.AiBar.IncludeContext": "Include page context",
   "Shell.AiBar.Converse": "Talk with the assistant (click again to end)",
   "Shell.Voice.OpenConversation": "Open as conversation",
-  "Shell.Voice.AnnounceFormat": "Ok. I will {0}.",
-  "Shell.Voice.And": " and ",
-  "Shell.Voice.Proceed": "Go ahead",
-  "Shell.Voice.Stop": "Stop",
-  "Shell.Voice.Run": "run",
-  "Shell.Voice.Carry": "carry out",
-  "Shell.Voice.Done": "Done.",
-  "Shell.Voice.NothingChanged": "Nothing was changed.",
-  "Shell.Voice.CarriesOn": "Started. It carries on in the background.",
-  "Shell.Voice.LetMeThink": "Let me think about that.",
+
+
+
+
+
+
+
+
+
+
   "Shell.AiBar.ContextFormat": "{0} of {1} tokens of the model's context ({2}%)",
-  "Shell.Voice.AbortStoppedFormat": "Aborting {0}. {1}",
-  "Shell.Voice.AbortUnclearFormat": "Aborting {0}. Sorry, I didn't quite catch that.",
-  "Shell.Voice.Abort": "Abort",
+
+
+
   "Shell.Voice.HeldFirstFormat": "First action - {0}",
   "Shell.Voice.HeldNextFormat": "Next action - {0}",
-  "Shell.Voice.RunningFormat": "Running {0}",
-  "Shell.Voice.FailedFormat": "Couldn't {0} {1}: {2}",
-  "Shell.Voice.Send": "Send",
-  "Shell.Voice.DontSend": "Don't send",
-  "Shell.Voice.ContextReleaseFormat": "This page holds sensitive information. Shall I send it to {0}?",
-  "Shell.Generate.Announce.Draw": "draw",
+
+
+
+
+
+
   "Shell.AiResponse.ApproveFormat": "{0}?",
   "Shell.BackgroundTasks.Header": "Background tasks",
   "Shell.BackgroundTasks.CountOne": "1 background task",
   "Shell.BackgroundTasks.CountFormat": "{0} background tasks",
   "Shell.BackgroundTasks.Stop": "Stop",
-  "Shell.BackgroundTasks.Stopped": "It was stopped before it finished.",
-  "Shell.BackgroundTasks.DoneFormat": "{0}: done.",
-  "Shell.BackgroundTasks.FailedFormat": "{0}: it did not finish.",
-  "Shell.Generate.Announce.HighQualityPicture": "a high-quality picture",
-  "Shell.Generate.Announce.Picture": "a picture",
-  "Shell.Generate.Announce.DrawingPicture": "Drawing a picture",
-  "Shell.Generate.Announce.Edit": "change",
-  "Shell.Generate.Announce.ThePicture": "the picture",
-  "Shell.Generate.Announce.EditingPicture": "Changing the picture",
-  "Shell.Generate.Announce.PictureEdited": "Picture changed.",
-  "Shell.Generate.Announce.NoEdit": "The picture was not changed.",
-  "Shell.Generate.Announce.EditingInBackground": "Changing it in the background. It opens when it's ready.",
-  "Shell.Generate.Announce.DrawingHighQualityPicture": "Drawing a high-quality picture",
-  "Shell.Generate.Announce.PictureMade": "Picture made.",
-  "Shell.Generate.Announce.NoPicture": "No picture was made.",
-  "Shell.Generate.Announce.DrawingInBackground": "Drawing it in the background. It opens when it's ready.",
-  "Shell.Generate.Announce.MakingInBackground": "Making it in the background. It opens when it's ready.",
-  "Shell.Generate.Announce.Make": "make",
-  "Shell.Generate.Announce.VideoFormat": "a {0}-second video",
-  "Shell.Generate.Announce.MakingVideoFormat": "Making a {0}-second video",
-  "Shell.Generate.Announce.VideoMade": "Video made.",
-  "Shell.Generate.Announce.NoVideo": "No video was made.",
-  "Shell.Documents.TheDocument": "the document",
-  "Shell.Documents.Starting": "Starting",
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   "Shell.Documents.Step.Gist": "Reading what it is: {0} of {1}",
   "Shell.Documents.Step.Glossary": "Gathering its names and terms: {0} of {1}",
   "Shell.Documents.Step.Summary": "Summarising: section {0} of {1}",
   "Shell.Documents.Step.Translation": "Translating: passage {0} of {1}",
   "Shell.Documents.Step.Question": "Answering: question {0} of {1}",
-  "Shell.Documents.AnsweredFormat": "Answered from {0} part(s) of {1}",
-  "Shell.Documents.Untranslated": "Not translated: no usable translation of this passage was had, so it is as the document writes it.",
-  "Shell.Documents.NothingAnswersFormat": "Nothing in {0} bears on the question",
-  "Shell.Documents.Announce.Ask": "ask about",
-  "Shell.Documents.Announce.AskingFormat": "Looking through {0}",
-  "Shell.Documents.Announce.Answered": "Answered.",
-  "Shell.Documents.Announce.NoAnswer": "No answer was found.",
-  "Shell.Documents.Announce.SummarizingFirst": "Summarising it first, in the background. The answer comes when it's ready.",
-  "Shell.Documents.SummaryNameFormat": "{0} (summary)",
-  "Shell.Documents.TranslationNameFormat": "{0} ({1})",
-  "Shell.Documents.Announce.Summarize": "summarise",
-  "Shell.Documents.Announce.Translate": "translate",
-  "Shell.Documents.Announce.IntoFormat": "{0} into {1}",
-  "Shell.Documents.Announce.SummarizingFormat": "Summarising {0}",
-  "Shell.Documents.Announce.TranslatingFormat": "Translating {0} into {1}",
-  "Shell.Documents.Announce.SummaryMade": "Summary made.",
-  "Shell.Documents.Announce.NoSummary": "No summary was made.",
-  "Shell.Documents.Announce.TranslationMade": "Translation made.",
-  "Shell.Documents.Announce.NoTranslation": "No translation was made.",
-  "Shell.Documents.Announce.InBackground": "Working through it in the background. It opens when it's ready.",
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   "Shell.AiBar.Voice.Listening": "Listening…",
   "Shell.AiBar.Voice.Thinking": "Thinking…",
@@ -207,29 +207,29 @@
   "Shell.Config.Local.DownloadFormat": "Download {0}",
   "Shell.Config.Local.TooLarge": "Too large for this machine",
   "Shell.Config.Local.NoBuild": "Not available for this machine",
-  "Shell.Config.Local.DownloadingFormat": "Downloading {0}… {1}%",
+
   "Shell.Config.Local.CudaPackAbout": "NVIDIA's CUDA libraries, which the tools and models run on this PC's GPU with. Downloaded once for all of them.",
   "Shell.Config.Local.WaitsForCudaPack": "Its files are here; it waits only for the CUDA runtime pack above.",
   "Shell.Config.Local.KeepingFormat": "{0} stays in use until it's here.",
-  "Shell.Config.Local.LeftSeconds": "about {0} s left",
-  "Shell.Config.Local.LeftMinutes": "about {0} min left",
-  "Shell.Config.Local.LeftHours": "about {0} h {1} min left",
+
+
+
   "Shell.Config.Local.FailedFormat": "{0} didn't download: {1}",
   "Shell.Config.Local.ToolsHeading": "Tools",
   "Shell.Config.Local.ToolsIntro": "Tools that run on this machine for you and for the assistant alike. Every workspace shares them.",
-  "Shell.Tools.Picture.Name": "Picture tools",
-  "Shell.Tools.Picture.About": "Upscale pictures, clean up softness, noise and JPEG blocks, and repair the faces in them — in the image editor, or when you ask the assistant. Real-ESRGAN and GFPGAN.",
-  "Shell.Tools.Selection.Name": "Picture selection",
-  "Shell.Tools.Selection.About": "Pick things out of pictures — click them, draw a box round them, or name them — and cut them out of their background, in the image viewer and editor or when you ask the assistant. SAM 3.1.",
-  "Shell.Tools.Reading.Name": "Page reading",
-  "Shell.Tools.Reading.About": "Read pages of writing — scans, photographed pages, scanned PDFs — into Markdown: columns as one text, formulas as LaTeX, tables, and figures, in the image and PDF viewers or when you ask the assistant. Unlimited-OCR and PP-OCRv5.",
-  "Shell.Tools.Erasing.Name": "Erasing",
-  "Shell.Tools.Checking.Name": "Picture safety check",
-  "Shell.Tools.Checking.About": "While Enhanced AI Protection Mode is on, every picture made is checked before it is saved or shown, and one unfit for a general audience is withheld. Fetched the first time a picture is made; runs on the CPU in a few milliseconds. OwenElliott's image safety classifier.",
-  "Shell.Tools.SceneDepth.Name": "Scene depth",
-  "Shell.Tools.StoppedTwice": "{0} It stopped again when asked once more; something on this machine is in its way for now.",
-  "Shell.Tools.SceneDepth.About": "Tell what is near and what is far in a photo from the photo alone — for a lens blur focused where you click, haze that thickens with distance, or selecting by distance — in the image editor or when you ask the assistant about a picture you have open. Runs on the GPU, or the CPU where there is none. Depth Anything V2 Small.",
-  "Shell.Tools.Erasing.About": "Rub scratches, dust, wires, people or signs out of photos and fill where they were from what is round them, in the image editor or when you ask the assistant about a picture you have open. LaMa.",
+
+
+
+
+
+
+
+
+
+
+
+
+
   "Shell.Config.Downloaded.Title": "Downloaded models",
   "Shell.Config.Downloaded.Heading": "Downloaded models",
   "Shell.Config.Downloaded.Intro": "The models, tools and runtimes on this machine's disk. One that no workspace uses can be deleted to free its space.",
@@ -261,8 +261,8 @@
   "Shell.Config.AiGrid.StaysOnMachineTip": "What this model is sent stays on this machine",
   "Shell.Notifications.Header": "Notifications",
   "Shell.Notifications.Empty": "No notifications",
-  "Shell.Notifications.InfoTitle": "Info",
-  "Shell.Notifications.Open": "Open",
+
+
   "Shell.Ribbon.More": "More…",
   "Shell.Ribbon.More.Tooltip": "More ribbon items",
   "Shell.Ribbon.Customise.Tooltip": "Customise ribbon",
@@ -342,62 +342,62 @@
   "Shell.PageError.Components": "View components",
   "Shell.PageError.LogPathFormat": "Also written to {0}",
   "Shell.Placeholder.Headline": "Page content loads here",
-  "Shell.Placeholder.MissingFeatureFormat": "No feature in this build provides the page '{0}'.",
-  "Shell.Placeholder.MissingFeatureDetail": "Its assembly is missing from the install, or failed to load.",
+
+
   "Shell.Drop.InsertInBar": "Insert in the prompt",
   "Shell.Drop.OpenInTab": "Open in a tab",
   "Shell.Drop.PinToRibbon": "Pin to the ribbon",
   "Shell.Drop.FailedFormat": "The drop didn't work: {0}",
-  "Shell.Config.Shell": "Shell",
-  "Shell.Config.Shell.Theme": "Theme",
-  "Shell.Config.Shell.Language": "Language",
-  "Shell.Config.Shell.TextFontSize": "Text size",
-  "Shell.Config.Shell.PrestartAtLogin": "Start with Windows",
-  "Shell.Config.Shell.KeepWindowReady": "Keep a window ready",
-  "Shell.Config.Shell.DormantWorkspaceMinutes": "Keep a workspace you left ready",
-  "Shell.Config.Shell.DisableAnimationsOnBattery": "Disable background animations on battery",
-  "Shell.Config.Shell.EnhancedAiProtection": "Enhanced AI Protection Mode",
-  "Shell.Config.Shell.SafetyLogging": "Enable safety logging",
 
-  "Shell.Config.Security": "Security",
-  "Shell.Config.Security.AllowWindowAccess": "Allow AI to view other windows",
-  "Shell.Config.Security.AllowWindowAccess.Yes": "Yes",
-  "Shell.Config.Security.AllowWindowAccess.No": "No",
-  "Shell.Config.Security.AllowWindowAccess.Prompt": "Prompt",
 
-  "Shell.Config.ModelPreload": "Local models",
-  "Shell.Config.ModelPreload.Mode": "Load models ahead",
-  "Shell.Config.ModelPreload.Mode.Adaptive": "Those used most days",
-  "Shell.Config.ModelPreload.Mode.OnDemand": "None — load each with its first use",
-  "Shell.Config.ModelPreload.Mode.Always": "Every assigned model",
-  "Shell.Config.ModelPreload.DaysToPreload": "Days of the last 7 a model must be used on to load ahead",
-  "Shell.Config.ModelPreload.IdleMinutes": "Unload a model idle for (minutes, 0 = never)",
-  "Shell.Config.ModelPreload.MemoryForModelsPercent": "Memory models running on the CPU may use (% of this PC's)",
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   "Shell.AiBar.LocalAiUnreachable": "Nexaflow's own models can't run: {0}",
-  "Shell.Config.ModelPreload.MemorySetByService": "Set for this PC by its AI host service, which every app on it shares. An administrator changes it in %ProgramData%\\Smile-Forge\\AiHost\\host.json.",
 
-  "Shell.Config.Workspaces": "Workspaces",
-  "Shell.Config.About": "About",
-  "Shell.Config.Ai": "AI",
-  "Shell.Config.AiPersona": "AI Customisation",
+
+
+
+
+
   "Shell.Config.WorkspaceIdentity": "Workspace",
   "Shell.Config.WorkspaceDefaultTabs": "Default tabs",
   "Shell.Options.DirectoryMissing": "Directory does not exist",
   "Shell.Options.FileMissing": "File does not exist",
   "Shell.Options.SaveFailed": "Could not save {0} settings: {1}",
-  "Help.Tab.Title": "Help",
+
   "Help.Tab.TitleFormat": "Help: {0}",
   "Help.Search.Placeholder": "Search help",
   "Help.OtherPages.Header": "In other help pages",
-  "Help.OtherPages.Match": "1 match",
-  "Help.OtherPages.Matches": "{0} matches",
+
+
   "Help.Index.Button": "All help pages",
-  "Help.Index.AllTopics": "All help pages",
-  "Help.NoShowcase": "There is no help page for {0} yet.",
+
+
   "Help.Locate.Tooltip": "Show me where this is",
   "Help.Locate.NotFound": "That isn't on screen just now — open the page it belongs to beside help, and try again.",
-  "Help.Topics": "Topics",
-  "Help.Topics.Back": "↑ Back to topics",
+
+
 
   "Shell.About.Tagline": "An open-source Windows shell replacement — file explorer, terminal, editors and an AI assistant in one tabbed window.",
   "Shell.About.VersionFormat": "Version {0}",
@@ -431,38 +431,38 @@
   "Shell.Components.GetFormat": "Get {0}",
   "Shell.Components.RequiredByFormat": "Required by {0}",
   "Shell.Components.UsedByFormat": "Used by {0}",
-  "Shell.Components.Undeclared": "No feature declares a component with this id.",
-  "Shell.Components.NotProbed": "Components have not been probed yet.",
-  "Shell.Components.NoAnswer": "The check returned nothing.",
-  "Shell.Components.CheckFailedFormat": "The check failed: {0}",
+
+
+
+
   "Shell.Components.Unusable": "Not usable",
   "Shell.Components.UnusableFormat": "Not usable — {0}",
-  "Shell.Components.NvidiaGpu.Name": "NVIDIA GPU",
-  "Shell.Components.NvidiaGpu.Description": "Nexaflow's own AI models run on an NVIDIA GPU with memory of its own. Without one they run on the CPU, and the models that need a GPU — pictures, picture edits, video — cannot run.",
-  "Shell.Components.NvidiaGpu.AdapterFormat": "{0}, {1}",
-  "Shell.Components.NvidiaGpu.IntegratedAdapterFormat": "{0}, integrated, {1}",
-  "Shell.Components.NvidiaGpu.NpuFormat": "{0}, NPU",
-  "Shell.Components.NvidiaGpu.FoundFormat": "Found: {0}",
-  "Shell.Components.NvidiaGpu.NoneFormat": "No NVIDIA GPU was found, so local models run on the CPU. Found: {0}",
-  "Shell.Components.NvidiaGpu.IntegratedFormat": "It shares the PC's memory; local models need an NVIDIA GPU with memory of its own, so they run on the CPU. Found: {0}",
-  "Shell.Components.NvidiaGpu.NoAdapters": "Windows reports no adapter that can run AI models, so local models run on the CPU.",
-  "Shell.Components.CudaDriver.Name": "NVIDIA CUDA driver",
-  "Shell.Components.CudaDriver.DescriptionFormat": "The CUDA support in NVIDIA's driver. Nexaflow's GPU runtime is built for CUDA {0}, so the driver must support CUDA {0} or newer.",
-  "Shell.Components.CudaDriver.TooOldFormat": "This driver supports CUDA {0}; Nexaflow's GPU runtime needs CUDA {1} or newer. Update the NVIDIA driver and restart Nexaflow — until then local models run on the CPU.",
-  "Shell.Components.CudaDriver.Absent": "No NVIDIA driver answered for CUDA. Install NVIDIA's driver and restart Nexaflow — until then local models run on the CPU.",
-  "Shell.Components.CudaDriver.NotNeeded": "Only an NVIDIA GPU uses it, and none was found.",
-  "Shell.Components.CudaPack.Name": "CUDA runtime pack",
-  "Shell.Components.CudaPack.DescriptionFormat": "NVIDIA's CUDA libraries and the GPU builds of the AI runtimes, about {0}, downloaded once beside the local models. Without it Nexaflow's own models cannot use the GPU.",
-  "Shell.Components.CudaPack.PartFormat": "{0} of {1} files downloaded and verified. Local models on this PC run on its GPU, so they wait for the pack; it downloads with the next local model fetched.",
-  "Shell.Components.CudaPack.NotNeededFormat": "Not needed here: without an NVIDIA GPU of its own and a CUDA {0} driver, local models run on the CPU.",
-  "Shell.Components.CudaPack.UnusedFormat": "{0} — not used: this PC has no NVIDIA GPU of its own with a CUDA {1} driver.",
-  "Shell.Components.CudaPack.NextStartFormat": "{0} — downloaded; the AI host runs on it from its next start.",
-  "Shell.Components.LocalAi.NotSetUp": "Nexaflow's own models are not set up in this session.",
-  "Shell.Components.LocalAi.HostSilent": "The AI host did not say how it runs.",
-  "Shell.Components.LocalAi.HostUnansweredFormat": "The AI host could not be asked: {0}",
-  "Shell.Components.AiHost.Name": "Nexaflow AI host",
-  "Shell.Components.AiHost.Description": "The process Nexaflow's own AI models run in, installed with the app. Without it none of them can run.",
-  "Shell.Components.AiHost.MissingFormat": "Not found at {0}. Repair or reinstall Nexaflow.",
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   "Shell.Options.Clear": "Clear",
   "Shell.Options.BrowseFolder": "Browse for folder…",
   "Shell.Options.BrowseFile": "Browse for file…",
@@ -552,18 +552,18 @@
   "Shell.Ribbon.ActionError": "Ribbon Action",
   "Shell.JumpList.OpenFormat": "Open the “{0}” workspace",
   "Shell.BackgroundTasks.Idle": "Idle",
-  "Shell.Notifications.UnreadableTitle": "Some settings could not be read",
-  "Shell.Notifications.UnreadableFormat": "Could not read: {0}. Those settings are back at their defaults — the damaged files are kept beside them, and the details are in the log at {1}.",
-  "Shell.Notifications.RecoveredFormat": "Recovered {0} workspace(s) from their data folders, with their conversations and settings intact: {1}.",
+
+
+
   "Shell.Notifications.FaultTitle": "Something went wrong",
   "Shell.Notifications.FaultBody": "An unexpected error was caught and logged; the app stayed open. If this keeps happening, please report it.",
   "Shell.Notifications.UpdateFormat": "Update available — {0}",
   "Shell.Notifications.Update": "Update",
-  "Shell.Notifications.ErrorTitle": "Error",
-  "Shell.Notifications.RestoreTitle": "Restore last session?",
-  "Shell.Notifications.RestoreBody": "Reopen the tabs you had open when you last closed this workspace.",
-  "Shell.Notifications.Restore": "Restore",
-  "Shell.OpenFromOutside.CannotOpenFormat": "Nexaflow cannot open {0}: nothing is there, or it is neither a file nor a folder.",
+
+
+
+
+
   "Shell.Workspace.DefaultTabs.RightPane": "Right pane",
   "Shell.Workspace.DefaultTabs.LeftPane": "Left pane",
   "Shell.Workspace.DefaultTabs.RowFormat": "{0}  ·  {1}",
@@ -590,15 +590,15 @@
   "Shell.AiResponse.DeclinedFormat": "Declined — asking {0}",
   "Shell.AiResponse.ApprovePlanFormat": "Approve plan: {0}",
   "Shell.AiResponse.WaitingForData": "Waiting for data collection…",
-  "Shell.AiResponse.RunningFormat": "Running {0}…",
-  "Shell.AiResponse.RunningToolsFormat": "Running {0} tools…",
-  "Shell.AiResponse.AnalysingImage": "Analysing the captured image…",
-  "Shell.AiResponse.Transcribing": "Transcribing the recording…",
-  "Shell.AiResponse.HandingOverFormat": "Handing over to {0}…",
-  "Shell.AiResponse.Stuck.ContextFull": "This conversation has filled the model's memory before I could answer. Start a new one, or ask again more briefly. _(stopped: context full)_",
-  "Shell.AiResponse.Stuck.LengthLimit": "I ran out of room to answer that before I finished thinking it through. _(stopped: reply too long)_",
-  "Shell.AiResponse.Stuck.Circling": "I went round in circles on that and stopped myself. Could you ask it another way? _(stopped: going in circles)_",
-  "Shell.AiResponse.Stuck.NoAnswer": "I didn't come up with an answer to that. Could you ask it another way? _(stopped: no answer)_",
+
+
+
+
+
+
+
+
+
   "Shell.Errors.Error": "Error",
   "Shell.Errors.Settings": "Settings",
   "Shell.Errors.Voice": "Voice",
@@ -614,17 +614,17 @@
   "Shell.Wizard.Recovered.Title": "Recovered",
   "Shell.Wizard.WhatsNew.Title": "What's New",
   "Shell.Wizard.Recovered.NotesFormat": "## Some settings could not be read\n\nNexaflow could not read {0} this time, so those settings are back at their defaults. Each damaged file has been kept beside its folder under `%APPDATA%\\Smile\\nexaflow`, and the details are in the crash log, so nothing has been thrown away.\n\nYour workspaces' own data — conversations, notes, ribbon layouts and provider settings — lives in its own folder per workspace and was not affected. A workspace whose entry was lost has been rebuilt from that folder, so it is back with its contents intact; its symbol and colour were stored in the file that was lost, so those have been picked afresh.\n\nThe remaining steps let you confirm what replaced the settings that were lost. You can skip them and set everything up later in Options.",
-  "Shell.Ability.Disambiguation": "Disambiguation",
-  "Shell.Ability.GeneralIntelligence": "General Intelligence",
-  "Shell.Ability.ImageRecognition": "Image Recognition",
-  "Shell.Ability.Documents": "Documents",
-  "Shell.Ability.SpeechIn": "Speech In",
-  "Shell.Ability.SpeechOut": "Speech Out",
-  "Shell.Ability.ImageGeneration": "Image Generation",
-  "Shell.Ability.ImageGenerationHq": "Image Generation (HQ)",
-  "Shell.Ability.ImageEditing": "Image Editing",
-  "Shell.Ability.VideoGeneration": "Video Generation",
-  "Shell.Ability.VideoGenerationHq": "Video Generation (HQ)",
+
+
+
+
+
+
+
+
+
+
+
   "Shell.Wizard.WindowTitle": "Nexaflow Setup",
   "Shell.Wizard.Provider.Intro": "Pick the AI provider to set up first. You can add more later.",
   "Shell.Wizard.Kinds.Intro": "The provider offers these kinds of model too. Choose one for each you want it to do; anything left at None stays disabled until you assign a model in Configure.",
@@ -632,15 +632,15 @@
   "Shell.Wizard.Model.Intro": "Choose the language model: it holds the conversation, reasons, and routes requests (you can fine-tune this later in Configure).",
   "Shell.Wizard.Back": "Back",
   "Shell.Wizard.Skip": "Skip",
-  "Shell.Elevation.NothingToRun": "No operations to run.",
-  "Shell.Elevation.BridgeMissingFormat": "Privilege bridge not found at {0}.",
-  "Shell.Elevation.LaunchFailedFormat": "Failed to launch the elevated helper: {0}",
-  "Shell.Elevation.DidNotStart": "Elevated helper did not start.",
-  "Shell.Elevation.Cancelled": "The elevated request was cancelled.",
-  "Shell.Elevation.Timeout": "The elevated helper did not connect in time.",
-  "Shell.Elevation.HandshakeFailed": "The elevated helper failed authentication.",
-  "Shell.Elevation.NoResult": "The elevated helper returned no result.",
-  "Shell.Workspace.DefaultTabs.ThisPc": "This PC",
+
+
+
+
+
+
+
+
+
   "Shell.Theme.Dark": "Dark",
   "Shell.Theme.Light": "Light",
   "Shell.Theme.Ocean": "Ocean",

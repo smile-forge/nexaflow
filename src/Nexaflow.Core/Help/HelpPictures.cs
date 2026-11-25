@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Nexaflow.Core.Localization;
+
 
 namespace Nexaflow.Core.Help;
 

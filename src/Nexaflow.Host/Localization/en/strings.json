@@ -1,0 +1,5 @@
+{
+  "Shell.Notifications.UnreadableTitle": "Some settings could not be read",
+  "Shell.Notifications.UnreadableFormat": "Could not read: {0}. Those settings are back at their defaults — the damaged files are kept beside them, and the details are in the log at {1}.",
+  "Shell.Notifications.RecoveredFormat": "Recovered {0} workspace(s) from their data folders, with their conversations and settings intact: {1}."
+}

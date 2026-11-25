@@ -1,5 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Nexaflow.Core.Localization;
+
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using System.Windows;
@@ -8,7 +8,7 @@ using System.Windows.Media;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Localization;
 using System.ComponentModel;
-using Nexaflow.Core.Services.Logging;
+
 using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Core.Controls;

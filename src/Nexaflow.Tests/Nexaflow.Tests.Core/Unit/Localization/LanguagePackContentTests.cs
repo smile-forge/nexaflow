@@ -1,5 +1,5 @@
 using System.IO;
-using Nexaflow.Core.Localization;
+
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;

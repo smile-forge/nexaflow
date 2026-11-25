@@ -4,12 +4,12 @@ using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Nexaflow.Core;
 using Nexaflow.Core.Help;
-using Nexaflow.Core.Localization;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.Elevation;
-using Nexaflow.Core.Services.LocalAi;
-using Nexaflow.Core.Services.Logging;
+
+
+
 using Nexaflow.Core.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
@@ -87,7 +87,7 @@ internal static class TestRuntimes
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
             ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(), new WpfFilePickers(),
             dependencies, new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load, LoggerFor<LanguageManager>()),
-            PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), NewAssistant: new WorkspaceAssistants(Features, Providers, shell, security, [], tasks, notify).Create, Logs: Logging.Factory));
+            PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), NewAssistant: new WorkspaceAssistants(Features, Providers, shell, security, [], new WpfPictureFitting(), tasks, notify).Create, Logs: Logging.Factory));
     }
 
     /// <summary>

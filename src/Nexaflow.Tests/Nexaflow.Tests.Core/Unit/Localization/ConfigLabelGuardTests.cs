@@ -64,13 +64,13 @@ public partial class ConfigLabelGuardTests
         }
     }
 
-    /// <summary>Nothing found is not nothing wrong: the scan reaches Core's, the features' and the providers' configs.</summary>
+    /// <summary>Nothing found is not nothing wrong: the scan reaches the session's, the features' and the providers' configs.</summary>
     [TestMethod]
     public void TheScan_ReachesCoreFeatureAndProviderConfigs()
     {
         var types = ConfigTypes().ToList();
 
-        Assert.IsTrue(types.Any(t => t.Assembly == typeof(Nexaflow.Core.SecurityConfig).Assembly), "no Core config found");
+        Assert.IsTrue(types.Any(t => t.Assembly == typeof(Nexaflow.Session.SecurityConfig).Assembly), "no session config found");
         Assert.IsTrue(types.Any(t => t.Assembly.GetName().Name!.StartsWith("Nexaflow.Features.", StringComparison.Ordinal)),
                       "no feature config found");
         Assert.IsTrue(types.Any(IsProvider), "no provider config found");
@@ -106,12 +106,12 @@ public partial class ConfigLabelGuardTests
             .GroupBy(drawn => drawn.ModelType)
             .ToDictionary(drawn => drawn.Key, drawn => drawn.First().View));
 
-    /// <summary>Core, and every feature's and provider's assembly beside it.</summary>
+    /// <summary>Core, and every assembly of the app's beside it — the session's, the features', the providers'.</summary>
     private static IEnumerable<Assembly> ShippedAssemblies()
         => Directory.GetFiles(AppContext.BaseDirectory, "Nexaflow.*.dll")
             .Where(f => !Path.GetFileName(f).StartsWith("Nexaflow.Tests.", StringComparison.Ordinal) && IsManaged(f))
             .Select(Assembly.LoadFrom)
-            .Append(typeof(Nexaflow.Core.SecurityConfig).Assembly)   // Core ships as Nexaflow.dll, outside the pattern
+            .Append(typeof(Nexaflow.Core.Controls.AboutControl).Assembly)   // Core ships as Nexaflow.dll, outside the pattern
             .Distinct();
 
     private static bool IsManaged(string file)

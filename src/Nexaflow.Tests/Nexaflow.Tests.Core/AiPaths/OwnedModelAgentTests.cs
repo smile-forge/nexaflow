@@ -77,7 +77,7 @@ public class OwnedModelAgentTests
             Assert.IsFalse(Text.Contains("_(stopped:"), $"the run stopped at a guard: {Text}\n{Model.Transcript}");
             Assert.IsTrue(Model.MalformedBlocks <= Corrections,
                 $"the model needed {Model.MalformedBlocks} tries to write a tool block the harness could read\n{Model.Transcript}");
-            Assert.AreEqual(0, Nexaflow.Core.Services.Agent.ClientBlockParser.Parse(Text, ToolNames).ParseErrors.Count,
+            Assert.AreEqual(0, Nexaflow.Assistant.Agent.ClientBlockParser.Parse(Text, ToolNames).ParseErrors.Count,
                 "the answer holds a tool call nobody ran\n" + Model.Transcript);
             Assert.IsFalse(string.IsNullOrWhiteSpace(Text), "the run ended with nothing said\n" + Model.Transcript);
         }

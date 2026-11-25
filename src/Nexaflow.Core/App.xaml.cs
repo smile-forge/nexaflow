@@ -1,5 +1,5 @@
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
@@ -25,18 +25,18 @@ using System.Windows;
 using System.Windows.Threading;
 
 using Nexaflow.Visuals.Common.Theming;
-using Nexaflow.Core.Localization;
+
 using Nexaflow.AiHost.Client;
 
-using Nexaflow.Core.Services.LocalAi;
-using Nexaflow.Core.Services.Tools;
+
+
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Localization;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.AiHost.Catalog;
 using Nexaflow.IO.Common.Locations;
 using Microsoft.Extensions.Logging;
-using Nexaflow.Core.Services.Logging;
+
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Core.Help;
 using Nexaflow.Visuals.Text.Markdown;
@@ -284,7 +284,7 @@ public partial class App : Application
     private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
         var host = new ShellHost(new ShellHostOptions(folders, SetupWizardViewModel.CurrentVersion(), _resetRequested, UiTest, _logging),
-                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), ContentLanguages.Draws, () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
+                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), ContentLanguages.Draws, new WpfPictureFitting(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
                                                                      (catalog, dependencies, showComponents, logging) => _pageViews = PageViews.FromCatalog(catalog, dependencies, showComponents, logging)),
                                                    _updates);
         _host = host;

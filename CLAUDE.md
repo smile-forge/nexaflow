@@ -53,7 +53,10 @@ Two things follow from that, and both are already handled — do not re-solve th
 
 ```
 src/
-  Nexaflow.Core/                      shell chrome, main window, ribbon, AI input bar, FeatureManager
+  Nexaflow.Core/                      the WPF app: shell chrome, main window, ribbon, AI input bar — views and view-models over Host
+  Nexaflow.Session/                   WPF-free shell session: workspaces + runtimes, config, FeatureManager, providers pool, inbox, logs, help
+  Nexaflow.Assistant/                 WPF-free assistant: each runtime's AIService, agent loop, tools — uses Session, which never references it
+  Nexaflow.Host/                      WPF-free composition root (ShellHost): wires Session + Assistant; a UI app fills its ShellPlatform
   Nexaflow.Features/
     Nexaflow.Features.Common/         ALL contracts (interfaces + small DTOs) — no FeatureManager, that's Core
     Nexaflow.Features.<Feature>/      one assembly per feature (~30)
@@ -235,8 +238,8 @@ screenshot and drive the app there
 - **A change is not complete until you've asked who depends on it**: read the edit's `impact:` / `compile:` lines,
   then `nfi test <id>`. A package bump: `graph node external:<Name>` names every consuming project — a package two areas use
   is named by a grep of the feature you're in only once.
-- **After touching `Nexaflow.Core`, run its unit tests before committing** (`Tests.Core`, `--filter
-  "FullyQualifiedName~Unit"` — [testing.md](docs/testing.md#fast-inner-loop)).
+- **After touching `Nexaflow.Core`, `.Session`, `.Assistant` or `.Host`, run their unit tests before committing**
+  (`Tests.Core`, `--filter "FullyQualifiedName~Unit"` — [testing.md](docs/testing.md#fast-inner-loop)).
 - **Update the product tree as you build, not after merge** — concerns, snaplinks, descriptions. Snaplink edits on a
   branch land in `docs/product/pending/<branch>.json`; **commit it with the change**.
   [product-graph.md](docs/product-graph.md#snaplinks)
@@ -287,10 +290,11 @@ to write: [Architecture.md → Ownership & Lifetime](docs/Architecture.md#owners
 | File | Why you'd touch it |
 |---|---|
 | `src/Nexaflow.Core/ViewModels/ShellViewModel.cs` | tab lifecycle, ribbon, AI routing — god object, be careful |
-| `src/Nexaflow.Core/Services/ShellServices.cs` | the `IShellServices` implementation |
-| `src/Nexaflow.Core/FeatureManager.cs` | per-`WorkspaceRuntime` constructor injection for features |
-| `src/Nexaflow.Core/Services/FeatureCatalog.cs` | cached feature discovery; Debug builds always rescan — never clear the cache by hand |
-| `src/Nexaflow.Core/Services/WorkspaceManager.cs` | the saved workspace list: add / clone / rename / delete / persist — the live runtimes are `WorkspaceRuntimes` |
+| `src/Nexaflow.Host/ShellHost.cs` | the session's composition root, and `ShellPlatform` — what the UI app must supply |
+| `src/Nexaflow.Session/Services/ShellServices.cs` | the `IShellServices` implementation |
+| `src/Nexaflow.Session/FeatureManager.cs` | the feature system; what a feature's constructor can be given is `FeatureInjectables` |
+| `src/Nexaflow.Session/Services/FeatureCatalog.cs` | cached feature discovery; Debug builds always rescan — never clear the cache by hand |
+| `src/Nexaflow.Session/Services/WorkspaceManager.cs` | the saved workspace list: add / clone / rename / delete / persist — the live runtimes are `WorkspaceRuntimes` |
 | `src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FileSystemFeatureRegistry.cs` | discovery for `IFileAction` / `IFolderAction` / `IFileCreateAction` / `IFolderViewlet` / `IThisPcItemProvider` — not `FeatureManager` |
 | `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | contracts (`IPageRegistration`, `Page`, …) — changes here affect everything |
 | `src/Nexaflow.Core/Themes/Styles.xaml` | app-merged shared styles and brushes, referenced from any feature by `{StaticResource …}` |

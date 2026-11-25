@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Localization;
-using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using TaskStatus = Nexaflow.Session.Models.TaskStatus;
 
 namespace Nexaflow.Core.ViewModels;
 

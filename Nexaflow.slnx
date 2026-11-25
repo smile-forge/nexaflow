@@ -405,6 +405,15 @@
   <Project Path="src/Nexaflow.Localization/Nexaflow.Localization.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="src/Nexaflow.Session/Nexaflow.Session.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.Assistant/Nexaflow.Assistant.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.Host/Nexaflow.Host.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="src/Nexaflow.Interaction/Nexaflow.Interaction.csproj">
           <Platform Project="x64" />
         </Project>

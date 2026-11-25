@@ -1,5 +1,5 @@
 using System.Text.Json.Nodes;
-using Nexaflow.Core.Services.ShellAi;
+
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;

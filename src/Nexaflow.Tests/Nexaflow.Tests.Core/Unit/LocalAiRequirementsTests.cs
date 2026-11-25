@@ -5,7 +5,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.LocalAi;
+
 using Nexaflow.Features.Common.Dependencies;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.Common;
