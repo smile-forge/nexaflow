@@ -4,6 +4,7 @@ using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
 using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -20,6 +21,7 @@ namespace Nexaflow.Core.Controls;
 /// <see cref="WorkspacesConfigViewModel"/> the settings panel makes (<see cref="ViewModels.ConfigPageModels"/>), which carries the
 /// saved workspaces, which of them a window shows, and the setup a workspace added here is taken through.
 /// </summary>
+[ViewFor(typeof(WorkspacesConfigViewModel))]
 public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ObservableCollection<Workspace>? _editWorkspaces;
@@ -66,6 +68,9 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
             }
         };
     }
+
+    /// <summary>The Workspaces page, editing <paramref name="model"/>.</summary>
+    internal WorkspaceConfigControl(WorkspacesConfigViewModel model) : this() => DataContext = model;
 
     /// <summary>(Re)builds the editable row copies from <see cref="_config"/>'s current contexts.</summary>
     private void RebuildEditWorkspaces()

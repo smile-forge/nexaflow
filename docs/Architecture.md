@@ -224,7 +224,7 @@ The contract layer. Every feature depends on this; nothing else does.
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
 | `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by ViewModels via `IPageViewModel.GetContextObject()` |
 | `ClientTools/*.cs` | Agent-loop contracts: `IClientTool`/`ClientToolBase`/`DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolCall`, `ToolResult`, `ClientPlan`, `IToolApprovalCoordinator`, the shared `ToolArgs` argument reader. Contracts only — the Core-only wire-protocol parser (`ClientBlockParser`, `ParsedAssistantTurn`) lives in `Core/Services/Agent/` |
-| `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[FilePath]`, `[ListSource]`, `[CustomControl]` / `ICustomConfigApply` / `IConfigChangeTracker` |
+| `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[FilePath]`, `[ListSource]`; an Options page of its own implements `ICustomConfigApply` / `IConfigChangeTracker` |
 | `AiResponse.cs` | `AiResponse` record returned by `IAIService.RunAgentAsync` |
 | `ConversationRecord.cs` | Chat conversation + message list + attachments |
 | `Services/IQueryHandler.cs` | Intercepts the AI input bar; registered globally or inferred from the active page's ViewModel |
@@ -592,10 +592,11 @@ public sealed class MyConfig : IFeatureConfig
 
 The title and each label are string-table keys, so the section reads in the active language — [localization.md → Options](localization.md#options).
 
-For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]` to the config class and implement `ICustomConfigApply` on the control.
-The control is made by its parameterless constructor and bound to the config. It reaches no service itself: a Core page that
-shows the session — About, Shell, Workspaces — is bound instead to a view-model `ConfigPageModels` makes from the session's services,
-which the window hands its Options and the app its setup wizard.
+For a fully custom options UI, mark the control as the view of the config — `[ViewFor(typeof(MyConfig))]`, with a constructor
+taking it — and implement `ICustomConfigApply` on the control. The config names no control, so it stays free of any UI toolkit,
+as a page's view-model does. The page is made through that constructor and reaches no service itself: a Core page that shows the
+session — About, Shell, Workspaces — draws instead a view-model `ConfigPageModels` makes from the session's services, which the
+window hands its Options and Configure panels and the app its setup wizard.
 
 ---
 

@@ -54,7 +54,7 @@ public class OptionsJourneyTests : OptionsOverlayJourney
             Check("Options lists at least a few sections", () => sections.Length >= 3);
 
             // ── Every section renders ────────────────────────────────────────
-            // Selecting a section builds its editor: a [CustomControl] instance, or a reflected property
+            // Selecting a section builds its editor: the config's own page, or a reflected property
             // grid. Either way something must appear on the right — a section that selects to a blank
             // pane is the exact failure this journey exists to catch.
             var panel = WaitForId("Chrome_OptionsPanel", 5);

@@ -37,6 +37,8 @@ using Nexaflow.AiHost.Catalog;
 using Nexaflow.IO.Common.Locations;
 using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Services.Logging;
+using Nexaflow.Visuals.Common.Viewing;
+using Nexaflow.Core.Help;
 
 namespace Nexaflow.Core;
 
@@ -281,10 +283,12 @@ public partial class App : Application
     private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
         var host = new ShellHost(new ShellHostOptions(folders, _resetRequested, UiTest, _logging),
-                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
+                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
                                                                      (catalog, dependencies, showComponents, logging) => _pageViews = PageViews.FromCatalog(catalog, dependencies, showComponents, logging)),
                                                    _updates);
         _host = host;
+        // The pictures help pages show are decoded by WPF, once for every window.
+        host.Features.ProvideTool(new HelpPictures(host.Help, host.Language));
 
         // The window a runtime opens into for a tear-off, a "new window" or a workspace rebuild: the session cannot name MainWindow.
         host.Workspaces.WindowFactory = ws => new MainWindow(host.Windows, _pageViews!, ws, openDefaultTabs: false).ViewModel;
@@ -579,7 +583,7 @@ public partial class App : Application
 
     /// <summary>What the setup wizard binds a settings page to: for a Core page that shows the session, its view-model over the
     /// session's services — those it hands every window.</summary>
-    private static ConfigPageModels ConfigPages() => new(_host!.Windows);
+    private static ConfigPageModels ConfigPages() => ConfigPageModels.Drawn(_pageViews!.Registry, _host!.Windows);
 
     /// <summary>
     /// Centres <paramref name="win"/> within <paramref name="workArea"/> (a monitor's work area in WPF

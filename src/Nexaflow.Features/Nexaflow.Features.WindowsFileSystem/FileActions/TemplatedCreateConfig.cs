@@ -33,7 +33,7 @@ public sealed class TemplateDefinition
 /// <see cref="TemplatedCreateEditorControl"/>; template files live alongside the config
 /// JSON under <c>{base}\templatedcreate\templates</c>.
 /// </summary>
-[CustomControl(typeof(TemplatedCreateEditorControl))]
+
 public sealed class TemplatedCreateConfig : IFeatureConfig
 {
     public string ConfigName   => "templatedcreate";

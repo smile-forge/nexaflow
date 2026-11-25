@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.OneDrive.Services;
 using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.OneDrive.Controls;
 
@@ -50,6 +51,7 @@ internal sealed class SyncFolderRow : INotifyPropertyChanged
 /// detected ones can be renamed or hidden but not re-pointed, because their folder is OneDrive's to
 /// choose.
 /// </summary>
+[ViewFor(typeof(Nexaflow.Features.OneDrive.OneDriveConfig))]
 public partial class OneDriveOptionsControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private readonly ObservableCollection<SyncFolderRow> _rows = [];
@@ -63,6 +65,9 @@ public partial class OneDriveOptionsControl : UserControl, ICustomConfigApply, I
         DataContextChanged += (_, _) => Load();
         Loaded += (_, _) => Load();
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public OneDriveOptionsControl(Nexaflow.Features.OneDrive.OneDriveConfig config) : this() => DataContext = config;
 
     // ── IConfigChangeTracker ──────────────────────────────────────────────────
 
@@ -136,7 +141,7 @@ public partial class OneDriveOptionsControl : UserControl, ICustomConfigApply, I
 
     private void OnAddClick(object sender, RoutedEventArgs e)
     {
-        // A [CustomControl] editor is handed only the config as its DataContext — no IShellServices to
+        // An Options page is handed only its config — no IShellServices to
         // route a picker through — so it opens the OS dialog directly, as ExternalAppsEditorControl does.
         var dialog = new Microsoft.Win32.OpenFolderDialog { Title = Str.Get("OneDrive.Options.ChooseFolderTitle") };
         if (dialog.ShowDialog() != true) return;

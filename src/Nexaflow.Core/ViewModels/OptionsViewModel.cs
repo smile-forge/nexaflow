@@ -322,8 +322,8 @@ public partial class ConfigEditViewModel : ObservableObject
             pi.SetValue(RealConfig, pi.GetValue(EditingClone));
     }
 
-    // Explicit-control section: an already-instantiated custom control (not discovered from a
-    // [CustomControl] attribute). The control owns its own editing state + persistence (its
+    // Explicit-control section: an already-instantiated custom control (not a view made for the config's
+    // model). The control owns its own editing state + persistence (its
     // ICustomConfigApply.Apply), so there's no reflected property grid. Used for the workspace-identity
     // page, whose editor targets a Workspace that can't carry a Core control reference.
     private ConfigEditViewModel(System.Windows.FrameworkElement control, string configName, string friendlyName)
@@ -352,40 +352,39 @@ public partial class ConfigEditViewModel : ObservableObject
     /// <param name="friendlyName">The section's title.</param>
     /// <param name="rulings">What rules on the settings the app does not decide alone — the session's configuration
     /// (<see cref="ConfigManager.AddRulings"/>).</param>
+    /// <param name="pages">The page the config is edited on where it has one of its own (<see cref="ConfigPageModels"/>); where it
+    /// has none, its settings show as rows.</param>
     /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed, for its pickers.</param>
-    /// <param name="pages">What a <c>[CustomControl]</c> page is bound to (<see cref="ConfigPageModels"/>); without it, the config.
-    /// Given wherever a Core page that shows the session may be edited — Options and the setup wizard.</param>
     public ConfigEditViewModel(object realConfig, string configName, string friendlyName, IConfigRulings rulings,
-                               Nexaflow.Features.Common.IShellServices? shell = null, ConfigPageModels? pages = null)
+                               ConfigPageModels pages, Nexaflow.Features.Common.IShellServices? shell = null)
     {
         RealConfig   = realConfig;
         ConfigName   = configName;
         FriendlyName = friendlyName;
         EditingClone = ConfigManager.Clone(realConfig);
 
-        // Check for a custom control at the class level before doing property reflection
-        var customControlType = realConfig.GetType().GetCustomAttribute<Nexaflow.Features.Common.CustomControlAttribute>()?.ControlType
-                             ?? realConfig.GetType().GetCustomAttribute<Nexaflow.Providers.Common.CustomControlAttribute>()?.ControlType;
-        if (customControlType is not null)
+        // A config with a page of its own shows that page rather than rows of its settings. A page that cannot be made leaves
+        // its section empty rather than showing the rows it stands in for.
+        object? page    = null;
+        var     hasPage = true;
+        try { page = pages.PageFor(realConfig); hasPage = page is not null; }
+        catch (Exception) { }
+        if (hasPage)
         {
-            try
+            if (page is not null)
             {
-                var ctrl = System.Activator.CreateInstance(customControlType);
-                if (ctrl is System.Windows.FrameworkElement fe)
-                    fe.DataContext = pages?.ModelFor(realConfig) ?? realConfig;
-                CustomControlInstance = ctrl;
+                CustomControlInstance = page;
 
-                // Hand the control the shell so it can use the themed file/folder pickers.
-                if (ctrl is Nexaflow.Features.Common.IShellAware aware && shell is not null)
+                // Hand the page the shell so it can use the themed file/folder pickers.
+                if (page is Nexaflow.Features.Common.IShellAware aware && shell is not null)
                     aware.AttachShell(shell);
 
-                if (ctrl is Nexaflow.Features.Common.IConfigChangeTracker tracker)
+                if (page is Nexaflow.Features.Common.IConfigChangeTracker tracker)
                     tracker.HasChangesChanged += (_, _) => RecheckValidity();
 
-                if (ctrl is Nexaflow.Features.Common.IConfigValidation validator)
+                if (page is Nexaflow.Features.Common.IConfigValidation validator)
                     validator.IsValidChanged += (_, _) => RecheckValidity();
             }
-            catch { /* fall back to property grid if control can't be instantiated */ }
 
             RecheckValidity();
             return;  // skip property reflection
@@ -471,8 +470,7 @@ public partial class OptionsViewModel : ObservableObject
 
     /// <param name="config">The session's configuration: every global config registered in it is a section, saved back through
     /// it, and what rules on a setting shows as it rules.</param>
-    /// <param name="pages">What each <c>[CustomControl]</c> section is bound to: the session's view-model for a Core page that shows
-    /// it, else its config.</param>
+    /// <param name="pages">The page each section is edited on where it has one of its own.</param>
     /// <param name="features">The session's feature system: every feature is activated so its config is listed, and a changed
     /// config refreshes the pages built with it.</param>
     /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed.</param>
@@ -497,7 +495,7 @@ public partial class OptionsViewModel : ObservableObject
 
             // Pass the shell so IShellAware custom controls (e.g. the File Type Actions editor's themed
             // confirmation, file/folder pickers) get AttachShell'd.
-            var section = new ConfigEditViewModel(registered, configName, friendlyName, config, shell, pages);
+            var section = new ConfigEditViewModel(registered, configName, friendlyName, config, pages, shell);
             section.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(ConfigEditViewModel.IsValid))

@@ -36,6 +36,14 @@ public class RibbonLayoutServiceTests
 
     private string RibbonFile => Path.Combine(_dir, "ribbon.json");
 
+    /// <summary>Saves <paramref name="items"/> as a window does.</summary>
+    private static void SaveItems(RibbonLayoutService service, IEnumerable<RibbonItem> items)
+        => service.Save(items.Select(item => item.ToEntry()));
+
+    /// <summary>The saved ribbon as a window draws it.</summary>
+    private static List<RibbonItem>? LoadItems(RibbonLayoutService service)
+        => service.Load()?.Select(RibbonItem.FromEntry).ToList();
+
     [TestMethod]
     [CoversNode("ribbon-layout-sync")]
     public void VersionOne_ReadsAccentAsForeground()
@@ -49,7 +57,7 @@ public class RibbonLayoutServiceTests
             ]
             """);
 
-        var items = new RibbonLayoutService(_dir).Load()!;
+        var items = LoadItems(new RibbonLayoutService(_dir))!;
 
         Assert.AreEqual(3, items.Count);
         Assert.AreEqual(IconRef.Emoji("📄"), items[0].Icon);
@@ -82,7 +90,7 @@ public class RibbonLayoutServiceTests
     public void VersionTwo_RoundTripsEveryLookProperty()
     {
         var service = new RibbonLayoutService(_dir);
-        service.Save([
+        SaveItems(service, [
             new RibbonItem
             {
                 Label        = "Home",
@@ -98,7 +106,7 @@ public class RibbonLayoutServiceTests
             new RibbonItem { Kind = RibbonItemKind.Separator },
         ]);
 
-        var back = service.Load()!;
+        var back = LoadItems(service)!;
         var home = back[0];
         Assert.AreEqual(2, back.Count);
         Assert.AreEqual("Home", home.Label);
@@ -118,7 +126,7 @@ public class RibbonLayoutServiceTests
     public void AnUnstyledButton_WritesNoLook()
     {
         var service = new RibbonLayoutService(_dir);
-        service.Save([new RibbonItem { Label = "Plain", Icon = IconRef.Emoji("📁") }]);
+        SaveItems(service, [new RibbonItem { Label = "Plain", Icon = IconRef.Emoji("📁") }]);
 
         var json = File.ReadAllText(RibbonFile);
         foreach (var name in new[] { "Foreground", "Background", "BorderColor", "BorderWeight", "Shape", "IconResource" })
@@ -130,10 +138,10 @@ public class RibbonLayoutServiceTests
     public void APinnedPicture_IsSavedAsItsDefaultIconString_AndReadBack()
     {
         var picture = new ShellIconRef(@"%SystemRoot%\System32\notepad.exe", -2);
-        new RibbonLayoutService(_dir).Save([new RibbonItem { Label = "Open", Icon = IconRef.Emoji("🔗"), IconResource = picture }]);
+        SaveItems(new RibbonLayoutService(_dir), [new RibbonItem { Label = "Open", Icon = IconRef.Emoji("🔗"), IconResource = picture }]);
 
         StringAssert.Contains(File.ReadAllText(RibbonFile), "notepad.exe,-2");
-        var back = new RibbonLayoutService(_dir).Load()![0];
+        var back = LoadItems(new RibbonLayoutService(_dir))![0];
         Assert.AreEqual(IconRef.Emoji("🔗"), back.Icon);
         Assert.AreEqual(picture, back.IconResource);
     }

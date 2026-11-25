@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Localization;
 using System.ComponentModel;
 using Nexaflow.Core.Services.Logging;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Core.Controls;
 
@@ -17,6 +18,7 @@ namespace Nexaflow.Core.Controls;
 /// (<see cref="ViewModels.ConfigPageModels"/>), which carries the session's language for the picker; it saves into the config
 /// that view-model was made over.
 /// </summary>
+[ViewFor(typeof(ShellConfigViewModel))]
 public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ShellConfigViewModel? _vm;
@@ -35,6 +37,9 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
             }
         };
     }
+
+    /// <summary>The Shell page, editing <paramref name="model"/>.</summary>
+    internal ShellConfigControl(ShellConfigViewModel model) : this() => DataContext = model;
 
     // ── IConfigChangeTracker: enables the panel's Apply button once a setting moves off the one saved ──
     public bool HasChanges => _vm?.HasChanges ?? false;

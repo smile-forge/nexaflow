@@ -9,7 +9,7 @@ namespace Nexaflow.Core;
 /// Global (one instance). Registered in App.xaml.cs; rendered by <see cref="AboutControl"/>
 /// (no editable properties, so it has nothing to save).
 /// </summary>
-[CustomControl(typeof(AboutControl))]
+
 public sealed class AboutConfig : IFeatureConfig
 {
     public string ConfigName   => "about";

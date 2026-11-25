@@ -11,7 +11,7 @@ namespace Nexaflow.Core.Help;
 /// </summary>
 /// <param name="shell">The runtime's shell.</param>
 /// <param name="library">The session's help pages, which the feature injection hands over as an app-wide tool.</param>
-internal sealed class HelpPageRegistration(IShellServices shell, HelpLibrary library) : IPageRegistration
+internal sealed class HelpPageRegistration(IShellServices shell, HelpLibrary library, HelpPictures pictures) : IPageRegistration
 {
     public static string StaticPageKind => "Help";
 
@@ -30,7 +30,7 @@ internal sealed class HelpPageRegistration(IShellServices shell, HelpLibrary lib
         var page = new Page { Title = Str.Get("Help.Tab.Title"), Icon = "❓" };
         // Closes over the page rather than the params: the shell stamps PageParams after this returns, and a re-point
         // that lands before the tab is first shown has to be what the view model reads when it is.
-        page.ViewModelFactory = () => new HelpViewModel(library, shell, page);
+        page.ViewModelFactory = () => new HelpViewModel(library, pictures, shell, page);
         return page;
     }
 }

@@ -10,7 +10,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 /// extension it wins over <see cref="Services.DefaultFileOpener"/>'s automatic internal-vs-shell resolution.
 /// Global config (one instance per process), edited from the Default Actions Options tab.
 /// </summary>
-[CustomControl(typeof(DefaultActionsEditorControl))]
+
 public sealed class DefaultActionsConfig : IFeatureConfig
 {
     public string ConfigName   => "defaultactions";

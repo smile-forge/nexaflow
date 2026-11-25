@@ -18,7 +18,7 @@ public sealed class LocationBackendDiscoveryTests
     [TestMethod]
     public void TheCatalogFindsALocationBackendBesideTheFeatures()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });
 
         CollectionAssert.Contains(catalog.TypesImplementing<ILocationProvider>().ToList(), typeof(MemoryLocationProvider));

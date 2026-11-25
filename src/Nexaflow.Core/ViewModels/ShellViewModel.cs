@@ -482,7 +482,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
     private OptionsViewModel BuildOptionsPanel()
     {
-        var vm = new OptionsViewModel(_session.Config, new ConfigPageModels(_session), _session.Features, _runtimes, _shellServices);
+        var vm = new OptionsViewModel(_session.Config, ConfigPageModels.Drawn(_views.Registry, _session), _session.Features, _runtimes, _shellServices);
         vm.SaveError           += ShowErrorToast;
         vm.TabRefreshRequested += RefreshTabs;
         vm.SaveCompleted       += () =>
@@ -508,7 +508,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private WorkspaceConfigViewModel BuildWorkspaceConfigPanel()
     {
         var workspace = ConfigureTargetWorkspace ?? CurrentRuntime.Workspace;
-        var vm = new WorkspaceConfigViewModel(workspace, _session, _shellServices);
+        var vm = new WorkspaceConfigViewModel(workspace, _session, ConfigPageModels.Drawn(_views.Registry, _session), _shellServices);
         vm.ApplyError += ShowErrorToast;
         if (RequestedConfigureSection is { } section)
         {

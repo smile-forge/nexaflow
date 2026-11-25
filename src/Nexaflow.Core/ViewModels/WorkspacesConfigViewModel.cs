@@ -10,7 +10,7 @@ namespace Nexaflow.Core.ViewModels;
 /// <param name="config">The saved workspace list the page edits.</param>
 /// <param name="session">What the window has of the session: the saved workspaces and live runtimes the page edits and guards,
 /// and the feature system and provider pool a new workspace's setup asks with.</param>
-internal sealed class WorkspacesConfigViewModel(WorkspacesConfig config, WindowServices session)
+internal sealed class WorkspacesConfigViewModel(WorkspacesConfig config, WindowServices session, ConfigPageModels pages)
 {
     /// <summary>The saved workspace list the page edits.</summary>
     public WorkspacesConfig Config => config;
@@ -24,5 +24,5 @@ internal sealed class WorkspacesConfigViewModel(WorkspacesConfig config, WindowS
     /// <summary>The setup wizard for <paramref name="workspace"/>, just added: its provider, key and model, and its mandatory
     /// configs.</summary>
     public SetupWizardViewModel SetupFor(Workspace workspace)
-        => SetupWizardViewModel.BuildWorkspaceSetup(workspace, session.Config, session.Features, session.Providers, session.SavedWorkspaces);
+        => SetupWizardViewModel.BuildWorkspaceSetup(workspace, pages, session.Config, session.Features, session.Providers, session.SavedWorkspaces);
 }

@@ -94,8 +94,8 @@ the grid is built — the same fallback, the same guard:
   model names — shown as it is.
 
 A row the grid shows is a public read-write property of a type an editor can hold (`ConfigEditViewModel.EditableProperties`);
-a list a feature persists for itself isn't a setting and gets no row. A section with a `[CustomControl]` shows that
-control, and its words are its XAML's, localized like any other view.
+a list a feature persists for itself isn't a setting and gets no row. A section with a page of its own — a control marked
+`[ViewFor(typeof(TheConfig))]` — shows that page, and its words are its XAML's, localized like any other view.
 
 ## Help pages
 

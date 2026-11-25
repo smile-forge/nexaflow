@@ -10,6 +10,7 @@ using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Localization;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Core.Controls;
 
@@ -19,6 +20,7 @@ namespace Nexaflow.Core.Controls;
 /// <c>Assets/ThirdPartyNotices.md</c>). Bound to an <see cref="AboutViewModel"/> the settings panel makes
 /// (<see cref="ConfigPageModels"/>), which carries the session's components and its update offer.
 /// </summary>
+[ViewFor(typeof(AboutViewModel))]
 public partial class AboutControl : UserControl
 {
     /// <summary>What the page shows while it is on screen: its view-model, taken as it loads.</summary>
@@ -33,6 +35,9 @@ public partial class AboutControl : UserControl
         Loaded   += OnLoaded;
         Unloaded += OnUnloaded;
     }
+
+    /// <summary>The About page, showing <paramref name="model"/>.</summary>
+    internal AboutControl(AboutViewModel model) : this() => DataContext = model;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {

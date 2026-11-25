@@ -4,6 +4,7 @@ using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -16,6 +17,7 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.WindowsFileSystem.Controls;
 
+[ViewFor(typeof(Nexaflow.Features.WindowsFileSystem.FileActions.ExternalAppsConfig))]
 public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker, IConfigValidation, IShellAware
 {
     // ── Dependency properties ────────────────────────────────────────────────
@@ -237,6 +239,9 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         Loaded += OnLoaded;
         _rows.CollectionChanged += OnRowsChanged;
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public ExternalAppsEditorControl(Nexaflow.Features.WindowsFileSystem.FileActions.ExternalAppsConfig config) : this() => DataContext = config;
 
     // The Options / Configure host injects the shell so the registry toggle can raise a themed confirmation.
     public void AttachShell(IShellServices shell) => _shell = shell;

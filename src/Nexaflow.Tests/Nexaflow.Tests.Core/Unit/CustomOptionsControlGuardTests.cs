@@ -38,9 +38,7 @@ public class CustomOptionsControlGuardTests
                       "no feature custom page found");
     }
 
-    private static Type? CustomControlType(Type config)
-        => config.GetCustomAttribute<Nexaflow.Features.Common.CustomControlAttribute>()?.ControlType
-        ?? config.GetCustomAttribute<Nexaflow.Providers.Common.CustomControlAttribute>()?.ControlType;
+    private static Type? CustomControlType(Type config) => ConfigLabelGuardTests.PageOf(config);
 
     private static bool Saves(Type control)
         => typeof(Nexaflow.Features.Common.ICustomConfigApply).IsAssignableFrom(control)

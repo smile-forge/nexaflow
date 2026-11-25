@@ -18,7 +18,7 @@ public sealed record SyncFolderEntry(string Id, string Label, string FolderPath)
 /// OneDrive's settings: which detected sync folders to show, what to call them, and any extra folders
 /// the user pointed us at. Nothing here is a credential — this feature reads the local machine only.
 /// </summary>
-[CustomControl(typeof(OneDriveOptionsControl))]
+
 public sealed class OneDriveConfig : IFeatureConfig
 {
     public string ConfigName   => "onedrive";

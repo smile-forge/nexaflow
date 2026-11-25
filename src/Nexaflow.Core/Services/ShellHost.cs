@@ -33,6 +33,8 @@ internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool
 /// <param name="Clipboard">The system clipboard.</param>
 /// <param name="Pickers">The shell's file and folder pickers.</param>
 /// <param name="Themes">Folds the features' theme contributions into the theme applied.</param>
+/// <param name="ViewMarker">The attribute the toolkit's views are marked with, naming the model type each draws as its first
+/// argument: what the feature catalogue indexes views by.</param>
 /// <param name="FolderWatchers">Makes the folder watcher, which owns a window of the toolkit's.</param>
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
@@ -44,6 +46,7 @@ internal sealed record ShellPlatform(
     IShellClipboard Clipboard,
     IFilePickers Pickers,
     IThemeHost Themes,
+    Type ViewMarker,
     Func<IFolderWatcher> FolderWatchers,
     Action<ShellConfig> ApplyAppearance,
     Func<FeatureCatalog, ExternalDependencyRegistry, Action, ShellLogging, IPageViews> Views);
@@ -116,6 +119,9 @@ internal sealed class ShellHost : IAsyncDisposable
     /// <summary>The UI language: the installed packs, the active one, and the strings and help pages they hold.</summary>
     public LanguageManager Language { get; }
 
+    /// <summary>The help pages, read through the language: the Help page shows them, and every runtime's assistant reads them.</summary>
+    internal HelpLibrary Help { get; }
+
     /// <summary>The third-party components the features declare, and what the last probe found of each.</summary>
     public ExternalDependencyRegistry Dependencies { get; }
 
@@ -160,7 +166,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // A stored value that could not be read goes on record in the crash log, which writes into the same folders.
         Config = new ConfigManager(options.Folders.BaseDir, options.Folders.LocalDir, logs.CreateLogger<ConfigManager>());
         // The feature catalogue's index is cached under the configuration.
-        Catalog = new FeatureCatalog(Config.BaseDir, logs.CreateLogger<FeatureCatalog>());
+        Catalog = new FeatureCatalog(Config.BaseDir, platform.ViewMarker, logs.CreateLogger<FeatureCatalog>());
         _log.StartupMilestone("Init.ConfigManager");
 
         // ── 1. Shell config ──────────────────────────────────────────────────
@@ -180,7 +186,7 @@ internal sealed class ShellHost : IAsyncDisposable
         Str.Source = Language;
         // The help pages, read through the language: the Help page's registration is given them (once the feature system is
         // made), and each runtime's assistant the tools that read them.
-        var help = new HelpLibrary(Language);
+        var help = Help = new HelpLibrary(Language);
         _log.StartupMilestone("Init.Language");
 
         Security = new SecurityConfig();

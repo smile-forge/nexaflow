@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Plugins;
-using Nexaflow.Visuals.Common.Viewing;
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -99,6 +99,13 @@ public sealed class FeatureCatalog
     private readonly string _cachePath;
 
     private readonly ILogger<FeatureCatalog> _log;
+
+    /// <summary>
+    /// The attribute a UI toolkit marks a view with, naming the model type it draws as its first argument — WPF's is
+    /// <c>[ViewFor]</c>. The catalogue records which model each marked type draws, so a view is found without loading what
+    /// holds it, and names no toolkit itself.
+    /// </summary>
+    private readonly Type _viewMarker;
     private string _exeDir = "";
     private string _coreFile = "";
 
@@ -113,10 +120,11 @@ public sealed class FeatureCatalog
     /// <summary>A catalogue whose index is cached under <paramref name="baseDir"/>, as <c>discovery\catalog.json</c>.</summary>
     /// <param name="baseDir">The configuration's base directory (<see cref="ConfigManager.BaseDir"/>).</param>
     /// <param name="log">Where the catalogue says how its index was built, and what it could not load, activate or cache.</param>
-    public FeatureCatalog(string baseDir, ILogger<FeatureCatalog> log)
+    public FeatureCatalog(string baseDir, Type viewMarker, ILogger<FeatureCatalog> log)
     {
         _cachePath = Path.Combine(baseDir, "discovery", "catalog.json");
-        _log       = log;
+        _log        = log;
+        _viewMarker = viewMarker;
     }
 
     /// <summary>
@@ -244,7 +252,11 @@ public sealed class FeatureCatalog
         {
             if (t is null || t.IsAbstract || t.IsInterface) continue;
 
-            var draws = t.GetCustomAttributes<ViewForAttribute>().Select(view => view.ModelType.FullName!).ToList();
+            var draws = t.GetCustomAttributesData()
+                         .Where(marker => marker.AttributeType == _viewMarker)
+                         .Select(marker => marker.ConstructorArguments is [{ Value: Type model }, ..] ? model.FullName : null)
+                         .OfType<string>()
+                         .ToList();
             if (viewsOnly)
             {
                 if (draws.Count > 0) entry.Types.Add(new TypeEntry { Name = t.FullName!, Draws = draws });

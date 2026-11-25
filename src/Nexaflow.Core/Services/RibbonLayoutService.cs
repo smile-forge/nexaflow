@@ -5,8 +5,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Nexaflow.Core.Models;
 using Nexaflow.Icons;
-using Nexaflow.Visuals.Common.Theming;
-using Nexaflow.Visuals.Icons;
+
 
 namespace Nexaflow.Core.Services;
 
@@ -15,15 +14,15 @@ namespace Nexaflow.Core.Services;
 /// <c>{workspaceDir}\ribbon.json</c>. One instance is shared by every WorkspaceRuntime on the workspace.
 ///
 /// This class is intentionally a pure data layer — it only handles serialisation of
-/// <see cref="RibbonItem"/> metadata (label, icon, look, kind, page-kind, page-params). Persisted items
+/// <see cref="RibbonEntry"/> records (label, icon, look, kind, page-kind, page-params), which a window draws. Persisted items
 /// carry no runtime open-behaviour: a button opens via its <c>PageKind</c>/<c>PageParams</c> routed
 /// through the owning window's command, so loaded items need no per-window delegate fix-up.
 /// <para>
 /// The file is <c>{ "Version": 2, "Items": [...] }</c>. Version 1 was the bare item array, with the icon an emoji
 /// and the one colour an <c>AccentColor</c> hex applied to the icon and label; it reads as the same items with
 /// that colour as their <c>Foreground</c>, and is written back as version 2 on the next save. The icon and colour
-/// strings need no mapping: <see cref="IconRef"/> reads a bare string as an emoji and <see cref="ColorSpec"/>
-/// reads a hex as a custom colour.
+/// strings need no mapping: <see cref="IconRef"/> reads a bare string as an emoji, and a colour's saved text is a hex
+/// either way.
 /// </para>
 /// </summary>
 public sealed class RibbonLayoutService
@@ -48,21 +47,21 @@ public sealed class RibbonLayoutService
 
     // ── Public API ────────────────────────────────────────────────────────
 
-    public void Save(IEnumerable<RibbonItem> items)
+    public void Save(IEnumerable<RibbonEntry> entries)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        var layout = new RibbonLayoutDto { Version = CurrentVersion, Items = items.Select(ToDto).ToList() };
+        var layout = new RibbonLayoutDto { Version = CurrentVersion, Items = entries.ToList() };
         File.WriteAllText(_path, JsonSerializer.Serialize(layout, _opts));
     }
 
     /// <summary>
-    /// Returns <c>null</c> when no saved layout exists or the file is corrupt. Returned items are
-    /// pure metadata (no runtime delegates); they open via PageKind through the owning window.
+    /// Returns <c>null</c> when no saved layout exists or the file is corrupt. Returned entries are
+    /// pure metadata; they open via PageKind through the owning window.
     /// </summary>
-    public List<RibbonItem>? Load()
+    public List<RibbonEntry>? Load()
     {
         if (!File.Exists(_path)) return null;
-        try { return Read(File.ReadAllText(_path))?.Select(FromDto).ToList(); }
+        try { return Read(File.ReadAllText(_path))?.Select(Settled).ToList(); }
         catch { return null; }
     }
 
@@ -71,27 +70,27 @@ public sealed class RibbonLayoutService
     /// tokens (<c>{Documents}</c>, <c>{Pictures}</c>, <c>{Videos}</c>, <c>{Music}</c>)
     /// in PageParams values.  Returns an empty list if the file is missing or corrupt.
     /// </summary>
-    public static List<RibbonItem> LoadDefaults()
+    public static List<RibbonEntry> LoadDefaults()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Ribbon", "default-ribbon.json");
         if (!File.Exists(path)) return [];
-        try { return Read(File.ReadAllText(path))?.Select(dto => FromDto(ExpandTokens(dto))).ToList() ?? []; }
+        try { return Read(File.ReadAllText(path))?.Select(entry => Settled(ExpandTokens(entry))).ToList() ?? []; }
         catch { return []; }
     }
 
     /// <summary>The items of either version: an array is version 1, an object carries its version and items.</summary>
-    internal static List<RibbonItemDto>? Read(string json)
+    internal static List<RibbonEntry>? Read(string json)
     {
         var root = JsonNode.Parse(json, documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true });
         return root switch
         {
-            JsonArray v1    => v1.Deserialize<List<RibbonItemDto>>(_opts),
+            JsonArray v1    => v1.Deserialize<List<RibbonEntry>>(_opts),
             JsonObject file => file.Deserialize<RibbonLayoutDto>(_opts)?.Items,
             _               => null,
         };
     }
 
-    private static RibbonItemDto ExpandTokens(RibbonItemDto dto)
+    private static RibbonEntry ExpandTokens(RibbonEntry dto)
     {
         if (dto.PageParams is null) return dto;
         dto.PageParams = dto.PageParams.ToDictionary(
@@ -111,41 +110,14 @@ public sealed class RibbonLayoutService
 
     // ── DTO mapping ───────────────────────────────────────────────────────
 
-    private static RibbonItemDto ToDto(RibbonItem item) => new()
+    /// <summary>An entry as it is now: version 1's one colour becomes the icon and label's, and is not written back.</summary>
+    private static RibbonEntry Settled(RibbonEntry entry)
     {
-        Kind         = item.Kind,
-        Label        = item.Label,
-        Icon         = item.Icon,
-        IconResource = item.IconResource?.ToString(),
-        IsHalf       = item.IsHalf,
-        Foreground   = item.Foreground,
-        Background   = item.Background,
-        BorderColor  = item.BorderColor,
-        BorderWeight = item.BorderWeight,
-        Shape        = item.Shape,
-        PageKind     = item.PageKind,
-        PageParams   = item.PageParams,
-        HalfItems    = item.HalfItems?.Select(ToDto).ToList()
-    };
-
-    private static RibbonItem FromDto(RibbonItemDto dto) => new()
-    {
-        Kind         = dto.Kind,
-        Label        = dto.Label,
-        Icon         = dto.Icon,
-        IconResource = ShellIconRef.Parse(dto.IconResource),
-        IsHalf       = dto.IsHalf,
-        // Version 1's one colour was the icon and label's.
-        Foreground   = dto.Foreground.IsDefault ? ColorSpec.Parse(dto.AccentColor) : dto.Foreground,
-        Background   = dto.Background,
-        BorderColor  = dto.BorderColor,
-        BorderWeight = dto.BorderWeight,
-        Shape        = dto.Shape,
-        PageKind     = dto.PageKind,
-        PageParams   = dto.PageParams,
-        HalfItems    = dto.HalfItems?.Select(FromDto).ToList()
-        // TabFactory intentionally left null — persisted items open via PageKind.
-    };
+        entry.Foreground ??= entry.AccentColor;
+        entry.AccentColor  = null;
+        entry.HalfItems?.ForEach(half => Settled(half));
+        return entry;
+    }
 }
 
 // ── DTO ───────────────────────────────────────────────────────────────────────
@@ -153,28 +125,5 @@ public sealed class RibbonLayoutService
 internal sealed class RibbonLayoutDto
 {
     public int                 Version { get; set; }
-    public List<RibbonItemDto> Items   { get; set; } = [];
-}
-
-internal sealed class RibbonItemDto
-{
-    public RibbonItemKind              Kind         { get; set; } = RibbonItemKind.Button;
-    public string                      Label        { get; set; } = string.Empty;
-    public IconRef                     Icon         { get; set; }
-
-    /// <summary>The picture drawn instead of <see cref="Icon"/>, as a <c>DefaultIcon</c> string: <c>file,index</c>.</summary>
-    public string?                     IconResource { get; set; }
-    public bool                        IsHalf       { get; set; }
-    public ColorSpec                   Foreground   { get; set; }
-    public ColorSpec                   Background   { get; set; }
-    public ColorSpec                   BorderColor  { get; set; }
-    public RibbonBorderWeight          BorderWeight { get; set; }
-    public RibbonButtonShape           Shape        { get; set; }
-
-    /// <summary>Version 1's colour, read only — <see cref="Foreground"/> replaces it.</summary>
-    public string?                     AccentColor  { get; set; }
-
-    public string?                     PageKind     { get; set; }
-    public Dictionary<string, string>? PageParams   { get; set; }
-    public List<RibbonItemDto>?        HalfItems    { get; set; }
+    public List<RibbonEntry>   Items   { get; set; } = [];
 }

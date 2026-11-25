@@ -11,7 +11,7 @@ public enum ThemeOption { Dark, Light, Flowers, Sunny, Ocean, Nature, Sandstone,
 /// Shell-level configuration. Registered manually in App.xaml.cs since it is not
 /// part of any feature assembly scanned by FeatureManager.
 /// </summary>
-[CustomControl(typeof(ShellConfigControl))]
+
 [Nexaflow.Features.Common.MandatorySetup]   // shown in the setup wizard (theme/language/start-with-windows)
 public sealed class ShellConfig : IFeatureConfig
 {

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Terminal.Models;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -16,6 +17,7 @@ namespace Nexaflow.Features.Console.Controls;
 /// "Default environment by location" section surfaces the <see cref="ConsoleConfig.FolderBindings"/> so
 /// the user can see and prune the "always use this environment here" memories set from the picker.
 /// </summary>
+[ViewFor(typeof(Nexaflow.Features.Console.ConsoleConfig))]
 public partial class ConsoleEnvironmentsEditorControl
     : UserControl, ICustomConfigApply, IConfigChangeTracker, IConfigValidation, IShellAware
 {
@@ -38,6 +40,9 @@ public partial class ConsoleEnvironmentsEditorControl
         InitializeComponent();
         Loaded += OnLoaded;
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public ConsoleEnvironmentsEditorControl(Nexaflow.Features.Console.ConsoleConfig config) : this() => DataContext = config;
 
     // The Configure host injects the shell so the browse button uses the themed file picker.
     public void AttachShell(IShellServices shell) => _shell = shell;

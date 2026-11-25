@@ -36,7 +36,7 @@ public class ConfigRulingsTests
         var config = NewConfig();
         using var ruled = config.AddRulings(new RulesShare(40, "set by the service"));
         var real = new Rated();
-        var section = new ConfigEditViewModel(real, "test-rated", "Rated", config);
+        var section = new ConfigEditViewModel(real, "test-rated", "Rated", config, TestRuntimes.RowsOnly);
         var share = section.Properties.Single(p => p.PropertyName == nameof(Rated.Share));
         var other = section.Properties.Single(p => p.PropertyName == nameof(Rated.Other));
 
@@ -56,7 +56,7 @@ public class ConfigRulingsTests
         var ruled = config.AddRulings(new RulesShare(40, "set by the service"));
         ruled.Dispose();
 
-        var share = new ConfigEditViewModel(new Rated(), "test-rated", "Rated", config).Properties.Single(p => p.PropertyName == nameof(Rated.Share));
+        var share = new ConfigEditViewModel(new Rated(), "test-rated", "Rated", config, TestRuntimes.RowsOnly).Properties.Single(p => p.PropertyName == nameof(Rated.Share));
 
         Assert.AreEqual((70, true, false), (share.Value, share.IsEnabled, share.IsRuled));
     }

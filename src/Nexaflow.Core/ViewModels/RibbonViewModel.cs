@@ -190,7 +190,7 @@ public partial class RibbonViewModel : ObservableObject
         _isSaving = true;
         try
         {
-            _workspace.RibbonService.Save(Items);
+            _workspace.RibbonService.Save(Items.Select(item => item.ToEntry()));
             _workspace.RaiseRibbonChanged();   // live-reload other windows/Workspaces on this workspace
         }
         finally
@@ -204,8 +204,8 @@ public partial class RibbonViewModel : ObservableObject
         var saved = _workspace?.RibbonService?.Load();
         if (saved is { Count: > 0 })
         {
-            foreach (var item in saved)
-                Items.Add(item);
+            foreach (var entry in saved)
+                Items.Add(RibbonItem.FromEntry(entry));
         }
         else
         {
@@ -215,8 +215,8 @@ public partial class RibbonViewModel : ObservableObject
 
     public void BuildDefaults()
     {
-        foreach (var item in RibbonLayoutService.LoadDefaults())
-            Items.Add(item);
+        foreach (var entry in RibbonLayoutService.LoadDefaults())
+            Items.Add(RibbonItem.FromEntry(entry));
     }
 
     public void AddItem(RibbonItem item, int insertAt = -1)
@@ -238,7 +238,7 @@ public partial class RibbonViewModel : ObservableObject
 
         RefreshAvailablePages();   // populate the catalog just before showing
         Editor = new RibbonEditorViewModel(
-            Items, AvailablePages, RibbonLayoutService.LoadDefaults,
+            Items, AvailablePages, () => RibbonLayoutService.LoadDefaults().Select(RibbonItem.FromEntry).ToList(),
             commit: ReplaceItems,
             close: () => IsEditOpen = false,
             findResource: key => Application.Current?.TryFindResource(key));

@@ -5,7 +5,7 @@ using Nexaflow.Visuals.Terminal.Models;
 
 namespace Nexaflow.Features.Console;
 
-[CustomControl(typeof(ConsoleEnvironmentsEditorControl))]
+
 [WorkspaceScopedConfig]
 public sealed class ConsoleConfig : IFeatureConfig
 {

@@ -36,31 +36,37 @@ public class OptionsUnsavedChangesTests
         public void Apply() { }
     }
 
-    [CustomControl(typeof(ReadOnlyPage))]
     public sealed class ReadOnlyConfig : IFeatureConfig
     {
         public string ConfigName => "test-read-only";
         public string FriendlyName => "Read only";
     }
 
-    [CustomControl(typeof(TrackedPage))]
     public sealed class TrackedConfig : IFeatureConfig
     {
         public string ConfigName => "test-tracked";
         public string FriendlyName => "Tracked";
     }
 
-    [CustomControl(typeof(UntrackedPage))]
     public sealed class UntrackedConfig : IFeatureConfig
     {
         public string ConfigName => "test-untracked";
         public string FriendlyName => "Untracked";
     }
 
+    /// <summary>Each test config's page, as the views marked for them would be made.</summary>
+    private static readonly ConfigPageModels Pages = new(model => model switch
+    {
+        ReadOnlyConfig  => new ReadOnlyPage(),
+        TrackedConfig   => new TrackedPage(),
+        UntrackedConfig => new UntrackedPage(),
+        _               => null,
+    }, session: null);
+
     [TestMethod]
     public void A_page_that_saves_nothing_never_holds_unsaved_edits()
     {
-        var section = new ConfigEditViewModel(new ReadOnlyConfig(), "test-read-only", "Read only", TestRuntimes.Config);
+        var section = new ConfigEditViewModel(new ReadOnlyConfig(), "test-read-only", "Read only", TestRuntimes.Config, Pages);
 
         Assert.IsFalse(section.HasChanges);
     }
@@ -68,7 +74,7 @@ public class OptionsUnsavedChangesTests
     [TestMethod]
     public void A_tracked_page_holds_unsaved_edits_only_while_its_tracker_says_so()
     {
-        var section = new ConfigEditViewModel(new TrackedConfig(), "test-tracked", "Tracked", TestRuntimes.Config);
+        var section = new ConfigEditViewModel(new TrackedConfig(), "test-tracked", "Tracked", TestRuntimes.Config, Pages);
         var page = (TrackedPage)section.CustomControlInstance!;
 
         Assert.IsFalse(section.HasChanges, "an untouched page has nothing to save");
@@ -83,7 +89,7 @@ public class OptionsUnsavedChangesTests
     [TestMethod]
     public void A_page_that_saves_without_a_tracker_is_taken_to_hold_unsaved_edits()
     {
-        var section = new ConfigEditViewModel(new UntrackedConfig(), "test-untracked", "Untracked", TestRuntimes.Config);
+        var section = new ConfigEditViewModel(new UntrackedConfig(), "test-untracked", "Untracked", TestRuntimes.Config, Pages);
 
         Assert.IsTrue(section.HasChanges, "with no way to tell, closing asks rather than dropping edits");
     }

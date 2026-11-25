@@ -26,6 +26,9 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
     private static readonly TimeSpan TypingPause = TimeSpan.FromMilliseconds(250);
 
     private readonly HelpLibrary _library;
+
+    /// <summary>The pictures help pages show, decoded once for every window.</summary>
+    private readonly HelpPictures _pictures;
     private readonly IShellServices _shell;
     private readonly Page _page;
     private HelpDocument _doc;
@@ -36,9 +39,10 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
     private CancellationTokenSource? _pause;
     private bool _settingText;
 
-    public HelpViewModel(HelpLibrary library, IShellServices shell, Page page)
+    public HelpViewModel(HelpLibrary library, HelpPictures pictures, IShellServices shell, Page page)
     {
-        _library = library;
+        _library  = library;
+        _pictures = pictures;
         _shell   = shell;
         _page    = page;
         _doc     = null!;   // Show sets it below
@@ -167,7 +171,7 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
     private string? _pendingAnchor;
 
     /// <summary>A picture the shown page links to, out of the language pack.</summary>
-    public ImageSource? ResolveImage(string src) => _library.ResolveImage(_doc.Topic, src);
+    public ImageSource? ResolveImage(string src) => _pictures.Resolve(_doc.Topic, src);
 
     [RelayCommand]
     private void ShowIndex() => Navigate(null, null, fromUser: true);

@@ -7,17 +7,6 @@ using Nexaflow.Interaction;
 
 namespace Nexaflow.Core.Models;
 
-public enum RibbonItemKind { Button, HalfGroup, Separator }
-
-/// <summary>
-/// The outline of a ribbon button. The first four frame the whole button; <see cref="Circle"/>,
-/// <see cref="Squircle"/> and <see cref="Hexagon"/> are badges drawn behind the icon, with the label beneath or beside.
-/// </summary>
-public enum RibbonButtonShape { Standard, Rounded, Pill, Leaf, Circle, Squircle, Hexagon }
-
-/// <summary>How heavy a ribbon button's outline is; <see cref="None"/> draws none.</summary>
-public enum RibbonBorderWeight { None, Thin, Medium, Thick }
-
 /// <summary>
 /// Carries a tab drag-and-drop pin request, optionally with an insert index.
 /// </summary>
@@ -91,6 +80,44 @@ public partial class RibbonItem : ObservableObject
     /// for a FileSystem page). Persisted alongside <see cref="PageKind"/>.
     /// </summary>
     public Dictionary<string, string>? PageParams { get; set; }
+
+    /// <summary>The item <paramref name="entry"/> keeps, as a window draws and edits it.</summary>
+    public static RibbonItem FromEntry(RibbonEntry entry) => new()
+    {
+        Kind         = entry.Kind,
+        Label        = entry.Label,
+        Icon         = entry.Icon,
+        IconResource = ShellIconRef.Parse(entry.IconResource),
+        IsHalf       = entry.IsHalf,
+        Foreground   = ColorSpec.Parse(entry.Foreground),
+        Background   = ColorSpec.Parse(entry.Background),
+        BorderColor  = ColorSpec.Parse(entry.BorderColor),
+        BorderWeight = entry.BorderWeight,
+        Shape        = entry.Shape,
+        PageKind     = entry.PageKind,
+        PageParams   = entry.PageParams,
+        HalfItems    = entry.HalfItems?.Select(FromEntry).ToList(),
+    };
+
+    /// <summary>What the ribbon file keeps of this item: the theme's colours as nothing.</summary>
+    public RibbonEntry ToEntry() => new()
+    {
+        Kind         = Kind,
+        Label        = Label,
+        Icon         = Icon,
+        IconResource = IconResource?.ToString(),
+        IsHalf       = IsHalf,
+        Foreground   = SavedText(Foreground),
+        Background   = SavedText(Background),
+        BorderColor  = SavedText(BorderColor),
+        BorderWeight = BorderWeight,
+        Shape        = Shape,
+        PageKind     = PageKind,
+        PageParams   = PageParams,
+        HalfItems    = HalfItems?.Select(half => half.ToEntry()).ToList(),
+    };
+
+    private static string? SavedText(ColorSpec colour) => colour.IsDefault ? null : colour.ToString();
 
     /// <summary>A deep copy — the editor works on these, so nothing reaches the live ribbon until Done.</summary>
     public RibbonItem Clone() => new()

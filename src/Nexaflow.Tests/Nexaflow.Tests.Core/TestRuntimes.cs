@@ -10,8 +10,10 @@ using Nexaflow.Core.Services;
 using Nexaflow.Core.Services.Elevation;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Core.Services.Logging;
+using Nexaflow.Core.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Visuals.Common.Viewing;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Core;
@@ -53,6 +55,12 @@ internal static class TestRuntimes
 
     /// <summary>The calling thread as the session's UI thread: what a test that builds session services on its own thread hands them.</summary>
     public static IUiThread CurrentUi() => new WpfUiThread(Dispatcher.CurrentDispatcher);
+
+    /// <summary>A catalogue of the features beside the tests, indexing WPF's views as the app's does.</summary>
+    public static FeatureCatalog NewCatalog() => new(Config.BaseDir, typeof(ViewForAttribute), LoggerFor<FeatureCatalog>());
+
+    /// <summary>Pages for no config: every section a test builds shows its settings as rows.</summary>
+    public static ConfigPageModels RowsOnly { get; } = new(_ => null, session: null);
 
     /// <summary>A configuration of its own under <paramref name="baseDir"/>, what stays on this machine alone kept beside it as
     /// <c>local</c> — for a test that reads what it registers or saves — its faults on record in <paramref name="faultLog"/>, or
@@ -114,10 +122,14 @@ internal static class TestRuntimes
 
     private static readonly Lazy<FeatureManager> _features = new(() =>
     {
-        var features = new FeatureManager(new FeatureCatalog(Config.BaseDir, LoggerFor<FeatureCatalog>()), Config,
+        var features = new FeatureManager(NewCatalog(), Config,
                                           new WpfUiThread(Dispatcher.CurrentDispatcher), new WpfThemeHost(), new LocationProviderRegistry(), Logging.Factory);
-        features.ProvideTool(new HelpLibrary(new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load,
-                                                                 LoggerFor<LanguageManager>())));
+        // As the app does: the session's help pages, and the window side's pictures of them.
+        var language = new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load,
+                                           LoggerFor<LanguageManager>());
+        var help     = new HelpLibrary(language);
+        features.ProvideTool(help);
+        features.ProvideTool(new HelpPictures(help, language));
         return features;
     });
 

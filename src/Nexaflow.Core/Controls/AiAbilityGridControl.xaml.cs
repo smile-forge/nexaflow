@@ -1,11 +1,14 @@
 using Nexaflow.Core.AI;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Windows;
 using System.Windows.Controls;
 
 namespace Nexaflow.Core.Controls;
 
+[ViewFor(typeof(AiAbilityGridViewModel))]
+[ViewFor(typeof(AiConfig))]
 public partial class AiAbilityGridControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private AiAbilityGridViewModel? _viewModel;
@@ -16,6 +19,12 @@ public partial class AiAbilityGridControl : UserControl, ICustomConfigApply, ICo
         Loaded           += OnLoaded;
         IsVisibleChanged += OnVisibleChanged;
     }
+
+    /// <summary>The ability grid of <paramref name="grid"/>, shared with the pages beside it.</summary>
+    public AiAbilityGridControl(AiAbilityGridViewModel grid) : this() => DataContext = grid;
+
+    /// <summary>The ability grid of <paramref name="config"/>, on its own.</summary>
+    public AiAbilityGridControl(AiConfig config) : this() => DataContext = config;
 
     private void OnVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {

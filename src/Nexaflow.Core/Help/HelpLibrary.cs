@@ -1,9 +1,8 @@
-using System.Collections.Concurrent;
+
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
+
 using Nexaflow.Core.Localization;
 using Nexaflow.Localization;
 
@@ -29,7 +28,6 @@ internal sealed partial class HelpLibrary
 
     private readonly LanguageManager _language;
     private readonly object _gate = new();
-    private readonly ConcurrentDictionary<string, ImageSource?> _images = new(StringComparer.Ordinal);
     private IReadOnlyList<HelpTopic>? _topics;
     private HelpSearchIndex? _index;
 
@@ -92,15 +90,24 @@ internal sealed partial class HelpLibrary
     }
 
     /// <summary>
-    /// A picture a help page shows, resolved against the page's own pack folder (<c>images/x.png</c> beside
-    /// <c>help/Markdown.md</c> is <c>Nexaflow.Features.Markdown/help/images/x.png</c>). Never climbs out of the page's
-    /// project, never follows a scheme. Decoded fully into memory and frozen — every window's UI thread may draw it —
-    /// and kept, so a page shown again costs nothing.
+    /// The name in the language pack of a picture a help page shows, resolved against the page's own pack folder (<c>images/x.png</c>
+    /// beside <c>help/Markdown.md</c> is <c>Nexaflow.Features.Markdown/help/images/x.png</c>). Never climbs out of the page's project,
+    /// never follows a scheme: null for anything else.
     /// </summary>
-    public ImageSource? ResolveImage(HelpTopic page, string src)
+    public string? PictureName(HelpTopic page, string src)
+        => string.IsNullOrWhiteSpace(src) || src.Contains(':')   // http:, data:, a drive — not a pack path
+            ? null
+            : Combine(page.Folder, src);
+
+    /// <summary>The bytes of the picture named <paramref name="name"/> (<see cref="PictureName"/>) in the active language, or English;
+    /// null when no pack holds it. Read whole, so nothing holds the pack's stream once they are returned.</summary>
+    public byte[]? ReadPicture(string name)
     {
-        if (string.IsNullOrWhiteSpace(src) || src.Contains(':')) return null;   // http:, data:, a drive — not a pack path
-        return Combine(page.Folder, src) is { } name ? _images.GetOrAdd(name, Decode) : null;
+        using var stream = _language.OpenResource(name);
+        if (stream is null) return null;
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
     }
 
     /// <summary>The help page a link inside help points at: <c>help:Text</c>, or a page by file name
@@ -194,32 +201,6 @@ internal sealed partial class HelpLibrary
         return sb.ToString();
     }
 
-    private ImageSource? Decode(string logicalName)
-    {
-        try
-        {
-            using var stream = _language.OpenResource(logicalName);
-            if (stream is null) return null;
-
-            // Copied out, so nothing holds the pack's stream once the picture is decoded.
-            var buffer = new MemoryStream();
-            stream.CopyTo(buffer);
-            buffer.Position = 0;
-
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption  = BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = buffer;
-            bitmap.EndInit();
-            bitmap.Freeze();
-            return bitmap;
-        }
-        catch
-        {
-            return null;   // not a picture WPF can decode: the alt text shows instead
-        }
-    }
-
     private void Forget()
     {
         lock (_gate)
@@ -227,6 +208,6 @@ internal sealed partial class HelpLibrary
             _topics = null;
             _index  = null;
         }
-        _images.Clear();
+
     }
 }

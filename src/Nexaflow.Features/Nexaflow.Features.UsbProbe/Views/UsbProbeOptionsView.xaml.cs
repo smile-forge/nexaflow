@@ -2,6 +2,7 @@ using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.ViewModels;
 using Nexaflow.IO.Usb.Naming;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.UsbProbe.Views;
 
@@ -10,6 +11,7 @@ namespace Nexaflow.Features.UsbProbe.Views;
 /// The Options panel creates this with no DI and sets the <i>live</i> config as its DataContext, so the editing
 /// happens on a <see cref="UsbProbeOptionsModel"/> of its own and reaches the config only on Save.
 /// </remarks>
+[ViewFor(typeof(Nexaflow.Features.UsbProbe.UsbProbeConfig))]
 public partial class UsbProbeOptionsView : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     UsbProbeConfig? _config;
@@ -21,6 +23,9 @@ public partial class UsbProbeOptionsView : UserControl, ICustomConfigApply, ICon
         DataContextChanged += (_, _) => Load();
         Loaded += (_, _) => Load();
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public UsbProbeOptionsView(Nexaflow.Features.UsbProbe.UsbProbeConfig config) : this() => DataContext = config;
 
     public bool HasChanges => _model?.HasChanges ?? false;
 
