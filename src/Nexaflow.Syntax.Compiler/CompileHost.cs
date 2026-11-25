@@ -111,7 +111,7 @@ public sealed class CompileHost
             var checkedOn  = new List<string>();
             var introduced = new List<CompileProblem>();
             var fixedOnes  = new List<CompileProblem>();
-            var notChecked = new List<string>();
+            var notChecked = new List<Unchecked>();
 
             var files    = 0;
             var standing = 0;
@@ -127,19 +127,19 @@ public sealed class CompileHost
             {
                 if (ProjectOf(change.FullPath) is not { } owner)
                 {
-                    notChecked.Add($"{Path.GetFileName(change.FullPath)}: no project compiles it");
+                    notChecked.Add(new(Path.GetFileName(change.FullPath), "no project compiles it"));
                     continue;
                 }
                 if (!Checkable(owner, notChecked) || Get(owner, clock, budget, notChecked, cancellation) is not { } project) continue;
 
                 if (project.ViewFindings(change.FullPath, change.Before, _loader, cancellation) is not { } was)
                 {
-                    notChecked.Add($"{Path.GetFileName(change.FullPath)}: {project.Name} hands it to no analyzer");
+                    notChecked.Add(new(Path.GetFileName(change.FullPath), $"{project.Name} hands it to no analyzer"));
                     continue;
                 }
                 var now = project.ViewFindings(change.FullPath, change.After, _loader, cancellation) ?? [];
                 viewsStanding += Compare(was, now, viewsIntroduced, viewsFixed);
-                notChecked.AddRange(project.LoadFailures.Select(failure => $"{project.Name}: {failure}"));
+                notChecked.AddRange(project.LoadFailures.Select(failure => new Unchecked(project.Name, failure)));
                 viewsChecked.Add(change.FullPath);
             }
 
@@ -148,7 +148,7 @@ public sealed class CompileHost
             {
                 if (ProjectOf(change.FullPath) is not { } csproj)
                 {
-                    notChecked.Add($"{Path.GetFileName(change.FullPath)}: no project compiles it");
+                    notChecked.Add(new(Path.GetFileName(change.FullPath), "no project compiles it"));
                     continue;
                 }
                 (byProject.TryGetValue(csproj, out var list) ? list : byProject[csproj] = []).Add(change);
@@ -223,7 +223,7 @@ public sealed class CompileHost
         lock (_gate)
         {
             var clock      = Stopwatch.StartNew();
-            var notChecked = new List<string>();
+            var notChecked = new List<Unchecked>();
             var none       = new Dictionary<string, string?>();
             var errors     = new string?[queries.Count];
             var symbols    = new ISymbol?[queries.Count];
@@ -244,7 +244,7 @@ public sealed class CompileHost
                 {
                     if (Get(csproj, clock, budget, notChecked, cancellation) is not { } project)
                     {
-                        errors[i] = string.Join("; ", notChecked);
+                        errors[i] = string.Join("; ", Summarised(notChecked));
                         continue;
                     }
                     declaring[csproj] = held = (project, project.With(none, cancellation), []);
@@ -322,7 +322,7 @@ public sealed class CompileHost
         lock (_gate)
         {
             var clock      = Stopwatch.StartNew();
-            var notChecked = new List<string>();
+            var notChecked = new List<Unchecked>();
             var checkedBy  = new List<string>();
             var found      = new List<CompileDiagnostic>();
 
@@ -333,7 +333,7 @@ public sealed class CompileHost
             {
                 if (ProjectOf(file) is not { } csproj)
                 {
-                    notChecked.Add($"{Path.GetFileName(file)}: no project compiles it");
+                    notChecked.Add(new(Path.GetFileName(file), "no project compiles it"));
                     continue;
                 }
                 if (!wanted.TryGetValue(csproj, out var only)) wanted[csproj] = [file];
@@ -345,7 +345,7 @@ public sealed class CompileHost
             {
                 if (!File.Exists(csproj))
                 {
-                    notChecked.Add($"{Path.GetFileName(csproj)}: there is no such project");
+                    notChecked.Add(new(Path.GetFileName(csproj), "there is no such project"));
                     continue;
                 }
                 if (!Checkable(csproj, notChecked) || Get(csproj, clock, budget, notChecked, cancellation) is not { } project) continue;
@@ -353,11 +353,11 @@ public sealed class CompileHost
 
                 var reported = project.Diagnostics(current.Compilation, current.Key, _loader, ids, cancellation);
                 found.AddRange(only is null ? reported : reported.Where(d => only.Contains(d.FullPath)));
-                notChecked.AddRange(project.LoadFailures.Select(failure => $"{project.Name}: {failure}"));
+                notChecked.AddRange(project.LoadFailures.Select(failure => new Unchecked(project.Name, failure)));
 
                 // A clean answer is only as good as what could have reported: name that, and when nothing could, it is no answer.
                 if (project.ReportersOf(_loader, ids) is not { Length: > 0 } reporters)
-                    notChecked.Add($"{project.Name}: nothing it runs reports /{ids}/ - neither the compiler nor any analyzer it loads declares that id");
+                    notChecked.Add(new(project.Name, $"nothing it runs reports /{ids}/ - neither the compiler nor any analyzer it loads declares that id"));
                 else
                     checkedBy.Add($"{project.Name} ({(only is null ? project.Coverage : $"{only.Count} of its files")}) by {reporters}");
             }
@@ -399,7 +399,7 @@ public sealed class CompileHost
         return found;
     }
 
-    private CompiledProject? Get(string csproj, Stopwatch clock, TimeSpan budget, List<string> notChecked,
+    private CompiledProject? Get(string csproj, Stopwatch clock, TimeSpan budget, List<Unchecked> notChecked,
                                  CancellationToken cancellation)
     {
         var name = Path.GetFileNameWithoutExtension(csproj);
@@ -408,13 +408,13 @@ public sealed class CompileHost
         {
             if (held.Refresh(_loader, cancellation) is not { } stale) return held;
             _projects.Remove(csproj);
-            notChecked.Add($"{name}: {stale}");
+            notChecked.Add(new(name, stale));
             return null;
         }
 
         if (clock.Elapsed > budget)
         {
-            notChecked.Add(OverBudget + name);
+            notChecked.Add(new(name, PastBudget));
             Warm(csproj);
             return null;
         }
@@ -422,7 +422,7 @@ public sealed class CompileHost
         var (project, error) = CompiledProject.Load(csproj, _loader, _designTime, cancellation);
         if (project is null)
         {
-            notChecked.Add($"{name}: {error}");
+            notChecked.Add(new(name, error ?? "it would not load, and gave no reason"));
             return null;
         }
         _loadedNow.Add(name);
@@ -435,15 +435,22 @@ public sealed class CompileHost
     /// trust, since a missing package does not stop this repository's own types binding, and refusing to load such a
     /// project there turned a reference search back into a search by spelling.
     /// </summary>
-    private static bool Checkable(string csproj, List<string> notChecked)
+    private static bool Checkable(string csproj, List<Unchecked> notChecked)
     {
         if (CompiledProject.Unrestored(csproj) is not { } why) return true;
-        notChecked.Add($"{Path.GetFileNameWithoutExtension(csproj)}: {why}");
+        notChecked.Add(new(Path.GetFileNameWithoutExtension(csproj), why));
         return false;
     }
 
-    /// <summary>How a project the loading budget ran out on is marked, until <see cref="Summarised"/> folds them into one line.</summary>
-    private const string OverBudget = "past budget: ";
+    /// <summary>Why a project the loading budget ran out on was not checked.</summary>
+    private const string PastBudget = "past the loading budget - loading now, so the next check covers it";
+
+    /// <summary>How many of the things sharing one reason are named in the line that gives it.</summary>
+    private const int NamedPerReason = 6;
+
+    /// <summary>One thing a check could not cover, and why: kept apart so that a reason many share is said once, naming them
+    /// (see <see cref="Summarised"/>).</summary>
+    private readonly record struct Unchecked(string What, string Why);
 
     /// <summary>
     /// Loads a project the check ran out of budget for, after the check has answered — so the next one includes it rather
@@ -458,16 +465,21 @@ public sealed class CompileHost
         }
     });
 
-    /// <summary>What could not be checked, with the projects the budget ran out on said once rather than a line each.</summary>
-    private static IReadOnlyList<string> Summarised(List<string> notChecked)
-    {
-        var late = notChecked.Where(n => n.StartsWith(OverBudget, StringComparison.Ordinal)).Select(n => n[OverBudget.Length..]).ToList();
-        if (late.Count == 0) return notChecked;
-
-        return [.. notChecked.Where(n => !n.StartsWith(OverBudget, StringComparison.Ordinal)),
-                $"{late.Count} project(s) past the loading budget — {string.Join(", ", late)}. They are loading now, so the next "
-              + "check includes them"];
-    }
+    /// <summary>
+    /// What could not be checked, one line per reason. A reason one thing has is said of it; a reason several share is said
+    /// once, naming the first <see cref="NamedPerReason"/> - a fresh worktree has dozens of projects with nothing restored,
+    /// and dozens of lines saying so bury the one that says something else.
+    /// </summary>
+    private static IReadOnlyList<string> Summarised(List<Unchecked> notChecked) =>
+    [
+        .. notChecked.Distinct().GroupBy(n => n.Why, StringComparer.Ordinal).Select(reason =>
+        {
+            var what = reason.Select(n => n.What).ToList();
+            if (what.Count == 1) return $"{what[0]}: {reason.Key}";
+            var named = string.Join(", ", what.Take(NamedPerReason)) + (what.Count > NamedPerReason ? $" and {what.Count - NamedPerReason} more" : "");
+            return $"{what.Count} - {named}: {reason.Key}";
+        }),
+    ];
 
     /// <summary>
     /// The references of <paramref name="consumer"/> that are edited projects' assemblies, each swapped for that project's
@@ -500,7 +512,7 @@ public sealed class CompileHost
     /// </para>
     /// </summary>
     private (CSharpCompilation Compilation, string Key)? Current(CompiledProject project, Stopwatch clock, TimeSpan budget,
-                                                                 List<string> notChecked, CancellationToken cancellation,
+                                                                 List<Unchecked> notChecked, CancellationToken cancellation,
                                                                  Dictionary<string, (CSharpCompilation Compilation, string Key)?> built)
     {
         if (built.TryGetValue(project.ProjectPath, out var held)) return held;
@@ -517,7 +529,7 @@ public sealed class CompileHost
     /// <summary>The out-of-date references of <paramref name="project"/>, each swapped for a compilation of the project that
     /// builds it; <paramref name="key"/> is what those compilations are a function of.</summary>
     private Dictionary<string, MetadataReference> Behind(CompiledProject project, Stopwatch clock, TimeSpan budget,
-                                                         List<string> notChecked, CancellationToken cancellation,
+                                                         List<Unchecked> notChecked, CancellationToken cancellation,
                                                          Dictionary<string, (CSharpCompilation Compilation, string Key)?> built,
                                                          out string key)
     {

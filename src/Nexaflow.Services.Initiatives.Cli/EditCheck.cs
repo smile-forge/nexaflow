@@ -235,12 +235,12 @@ internal static class EditCheck
         // One verdict per check whatever it found, carrying what it covered — how many files, which projects, and whether they
         // were already loaded — so a clean one can be taken at its word without a build. What is wrong is listed beneath it.
         var took = report.Elapsed.TotalSeconds < 1 ? $"{report.Elapsed.TotalSeconds:F2}s" : $"{report.Elapsed.TotalSeconds:F1}s";
-        var how_ = report.Loaded is { Count: > 0 } loaded ? $"{took}, loaded {string.Join(", ", loaded)}" : $"{took}, all warm";
+        var how_ = report.Loaded is { Count: > 0 } loaded ? $"{took}, loaded {Named(loaded)}" : $"{took}, all warm";
 
         if (report.Checked.Count > 0)
         {
             Console.WriteLine((report.Introduced.Count == 0 ? "compile: no new errors" : $"compile: {report.Introduced.Count} new error(s)")
-                            + $" in {report.Files} file(s) — {string.Join(", ", report.Checked)} ({how_})"
+                            + $" in {report.Files} file(s) — {Named(report.Checked)} ({how_})"
                             + (report.Standing > 0 ? $"; {report.Standing} error(s) were there already" : ""));
             foreach (var problem in report.Introduced.Take(ShownErrors))
                 Console.WriteLine($"  {Relative(codeRoot, problem.FullPath)}:{problem.Line}:{problem.Column}  {problem.Id}  {problem.Message}");
@@ -264,6 +264,11 @@ internal static class EditCheck
 
         foreach (var reason in report.NotChecked) Console.WriteLine($"compile: not checked — {reason}");
     }
+
+    /// <summary>The first few of a list of projects, and how many more: an edit to a shared project loads dozens, and the
+    /// verdict is the line that has to be read.</summary>
+    private static string Named(IReadOnlyList<string> projects) =>
+        string.Join(", ", projects.Take(6)) + (projects.Count > 6 ? $" and {projects.Count - 6} more" : "");
 
     /// <summary>Directories no source this repository compiles lives in: build output, other people's code, tooling state.</summary>
     private static readonly HashSet<string> NotSource = new(StringComparer.OrdinalIgnoreCase)

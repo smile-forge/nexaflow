@@ -266,6 +266,30 @@ public class CompileHostTests
 
     [TestMethod]
     [CoversNode("syntax-compile-check")]
+    public void ProjectsNotCheckedForOneReason_AreNamedInOneLine()
+    {
+        // A fresh worktree: nothing restored, and one line saying so rather than one per project.
+        var changes = new List<SourceChange>
+        {
+            new(Path.Combine(_root, "Unrestored", "Thing.cs"), "public class Thing { }\n", "public class Thing { int y; }\n"),
+        };
+        foreach (var name in new[] { "Second", "Third" })
+        {
+            Write(Path.Combine(_root, name, $"{name}.csproj"),
+                  "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+            Write(Path.Combine(_root, name, "A.cs"), "public class A { }\n");
+            changes.Add(new SourceChange(Path.Combine(_root, name, "A.cs"), "public class A { }\n", "public class A { int x; }\n"));
+        }
+
+        var line = _host.Check(changes, [], Budget).NotChecked.Single();
+
+        StringAssert.StartsWith(line, "3 - ");
+        foreach (var name in new[] { "Unrestored", "Second", "Third" }) StringAssert.Contains(line, name);
+        StringAssert.Contains(line, "not restored");
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-compile-check")]
     public void AUseOfWhatANeverBuiltDependencyDeclares_IsNotAnErrorTheEditIntroduced()
     {
         // Lib is restored and never built, so the app's reference to it names a file that is not there. Read from Lib's
