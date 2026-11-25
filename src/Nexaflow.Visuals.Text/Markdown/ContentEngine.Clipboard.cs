@@ -1,6 +1,8 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -14,9 +16,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </para>
 /// <para>
 /// <strong>The clipboard itself is the application's</strong>, shared with everything else in the window, so the engine
-/// asks for a copy to be put on it (<see cref="Copying"/>) and asks for what is on it to be written here
-/// (<see cref="Pasting"/>). A cut only takes the words away once somebody has answered, so nothing is lost to a copy that
-/// went nowhere.
+/// asks for a copy to be put on it and for what is on it to be written here (<see cref="IContentEvents"/>). A cut only takes
+/// the words away once the copy is there, so nothing is lost to a copy that went nowhere.
 /// </para>
 /// </summary>
 public sealed partial class ContentEngine
@@ -27,8 +28,8 @@ public sealed partial class ContentEngine
     /// </summary>
     internal IContentEvents? Events { get; set; }
 
-    /// <summary>Asks for what is picked out to go on the clipboard — the whole content where nothing is — and says whether it did.</summary>
-    internal bool Copied() => this.Events?.OnCopy(Copy()) == true;
+    /// <summary>Asks for what is picked out to go on the clipboard — the whole content where nothing is — and says whether anybody took it.</summary>
+    internal bool Copied() => this.Events?.OnCopy(Copy()) is not null;
 
     /// <summary>
     /// What goes on the clipboard. Pieces chosen whole are the words they draw: a slice's label is its label, and there is no
@@ -94,25 +95,34 @@ public sealed partial class ContentEngine
     internal bool Cut()
     {
         if (_readOnly || Stretch() is not { } chosen) return false;
-        if (this.Events?.OnCopy(MarkdownClipboard.Copied(_state.Document, chosen)) != true) return false;
+        if (this.Events?.OnCopy(MarkdownClipboard.Copied(_state.Document, chosen)) is not { } copied) return false;
 
-        Replace(_state.Write(string.Empty));
+        _ = TakeAwayOnceCopiedAsync(copied, _state);
         return true;
     }
 
     /// <summary>
-    /// Writes what is on the clipboard at the caret: the words go to the language the caret is in, which says what they come to
-    /// there and whose parser spells them; where it says nothing, the markdown they were copied as is written as it stands.
+    /// Takes away what was cut once its copy is on the clipboard — and only where nothing was written meanwhile, so what goes is
+    /// what was copied.
     /// </summary>
-    internal bool Paste()
+    private async Task TakeAwayOnceCopiedAsync(Task<bool> copied, EditState cutFrom)
     {
-        if (_readOnly || this.Events?.OnPaste() is not { } said) return false;
+        if (await copied && ReferenceEquals(_state, cutFrom)) Replace(cutFrom.Write(string.Empty));
+    }
 
-        if (said.Words.Length > 0 && Pasted(said.Words.ReplaceLineEndings("\n"))) return true;
-        if (said.Markdown.Length > 0) Replace(_state.Insert(said.Markdown.ReplaceLineEndings("\n")));
+    /// <summary>Asks for what is on the clipboard to be written at the caret, and says whether anybody took it on.</summary>
+    internal bool Paste() => !_readOnly && this.Events?.OnPaste() == true;
 
-        // Somebody answered, so the key was theirs whether or not anything came of it here.
-        return true;
+    /// <summary>
+    /// Writes what was pasted at the caret: the words go to the language the caret is in, which says what they come to there and
+    /// whose parser spells them; where it says nothing, the markdown they were copied as is written as it stands.
+    /// </summary>
+    internal void WritePasted(string words, string markdown)
+    {
+        if (_readOnly) return;
+
+        if (words.Length > 0 && Pasted(words.ReplaceLineEndings("\n"))) return;
+        if (markdown.Length > 0) Replace(_state.Insert(markdown.ReplaceLineEndings("\n")));
     }
 
     /// <summary>The stretch picked out, from where it starts and how long it is — null where nothing is.</summary>

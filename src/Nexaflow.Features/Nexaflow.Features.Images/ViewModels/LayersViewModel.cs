@@ -774,12 +774,18 @@ public sealed partial class LayersViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(HasDocumentNow))]
     private async Task Paste()
     {
-        if (_document is null || (await _shell.Clipboard.ReadAsync([DragKinds.Image])).Image() is not { } png) return;
-        // The document may have closed while the clipboard was read.
+        if ((await _shell.Clipboard.ReadAsync([DragKinds.Image])).Image() is { } png) PasteImage(png);
+    }
+
+    /// <summary>
+    /// <paramref name="png"/> as a layer above the active one: the picture copied here last coming back as deep as it was held,
+    /// where it lay; any other at the top left.
+    /// </summary>
+    internal void PasteImage(byte[] png)
+    {
         if (_document is not { } document) return;
         var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png));
         var name = Str.Get("Images.Layers.PastedName");
-        // The picture copied here last comes back as deep as it was held, where it lay.
         if (_copied is { } copied && copied.Hash == hash)
         {
             Insert(new PixelLayer { Name = name, Pixels = copied.Pixels });

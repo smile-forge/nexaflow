@@ -11,7 +11,9 @@ using System.Windows.Threading;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Dicom.Models;
 using Nexaflow.Features.Dicom.ViewModels;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common;
+using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Layout;
 using Nexaflow.Visuals.Common.Viewing;
 
@@ -103,8 +105,8 @@ public partial class DicomView : UserControl
     private static void CopyTag(object sender, System.Func<DicomTagItem, string> pick)
     {
         // The menu item's ContextMenu is opened over the tag row; its DataContext is the DicomTagItem.
-        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement { DataContext: DicomTagItem item } } })
-            try { Clipboard.SetText(pick(item) ?? string.Empty); } catch { /* clipboard busy */ }
+        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement { DataContext: DicomTagItem item } row } })
+            _ = ClipboardRouter.Write(row, ComposedPayload.OfText(pick(item) ?? string.Empty));
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

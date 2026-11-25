@@ -8,9 +8,9 @@ namespace Nexaflow.Features.Images.ViewModels;
 
 /// <summary>
 /// Pictures dropped anywhere on Artist: each a layer above the active one, or — on the start screen, which has no
-/// picture to layer them on — opened.
+/// picture to layer them on — opened. A picture pasted is a layer too, once a picture is open to layer it on.
 /// </summary>
-public sealed partial class ArtistViewModel : IDropTarget
+public sealed partial class ArtistViewModel : IDropTarget, IPasteTarget
 {
     private static readonly string[] PictureKinds = [DragKinds.Files, DragKinds.FileContents, DragKinds.Image];
 
@@ -45,5 +45,15 @@ public sealed partial class ArtistViewModel : IDropTarget
             Open(pictures[0]);
         else
             await Start.OpenAsLayersAsync(pictures);   // several, or with no place to be saved back to: a canvas of their own
+    }
+
+    private static readonly string[] PastedKinds = [DragKinds.Image];
+
+    public IReadOnlyList<string> PasteKinds => HasSession() ? PastedKinds : [];
+
+    public Task PasteAsync(IDragPayload pasted)
+    {
+        if (pasted.Image() is { } png && MakeLayered() is not null) Layers.PasteImage(png);
+        return Task.CompletedTask;
     }
 }

@@ -29,7 +29,7 @@ public sealed class FileSystemKeyboardHandler : IKeyboardHandler
         {
             (ConsoleKey.C, KeyModifiers.Control) => HasSelection,
             (ConsoleKey.X, KeyModifiers.Control) => HasSelection,
-            (ConsoleKey.V, KeyModifiers.Control) => _viewModel.ClipboardHoldsFiles,
+
             (ConsoleKey.Delete, KeyModifiers.None)  => HasSelection,
             (ConsoleKey.Delete, KeyModifiers.Shift) => HasSelection,
             // Shift+Enter opens the selected entry — the keyboard equivalent of double-clicking its row.
@@ -53,7 +53,7 @@ public sealed class FileSystemKeyboardHandler : IKeyboardHandler
         {
             (ConsoleKey.C, KeyModifiers.Control)    => _viewModel.TryExecuteAction<CopyFiles>(),
             (ConsoleKey.X, KeyModifiers.Control)    => _viewModel.TryExecuteAction<CutFiles>(),
-            (ConsoleKey.V, KeyModifiers.Control)    => _viewModel.TryExecuteAction<PasteFiles>(),
+
             // Shift+Del: FileActionViewModel.Execute() reads Keyboard.IsKeyDown(Shift) live,
             // so force=true is set automatically — no special handling needed here.
             (ConsoleKey.Delete, _)                  => _viewModel.TryExecuteAction<DeleteFile>(),

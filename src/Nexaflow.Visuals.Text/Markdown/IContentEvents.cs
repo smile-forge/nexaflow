@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 
 using Nexaflow.Markdown.Ast;
@@ -23,8 +24,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public interface IContentEvents
 {
-    /// <summary>A copy asked to be put on the clipboard, in every form it might be pasted as. True where somebody did.</summary>
-    bool OnCopy(MarkdownClipboard.ContentCopy copy);
+    /// <summary>
+    /// A copy asked to be put on the clipboard, in every form it might be pasted as. What came of it once it is somewhere: true
+    /// where it was put there, false where it could not be; null where nobody took it.
+    /// </summary>
+    Task<bool>? OnCopy(MarkdownClipboard.ContentCopy copy);
 
     /// <summary>
     /// A link to be followed, where it leads out of the content. True where somebody followed it. A link within the same
@@ -46,11 +50,11 @@ public interface IContentEvents
     bool OnDoubleClick(ContentSelectionChange change);
 
     /// <summary>
-    /// What is on the clipboard, taken off it and said as plain words and as markdown — the translating is the host's, because
-    /// a clipboard holds whatever put something there. Null where nobody answered; both empty where somebody did and there was
-    /// nothing here to write.
+    /// What is on the clipboard asked to be written at the caret. Whoever answers reads it, and says what it comes to as plain
+    /// words and as markdown — the translating is the host's, because a clipboard holds whatever put something there — writing
+    /// that through the engine, now or once the clipboard has answered. True where somebody took it on.
     /// </summary>
-    (string Words, string Markdown)? OnPaste();
+    bool OnPaste();
 
     /// <summary>A picture of <paramref name="block"/>, which only whatever painted it can draw. Null where it cannot be drawn.</summary>
     BitmapSource? OnPicture(ContentPart block);

@@ -13,7 +13,7 @@ using Nexaflow.Visuals.Terminal.ViewModels;
 namespace Nexaflow.Visuals.Terminal.Views;
 
 [ViewFor(typeof(TerminalViewModel))]
-public partial class TerminalView : UserControl, IDropTarget
+public partial class TerminalView : UserControl, IDropTarget, IPasteTarget
 {
     public TerminalViewModel ViewModel { get; }
 
@@ -107,7 +107,7 @@ public partial class TerminalView : UserControl, IDropTarget
         // Ctrl+V (and Ctrl+Shift+V) pastes, as modern terminals do, rather than sending a literal ^V.
         if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
         {
-            if (Clipboard.ContainsText()) ViewModel.SendText(Clipboard.GetText());
+            ApplicationCommands.Paste.Execute(null, this);
             e.Handled = true;
             return;
         }
@@ -150,17 +150,28 @@ public partial class TerminalView : UserControl, IDropTarget
         return Task.CompletedTask;
     }
 
+    private static readonly string[] PastedKinds = [DragKinds.Text];
+
+    public IReadOnlyList<string> PasteKinds => PastedKinds;
+
+    /// <summary>Words pasted are typed into the shell.</summary>
+    public Task PasteAsync(IDragPayload pasted)
+    {
+        if (pasted.Text() is { } text) ViewModel.SendText(text);
+        return Task.CompletedTask;
+    }
+
     private void CopyTerminal_Click(object sender, RoutedEventArgs e) => CopyTerminalText();
 
     private void CopyTerminalText()
     {
         var text = (string.Join("\n", ViewModel.Scrollback) + "\n" + ViewModel.ScreenText).Trim();
-        try { Clipboard.SetText(text); } catch { /* clipboard busy */ }
+        _ = ClipboardRouter.Write(this, ComposedPayload.OfText(text));
     }
 
     private void PasteTerminal_Click(object sender, RoutedEventArgs e)
     {
-        if (Clipboard.ContainsText()) ViewModel.SendText(Clipboard.GetText());
+        ApplicationCommands.Paste.Execute(null, this);
     }
 
     // ── Files panel: navigate on double-click, drag a file out as its path ────

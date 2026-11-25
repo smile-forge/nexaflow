@@ -106,6 +106,9 @@ public interface IUsbToolHost
     /// nothing in the app opens it.</summary>
     bool OpenFile(string path);
 
+    /// <summary>Puts <paramref name="text"/> on the clipboard; false when another application held it open.</summary>
+    Task<bool> CopyTextAsync(string text);
+
     /// <summary>Where a file with no path on this PC is fetched to be opened (<see cref="Nexaflow.IO.Common.Stores.IStoreBrowserHost.FetchedFilesFolder"/>).</summary>
     string FetchedFilesFolder { get; }
 

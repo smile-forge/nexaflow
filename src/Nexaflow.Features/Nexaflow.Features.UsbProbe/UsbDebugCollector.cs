@@ -111,6 +111,8 @@ sealed class UsbDebugCollector(IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>
         public UsbIdsDatabase? Names => names.Current;
         public IUsbDeviceBroker DriverBroker { get; } = ReadOnlyUsbDeviceBroker.ForMachine();
         public Task RunOnUiAsync(Action action) => shell.RunOnUiAsync(action);
+
+        public Task<bool> CopyTextAsync(string text) => shell.Clipboard.WriteAsync(ComposedPayload.OfText(text));
         public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct, string? confirmLabel = null) => Task.FromResult(false);
         public Task<string?> PromptAsync(string title, string label, string initialValue) => Task.FromResult<string?>(null);
         public bool OpenFile(string path) => false;

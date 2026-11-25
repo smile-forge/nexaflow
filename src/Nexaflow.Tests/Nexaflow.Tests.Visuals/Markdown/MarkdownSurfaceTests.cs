@@ -3,6 +3,7 @@ using System.Linq;
 using System.Windows;
 
 using System.Windows.Input;
+using Nexaflow.Interaction;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Rtf;
@@ -178,7 +179,7 @@ public class MarkdownSurfaceTests
 
         Assert.IsNotNull(asked[0].Picture, "the picture the diagram draws");
         StringAssert.Contains(asked[0].Markdown, "firefox", "and the lines it is written as");
-        Assert.IsTrue(MarkdownClipboard.Data(asked[0]).GetDataPresent(DataFormats.Bitmap), "both of them on the clipboard");
+        Assert.IsTrue(MarkdownClipboard.Payload(asked[0]).Contains(DragKinds.Image), "both of them on the clipboard");
     });
 
     [TestMethod]
@@ -217,7 +218,7 @@ public class MarkdownSurfaceTests
 
         Assert.IsNull(asked[0].Picture);
         StringAssert.Contains(asked[0].Markdown, "var x = 1;", "the code, which is the best copy of code there is");
-        Assert.IsFalse(MarkdownClipboard.Data(asked[0]).GetDataPresent(DataFormats.Bitmap));
+        Assert.IsFalse(MarkdownClipboard.Payload(asked[0]).Contains(DragKinds.Image));
     });
 
     [TestMethod]

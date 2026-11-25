@@ -37,7 +37,7 @@ namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 // ── Main ViewModel ────────────────────────────────────────────────────────────
 
-public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISearchable
+public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISearchable, IPasteTarget
 {
     [ObservableProperty] private string _currentPath = string.Empty;
     [ObservableProperty] private FileSystemEntry? _selectedEntry;
@@ -548,11 +548,14 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     /// <summary>
     /// Watches the open folder while the view is loaded, so the list keeps up with what changes there — a file added or
     /// deleted elsewhere, one a sync provider downloads, freed or failed to sync — without the reader refreshing. Coming back
-    /// after being away catches up on what changed meanwhile.
+    /// after being away catches up on what changed meanwhile. The clipboard is listened to as long, so the strip's Paste keeps
+    /// up with what is copied, here or anywhere else.
     /// </summary>
     public void AttachFolderWatching()
     {
         _watchingFolder = true;
+        _shell.Clipboard.KindsChanged -= OnClipboardChanged;
+        _shell.Clipboard.KindsChanged += OnClipboardChanged;
         WatchCurrentFolder();
         if (!_missedFolderChanges) return;
         _missedFolderChanges = false;
@@ -562,6 +565,7 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     public void DetachFolderWatching()
     {
         _watchingFolder = false;
+        _shell.Clipboard.KindsChanged -= OnClipboardChanged;
         if (_folderWatch is not null) _missedFolderChanges = true;
         _folderWatch?.Dispose();
         _folderWatch = null;
@@ -642,12 +646,14 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     /// </summary>
     public bool TryExecuteAction<T>() where T : class
     {
-        var vm = FileActions.FirstOrDefault(a => a.Action is T ||
-                     (a.Action is FolderActionAdapter adapter && adapter.Inner is T));
-        if (vm?.ExecuteCommand.CanExecute(null) != true) return false;
+        if (ActionOf<T>() is not { } vm || !vm.ExecuteCommand.CanExecute(null)) return false;
         vm.ExecuteCommand.Execute(null);
         return true;
     }
+
+    /// <summary>The strip's action of type <typeparamref name="T"/>, where the strip offers one now.</summary>
+    private FileActionViewModel? ActionOf<T>() where T : class
+        => FileActions.FirstOrDefault(a => a.Action is T || (a.Action is FolderActionAdapter adapter && adapter.Inner is T));
 
     public IReadOnlyList<FileActionViewModel> BuildContextActions(IReadOnlyList<FileSystemEntry> entries)
     {
@@ -726,7 +732,7 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     {
         var selected = _pendingSelection;
 
-        // Snapshot CanPerformAction here on the STA UI thread (OLE clipboard).
+        // Snapshot CanPerformAction here, on the UI thread whose state the actions read.
         var canPerform = _actionRegistry.SnapshotCanPerform();
 
         bool onlyFolders = selected.Count > 0 && selected.All(e => e.IsDirectory);
@@ -2225,7 +2231,20 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
         ResortEntries();
     }
 
-    /// <summary>Whether the clipboard holds files a paste here would bring in.</summary>
-    public bool ClipboardHoldsFiles => _shell.Clipboard.Kinds.Contains(DragKinds.Files);
+    /// <summary>Files pasted here land in the open folder, as the strip's Paste puts them there — while the strip offers it.</summary>
+    public IReadOnlyList<string> PasteKinds => ActionOf<PasteFiles>() is not null ? PasteFiles.PastedKinds : [];
+
+    public Task PasteAsync(IDragPayload pasted)
+    {
+        PasteFiles.Paste(pasted, CurrentPath, Operations, _shell.Clipboard);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>What the clipboard holds changed: the strip is read again, so Paste comes and goes with files there.</summary>
+    private void OnClipboardChanged(object? sender, EventArgs e)
+    {
+        _actionDebounceTimer.Stop();
+        _actionDebounceTimer.Start();
+    }
 
 }

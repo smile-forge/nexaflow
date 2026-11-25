@@ -4,7 +4,9 @@ using System.Windows.Controls;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.Interaction;
 using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Dropping;
 
 namespace Nexaflow.Core.Controls;
 
@@ -88,8 +90,8 @@ public partial class PageLoadErrorView : UserControl
 
     private void OnCopyClick(object sender, RoutedEventArgs e)
     {
-        try { Clipboard.SetText(_details); }
-        catch { /* the clipboard can be held by another process; not worth a second error surface */ }
+        // The clipboard can be held by another process; not worth a second error surface.
+        _ = ClipboardRouter.Write(this, ComposedPayload.OfText(_details));
     }
 
     private void OnComponentsClick(object sender, RoutedEventArgs e)

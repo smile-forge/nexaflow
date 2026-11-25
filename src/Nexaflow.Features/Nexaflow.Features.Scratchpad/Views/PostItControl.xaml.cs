@@ -59,6 +59,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl, IDropT
         // A picture, a file or a link is this note's to say what it comes to; where it goes is the editor's.
         Editor.Dropping += OnContentDropped;
         Editor.Pasting += OnContentPasted;
+        Editor.PasteKinds = [.. DroppedMedia.Kinds, MarkdownClipboard.MarkdownFormat];
     }
 
     // ── Drag-and-drop onto the note ───────────────────────────────────────
@@ -93,13 +94,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl, IDropT
     {
         if (e.Handled) return;
 
-        IDataObject? held;
-        try { held = Clipboard.GetDataObject(); }
-        catch (System.Runtime.InteropServices.ExternalException) { return; }
-
-        if (held is null) return;
-
-        var data = new WindowsDragPayload(held);
+        var data = e.Payload;
         bool rich = DroppedMedia.TryGetSingleUrl(data, out _)
                  || data.CarriesFiles()
                  || data.Contains(DragKinds.Image);

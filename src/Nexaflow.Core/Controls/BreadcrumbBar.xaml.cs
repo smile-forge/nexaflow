@@ -11,6 +11,8 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
 using Nexaflow.Localization;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
 
 namespace Nexaflow.Core.Controls;
 
@@ -303,28 +305,17 @@ public partial class BreadcrumbBar : UserControl
     /// names none — a null <see cref="FrameworkElement.ContextMenu"/> lets the right-click bubble to the
     /// nearest ancestor that has one, which is how a pathless crumb still answers with the current location.
     /// </summary>
-    private static ContextMenu? CopyPathMenu(string? path)
+    private ContextMenu? CopyPathMenu(string? path)
     {
         if (string.IsNullOrEmpty(path)) return null;
 
-        var item = new MenuItem
-        {
-            Header           = Str.Get("Shell.Breadcrumb.CopyPath"),
-            Command          = CopyPathCommand,
-            CommandParameter = path,
-        };
+        var item = new MenuItem { Header = Str.Get("Shell.Breadcrumb.CopyPath") };
+        // Another process can hold the clipboard open; failing to copy is not worth an error dialog.
+        item.Click += (_, _) => _ = ClipboardRouter.Write(this, ComposedPayload.OfText(path));
         AutomationProperties.SetAutomationId(item, "Breadcrumb_CopyPath");
 
         var menu = new ContextMenu();
         menu.Items.Add(item);
         return menu;
     }
-
-    /// <summary>Shared by every crumb's menu item; the path it copies is the item's command parameter.</summary>
-    private static readonly ICommand CopyPathCommand = new RelayCommand<string>(path =>
-    {
-        if (string.IsNullOrEmpty(path)) return;
-        // Another process can hold the clipboard open; failing to copy is not worth an error dialog.
-        try { Clipboard.SetText(path); } catch { /* clipboard busy */ }
-    });
 }

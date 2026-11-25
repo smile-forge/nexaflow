@@ -443,11 +443,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
 
     /// <summary>The picture on the clipboard as a new layer — the photo made a layered picture first, where it is not one yet.</summary>
     [RelayCommand(CanExecute = nameof(HasSession))]
-    private void PasteAsLayer()
-    {
-        if (!_shell.Clipboard.Kinds.Contains(DragKinds.Image) || MakeLayered() is null) return;
-        Layers.PasteCommand.Execute(null);
-    }
+    private async Task PasteAsLayer() => await PasteAsync(await _shell.Clipboard.ReadAsync(PastedKinds));
 
     /// <summary>
     /// The layered picture at <paramref name="path"/> opened for editing over its merged image — on its saved look where it holds a

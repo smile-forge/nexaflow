@@ -128,6 +128,14 @@ internal sealed class RecordingHost : IUsbToolHost
         return Task.CompletedTask;
     }
 
+    public List<string> Copied { get; } = [];
+
+    public Task<bool> CopyTextAsync(string text)
+    {
+        Copied.Add(text);
+        return Task.FromResult(true);
+    }
+
     public string? Answer;
     public readonly List<string> OpenedFiles = [];
 

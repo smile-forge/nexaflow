@@ -84,14 +84,9 @@ public static class MarkdownClipboard
     private static readonly HtmlDocumentWriter Html = new(new HtmlWriting { Anchors = true });
 
     /// <summary>
-    /// Extracts the best markdown representation from a clipboard / drag payload:
-    /// the custom <see cref="MarkdownFormat"/> if present, else HTML converted to
-    /// markdown, else plain text. Returns null if the payload carries none of these.
+    /// Extracts the best markdown representation from a clipboard or drag payload: the custom <see cref="MarkdownFormat"/> if
+    /// present, else HTML converted to markdown, else plain text. Returns null if the payload carries none of these.
     /// </summary>
-    public static string? ReadBestMarkdown(IDataObject? data)
-        => data is null ? null : ReadBestMarkdown(new WindowsDragPayload(data));
-
-    /// <inheritdoc cref="ReadBestMarkdown(IDataObject?)"/>
     public static string? ReadBestMarkdown(IDragPayload data)
     {
         if (data.Read(MarkdownFormat) is string { Length: > 0 } md) return md;
@@ -110,7 +105,7 @@ public static class MarkdownClipboard
     }
 
     /// <summary>
-    /// The clipboard's plain text, ignoring its richer flavours.
+    /// The payload's plain text, ignoring its richer flavours.
     /// <para>
     /// For a surface whose content is source rather than prose — a formula — this is the only honest
     /// reading. Converting the HTML flavour to markdown is meaningful for text and destructive for
@@ -119,10 +114,6 @@ public static class MarkdownClipboard
     /// should be typed.
     /// </para>
     /// </summary>
-    public static string? ReadPlainText(IDataObject? data)
-        => data is null ? null : ReadPlainText(new WindowsDragPayload(data));
-
-    /// <inheritdoc cref="ReadPlainText(IDataObject?)"/>
     public static string? ReadPlainText(IDragPayload data) => data.Text();
 
     // ── Selection → source range ────────────────────────────────────────────
@@ -236,21 +227,24 @@ public static class MarkdownClipboard
     }
 
     /// <summary>
-    /// What a copy looks like to a clipboard: the markdown in a format of its own, the plain words, and the marked-up text.
-    /// Built, not set — putting it on the clipboard is whoever holds the clipboard's to do.
+    /// <paramref name="copy"/> as what goes on a clipboard: its words, its markdown as the app's own kind, its marked-up text, and
+    /// — for a block that draws a picture — the picture, as PNG. Whatever it is pasted into takes the one it can use: a document
+    /// takes the picture, an editor takes the markdown, and neither has to be asked which was meant.
     /// </summary>
-    public static IDataObject Data(ContentCopy copy)
+    public static ComposedPayload Payload(ContentCopy copy)
     {
-        var data = new DataObject();
-        data.SetData(DataFormats.UnicodeText, copy.Text);
-        data.SetData(DataFormats.Text, copy.Text);
-        data.SetData(MarkdownFormat, copy.Markdown);
-        if (copy.Html.Length > 0) data.SetData(DataFormats.Html, copy.Html);
+        var payload = ComposedPayload.OfText(copy.Text).With(MarkdownFormat, copy.Markdown);
+        if (copy.Html.Length > 0) payload = payload.With(DragKinds.Html, copy.Html);
+        if (copy.Picture is { } picture) payload = payload.With(DragKinds.Image, Png(picture));
+        return payload;
+    }
 
-        // A block that draws a picture carries it too, so whatever the copy is pasted into takes the one it can use: a
-        // document takes the picture, an editor takes the markdown, and neither has to be asked which was meant.
-        if (copy.Picture is not null) data.SetImage(copy.Picture);
-
-        return data;
+    private static byte[] Png(BitmapSource picture)
+    {
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(picture));
+        using var png = new System.IO.MemoryStream();
+        encoder.Save(png);
+        return png.ToArray();
     }
 }
