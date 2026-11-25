@@ -454,6 +454,10 @@ internal static class TexTypesetter
     private static Glyph? DelimiterGlyph(ContentPart side) =>
         Meant(side) is TexDelimiter { Symbol: { } symbol } ? Glyph.Of(symbol) with { Origin = side } : null;
 
+    /// <summary>Whether one side of a fence names a delimiter at all: one with a glyph, or <c>.</c>, the one that draws nothing.</summary>
+    private static bool Delimits(ContentPart side) =>
+        DelimiterGlyph(side) is not null || side.Part(TexRole.Argument) is { Text: "." };
+
     /// <summary>Classes that make a binary operator after them an ordinary atom.</summary>
     private static readonly HashSet<TexAtomType> OperandsNot =
         [TexAtomType.BinaryOperator, TexAtomType.BigOperator, TexAtomType.Relation, TexAtomType.Opening, TexAtomType.Punctuation];
@@ -2014,7 +2018,11 @@ internal static class TexTypesetter
             rows.Add(cells);
         }
 
-        if (rows.Count == 0) return null;
+        // No line written in it is one empty cell: \substack{} before its first line is typed, or an environment opened and
+        // closed at once, sets as nothing between its delimiters rather than as source. While somebody is writing, the hole
+        // the parse put in it is that cell.
+        if (rows.Count == 0)
+            rows.Add([environment.Parts.FirstOrDefault(piece => piece.Kind == Kinds.Hole) is { } hole ? HoleItem(hole) : NullItem()]);
 
         var columns = rows.Max(row => row.Count);
         if (columns == 0) return null;
@@ -2134,8 +2142,11 @@ internal static class TexTypesetter
         {
             if (!suppressOuterPadding) return (0, 0);
 
+            // A rule at the table's edge keeps the gap on that side, as TeX's array does, so the letters never touch it.
             var half = horizontalPadding / 2;
-            return (column == 0 ? -half : 0, column == columnCount - 1 ? -half : 0);
+            var ruledLeft = columnSpec?.VerticalRules.Contains(0) == true;
+            var ruledRight = columnSpec?.VerticalRules.Contains(columnCount) == true;
+            return (column == 0 && !ruledLeft ? -half : 0, column == columnCount - 1 && !ruledRight ? -half : 0);
         }
 
         var columnEdges = new List<double>();
@@ -2171,11 +2182,16 @@ internal static class TexTypesetter
                 placed.Add((cell, left + outerLeft, right + outerRight));
             }
 
-            // Every cell on the row's baseline; a line's room between rows, but none above the first or below the last.
+            // Every cell on the row's baseline; a line's room between rows, but none above the first or below the last —
+            // unless a rule is drawn there, which then needs the row's strut between it and the letters, as TeX's \hline has.
             var ascent = placed.Count > 0 ? placed.Max(p => p.Cell.Height) : 0.0;
             var descent = placed.Count > 0 ? placed.Max(p => p.Cell.Depth) : 0.0;
-            var rowAscent = r == 0 ? ascent : System.Math.Max(ascent + lineSkip, rowStrutHeight);
-            var rowDescent = r == cells.Length - 1 ? descent : System.Math.Max(descent, rowStrutDepth);
+            var ruledAbove = horizontalRules?.Contains(r) == true;
+            var ruledBelow = horizontalRules?.Contains(r + 1) == true;
+            var rowAscent = r == 0
+                ? ruledAbove ? System.Math.Max(ascent, rowStrutHeight) : ascent
+                : System.Math.Max(ascent + lineSkip, rowStrutHeight);
+            var rowDescent = r == cells.Length - 1 && !ruledBelow ? descent : System.Math.Max(descent, rowStrutDepth);
             var halfPadding = verticalPadding / 2;
 
             var edgesFromThisRow = columnEdges.Count == 0 && placed.Count == columnCount;
@@ -2235,10 +2251,23 @@ internal static class TexTypesetter
     private static Item? Fenced(ContentPart part, string? style)
     {
         if (part.Part(Roles.Body) is not { } body) return null;
-        if (Piece(body, style) is not { } inside) return null;
+
+        // Nothing between the delimiters is still a fence: \left( \right) is the pair grown to the height of nothing, as
+        // TeX sets it, and what a palette key writes before the reader has typed what goes inside.
+        if (Pieces(body.Parts, style) is not { } built) return null;
+        var inside = built.Count switch
+        {
+            0 => NullItem(),
+            1 => built[0],
+            _ => Sequenced(built, body),
+        };
 
         if (part.Part(Roles.Open) is not { } open) return null;
         if (part.Part(Roles.Close) is not { } close) return null;
+
+        // Each side has to be a delimiter — \left. included, which is one that draws nothing. Anything else written there is
+        // a fence nothing knows how to draw, not one with that side left off.
+        if (!Delimits(open) || !Delimits(close)) return null;
 
         var left = DelimiterGlyph(open);
         var right = DelimiterGlyph(close);
@@ -2341,8 +2370,17 @@ internal static class TexTypesetter
         if (spaced) letters.Add(SpaceItem(TexUnit.Mu, 3));
 
         foreach (var leaf in leaves)
+        {
+            // Words not typed yet are a hole like any other argument's: a slot in the line, not nothing at all.
+            if (leaf.Kind == Kinds.Hole)
+            {
+                letters.Add(HoleItem(leaf));
+                continue;
+            }
+
             foreach (var letter in leaf.Text)
                 letters.Add(char.IsWhiteSpace(letter) ? SpaceItem(null, 0) : GlyphItem(Glyph.Letter(letter, style) with { Origin = leaf }));
+        }
 
         if (spaced) letters.Add(SpaceItem(TexUnit.Mu, 3));
 
@@ -2351,7 +2389,7 @@ internal static class TexTypesetter
 
     /// <summary>The pieces of the reading a part is written with, in order: every one that stands for characters.</summary>
     private static IEnumerable<ContentPart> Leaves(ContentPart part) =>
-        part.SelfAndDescendants().Where(piece => piece.Children.Count == 0 && !piece.Derived && piece.Length > 0);
+        part.SelfAndDescendants().Where(piece => piece.Children.Count == 0 && (piece.Kind == Kinds.Hole || (!piece.Derived && piece.Length > 0)));
 
     /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>
     private static int Order(ContentPart whole, string role)

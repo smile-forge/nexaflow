@@ -123,12 +123,13 @@ internal sealed record Set
     public static Set Placeholder(TexEnvironment environment)
     {
         // How far across the em the box runs and how far up — squat enough to read as a slot — and a line thin enough
-        // not to read as ink.
+        // not to read as ink. A set is measured in ems, so the floor under the line is the font's own rule in this style
+        // — no thinner than a fraction bar beside it — and it shrinks with the style as everything else in a script does.
         const double widthInEm = 0.55, heightInEm = 0.62, hairline = 0.07;
 
         var size = environment.MathFont.GetXHeight(environment.Style, environment.LastFontId);
         var width = size * (widthInEm / heightInEm);
-        var thickness = System.Math.Max(size * hairline, 0.4);
+        var thickness = System.Math.Max(size * hairline, environment.MathFont.GetDefaultLineThickness(environment.Style));
         var foreground = environment.Foreground;
 
         return new()
