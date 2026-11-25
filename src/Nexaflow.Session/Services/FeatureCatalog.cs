@@ -148,7 +148,6 @@ public sealed class FeatureCatalog
     {
         _onActivated = onActivated;
 
-
         var version = _appVersion;
         var stamp   = FeatureCatalogStamp.Capture(_exeDir, _shellFiles, _log);
 
