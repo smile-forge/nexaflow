@@ -83,9 +83,14 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// <summary>The live workspaces, whose runtime of the configured one is rebuilt when an applied edit closes the panel.</summary>
     private readonly WorkspaceRuntimes _runtimes;
 
+    /// <summary>The session's configuration: the editing copies are read from the workspace's folder and applied back through it,
+    /// and what rules on a setting shows as it rules.</summary>
+    private readonly ConfigManager _config;
+
     /// <param name="workspace">The workspace the panel configures.</param>
-    /// <param name="session">What the window has of the session: the feature system that knows the workspace-scoped configs, the
-    /// provider pool, the saved workspaces and the live runtimes.</param>
+    /// <param name="session">What the window has of the session: the configuration the workspace's settings are read and saved
+    /// through, the feature system that knows the workspace-scoped configs, the provider pool, the saved workspaces and the live
+    /// runtimes.</param>
     /// <param name="shell">The shell of the window the panel is in: an <see cref="Nexaflow.Features.Common.IShellAware"/> page is
     /// handed it, and a path is browsed for with its pickers.</param>
     public WorkspaceConfigViewModel(Workspace workspace, WindowServices session, Nexaflow.Features.Common.IShellServices? shell = null)
@@ -95,6 +100,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _providers       = session.Providers;
         _savedWorkspaces = session.SavedWorkspaces;
         _runtimes        = session.Workspaces;
+        _config          = session.Config;
         _shell   = shell;
         _title   = Str.Format("Shell.Workspace.Configure.TitleFormat", workspace.Name);
 
@@ -105,13 +111,13 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         var dir = workspace.Dir;
 
         _aiConfig = new AiConfig();
-        ConfigManager.Instance.LoadFrom(dir, _aiConfig, _aiConfig.ConfigName);
+        _config.LoadFrom(dir, _aiConfig, _aiConfig.ConfigName);
 
         _persona = new AiPersonaConfig();
-        ConfigManager.Instance.LoadFrom(dir, _persona, _persona.ConfigName);
+        _config.LoadFrom(dir, _persona, _persona.ConfigName);
 
         _providerConfigs  = _providers.LoadProviderConfigs(dir);
-        _workspaceConfigs = LoadEditingWorkspaceConfigs(dir, _features);
+        _workspaceConfigs = LoadEditingWorkspaceConfigs(dir);
 
         // Capability instances for the ability grid's model lists (model-agnostic; columns: none).
         _editingProviderSet  = _providers.AcquireProviderSet(_providerConfigs, []);
@@ -157,12 +163,12 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids, tools)),
                                                               "downloaded-models", Str.Get("Shell.Config.Downloaded.Title")));
         }
-        Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName, _shell));
+        Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName, _config, _shell));
         foreach (var config in _providerConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _shell));
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _config, _shell));
 
         foreach (var config in _workspaceConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _shell));
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _config, _shell));
     }
 
     private ConfigEditViewModel GridSection(System.Windows.FrameworkElement control, string configName, string title)
@@ -180,10 +186,10 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     private IReadOnlyList<(string Workspace, AiConfig Config)> SavedGrids()
         => [.. _savedWorkspaces.Workspaces.Select(w => (w.Name, ReferenceEquals(w, _workspace) ? _aiConfig : SavedGrid(w)))];
 
-    private static AiConfig SavedGrid(Workspace workspace)
+    private AiConfig SavedGrid(Workspace workspace)
     {
         var config = new AiConfig();
-        ConfigManager.Instance.LoadFrom(workspace.Dir, config, config.ConfigName);
+        _config.LoadFrom(workspace.Dir, config, config.ConfigName);
         return config;
     }
 
@@ -192,7 +198,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     {
         try
         {
-            ConfigManager.Instance.SaveTo(_workspace.Dir, _aiConfig, _aiConfig.ConfigName);
+            _config.SaveTo(_workspace.Dir, _aiConfig, _aiConfig.ConfigName);
             _dirty = true;
             foreach (var s in _gridSections) s.ResetChanges();
             return true;
@@ -204,13 +210,13 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         }
     }
 
-    private static List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir, FeatureManager features)
+    private List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)
     {
         var list = new List<IFeatureConfig>();
-        foreach (var t in features.WorkspaceScopedConfigTypes)
+        foreach (var t in _features.WorkspaceScopedConfigTypes)
         {
             var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
-            ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);
+            _config.LoadFrom(dir, cfg, cfg.ConfigName);
             list.Add(cfg);
         }
         return list;
@@ -321,7 +327,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
         try
         {
-            ConfigManager.Instance.SaveTo(_workspace.Dir, section.RealConfig, section.ConfigName);
+            _config.SaveTo(_workspace.Dir, section.RealConfig, section.ConfigName);
             section.ResetChanges();
             _dirty = true;
 

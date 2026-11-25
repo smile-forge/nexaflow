@@ -12,17 +12,20 @@ namespace Nexaflow.Core.Services;
 public sealed class WorkspaceConnections
 {
     private readonly string _dir;
+    private readonly ConfigManager _configuration;
     private readonly ISecretStore _secrets;
     private readonly ConnectionsConfig _config = new();
     private readonly Lock _gate = new();
 
     /// <param name="dir">The workspace's folder.</param>
+    /// <param name="configuration">The session's configuration, which the connections are read and saved through.</param>
     /// <param name="secrets">Where the connections' secrets are kept.</param>
-    public WorkspaceConnections(string dir, ISecretStore secrets)
+    public WorkspaceConnections(string dir, ConfigManager configuration, ISecretStore secrets)
     {
-        _dir     = dir;
-        _secrets = secrets;
-        ConfigManager.Instance.LoadFrom(dir, _config, ConnectionsConfig.Name);
+        _dir           = dir;
+        _configuration = configuration;
+        _secrets       = secrets;
+        configuration.LoadFrom(dir, _config, ConnectionsConfig.Name);
     }
 
     /// <summary>Every saved connection, in the order they were added.</summary>
@@ -90,5 +93,5 @@ public sealed class WorkspaceConnections
     /// <summary>Ids compare as the file system's location roots do, ignoring case.</summary>
     private static bool SameId(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
-    private void Persist() => ConfigManager.Instance.SaveTo(_dir, _config, ConnectionsConfig.Name);
+    private void Persist() => _configuration.SaveTo(_dir, _config, ConnectionsConfig.Name);
 }

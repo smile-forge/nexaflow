@@ -112,11 +112,11 @@ public sealed class AIService : IAIService, IDisposable
     public PictureChoices? EditsPictures => PictureChoicesOf(ImageEditor, AllowsAdultContent);
 
         /// <summary>Whether the app allows adult content: not while Enhanced AI Protection Mode is on, as it is by default
-        /// (<see cref="ProtectedAudience"/>). Read where it is offered, so a change applies to the next choice made.</summary>
-    private static bool AllowsAdultContent => !ProtectedAudience.IsOn;
+        /// (<see cref="ShellConfig.EnhancedAiProtection"/>). Read where it is offered, so a change applies to the next choice made.</summary>
+    private bool AllowsAdultContent => !_shell.EnhancedAiProtection;
 
         /// <summary>The check every picture made passes while Enhanced AI Protection Mode is on; null while it is off.</summary>
-        private Generation.IPictureCheck? PictureCheck => ProtectedAudience.IsOn ? _pool.Service<Tools.PictureChecking>() : null;
+        private Generation.IPictureCheck? PictureCheck => _shell.EnhancedAiProtection ? _pool.Service<Tools.PictureChecking>() : null;
 
     /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
     private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model, bool allowsAdultContent)
@@ -301,9 +301,9 @@ public sealed class AIService : IAIService, IDisposable
         var info = await InfoOfAsync(provider, ct);
         string key = $"{column.ProviderName}/{column.Model}";
         return info?.Background is { } background
-            ? new Documents.WorkspaceDocumentModel(provider, key, background.ContextTokens, background.RepliesAtOnce, sharesContext: false)
+            ? new Documents.WorkspaceDocumentModel(provider, key, background.ContextTokens, _shell, background.RepliesAtOnce, sharesContext: false)
             : new Documents.WorkspaceDocumentModel(provider, key, info?.ContextWindowTokens is > 0 and var tokens ? tokens : OwnedFallbackContext,
-                                                   info?.RepliesAtOnce);
+                                                   _shell, info?.RepliesAtOnce);
     }
 
     /// <summary>
@@ -416,7 +416,7 @@ public sealed class AIService : IAIService, IDisposable
 
         // Fold in shell-level context + tools (local time, workspace, open windows/tabs, and the shell tools)
         // alongside the active page's.
-        var shellCtx = new ShellAi.ShellAiContext(_workspace, _features);
+        var shellCtx = new ShellAi.ShellAiContext(_workspace, _features, _security);
         tools.AddRange(shellCtx.BuildTools(scope));
 
         // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now, or one of
@@ -569,6 +569,12 @@ public sealed class AIService : IAIService, IDisposable
     /// background tasks a document job reports to.</summary>
     private readonly ProviderManager _pool;
 
+    /// <summary>The shell's settings: whether Enhanced AI Protection Mode frames every prompt and keeps adult content out.</summary>
+    private readonly ShellConfig _shell;
+
+    /// <summary>The security settings: whether the assistant may see the open windows.</summary>
+    private readonly SecurityConfig _security;
+
     /// <summary>Where each ability stands, and the offer of a download it waits on.</summary>
     private readonly AbilityReadiness _readiness;
 
@@ -579,15 +585,19 @@ public sealed class AIService : IAIService, IDisposable
     /// <param name="workspace">The runtime this assistant serves.</param>
     /// <param name="features">The session's feature system, which builds the runtime's query handlers and reopens a conversation's pages.</param>
     /// <param name="pool">The session's provider pool, whose app-wide services the assistant uses.</param>
+    /// <param name="shell">The shell's settings, whose Enhanced AI Protection Mode frames every prompt the assistant makes.</param>
+    /// <param name="security">The security settings, which say whether the assistant may see the open windows.</param>
     /// <param name="conversationsDir">Full path to the directory where this workspace's conversations are stored.</param>
     /// <param name="helpTools">The tools that read the help the app ships — the session's, none where it ships no help.</param>
     /// <param name="jobs">Where slow tool calls run on in the background; without it, every call is waited for.</param>
-    public AIService(WorkspaceRuntime workspace, FeatureManager features, ProviderManager pool, string conversationsDir,
-                     IReadOnlyList<IClientTool> helpTools, BackgroundJobs? jobs = null)
+    public AIService(WorkspaceRuntime workspace, FeatureManager features, ProviderManager pool, ShellConfig shell, SecurityConfig security,
+                     string conversationsDir, IReadOnlyList<IClientTool> helpTools, BackgroundJobs? jobs = null)
     {
         _workspace = workspace;
         _features  = features;
         _pool      = pool;
+        _shell     = shell;
+        _security  = security;
         _baseDir   = conversationsDir;
         _helpTools = helpTools;
         _jobs      = jobs;
@@ -807,7 +817,7 @@ public sealed class AIService : IAIService, IDisposable
 
         // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, ProtectedAudience.Framed(systemPrompt)), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
+            [new(LlmRole.System, Framed(systemPrompt)), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
         return response?.RawText;
     }
 
@@ -949,7 +959,7 @@ public sealed class AIService : IAIService, IDisposable
         }
 
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, ProtectedAudience.Framed(systemPrompt)), new(LlmRole.User, userPrompt)], ct);
+            [new(LlmRole.System, Framed(systemPrompt)), new(LlmRole.User, userPrompt)], ct);
         return response?.RawText;
     }
 
@@ -1473,7 +1483,7 @@ public sealed class AIService : IAIService, IDisposable
     /// Asks the image-recognition model to describe one image. Returns null if that model can't process
     /// images or the call fails (cancellation propagates).
     /// </summary>
-    private static async Task<string?> DescribeImageAsync(
+    private async Task<string?> DescribeImageAsync(
         ILlmProvider imageProvider, LlmAttachment image, CancellationToken ct)
     {
         if (!imageProvider.SupportsImages) return null;
@@ -1486,7 +1496,7 @@ public sealed class AIService : IAIService, IDisposable
         try
         {
             var resp = await imageProvider.CompleteAsync(
-                [new(LlmRole.System, ProtectedAudience.Framed(system)),
+                [new(LlmRole.System, Framed(system)),
                  new(LlmRole.User, "Describe this image.") { Attachments = [image] }],
                 ct);
             return resp?.RawText;
@@ -1539,6 +1549,10 @@ public sealed class AIService : IAIService, IDisposable
         // How to act — only for a model with no tool calling of its own; any other is offered its tools in it.
         if (acting is { Length: > 0 }) sb.Append(acting);
         // Enhanced AI Protection Mode, while on, frames all of it: ahead of the persona, which cannot set it aside.
-        return ProtectedAudience.Framed(sb.ToString().TrimEnd());
+        return Framed(sb.ToString().TrimEnd());
     }
+
+    /// <summary><paramref name="systemPrompt"/>, opening with the protected-audience policy while Enhanced AI Protection Mode is on
+    /// (<see cref="ProtectedAudience"/>), as the shell's settings say when it is made.</summary>
+    private string Framed(string systemPrompt) => ProtectedAudience.Framed(systemPrompt, _shell.EnhancedAiProtection);
 }

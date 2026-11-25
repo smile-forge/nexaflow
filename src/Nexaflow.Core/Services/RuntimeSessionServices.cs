@@ -9,6 +9,9 @@ using Nexaflow.IO.Common.Locations;
 namespace Nexaflow.Core.Services;
 
 /// <summary>What every workspace runtime shares with the session it runs in, handed to <see cref="WorkspaceRuntimeFactory"/>.</summary>
+/// <param name="Config">The session's configuration, which a feature's global config is saved through.</param>
+/// <param name="Shell">The shell's settings: whether Enhanced AI Protection Mode frames every runtime's prompts.</param>
+/// <param name="Security">The security settings: whether a runtime's assistant may see the open windows.</param>
 /// <param name="Providers">The pool every runtime acquires its provider instances from.</param>
 /// <param name="SavedWorkspaces">The saved workspaces, which a runtime writes back when its workspace's tabs or placement change.</param>
 /// <param name="Features">The feature system: builds each runtime's feature instances, and the pages it opens.</param>
@@ -29,6 +32,9 @@ namespace Nexaflow.Core.Services;
 /// <param name="Views">The view each open page is drawn with, let go when its tab closes.</param>
 /// <param name="HelpTools">The tools that read the help the app ships, which each runtime's assistant offers on every page.</param>
 public sealed record RuntimeSessionServices(
+    ConfigManager Config,
+    ShellConfig Shell,
+    SecurityConfig Security,
     ProviderManager Providers,
     WorkspaceManager SavedWorkspaces,
     FeatureManager Features,

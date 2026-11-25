@@ -40,7 +40,7 @@ public class MessageCenterTests
     public void AMessageAWorkspaceRaises_SaysWhichWorkspace_AndOneOfTheWholeAppDoesNot()
     {
         // One person, one inbox: every window shows every message, and each says which context it is about.
-        var workspace = new Workspace { Name = "Community" };
+        var workspace = TestRuntimes.Saved(new Workspace { Name = "Community" });
         IShellServices shell = TestRuntimes.FactoryWith(tasks: null, notify: _center.Post).CreateUnstarted(workspace).ShellServices;
 
         shell.ShowError("the post did not go out");

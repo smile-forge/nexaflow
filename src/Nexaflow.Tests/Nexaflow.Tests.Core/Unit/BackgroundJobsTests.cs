@@ -106,7 +106,7 @@ public class BackgroundJobsTests
     /// <summary>One workspace's assistant, its jobs listed in <paramref name="tasks"/> and its notifications in <paramref name="told"/>.</summary>
     private static (AIService Service, WorkspaceRuntime Workspace) Assistant(BackgroundActivityManager tasks, List<NotificationItem> told, Model model)
     {
-        var ws  = TestRuntimes.FactoryWith(tasks, told.Add).CreateUnstarted(new Workspace());
+        var ws  = TestRuntimes.FactoryWith(tasks, told.Add).CreateUnstarted(TestRuntimes.Saved(new Workspace()));
         var svc = ws.AiService;
         svc.Register("c1", model);
         var config = new AiConfig { Columns = [new ProviderModelPair { Id = "c1", ProviderName = "Claude", Model = "m" }] };

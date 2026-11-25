@@ -3,8 +3,8 @@ namespace Nexaflow.Core.Services;
 /// <summary>
 /// Enhanced AI Protection Mode as the models are told it (<see cref="ShellConfig.EnhancedAiProtection"/>, on by default):
 /// while it is on, every system prompt behind something the user reads — a reply, an analysis, a description, an answer
-/// about a document — opens with <see cref="Policy"/>, so the assistant keeps to a general audience in every mode. Read
-/// each time a prompt is made, so a change applies to the next request.
+/// about a document — opens with <see cref="Policy"/>, so the assistant keeps to a general audience in every mode. Whoever
+/// makes a prompt reads the setting as it makes it, so a change applies to the next request.
 /// </summary>
 internal static class ProtectedAudience
 {
@@ -34,11 +34,6 @@ internal static class ProtectedAudience
         Be helpful, accurate, respectful, and natural while maintaining these boundaries. When uncertain, prefer a non-graphic, age-appropriate response over explicit or gratuitously disturbing content.
         """.ReplaceLineEndings("\n");
 
-    /// <summary>Whether the mode is on: as the shell's settings say, and on where nothing says otherwise.</summary>
-    public static bool IsOn => ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault()?.EnhancedAiProtection ?? true;
-
-    /// <summary><paramref name="systemPrompt"/>, opening with <see cref="Policy"/> while the mode is on.</summary>
-    public static string Framed(string systemPrompt) => Framed(systemPrompt, IsOn);
-
-    internal static string Framed(string systemPrompt, bool on) => on ? Policy + "\n\n" + systemPrompt : systemPrompt;
+    /// <summary><paramref name="systemPrompt"/>, opening with <see cref="Policy"/> while the mode is <paramref name="on"/>.</summary>
+    public static string Framed(string systemPrompt, bool on) => on ? Policy + "\n\n" + systemPrompt : systemPrompt;
 }

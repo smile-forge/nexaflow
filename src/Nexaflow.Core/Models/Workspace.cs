@@ -100,6 +100,22 @@ public sealed partial class Workspace : ObservableObject
     private readonly Dictionary<Type, IFeatureConfig> _scoped = new();
     private readonly object _scopedLock = new();
 
+    /// <summary>The configuration this workspace is listed in (<see cref="ListIn"/>); null while it is in no saved list.</summary>
+    private ConfigManager? _configuration;
+
+    /// <summary>
+    /// Lists this workspace in <paramref name="configuration"/>: its folders sit under that configuration's, and its own settings —
+    /// the ability grid, the persona, its provider and per-workspace feature configs, its connections — are read and written
+    /// through it. The saved list does this for every workspace it holds (<see cref="WorkspaceManager"/>), and every workspace the
+    /// session runs is in it.
+    /// </summary>
+    internal void ListIn(ConfigManager configuration) => _configuration = configuration;
+
+    /// <summary>The configuration this workspace is listed in. A workspace in no saved list has no folder, so nothing of its own
+    /// can be read or written.</summary>
+    private ConfigManager Configuration => _configuration
+        ?? throw new InvalidOperationException($"The workspace '{Name}' is in no saved list, so it has no folder.");
+
     /// <summary>The per-workspace feature config of the given concrete type, materializing (and loading from
     /// disk) on first request. Null when <paramref name="t"/> isn't a scoped config type, as <paramref name="features"/>
     /// knows them. The owning assembly is already loaded by the time a feature ctor asks for its scoped config, so this
@@ -113,7 +129,7 @@ public sealed partial class Workspace : ObservableObject
             try
             {
                 var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
-                ConfigManager.Instance.LoadFrom(Dir, cfg, cfg.ConfigName);
+                Configuration.LoadFrom(Dir, cfg, cfg.ConfigName);
                 _scoped[t] = cfg;
                 return cfg;
             }
@@ -129,11 +145,11 @@ public sealed partial class Workspace : ObservableObject
             FindWorkspaceConfig(t, features);
     }
 
-    [JsonIgnore] public string Dir => WorkspaceManager.WorkspaceDir(Name);
+    [JsonIgnore] public string Dir => WorkspaceManager.WorkspaceDir(Configuration, Name);
     [JsonIgnore] public string ConversationsDir => Path.Combine(Dir, "Conversations");
 
     /// <summary>What the workspace keeps on this machine alone (<see cref="WorkspaceManager.WorkspaceLocalDir"/>).</summary>
-    [JsonIgnore] public string LocalDir => WorkspaceManager.WorkspaceLocalDir(Name);
+    [JsonIgnore] public string LocalDir => WorkspaceManager.WorkspaceLocalDir(Configuration, Name);
 
     /// <summary>What whole-document work in this workspace has worked out and keeps — gists, summaries, translations.</summary>
     [JsonIgnore] public string DocumentNotesDir => Path.Combine(LocalDir, "DocumentNotes");
@@ -154,16 +170,19 @@ public sealed partial class Workspace : ObservableObject
     internal void EnsureSharedServicesLoaded(ProviderManager providers)
     {
         if (RibbonService is not null) return;
-        ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
+        Configuration.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
         if (AiConfig.BringUpToDate())
-            ConfigManager.Instance.SaveTo(Dir, AiConfig, AiConfig.ConfigName);
-        ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
+            SaveAiConfig();
+        Configuration.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService    = new RibbonLayoutService(Dir);
         ProviderConfigs  = providers.LoadProviderConfigs(Dir);
-        Connections      = new WorkspaceConnections(Dir, CredentialManagerStore.Default);
+        Connections      = new WorkspaceConnections(Dir, Configuration, CredentialManagerStore.Default);
         // Scoped feature configs are materialized lazily (see FindWorkspaceConfig) so a feature whose only
         // footprint here is a scoped config isn't force-loaded at startup.
     }
+
+    /// <summary>Persists the ability grid (<see cref="AiConfig"/>) to this workspace's folder.</summary>
+    internal void SaveAiConfig() => Configuration.SaveTo(Dir, AiConfig, AiConfig.ConfigName);
 
     /// <summary>
     /// Re-reads the provider configs from disk through <paramref name="providers"/> (picks up provider assemblies
@@ -182,8 +201,8 @@ public sealed partial class Workspace : ObservableObject
     /// </summary>
     internal void ReloadSharedConfigs(FeatureManager features, ProviderManager providers)
     {
-        ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
-        ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
+        Configuration.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
+        Configuration.LoadFrom(Dir, Persona, Persona.ConfigName);
         ProviderConfigs = providers.LoadProviderConfigs(Dir);
         lock (_scopedLock) _scoped.Clear();
         MaterializeAllScopedConfigs(features);

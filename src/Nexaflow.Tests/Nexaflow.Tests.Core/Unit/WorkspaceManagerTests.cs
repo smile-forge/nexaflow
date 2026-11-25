@@ -16,16 +16,16 @@ namespace Nexaflow.Tests.Core.Unit;
 /// <summary>
 /// Exercises every workspace write-to-disk action (clone, rename, delete, persist) end-to-end against a
 /// temp <see cref="ConfigManager"/> base dir, asserting the bytes written read back as expected. Each test makes its own
-/// <see cref="WorkspaceManager"/>; the <see cref="ConfigManager"/> singleton is shared, so it runs in the non-parallel phase and
-/// points that at a fresh base dir per test.
+/// configuration over a fresh base dir, and its own <see cref="WorkspaceManager"/> kept in it, as the session makes its own.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 [CoversNode("workspaces")]
 public class WorkspaceManagerTests
 {
-    private string _origBaseDir = string.Empty;
-    private string _baseDir     = string.Empty;
+    private string _baseDir = string.Empty;
+
+    /// <summary>The test's configuration, over its own base dir.</summary>
+    private ConfigManager _config = null!;
 
     /// <summary>The saved list under test, made per test as the session makes its own.</summary>
     private WorkspaceManager _saved = null!;
@@ -33,22 +33,20 @@ public class WorkspaceManagerTests
     [TestInitialize]
     public void Setup()
     {
-        _origBaseDir = ConfigManager.Instance.BaseDir;
-        _baseDir     = Path.Combine(TestTemp.Root, "nexaflow-ws-" + Guid.NewGuid().ToString("N"));
-        ConfigManager.Instance.Initialize(_baseDir);
-        _saved = new WorkspaceManager(new WorkspacesConfig(), TestRuntimes.Providers);   // baseline: one default workspace
+        _baseDir = Path.Combine(TestTemp.Root, "nexaflow-ws-" + Guid.NewGuid().ToString("N"));
+        _config  = TestRuntimes.ConfigIn(_baseDir);
+        _saved   = new WorkspaceManager(new WorkspacesConfig(), TestRuntimes.Providers, _config);   // baseline: one default workspace
     }
 
     [TestCleanup]
     public void Teardown()
     {
-        ConfigManager.Instance.Initialize(_origBaseDir);
         try { if (Directory.Exists(_baseDir)) Directory.Delete(_baseDir, recursive: true); }
         catch { /* best effort */ }
     }
 
     // Initialise the manager with a known set of workspaces (each carries its own on-disk folder under temp).
-    private void InitWith(params Workspace[] workspaces) => _saved = TestRuntimes.SavedListOf(workspaces);
+    private void InitWith(params Workspace[] workspaces) => _saved = TestRuntimes.SavedListIn(_config, workspaces);
 
     // Reads back the persisted workspaces list straight from disk to verify what SaveWorkspaces wrote.
     private WorkspacesConfig LoadPersisted()
@@ -83,6 +81,7 @@ public class WorkspaceManagerTests
         source.AiConfig.Assignments["GeneralIntelligence"] = AbilityChain.Of("c1");
         source.Persona.Name         = "TestPersona";
         source.Persona.SystemPrompt = "Be brief.";
+        InitWith(source);
         StubSharedServices(source);
 
         // A conversation in the source must NOT follow the clone.
@@ -91,16 +90,16 @@ public class WorkspaceManagerTests
 
         _saved.CloneWorkspace(source, "Clone");
 
-        var destDir = WorkspaceManager.WorkspaceDir("Clone");
+        var destDir = WorkspaceManager.WorkspaceDir(_config, "Clone");
 
         var ai = new AiConfig();
-        ConfigManager.Instance.LoadFrom(destDir, ai, ai.ConfigName);
+        _config.LoadFrom(destDir, ai, ai.ConfigName);
         Assert.AreEqual(1,    ai.Columns.Count);
         Assert.AreEqual("c1", ai.Columns[0].Id);
         CollectionAssert.AreEqual(new[] { "c1" }, ai.Assignments["GeneralIntelligence"].ColumnIds.ToArray());
 
         var persona = new AiPersonaConfig();
-        ConfigManager.Instance.LoadFrom(destDir, persona, persona.ConfigName);
+        _config.LoadFrom(destDir, persona, persona.ConfigName);
         Assert.AreEqual("TestPersona", persona.Name);
         Assert.AreEqual("Be brief.",   persona.SystemPrompt);
 
@@ -281,9 +280,9 @@ public class WorkspaceManagerTests
 
         // The folder for every surviving name resolves, which is what startup does before anything else.
         foreach (var workspace in config.Contexts)
-            Assert.IsFalse(string.IsNullOrWhiteSpace(WorkspaceManager.WorkspaceDir(workspace.Name)));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(WorkspaceManager.WorkspaceDir(_config, workspace.Name)));
 
-        _saved = new WorkspaceManager(config, TestRuntimes.Providers);
+        _saved = new WorkspaceManager(config, TestRuntimes.Providers, _config);
         Assert.AreEqual(5, _saved.Workspaces.Count);
     }
 
@@ -309,7 +308,7 @@ public class WorkspaceManagerTests
 
         var config = new WorkspacesConfig { Contexts = [new Workspace { Name = "Dev" }] };
 
-        var recovered = WorkspaceManager.RecoverWorkspacesFromDataFolders(config);
+        var recovered = WorkspaceManager.RecoverWorkspacesFromDataFolders(config, _config);
 
         CollectionAssert.AreEqual(new[] { "Research" }, recovered.ToArray(),
             "only a folder no entry names; the quarantine bin was put aside deliberately");
@@ -319,7 +318,7 @@ public class WorkspaceManagerTests
             "the folders are read for their names and never touched");
 
         // And the recovered list is what a save then writes, so the recovery survives the session.
-        _saved = new WorkspaceManager(config, TestRuntimes.Providers);
+        _saved = new WorkspaceManager(config, TestRuntimes.Providers, _config);
         _saved.SaveWorkspaces();
         CollectionAssert.AreEquivalent(new[] { "Dev", "Research" },
                                        LoadPersisted().Contexts.Select(c => c.Name).ToArray());
@@ -332,7 +331,7 @@ public class WorkspaceManagerTests
         Directory.CreateDirectory(Path.Combine(root, "Dev"));
         var config = new WorkspacesConfig { Contexts = [new Workspace { Name = "Dev", Color = "#111111" }] };
 
-        Assert.AreEqual(0, WorkspaceManager.RecoverWorkspacesFromDataFolders(config).Count);
+        Assert.AreEqual(0, WorkspaceManager.RecoverWorkspacesFromDataFolders(config, _config).Count);
         Assert.AreEqual("#111111", config.Contexts.Single().Color, "a workspace already in the list is left alone");
     }
 
@@ -347,7 +346,7 @@ public class WorkspaceManagerTests
         InitWith(keep);
         Directory.CreateDirectory(keep.Dir);                        // referenced → survives
 
-        var orphan = WorkspaceManager.WorkspaceDir("GhostFromReset"); // no matching workspace → quarantined
+        var orphan = WorkspaceManager.WorkspaceDir(_config, "GhostFromReset"); // no matching workspace → quarantined
         Directory.CreateDirectory(orphan);
         File.WriteAllText(Path.Combine(orphan, "conv.json"), "{}");
 
@@ -369,7 +368,7 @@ public class WorkspaceManagerTests
         var keep = new Workspace { Name = "Keep" };
         InitWith(keep);
 
-        var orphan = WorkspaceManager.WorkspaceDir("GhostFromReset");
+        var orphan = WorkspaceManager.WorkspaceDir(_config, "GhostFromReset");
         Directory.CreateDirectory(orphan);
 
         var moved = _saved.QuarantineOrphanedDataFolders(listIsAuthoritative: false);
@@ -405,7 +404,7 @@ public class WorkspaceManagerTests
 
         // A prior quarantine already holds a "Ghost"; a fresh orphan of the same name must not collide.
         Directory.CreateDirectory(Path.Combine(QuarantineDir, "Ghost"));
-        var orphan = WorkspaceManager.WorkspaceDir("Ghost");
+        var orphan = WorkspaceManager.WorkspaceDir(_config, "Ghost");
         Directory.CreateDirectory(orphan);
 
         var moved = _saved.QuarantineOrphanedDataFolders(listIsAuthoritative: true);

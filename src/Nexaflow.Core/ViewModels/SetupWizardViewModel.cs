@@ -126,6 +126,9 @@ internal sealed class WorkspaceSetupContext
 
     /// <summary>The saved workspaces, written back as each step commits.</summary>
     public required WorkspaceManager SavedWorkspaces;
+
+    /// <summary>What rules on a setting a step edits — the session's configuration — so one it rules on shows as it rules.</summary>
+    public required IConfigRulings Rulings;
     public IReadOnlyList<IProviderConfig> AvailableProviders = [];
     public IProviderConfig? ChosenProvider;
     public ProviderSet?     ProviderSet;   // acquired after the provider config is saved (for model listing)
@@ -277,7 +280,7 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
     public void OnEnter()
     {
         if (_ctx.ChosenProvider is null) { Content = null; _editor = null; return; }
-        _editor = new ConfigEditViewModel(_ctx.ChosenProvider, _ctx.ChosenProvider.ConfigName, _ctx.ChosenProvider.FriendlyName);
+        _editor = new ConfigEditViewModel(_ctx.ChosenProvider, _ctx.ChosenProvider.ConfigName, _ctx.ChosenProvider.FriendlyName, _ctx.Rulings);
         _editor.PropertyChanged += (_, _) => OnPropertyChanged(nameof(IsComplete));
         Content = _editor;
         OnPropertyChanged(nameof(IsComplete));
@@ -287,7 +290,7 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
     {
         if (_editor is null || _ctx.ChosenProvider is null) return;
         _editor.ApplyToReal();
-        ConfigManager.Instance.SaveTo(_ctx.Workspace.Dir, _ctx.ChosenProvider, _ctx.ChosenProvider.ConfigName);
+        _ctx.SavedWorkspaces.SaveWorkspaceProviderConfig(_ctx.Workspace, _ctx.ChosenProvider);
 
         // (Re)acquire a provider set from the now-saved configs so the model step can enumerate models.
         if (_ctx.ProviderSet is not null) _ctx.Providers.ReleaseProviderSet(_ctx.ProviderSet);
@@ -561,24 +564,27 @@ public partial class SetupWizardViewModel : ObservableObject
     /// </summary>
     /// <param name="startupWorkspace">The workspace the first window opens on, whose AI setup is asked for when it has none.</param>
     /// <param name="pages">What a <c>[CustomControl]</c> page among the steps is bound to.</param>
+    /// <param name="config">The session's configuration: which configs are new, were carried forward or could not be read, each
+    /// step's config saved back through it, and what rules on a setting shown as it rules.</param>
+    /// <param name="shell">The shell's settings: the version Nexaflow last ran as, which tells an update.</param>
     /// <param name="features">The session's feature system, whose workspace-scoped configs the workspace's setup asks for.</param>
     /// <param name="providers">The session's provider pool, which the providers offered and the models on this machine are read
     /// from.</param>
     /// <param name="savedWorkspaces">The saved workspaces: each step writes back, and after an update each one's Local column is
     /// offered its models.</param>
-    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages, FeatureManager features,
-                                              ProviderManager providers, WorkspaceManager savedWorkspaces)
+    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages, ConfigManager config, ShellConfig shell,
+                                              FeatureManager features, ProviderManager providers, WorkspaceManager savedWorkspaces)
     {
         var steps = new List<IWizardStep>();
 
         // A config whose file was present but unreadable: its settings are back at their defaults. Lead with
         // what happened and what was recovered, so the steps that follow read as re-verification.
-        var unreadable = ConfigManager.Instance.GetUnreadableConfigs();
+        var unreadable = config.GetUnreadableConfigs();
         if (unreadable.Count > 0)
             steps.Add(new MarkdownStep(Str.Get("Shell.Wizard.Recovered.Title"), RecoveryNotes(unreadable)));
 
         // 1. What's New — only after a version bump (not on a brand-new install).
-        if (TryLoadWhatsNew(out var whatsNew))
+        if (TryLoadWhatsNew(config, shell, out var whatsNew))
             steps.Add(new MarkdownStep(Str.Get("Shell.Wizard.WhatsNew.Title"), whatsNew));
 
         // 2. GLOBAL feature configs that opt into the wizard via [MandatorySetup], excluding the
@@ -587,20 +593,20 @@ public partial class SetupWizardViewModel : ObservableObject
         //    missing genuinely-new required info; a migrated config whose required fields all carried over
         //    is left alone (no re-ask). The step is prefilled with the migrated values (the editor binds
         //    the live config).
-        var defaulted = ConfigManager.Instance.GetDefaultedConfigs()
+        var defaulted = config.GetDefaultedConfigs()
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var migrated = ConfigManager.Instance.GetMigratedConfigs()
+        var migrated = config.GetMigratedConfigs()
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var cfg in ConfigManager.Instance.GetAll().OfType<IFeatureConfig>())
+        foreach (var cfg in config.GetAll().OfType<IFeatureConfig>())
         {
             if (cfg is WorkspacesConfig || !IsMandatory(cfg)) continue;
             bool isNew        = defaulted.Contains(cfg.ConfigName);
             bool needsNewInfo = migrated.Contains(cfg.ConfigName)
                                 && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg);
             if (!isNew && !needsNewInfo) continue;
-            var editor = new ConfigEditViewModel(cfg, cfg.ConfigName, cfg.FriendlyName, pages: pages);
+            var editor = new ConfigEditViewModel(cfg, cfg.ConfigName, cfg.FriendlyName, config, pages: pages);
             steps.Add(new ConfigEditStep(cfg.FriendlyName, editor,
-                e => ConfigManager.Instance.Save(e.RealConfig, e.ConfigName)));
+                e => config.Save(e.RealConfig, e.ConfigName)));
         }
 
         // 3. First-workspace setup, if the startup workspace has no usable AI assignment — or if anything
@@ -608,13 +614,13 @@ public partial class SetupWizardViewModel : ObservableObject
         startupWorkspace.EnsureSharedServicesLoaded(providers);
         WorkspaceSetupContext? ctx = null;
         if (unreadable.Count > 0 || !IsWorkspaceConfigured(startupWorkspace, providers))
-            ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace, features, providers, savedWorkspaces);
+            ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace, config, features, providers, savedWorkspaces);
 
         // 4. After an update, the models every workspace's Local column holds that are not here yet — a grid from before the
         //    column has it turned on here, before the workspace first runs — are offered for download in one step, each once
         //    however many workspaces use it, as they are to a new workspace that chooses Nexaflow's own models, rather than
         //    found missing on first use. A startup workspace being set up above is offered its own there.
-        if (WasUpdated()
+        if (WasUpdated(shell)
             && OwnedAwaited(savedWorkspaces.Workspaces.Where(w => ctx is null || !ReferenceEquals(w, startupWorkspace)), providers) is { Count: > 0 } awaited)
             steps.Add(new ModelDownloadStep(() => true, awaited, providers));
 
@@ -630,24 +636,26 @@ public partial class SetupWizardViewModel : ObservableObject
     /// <summary>
     /// Builds a wizard containing ONLY the workspace-setup steps (provider → key → model, plus any
     /// [MandatorySetup] persona / per-workspace configs) for <paramref name="workspace"/>. Used by the
-    /// Workspaces tab's "Add Workspace" to configure a freshly-created workspace; <paramref name="features"/> knows its
-    /// per-workspace configs, <paramref name="providers"/> the providers offered, and <paramref name="savedWorkspaces"/> is
-    /// written back as each step commits.
+    /// Workspaces tab's "Add Workspace" to configure a freshly-created workspace; <paramref name="rulings"/> rule on the settings
+    /// the app does not decide alone, <paramref name="features"/> knows its per-workspace configs, <paramref name="providers"/> the
+    /// providers offered, and <paramref name="savedWorkspaces"/> is written back as each step commits.
     /// </summary>
-    public static SetupWizardViewModel BuildWorkspaceSetup(Workspace workspace, FeatureManager features, ProviderManager providers,
-                                                           WorkspaceManager savedWorkspaces)
+    public static SetupWizardViewModel BuildWorkspaceSetup(Workspace workspace, IConfigRulings rulings, FeatureManager features,
+                                                           ProviderManager providers, WorkspaceManager savedWorkspaces)
     {
         workspace.EnsureSharedServicesLoaded(providers);
         var steps = new List<IWizardStep>();
-        var ctx   = AppendWorkspaceSetupSteps(steps, workspace, features, providers, savedWorkspaces);
+        var ctx   = AppendWorkspaceSetupSteps(steps, workspace, rulings, features, providers, savedWorkspaces);
         return new SetupWizardViewModel(steps, ctx);
     }
 
     /// <summary>Appends provider-pick → provider-config → model-pick (+ mandatory persona/scoped
     /// configs) for <paramref name="workspace"/>, its scoped configs those <paramref name="features"/> knows, its providers those
-    /// <paramref name="providers"/> loads; returns the shared setup context, which writes back to <paramref name="savedWorkspaces"/>.</summary>
-    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace, FeatureManager features,
-                                                                   ProviderManager providers, WorkspaceManager savedWorkspaces)
+    /// <paramref name="providers"/> loads, each setting shown as <paramref name="rulings"/> rule on it; returns the shared setup
+    /// context, which writes back to <paramref name="savedWorkspaces"/>.</summary>
+    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace, IConfigRulings rulings,
+                                                                   FeatureManager features, ProviderManager providers,
+                                                                   WorkspaceManager savedWorkspaces)
     {
         providers.DiscoverAll();
         workspace.ReloadProviderConfigs(providers);
@@ -661,6 +669,7 @@ public partial class SetupWizardViewModel : ObservableObject
             Workspace          = workspace,
             Providers          = providers,
             SavedWorkspaces    = savedWorkspaces,
+            Rulings            = rulings,
             AvailableProviders = workspace.ProviderConfigs,
         };
 
@@ -683,13 +692,13 @@ public partial class SetupWizardViewModel : ObservableObject
         var persona = workspace.Persona;
         if (IsMandatory(persona))
             steps.Add(new ConfigEditStep(persona.FriendlyName,
-                new ConfigEditViewModel(persona, persona.ConfigName, persona.FriendlyName),
+                new ConfigEditViewModel(persona, persona.ConfigName, persona.FriendlyName, rulings),
                 _ => savedWorkspaces.SaveWorkspacePersona(workspace)));
 
         foreach (var wc in workspace.WorkspaceConfigs)
             if (IsMandatory(wc))
                 steps.Add(new ConfigEditStep(wc.FriendlyName,
-                    new ConfigEditViewModel(wc, wc.ConfigName, wc.FriendlyName),
+                    new ConfigEditViewModel(wc, wc.ConfigName, wc.FriendlyName, rulings),
                     e => savedWorkspaces.SaveWorkspaceScopedConfig(workspace, (IFeatureConfig)e.RealConfig)));
 
         return ctx;
@@ -740,17 +749,18 @@ public partial class SetupWizardViewModel : ObservableObject
         return awaited;
     }
 
-    /// <summary>Whether this run is the first since Nexaflow was updated.</summary>
-    private static bool WasUpdated()
-        => ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault()?.LastRunVersion is { } last && last != CurrentVersion();
+    /// <summary>Whether this run is the first since Nexaflow was updated: the version <paramref name="shell"/> says it last ran as is
+    /// another.</summary>
+    private static bool WasUpdated(ShellConfig shell)
+        => shell.LastRunVersion is { } last && last != CurrentVersion();
 
-    private static bool TryLoadWhatsNew(out string markdown)
+    private static bool TryLoadWhatsNew(ConfigManager config, ShellConfig shell, out string markdown)
     {
         markdown = string.Empty;
 
         // Show on a fresh install (welcome) and after a version bump (changelog); skip on an
         // unchanged relaunch.
-        if (!ConfigManager.Instance.IsFirstRun && !WasUpdated()) return false;
+        if (!config.IsFirstRun && !WasUpdated(shell)) return false;
 
         try
         {

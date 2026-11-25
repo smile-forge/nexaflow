@@ -163,8 +163,9 @@ public partial class PropertyEditViewModel : ObservableObject
         if (selected is not null) Value = selected;
     }
 
+    /// <param name="rulings">What rules on a setting the app does not decide alone: one it rules on shows as it rules, read-only.</param>
     /// <param name="shell">The window's shell, whose pickers a path is browsed for with; null where there is no window yet.</param>
-    public PropertyEditViewModel(PropertyInfo pi, object editingClone, Action onChanged,
+    public PropertyEditViewModel(PropertyInfo pi, object editingClone, Action onChanged, IConfigRulings rulings,
                                  Nexaflow.Features.Common.IShellServices? shell = null)
     {
         _pi          = pi;
@@ -227,7 +228,7 @@ public partial class PropertyEditViewModel : ObservableObject
 
         // A setting decided outside the app shows as decided there, read-only; the app's own value stays in the config, for when it
         // decides again.
-        if (ConfigManager.Instance.RulingFor(editingClone, pi.Name) is { } ruling)
+        if (rulings.RulingFor(editingClone, pi.Name) is { } ruling)
         {
             _value         = ruling.Value;
             _originalValue = _value;
@@ -349,10 +350,12 @@ public partial class ConfigEditViewModel : ObservableObject
     /// <param name="realConfig">The config edited; a clone holds the edits until they are applied.</param>
     /// <param name="configName">The name the config is saved under.</param>
     /// <param name="friendlyName">The section's title.</param>
+    /// <param name="rulings">What rules on the settings the app does not decide alone — the session's configuration
+    /// (<see cref="ConfigManager.AddRulings"/>).</param>
     /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed, for its pickers.</param>
     /// <param name="pages">What a <c>[CustomControl]</c> page is bound to (<see cref="ConfigPageModels"/>); without it, the config.
     /// Given wherever a Core page that shows the session may be edited — Options and the setup wizard.</param>
-    public ConfigEditViewModel(object realConfig, string configName, string friendlyName,
+    public ConfigEditViewModel(object realConfig, string configName, string friendlyName, IConfigRulings rulings,
                                Nexaflow.Features.Common.IShellServices? shell = null, ConfigPageModels? pages = null)
     {
         RealConfig   = realConfig;
@@ -389,7 +392,7 @@ public partial class ConfigEditViewModel : ObservableObject
         }
 
         foreach (var pi in EditableProperties(EditingClone.GetType()))
-            Properties.Add(new PropertyEditViewModel(pi, EditingClone, RecheckValidity, shell));
+            Properties.Add(new PropertyEditViewModel(pi, EditingClone, RecheckValidity, rulings, shell));
 
         WireConditionalEnables();
         RecheckValidity();
@@ -463,14 +466,20 @@ public partial class OptionsViewModel : ObservableObject
     /// <summary>The live workspaces, in the first with a window of which the tabs a saved setting changes are reopened.</summary>
     private readonly WorkspaceRuntimes _runtimes;
 
+    /// <summary>The session's configuration: every global config the panel lists, saved back through it.</summary>
+    private readonly ConfigManager _config;
+
+    /// <param name="config">The session's configuration: every global config registered in it is a section, saved back through
+    /// it, and what rules on a setting shows as it rules.</param>
     /// <param name="pages">What each <c>[CustomControl]</c> section is bound to: the session's view-model for a Core page that shows
     /// it, else its config.</param>
     /// <param name="features">The session's feature system: every feature is activated so its config is listed, and a changed
     /// config refreshes the pages built with it.</param>
     /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed.</param>
-    public OptionsViewModel(ConfigPageModels pages, FeatureManager features, WorkspaceRuntimes runtimes,
+    public OptionsViewModel(ConfigManager config, ConfigPageModels pages, FeatureManager features, WorkspaceRuntimes runtimes,
                             Nexaflow.Features.Common.IShellServices? shell = null)
     {
+        _config   = config;
         _features = features;
         _runtimes = runtimes;
         // Options lists every feature's global config. With lazy feature loading a config is registered only
@@ -479,16 +488,16 @@ public partial class OptionsViewModel : ObservableObject
         features.Catalog.EnsureAllActivated();
 
         // Stable sort: keep registration order but always float "About" to the bottom.
-        var configs = ConfigManager.Instance.GetAll().OfType<IFeatureConfig>()
+        var configs = config.GetAll().OfType<IFeatureConfig>()
             .OrderBy(c => c is AboutConfig ? 1 : 0);
-        foreach (var config in configs)
+        foreach (var registered in configs)
         {
-            string friendlyName = config.FriendlyName;
-            string configName   = config.ConfigName;
+            string friendlyName = registered.FriendlyName;
+            string configName   = registered.ConfigName;
 
             // Pass the shell so IShellAware custom controls (e.g. the File Type Actions editor's themed
             // confirmation, file/folder pickers) get AttachShell'd.
-            var section = new ConfigEditViewModel(config, configName, friendlyName, shell, pages);
+            var section = new ConfigEditViewModel(registered, configName, friendlyName, config, shell, pages);
             section.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(ConfigEditViewModel.IsValid))
@@ -527,7 +536,7 @@ public partial class OptionsViewModel : ObservableObject
             section.ApplyToReal();
             try
             {
-                ConfigManager.Instance.Save(section.RealConfig, section.ConfigName);
+                _config.Save(section.RealConfig, section.ConfigName);
             }
             catch (Exception ex)
             {

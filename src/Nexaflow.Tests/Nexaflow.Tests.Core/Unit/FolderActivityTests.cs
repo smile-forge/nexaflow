@@ -19,8 +19,8 @@ public class FolderActivityTests
     public void AFolderBusyInOneWorkspace_IsBusyInAnother()
     {
         var factory = TestRuntimes.FactoryWith(tasks: null, notify: _ => { });
-        IShellServices home   = factory.CreateUnstarted(new Workspace { Name = "Home" }).ShellServices;
-        IShellServices videos = factory.CreateUnstarted(new Workspace { Name = "Videos" }).ShellServices;
+        IShellServices home   = factory.CreateUnstarted(TestRuntimes.Saved(new Workspace { Name = "Home" })).ShellServices;
+        IShellServices videos = factory.CreateUnstarted(TestRuntimes.Saved(new Workspace { Name = "Videos" })).ShellServices;
         var folder = TestTemp.CreateSubdirectory("busy-").FullName;
 
         using (home.MarkFolderBusy(folder, "Moving…"))
@@ -35,8 +35,8 @@ public class FolderActivityTests
     public void AFileTwoWorkspacesWatch_IsStillWatchedForTheOneRunning_WhenTheOtherEnds() => UiThread.Run(() =>
     {
         var factory = TestRuntimes.FactoryWith(tasks: null, notify: _ => { });
-        var home    = factory.CreateUnstarted(new Workspace { Name = "Home" });
-        var videos  = factory.CreateUnstarted(new Workspace { Name = "Videos" });
+        var home    = factory.CreateUnstarted(TestRuntimes.Saved(new Workspace { Name = "Home" }));
+        var videos  = factory.CreateUnstarted(TestRuntimes.Saved(new Workspace { Name = "Videos" }));
         var file    = Path.Combine(TestTemp.CreateSubdirectory("watched-").FullName, "notes.txt");
         File.WriteAllText(file, "first");
 

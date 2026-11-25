@@ -46,7 +46,7 @@ public sealed class WorkspaceConnectionsTests
 
     private static readonly ConnectionProfile Share = new("smb-docs", "smb", "Docs", "fileserver");
 
-    private WorkspaceConnections Open() => new(_dir, _secrets);
+    private WorkspaceConnections Open() => new(_dir, TestRuntimes.Config, _secrets);
 
     [TestMethod]
     public void ASavedConnectionIsThereWhenTheWorkspaceLoadsAgain()

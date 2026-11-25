@@ -188,6 +188,16 @@
           "type": "code",
           "doc": "src/Nexaflow.Core/Services/RuntimeSessionServices.cs",
           "class": "RuntimeSessionServices"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/AppDataFolders.cs",
+          "class": "AppDataFolders"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ConfigManager.cs",
+          "class": "ConfigManager"
         }
       ],
       "concerns": {

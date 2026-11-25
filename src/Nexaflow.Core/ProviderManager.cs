@@ -35,6 +35,7 @@ public sealed class ProviderManager
     private readonly IModelAssetStore?           _assets;
     private readonly ModelResidency?             _residency;
     private readonly IReadOnlyList<object>       _services;
+    private readonly ConfigManager               _config;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
@@ -59,15 +60,17 @@ public sealed class ProviderManager
         IReadOnlyList<(Type Type, ConstructorInfo Ctor)>  Providers);
 
     /// <summary>The session's provider pool, holding what a provider may take in its constructor.</summary>
+    /// <param name="config">The session's configuration, which a workspace's provider configs are read through.</param>
     /// <param name="activityManager">The session's background tasks, which a provider reports its slow work to; null where none
     /// is kept.</param>
     /// <param name="assets">The files local models need; null where the session keeps none.</param>
     /// <param name="residency">Which of the pool's models stay loaded; null where none is loaded ahead.</param>
     /// <param name="services">App-wide services a provider may take in its constructor, matched by type — the AI host,
     /// the machine's compute hardware.</param>
-    public ProviderManager(IBackgroundActivityManager? activityManager, IModelAssetStore? assets, ModelResidency? residency,
-                           IReadOnlyList<object> services)
+    public ProviderManager(ConfigManager config, IBackgroundActivityManager? activityManager, IModelAssetStore? assets,
+                           ModelResidency? residency, IReadOnlyList<object> services)
     {
+        _config          = config;
         _activityManager = activityManager;
         _assets          = assets;
         _residency       = residency;
@@ -137,7 +140,7 @@ public sealed class ProviderManager
             foreach (var ct in desc.ConfigTypes)
             {
                 var cfg = (IProviderConfig)Activator.CreateInstance(ct)!;
-                ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);
+                _config.LoadFrom(dir, cfg, cfg.ConfigName);
                 configs.Add(cfg);
             }
         return configs;

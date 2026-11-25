@@ -58,9 +58,10 @@ public sealed class CrashLog
         _session = session;
     }
 
-    /// <summary>The app-wide log, writing into whatever config root is active when the first fault lands.</summary>
+    /// <summary>The app-wide log, writing into this process's configuration folder (<see cref="AppDataFolders"/>) — the session's,
+    /// and found the same way before the session opens.</summary>
     public static CrashLog Instance { get; } = new(
-        () => ConfigManager.Instance.BaseDir,
+        () => AppDataFolders.ForThisProcess().BaseDir,
         () => DateTimeOffset.Now,
         typeof(CrashLog).Assembly.GetName().Version?.ToString() ?? "unknown",
         ShellSafetyLog.Instance);

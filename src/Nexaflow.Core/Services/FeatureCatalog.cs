@@ -95,6 +95,7 @@ public sealed class FeatureCatalog
     private readonly Dictionary<string, (string File, string Type)> _views = new(StringComparer.Ordinal);
 
     private Action<Assembly, AssemblyEntry>? _onActivated;
+    private readonly string _cachePath;
     private string _exeDir = "";
     private string _coreFile = "";
 
@@ -105,6 +106,13 @@ public sealed class FeatureCatalog
     };
 
     // ── Initialization ────────────────────────────────────────────────────────
+
+    /// <summary>A catalogue whose index is cached under <paramref name="baseDir"/>, as <c>discovery\catalog.json</c>.</summary>
+    /// <param name="baseDir">The configuration's base directory (<see cref="ConfigManager.BaseDir"/>).</param>
+    public FeatureCatalog(string baseDir)
+    {
+        _cachePath = Path.Combine(baseDir, "discovery", "catalog.json");
+    }
 
     /// <summary>
     /// Builds the discovery index (from the on-disk cache when its version matches the running app,
@@ -514,33 +522,31 @@ public sealed class FeatureCatalog
 
     // ── Cache persistence ─────────────────────────────────────────────────────
 
-    private static string CachePath => Path.Combine(ConfigManager.Instance.BaseDir, "discovery", "catalog.json");
-
-    private static CatalogIndex? TryLoadCache()
+    private CatalogIndex? TryLoadCache()
     {
         try
         {
-            if (File.Exists(CachePath))
-                return JsonSerializer.Deserialize<CatalogIndex>(File.ReadAllText(CachePath), _json);
+            if (File.Exists(_cachePath))
+                return JsonSerializer.Deserialize<CatalogIndex>(File.ReadAllText(_cachePath), _json);
         }
         catch (Exception ex) { ShellSafetyLog.Instance.Failed("reading the feature catalog cache", ex); }
         return null;
     }
 
-    private static void SaveCache(CatalogIndex idx)
+    private void SaveCache(CatalogIndex idx)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
-            File.WriteAllText(CachePath, JsonSerializer.Serialize(idx, _json));
+            Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
+            File.WriteAllText(_cachePath, JsonSerializer.Serialize(idx, _json));
         }
         catch (Exception ex) { ShellSafetyLog.Instance.Failed("writing the feature catalog cache", ex); }
     }
 
     /// <summary>Drops the on-disk index (Debug builds, which always rescan).</summary>
-    private static void DeleteCache()
+    private void DeleteCache()
     {
-        try { if (File.Exists(CachePath)) File.Delete(CachePath); }
+        try { if (File.Exists(_cachePath)) File.Delete(_cachePath); }
         catch (Exception ex) { ShellSafetyLog.Instance.Failed("deleting the feature catalog cache", ex); }
     }
 }

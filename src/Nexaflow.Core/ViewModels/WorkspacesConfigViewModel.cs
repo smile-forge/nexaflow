@@ -24,5 +24,5 @@ internal sealed class WorkspacesConfigViewModel(WorkspacesConfig config, WindowS
     /// <summary>The setup wizard for <paramref name="workspace"/>, just added: its provider, key and model, and its mandatory
     /// configs.</summary>
     public SetupWizardViewModel SetupFor(Workspace workspace)
-        => SetupWizardViewModel.BuildWorkspaceSetup(workspace, session.Features, session.Providers, session.SavedWorkspaces);
+        => SetupWizardViewModel.BuildWorkspaceSetup(workspace, session.Config, session.Features, session.Providers, session.SavedWorkspaces);
 }

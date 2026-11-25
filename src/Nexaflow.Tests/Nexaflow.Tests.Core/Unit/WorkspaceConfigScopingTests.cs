@@ -61,13 +61,13 @@ public class WorkspaceConfigScopingTests
         try
         {
             var saved = new ProjectsConfig { ProjectDirectory = @"X:\Custom\Projects" };
-            ConfigManager.Instance.SaveTo(dir, saved, saved.ConfigName);
+            TestRuntimes.Config.SaveTo(dir, saved, saved.ConfigName);
 
             // The file lands under <dir>\<ConfigName>\, mirroring Contexts\<workspace>\projects\.
             Assert.IsTrue(Directory.Exists(Path.Combine(dir, saved.ConfigName)));
 
             var loaded = new ProjectsConfig();
-            ConfigManager.Instance.LoadFrom(dir, loaded, loaded.ConfigName);
+            TestRuntimes.Config.LoadFrom(dir, loaded, loaded.ConfigName);
             Assert.AreEqual(@"X:\Custom\Projects", loaded.ProjectDirectory);
         }
         finally
@@ -87,12 +87,12 @@ public class WorkspaceConfigScopingTests
         {
             var saved = new ConsoleConfig();
             saved.BindFolder(@"C:\proj", "Command Prompt", StringComparison.OrdinalIgnoreCase);
-            ConfigManager.Instance.SaveTo(dir, saved, saved.ConfigName);
+            TestRuntimes.Config.SaveTo(dir, saved, saved.ConfigName);
 
             Assert.IsTrue(Directory.Exists(Path.Combine(dir, saved.ConfigName)));
 
             var loaded = new ConsoleConfig();
-            ConfigManager.Instance.LoadFrom(dir, loaded, loaded.ConfigName);
+            TestRuntimes.Config.LoadFrom(dir, loaded, loaded.ConfigName);
             Assert.AreEqual("Command Prompt", loaded.FindBoundEnvName(@"C:\proj", StringComparison.OrdinalIgnoreCase));
         }
         finally
@@ -106,7 +106,7 @@ public class WorkspaceConfigScopingTests
     {
         var dir = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         var cfg = new ProjectsConfig { ProjectDirectory = @"C:\Default" };
-        ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);   // no file — no-op
+        TestRuntimes.Config.LoadFrom(dir, cfg, cfg.ConfigName);   // no file — no-op
         Assert.AreEqual(@"C:\Default", cfg.ProjectDirectory);
     }
 

@@ -19,9 +19,10 @@ using System.IO;
 namespace Nexaflow.Core.Services;
 
 /// <summary>How this launch asks the session to start.</summary>
+/// <param name="Folders">Where the session keeps its configuration, and what stays on this machine alone.</param>
 /// <param name="Reset">"Reset Config" relaunched the app: the app-data directory is wiped before anything reads it.</param>
 /// <param name="UiTest">A UI journey drives the app: every feature is activated up front, and nothing is downloaded.</param>
-internal sealed record ShellHostOptions(bool Reset, bool UiTest);
+internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool UiTest);
 
 /// <summary>What the UI toolkit the shell runs on gives the session: the pieces only it can make.</summary>
 /// <param name="Ui">The thread the windows run on.</param>
@@ -93,8 +94,15 @@ internal sealed class ShellHost : IAsyncDisposable
     /// <summary>The session's live workspaces: one runtime each, active or dormant.</summary>
     public WorkspaceRuntimes Workspaces { get; }
 
+    /// <summary>The session's configuration: every config the session and its features register, and each workspace's own
+    /// settings, read and written under this launch's folders.</summary>
+    public ConfigManager Config { get; }
+
     /// <summary>The shell's own settings.</summary>
     public ShellConfig Shell { get; }
+
+    /// <summary>The security settings: what the assistant may see of the desktop.</summary>
+    public SecurityConfig Security { get; }
 
     /// <summary>The UI language: the installed packs, the active one, and the strings and help pages they hold.</summary>
     public LanguageManager Language { get; }
@@ -106,7 +114,7 @@ internal sealed class ShellHost : IAsyncDisposable
     public PageViews Views { get; }
 
     /// <summary>The feature catalogue: which feature type implements which contract, and the assemblies loaded as they are needed.</summary>
-    public FeatureCatalog Catalog { get; } = new();
+    public FeatureCatalog Catalog { get; }
 
     /// <summary>The feature system: builds each runtime's feature instances from the catalogue, and holds the features' global
     /// configs and the app-wide tools they are given.</summary>
@@ -132,30 +140,20 @@ internal sealed class ShellHost : IAsyncDisposable
         Inbox    = new MessageCenter(platform.Ui);
         Discovered = new DiscoveredLocations(LocationProviders);
 
-        // ── 0. Base path — single source of truth for all app-data paths ─────
-        // NEXAFLOW_CONFIG_DIR overrides the default (used by UI tests for an isolated, fresh config
-        // root, and handy for portable installs); otherwise %AppData%\Smile\nexaflow.
-        var isolated = Environment.GetEnvironmentVariable("NEXAFLOW_CONFIG_DIR");
-        var baseDir  = string.IsNullOrWhiteSpace(isolated)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Smile", "nexaflow")
-            : isolated;
-
+        // ── 0. The configuration — kept in this launch's folders, the single source of truth for every app-data path ──
         // "Reset Config" relaunch: wipe the directory now, in the fresh process, so no handle from the
         // old (exiting) instance is held. The empty dir then drives a clean first-run.
-        if (options.Reset) DeleteDirectoryWithRetry(baseDir);
+        if (options.Reset) DeleteDirectoryWithRetry(options.Folders.BaseDir);
 
-        // What is kept on this machine alone — caches too large to roam with the settings — under %LocalAppData%, unless the base
-        // was set apart, when it is kept beside it so a UI test's root holds everything the run wrote.
-        var localDir = string.IsNullOrWhiteSpace(isolated)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Smile", "nexaflow")
-            : Path.Combine(baseDir, "local");
-
-        ConfigManager.Instance.Initialize(baseDir, localDir);
+        // A stored value that could not be read goes on record in the crash log, which writes into the same folders.
+        Config = new ConfigManager(options.Folders.BaseDir, options.Folders.LocalDir, CrashLog.Instance);
+        // The feature catalogue's index is cached under the configuration.
+        Catalog = new FeatureCatalog(Config.BaseDir);
         StartupTimings.Mark("Init.ConfigManager");
 
         // ── 1. Shell config ──────────────────────────────────────────────────
         Shell = new ShellConfig();
-        ConfigManager.Instance.Register(Shell, Shell.ConfigName);
+        Config.Register(Shell, Shell.ConfigName);
 
         // From here this session knows whether it keeps a safety log: what startup held so far is written out or dropped.
         ShellSafetyLog.Instance.Apply(Shell.SafetyLogging);
@@ -172,21 +170,21 @@ internal sealed class ShellHost : IAsyncDisposable
         var help = new HelpLibrary(Language);
         StartupTimings.Mark("Init.Language");
 
-        var securityConfig = new SecurityConfig();
-        ConfigManager.Instance.Register(securityConfig, securityConfig.ConfigName);
+        Security = new SecurityConfig();
+        Config.Register(Security, Security.ConfigName);
 
         // ── 2. Workspaces config — must come before providers so we know which provider assemblies each workspace needs ──
         var wcConfig = new WorkspacesConfig();
-        ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
+        Config.Register(wcConfig, wcConfig.ConfigName);
 
         // A workcontexts.json that could not be read leaves the list defaulted to a single workspace,
         // which would strand every existing workspace's data — AI and provider config, ribbon, scratchpad
         // notes, conversations — in a folder nothing references any more. Rebuild the list from those
         // folders before the provider scan below, so the recovered workspaces' providers load too.
-        var listUnreadable = ConfigManager.Instance.GetUnreadableConfigs()
+        var listUnreadable = Config.GetUnreadableConfigs()
             .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
         var recoveredWorkspaces = listUnreadable
-            ? WorkspaceManager.RecoverWorkspacesFromDataFolders(wcConfig)
+            ? WorkspaceManager.RecoverWorkspacesFromDataFolders(wcConfig, Config)
             : [];
 
         // ── 3. The AI host, the local tools and the providers ────────────────
@@ -196,10 +194,10 @@ internal sealed class ShellHost : IAsyncDisposable
         // Where the host's models run is planned once for the machine, across every workspace's models.
         // Models on this machine are downloaded once each, app-wide, whichever workspace asks.
         // Which models are loaded ahead, and what they may hold, is this machine's to weigh: what it runs, what was used on it this week.
-        var preloadConfig = (ModelPreloadConfig)ConfigManager.Instance.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
+        var preloadConfig = (ModelPreloadConfig)Config.Register(new ModelPreloadConfig(), new ModelPreloadConfig().ConfigName);
         _aiHost = StartAiHost(preloadConfig.MemoryForModelsPercent, options.UiTest);
         // Joined to the machine's AI host service, the share of memory its models may hold is the service's, and Settings shows it so.
-        ConfigManager.Instance.AddRulings(new AiHostSettingRulings(() => _aiHost.ServiceMemory));
+        Config.AddRulings(new AiHostSettingRulings(() => _aiHost.ServiceMemory));
         // The model store is the AI host's: it alone reads and fetches the files, and the app sees the store as the host describes it,
         // read here in the background — each file found there is told of as it is read, as each that arrives later is.
         var assets = new AiHostModelStore(_aiHost);
@@ -221,7 +219,7 @@ internal sealed class ShellHost : IAsyncDisposable
         var sceneDepth       = new SceneDepthEstimation(new OwnedSceneDepth(Activities, assets, _aiHost, holds, hardware), assets, Activities);
         // Not a feature's tool: the check Enhanced AI Protection Mode holds every picture made to, which Core runs itself.
         var pictureChecking  = new PictureChecking(new OwnedPictureChecking(Activities, assets, _aiHost, holds, hardware), assets, Activities);
-        Providers = new ProviderManager(Activities, assets, _residency,
+        Providers = new ProviderManager(Config, Activities, assets, _residency,
             [_aiHost, holds, hardware,
              new LocalModelDownloads(assets, Activities, UseLocalModel), _cudaPack, pictureTools, pictureSelection,
              pageReading, pictureErasing, sceneDepth, pictureChecking]);
@@ -239,7 +237,7 @@ internal sealed class ShellHost : IAsyncDisposable
             .SelectMany(workspace =>
             {
                 var ai = new AiConfig();
-                ConfigManager.Instance.LoadFrom(WorkspaceManager.WorkspaceDir(workspace.Name), ai, ai.ConfigName);
+                Config.LoadFrom(WorkspaceManager.WorkspaceDir(Config, workspace.Name), ai, ai.ConfigName);
                 ai.BringUpToDate();   // the workspace saves it
                 return ai.Columns.Select(p => p.AssemblyFileName);
             })
@@ -249,12 +247,12 @@ internal sealed class ShellHost : IAsyncDisposable
         StartupTimings.Mark("Init.Providers");
 
         // ── 4. Workspaces — the list ─────────────────────────────────────────
-        SavedWorkspaces = new WorkspaceManager(wcConfig, Providers);
+        SavedWorkspaces = new WorkspaceManager(wcConfig, Providers, Config);
 
         // Quarantine workspace data folders orphaned by an older build's version-bump config reset (before
         // forward-migration existed): the list is authoritative only when workcontexts.json actually
         // loaded — a defaulted (missing/unreadable) list would make every folder look orphaned, so gate on it.
-        var listIsAuthoritative = !ConfigManager.Instance.GetDefaultedConfigs()
+        var listIsAuthoritative = !Config.GetDefaultedConfigs()
             .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
         SavedWorkspaces.QuarantineOrphanedDataFolders(listIsAuthoritative);
 
@@ -267,7 +265,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // of StartBackground); activation registers that assembly's global configs, archive handlers /
         // codecs (into the VFS) and theme contributions (folded below the theme applied in step 1), and runs the
         // feature's own setup for the session (IFeatureStartup) — the file system's file map and registries among them.
-        Features = new FeatureManager(Catalog, platform.Ui, LocationProviders);
+        Features = new FeatureManager(Catalog, Config, platform.Ui, LocationProviders);
 
         // The app-wide tools every workspace's features are given by their contract: the help pages, and the local tools above.
         Features.ProvideTool(help);
@@ -285,7 +283,7 @@ internal sealed class ShellHost : IAsyncDisposable
 
         // ── 6. Runtimes — the factory each is built by, the live ones, and what each window is given ──
         RuntimeFactory = new WorkspaceRuntimeFactory(new RuntimeSessionServices(
-            Providers, SavedWorkspaces, Features, Activities, Inbox.Post, VirtualFileSystem.Instance,
+            Config, Shell, Security, Providers, SavedWorkspaces, Features, Activities, Inbox.Post, VirtualFileSystem.Instance,
             LocationProviders, Discovered,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
             platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard,
@@ -293,7 +291,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
                                            SavedWorkspaces.Workspaces.Contains, TimeProvider.System);
-        Windows = new WindowServices(Activities, Workspaces, Inbox, Dependencies, Language, Views, Features, Providers, SavedWorkspaces,
+        Windows = new WindowServices(Config, Shell, Activities, Workspaces, Inbox, Dependencies, Language, Views, Features, Providers, SavedWorkspaces,
                                      updates);
         StartupTimings.Mark("Init.Workspaces");
 
@@ -306,7 +304,7 @@ internal sealed class ShellHost : IAsyncDisposable
 
         // ── 8. About — read-only Options section (registered last so it sorts to the bottom) ──
         var aboutConfig = new AboutConfig();
-        ConfigManager.Instance.Register(aboutConfig, aboutConfig.ConfigName);
+        Config.Register(aboutConfig, aboutConfig.ConfigName);
 
         // ── 9. The machine's locations — looked for once, for every workspace, off the UI thread ──
         // The backends are loaded and the first look started now, beside the first window's build rather than ahead of it; a
@@ -420,7 +418,7 @@ internal sealed class ShellHost : IAsyncDisposable
     /// </summary>
     private void ReportUnreadableConfigs(IReadOnlyList<string> recoveredWorkspaces)
     {
-        var unreadable = ConfigManager.Instance.GetUnreadableConfigs();
+        var unreadable = Config.GetUnreadableConfigs();
         if (unreadable.Count == 0) return;
 
         var body = Str.Format("Shell.Notifications.UnreadableFormat", string.Join(", ", unreadable), CrashLog.Instance.CurrentPath);

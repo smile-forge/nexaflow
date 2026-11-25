@@ -24,7 +24,7 @@ public class WorkspaceRuntimesTests
     public async Task AWorkspace_HasOneRuntime_HoweverOftenItIsOpened()
     {
         var runtimes  = Runtimes();
-        var workspace = new Workspace { Name = "Home" };
+        var workspace = TestRuntimes.Saved(new Workspace { Name = "Home" });
 
         var first  = runtimes.Open(workspace);
         var second = runtimes.Open(workspace);
@@ -37,7 +37,7 @@ public class WorkspaceRuntimesTests
     public async Task AWorkspaceLeftByItsLastWindow_TurnsDormant_AndComesBackAsItWas()
     {
         var runtimes  = Runtimes();
-        var workspace = new Workspace { Name = "Videos" };
+        var workspace = TestRuntimes.Saved(new Workspace { Name = "Videos" });
         var runtime   = runtimes.Open(workspace);
         var window    = new FakeWindowHost();
         runtime.ShellServices.RegisterWindow(window);
@@ -59,7 +59,7 @@ public class WorkspaceRuntimesTests
     public void ADormantWorkspace_EndsWhenItsTimeRunsOut()
     {
         var runtimes  = Runtimes();
-        var workspace = new Workspace { Name = "Community" };
+        var workspace = TestRuntimes.Saved(new Workspace { Name = "Community" });
         var runtime   = runtimes.Open(workspace);
         var window    = new FakeWindowHost();
         runtime.ShellServices.RegisterWindow(window);
@@ -76,7 +76,7 @@ public class WorkspaceRuntimesTests
     {
         var tasks     = new BackgroundActivityManager();
         var runtimes  = Runtimes(TestRuntimes.FactoryWith(tasks, _ => { }));
-        var workspace = new Workspace { Name = "Home" };
+        var workspace = TestRuntimes.Saved(new Workspace { Name = "Home" });
         var runtime   = runtimes.Open(workspace);
         var window    = new FakeWindowHost();
         runtime.ShellServices.RegisterWindow(window);
@@ -96,7 +96,7 @@ public class WorkspaceRuntimesTests
         var runtimes = Runtimes();
         int said = 0;
         runtimes.LastWindowClosed += (_, _) => said++;
-        var standby = runtimes.OpenStandby(new Workspace { Name = "Ready" });
+        var standby = runtimes.OpenStandby(TestRuntimes.Saved(new Workspace { Name = "Ready" }));
         var window  = new FakeWindowHost();
         standby.ShellServices.RegisterWindow(window);
 
@@ -112,7 +112,7 @@ public class WorkspaceRuntimesTests
         var runtimes = Runtimes();
         int said = 0;
         runtimes.LastWindowClosed += (_, _) => said++;
-        var standby = runtimes.OpenStandby(new Workspace { Name = "Ready" });
+        var standby = runtimes.OpenStandby(TestRuntimes.Saved(new Workspace { Name = "Ready" }));
         runtimes.Adopt(standby);
         var window = new FakeWindowHost();
         standby.ShellServices.RegisterWindow(window);

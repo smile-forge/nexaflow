@@ -60,7 +60,7 @@ public class OptionsUnsavedChangesTests
     [TestMethod]
     public void A_page_that_saves_nothing_never_holds_unsaved_edits()
     {
-        var section = new ConfigEditViewModel(new ReadOnlyConfig(), "test-read-only", "Read only");
+        var section = new ConfigEditViewModel(new ReadOnlyConfig(), "test-read-only", "Read only", TestRuntimes.Config);
 
         Assert.IsFalse(section.HasChanges);
     }
@@ -68,7 +68,7 @@ public class OptionsUnsavedChangesTests
     [TestMethod]
     public void A_tracked_page_holds_unsaved_edits_only_while_its_tracker_says_so()
     {
-        var section = new ConfigEditViewModel(new TrackedConfig(), "test-tracked", "Tracked");
+        var section = new ConfigEditViewModel(new TrackedConfig(), "test-tracked", "Tracked", TestRuntimes.Config);
         var page = (TrackedPage)section.CustomControlInstance!;
 
         Assert.IsFalse(section.HasChanges, "an untouched page has nothing to save");
@@ -83,7 +83,7 @@ public class OptionsUnsavedChangesTests
     [TestMethod]
     public void A_page_that_saves_without_a_tracker_is_taken_to_hold_unsaved_edits()
     {
-        var section = new ConfigEditViewModel(new UntrackedConfig(), "test-untracked", "Untracked");
+        var section = new ConfigEditViewModel(new UntrackedConfig(), "test-untracked", "Untracked", TestRuntimes.Config);
 
         Assert.IsTrue(section.HasChanges, "with no way to tell, closing asks rather than dropping edits");
     }

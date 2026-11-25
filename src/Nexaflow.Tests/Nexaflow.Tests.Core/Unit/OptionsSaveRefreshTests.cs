@@ -33,8 +33,8 @@ public class OptionsSaveRefreshTests
     [TestMethod]
     public void A_save_reopens_only_the_tabs_whose_settings_changed()
     {
-        var touched = new ConfigEditViewModel(new Touched(), "test-touched", "Touched");
-        var untouched = new ConfigEditViewModel(new Untouched(), "test-untouched", "Untouched");
+        var touched = new ConfigEditViewModel(new Touched(), "test-touched", "Touched", TestRuntimes.Config);
+        var untouched = new ConfigEditViewModel(new Untouched(), "test-untouched", "Untouched", TestRuntimes.Config);
 
         touched.Properties.Single(p => p.PropertyName == nameof(Touched.Value)).Value = "changed";
 
@@ -45,7 +45,7 @@ public class OptionsSaveRefreshTests
     [TestMethod]
     public void A_save_that_changed_nothing_reopens_nothing()
     {
-        var untouched = new ConfigEditViewModel(new Untouched(), "test-untouched", "Untouched");
+        var untouched = new ConfigEditViewModel(new Untouched(), "test-untouched", "Untouched", TestRuntimes.Config);
 
         Assert.AreEqual(0, OptionsViewModel.ConfigTypesToRefresh([untouched]).Count);
     }

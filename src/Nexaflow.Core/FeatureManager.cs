@@ -78,14 +78,19 @@ public sealed class FeatureManager
     public IReadOnlyList<Uri> ThemeContributionUris { get { lock (_themeLock) return _themeContributionUris.ToList(); } }
     // ── Registration ──────────────────────────────────────────────────────
 
+    /// <summary>The session's configuration, which every feature's global config is registered in and saved through.</summary>
+    private readonly ConfigManager _config;
+
     /// <summary>
     /// The session's feature system over <paramref name="catalog"/>: builds the catalog's (cached) discovery index — no feature
-    /// assemblies are loaded on the cache-hit path — and activates Core. A feature's theme is folded in on <paramref name="ui"/>,
-    /// however its assembly came to load, and its location backends are registered in <paramref name="locationProviders"/>.
+    /// assemblies are loaded on the cache-hit path — and activates Core. A feature's global configs are registered in
+    /// <paramref name="config"/>, its theme is folded in on <paramref name="ui"/>, however its assembly came to load, and its
+    /// location backends are registered in <paramref name="locationProviders"/>.
     /// </summary>
-    public FeatureManager(FeatureCatalog catalog, IUiThread ui, LocationProviderRegistry locationProviders)
+    public FeatureManager(FeatureCatalog catalog, ConfigManager config, IUiThread ui, LocationProviderRegistry locationProviders)
     {
         Catalog            = catalog;
+        _config            = config;
         _ui                = ui;
         _locationProviders = locationProviders;
         _subfeatures       = new SubfeatureCatalog(catalog, this);
@@ -103,7 +108,7 @@ public sealed class FeatureManager
 
     /// <summary>What a feature's setup is given of the session: the global configs, the data folder, and saving a config.</summary>
     private FeatureStartupContext StartupContext()
-        => new(_configs, ConfigManager.Instance.BaseDir, config => ConfigManager.Instance.Save(config, config.ConfigName));
+        => new(_configs, _config.BaseDir, config => _config.Save(config, config.ConfigName));
 
     /// <summary>
     /// Side-effects of loading a feature assembly, performed once on its first load: register its global
@@ -126,7 +131,7 @@ public sealed class FeatureManager
                     var cfg = (IFeatureConfig)Activator.CreateInstance(configType)!;
                     // ConfigManager.Register is first-wins and returns the canonical instance; use the canonical so all consumers
                     // share it.
-                    _configs[configType] = (IFeatureConfig)ConfigManager.Instance.Register(cfg, cfg.ConfigName);
+                    _configs[configType] = (IFeatureConfig)_config.Register(cfg, cfg.ConfigName);
                 }
                 catch { }
             }

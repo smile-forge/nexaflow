@@ -79,7 +79,7 @@ A launch of a workspace already live opens a window on its runtime; tear-off and
 
 | Singleton | Owns | NOT responsible for |
 |-----------|------|---------------------|
-| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-workspace config in that workspace's folder | — |
+| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-workspace config in that workspace's folder; what rules on a setting the app does not decide alone (`AddRulings`). One per session, made by `ShellHost` over this launch's folders (`AppDataFolders` — `%AppData%` and `%LocalAppData%\Smile\nexaflow`, or the root `NEXAFLOW_CONFIG_DIR` sets apart) and handed by constructor to whatever reads or writes a config: the feature and provider systems, the saved workspaces — which list each `Workspace` in it, so its folders and its own configs resolve — every runtime (`RuntimeSessionServices`) and window (`WindowServices`), whose Options, Configure and wizard view-models are given it | Where the crash and safety logs write — they find the same folders through `AppDataFolders`, before the session opens |
 | `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — creating one loads nothing; cooled + disposed on last release. One per session, made by `ShellHost` with the app-wide services a provider may take, and handed to every window (`WindowServices`) and runtime (`RuntimeSessionServices`; the runtime carries it as `WorkspaceRuntime.ProviderPool`) | Holds provider **configs** — those live on the saved `Workspace` |
 | `ModelResidency` | Which pooled models stay loaded: those `ModelPreloadConfig` (**global**) loads ahead, warmed after the first window draws; any other let go once idle. Counts each use in `ModelUseHistory` — **machine-local**, `model-use.json` in the AI folder beside the models, not per workspace: the models are loaded once for every workspace, and what is worth loading ahead depends on this machine | Loading a model before first paint |
 | `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
@@ -111,7 +111,7 @@ Every config (global or per-workspace) persists as `…\{configName}\config_{Ass
 2. A shape change the carry-over can't express (a rename or restructure) opts into **`IConfigMigration`** — a tiny one-method interface mirrored in `Features.Common` and `Providers.Common` (kept parallel so the layering rule holds; Core checks both). Its `MigrateFrom(previousJson, previousVersion)` runs right after the carry-over, with the raw old JSON in hand.
 3. The result is rewritten under the current version and the stale files are deleted (**write-then-delete**, so a failed write never loses the prior data).
 
-Every load is lenient per value, not only a migration's. A stored value that no longer reads as its property's type — written by a build where that property had another shape, such as an enum that became a string — is skipped, so the property keeps its default, and is recorded in the crash log (`ConfigManager.FaultLog`). A dev build and the installed release share one `config_{AssemblyVersion}.json` while their versions match, so without this either could stop the other from starting. A config implementing `IConfigMigration` is handed the raw old JSON, so recovering such a value during a migration is the hook's job and nothing is recorded.
+Every load is lenient per value, not only a migration's. A stored value that no longer reads as its property's type — written by a build where that property had another shape, such as an enum that became a string — is skipped, so the property keeps its default, and is recorded in the crash log the session's `ConfigManager` is made with. A dev build and the installed release share one `config_{AssemblyVersion}.json` while their versions match, so without this either could stop the other from starting. A config implementing `IConfigMigration` is handed the raw old JSON, so recovering such a value during a migration is the hook's job and nothing is recorded.
 
 A file that cannot be read **at all** — corrupt JSON, or one the process cannot open — is the same principle a file wide: the config keeps whatever was recovered before the read failed and defaults for the rest, the fault is recorded, and the name is tracked in `GetUnreadableConfigs` (and in `GetDefaultedConfigs`, which is what it now holds). Corrupt content is renamed aside as `config_{Version}.json.unreadable-{stamp}`, so the next launch starts from a clean file with the damaged bytes still there to recover by hand; a file that merely could not be opened is left alone, since its data is probably good. An unreadable `workcontexts` costs the workspace **list**, not the workspaces: `WorkspaceManager.RecoverWorkspacesFromDataFolders` rebuilds it from the folders under `Contexts\` — each folder name is a workspace name — so every workspace comes back pointing at its own conversations, notes, ribbon and provider config, with a fresh symbol and colour (those lived only in the lost file). `ShellHost` runs that before the provider scan, persists it at once, and reports what happened through `MessageCenter`; the setup wizard then opens to re-verify.
 
@@ -761,10 +761,14 @@ app's files go. It takes no other input and restores only what the admin-owned m
 
 ```
 App.OnStartup
+  → AppDataFolders.ForThisProcess()                         ← %AppData% + %LocalAppData%\Smile\nexaflow, or the root
+        NEXAFLOW_CONFIG_DIR sets apart; the crash and safety logs find the same folders
   → single-instance IPC listener                            ← a later launch never waits behind start-up
-  → new ShellHost(options, ShellPlatform(WPF UI thread, clipboard, folder watcher, ApplyAppearance, page views)):
-      → the feature catalogue (its index not yet built)
-      → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
+  → new ShellHost(options (the folders, --reset, --uiTest), ShellPlatform(WPF UI thread, clipboard, folder watcher,
+        ApplyAppearance, page views)):
+      → new ConfigManager(the folders, the crash log)       ← the session's configuration, handed by constructor to
+            whatever reads or writes a config
+      → the feature catalogue, its index cached under the configuration (not yet built)
       → register GLOBAL configs: ShellConfig (+ App applies the theme), WorkspacesConfig,
         FileMapConfig, ExternalAppsConfig
       → new LanguageManager(Languages\), Select(ShellConfig.Language), Str pointed at it   ← records the language;
@@ -772,14 +776,15 @@ App.OnStartup
             the language is selected again, before the first window's strings resolve
       → HelpLibrary over the language, for the Help page and the assistant's help tools
       → the AI host client, model residency, local tools
-      → new ProviderManager(Activities, model store, residency, app-wide services)   ← the provider pool
+      → new ProviderManager(config, Activities, model store, residency, app-wide services)   ← the provider pool
       → the component registry (ExternalDependencyRegistry) over the catalogue and the AI host's reading, and the page
             views made over both
-      → for each saved workspace: temp AiConfig ← ConfigManager.LoadFrom(workspace dir)
+      → for each saved workspace: temp AiConfig ← config.LoadFrom(WorkspaceManager.WorkspaceDir(config, name))
             (need each workspace's columns to know which provider DLLs to load)
       → providers.LoadConfigured(⋃ AssemblyFileName across all workspaces' AiConfigs)
-      → new WorkspaceManager(wcConfig, providers)           ← the saved Workspaces list ONLY (no runtimes)
-      → new FeatureManager(catalog, ui, location backends)  ← FeatureCatalog.Initialize: load the cached
+      → new WorkspaceManager(wcConfig, providers, config)   ← the saved Workspaces list ONLY (no runtimes), each
+            workspace listed in the configuration (Workspace.ListIn), so its folders and own configs resolve
+      → new FeatureManager(catalog, config, ui, location backends)  ← FeatureCatalog.Initialize: load the cached
             discovery index (no feature DLLs loaded) or, after an app update, one full rescan. Feature
             assemblies load + activate lazily later (first use, or the post-paint background warm-up); the file
             system's activation sets up FileMapManager / ExternalAppRegistry

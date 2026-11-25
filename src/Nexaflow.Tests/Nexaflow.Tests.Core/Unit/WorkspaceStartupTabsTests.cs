@@ -14,29 +14,27 @@ namespace Nexaflow.Tests.Core.Unit;
 /// as, what a closing window records, and what the "never offer to restore" opt-out changes. Reopening
 /// itself needs the feature registry to build the pages, so what is asserted here is the plan the
 /// restore follows — pane, order and which tab ends up selected — plus the recording that feeds it.
-/// Each test saves its workspace in a list of its own; the <see cref="ConfigManager"/> singleton is shared, so it runs in the
-/// non-parallel phase against a temp config root.
+/// Each test saves its workspace in a list of its own, kept in a configuration of its own over a temp config root.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 [CoversNode("workspaces")]
 public class WorkspaceStartupTabsTests
 {
-    private string _origBaseDir = string.Empty;
-    private string _baseDir     = string.Empty;
+    private string _baseDir = string.Empty;
+
+    /// <summary>The test's configuration, over its own config root, which its saved list is kept in.</summary>
+    private ConfigManager _config = null!;
 
     [TestInitialize]
     public void Setup()
     {
-        _origBaseDir = ConfigManager.Instance.BaseDir;
-        _baseDir     = Path.Combine(TestTemp.Root, "nexaflow-tabs-" + Guid.NewGuid().ToString("N"));
-        ConfigManager.Instance.Initialize(_baseDir);
+        _baseDir = Path.Combine(TestTemp.Root, "nexaflow-tabs-" + Guid.NewGuid().ToString("N"));
+        _config  = TestRuntimes.ConfigIn(_baseDir);
     }
 
     [TestCleanup]
     public void Teardown()
     {
-        ConfigManager.Instance.Initialize(_origBaseDir);
         try { if (Directory.Exists(_baseDir)) Directory.Delete(_baseDir, recursive: true); }
         catch { /* best effort */ }
     }
@@ -94,7 +92,7 @@ public class WorkspaceStartupTabsTests
     public void ADefaultTabsetIsPersisted_AndComesBackFieldForField()
     {
         var workspace = new Workspace { Name = "Dev" };
-        var saved     = TestRuntimes.SavedListOf(workspace);
+        var saved     = TestRuntimes.SavedListIn(_config, workspace);
 
         // What "Use Tabset as Default" writes: the captured layout, its panes, params and selection.
         workspace.DefaultTabs =
@@ -139,7 +137,7 @@ public class WorkspaceStartupTabsTests
     public void AnEmptyDefaultTabset_IsHonoured_ButANullOneIsReseeded()
     {
         var workspace = new Workspace { Name = "Blank", DefaultTabs = [] };
-        TestRuntimes.SavedListOf(workspace).SaveWorkspaces();
+        TestRuntimes.SavedListIn(_config, workspace).SaveWorkspaces();
 
         Assert.AreEqual(0, ReadBack().Contexts.Single().DefaultTabs.Count,
                         "starting with no tabs is a choice, not a missing value");
@@ -204,7 +202,7 @@ public class WorkspaceStartupTabsTests
     public void AStandbyWindow_RecordsNoSession_ForItWasNeverShownToAnyone()
     {
         var workspace = new Workspace { Name = "Ready", DefaultTabs = [Tab("FileSystem")] };
-        var shell = TestRuntimes.Unstarted(workspace, standby: true).ShellServices;   // saved in a list of its own
+        var shell = TestRuntimes.Unstarted(workspace, standby: true, _config).ShellServices;   // saved in a list of its own
         var host  = new FakeWindowHost
         {
             Layout            = [Tab("FileSystem"), Tab("Terminal")],
@@ -224,7 +222,7 @@ public class WorkspaceStartupTabsTests
     public void TheOptOut_RoundTripsWithTheWorkspace()
     {
         var workspace = new Workspace { Name = "Fixed", SuppressSessionRestore = true };
-        TestRuntimes.SavedListOf(workspace).SaveWorkspaces();
+        TestRuntimes.SavedListIn(_config, workspace).SaveWorkspaces();
 
         Assert.IsTrue(ReadBack().Contexts.Single().SuppressSessionRestore);
     }
@@ -236,15 +234,15 @@ public class WorkspaceStartupTabsTests
     private WorkspacesConfig ReadBack()
     {
         var fresh = new WorkspacesConfig();
-        ConfigManager.Instance.LoadFrom(_baseDir, fresh, fresh.ConfigName);
+        _config.LoadFrom(_baseDir, fresh, fresh.ConfigName);
         return fresh;
     }
 
     // A workspace with one live runtime and one registered, focused window.
-    private static (Workspace, ShellServices, FakeWindowHost) LiveWorkspace(string name)
+    private (Workspace, ShellServices, FakeWindowHost) LiveWorkspace(string name)
     {
         var workspace = new Workspace { Name = name };
-        var runtime   = TestRuntimes.Unstarted(workspace);   // saved in a list of its own, which its window closing writes
+        var runtime   = TestRuntimes.Unstarted(workspace, config: _config);   // saved in a list of its own, which its window closing writes
         var shell   = runtime.ShellServices;
         var host    = new FakeWindowHost();
         shell.RegisterWindow(host);

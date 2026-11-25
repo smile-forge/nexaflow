@@ -3,6 +3,9 @@ using Nexaflow.Core.Localization;
 namespace Nexaflow.Core.Services;
 
 /// <summary>What a shell window is given of the session it runs in.</summary>
+/// <param name="Config">The session's configuration: what the window's Options and Configure panels list and save, and the setup
+/// a workspace it adds is asked for.</param>
+/// <param name="Shell">The shell's settings: the theme and language a window restarts for when Options changes them.</param>
 /// <param name="Activities">The session's background tasks, which the window's activity ticker shows.</param>
 /// <param name="Workspaces">The live workspaces, which the window moves between.</param>
 /// <param name="Inbox">The session's inbox: the window shows every message in it and toasts the new ones.</param>
@@ -17,6 +20,8 @@ namespace Nexaflow.Core.Services;
 /// add, rename and delete them.</param>
 /// <param name="Updates">Where this build stands against its newest release, which the window's About page shows.</param>
 public sealed record WindowServices(
+    ConfigManager Config,
+    ShellConfig Shell,
     BackgroundActivityManager Activities,
     WorkspaceRuntimes Workspaces,
     MessageCenter Inbox,

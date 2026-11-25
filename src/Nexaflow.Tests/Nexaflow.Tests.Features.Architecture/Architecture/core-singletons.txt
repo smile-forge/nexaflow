@@ -1,6 +1,5 @@
 # Files under src/Nexaflow.Core and src/Nexaflow.IO.* that declare a static Instance — services the session has still to make
 # itself and hand over (CoreSingletonRatchetTests). Only shrinks: delete a line when its singleton is gone.
-src/Nexaflow.Core/ConfigManager.cs
 src/Nexaflow.Core/Services/CrashLog.cs
 
 src/Nexaflow.Core/Services/ShellSafetyLog.cs

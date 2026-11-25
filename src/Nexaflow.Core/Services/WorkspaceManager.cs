@@ -6,6 +6,7 @@ using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -38,20 +39,33 @@ public sealed class WorkspaceManager
     /// <summary>The session's provider pool, which a workspace's provider configs are read through.</summary>
     private readonly ProviderManager _providers;
 
+    /// <summary>The session's configuration: the list is saved through it, and every workspace in it is listed in it.</summary>
+    private readonly ConfigManager _configuration;
+
     /// <summary>
-    /// The saved workspaces <paramref name="config"/> holds, or one default workspace where it holds none. The list alone: no
-    /// runtime is made until a window opens one.
+    /// The saved workspaces <paramref name="config"/> holds, or one default workspace where it holds none, each listed in
+    /// <paramref name="configuration"/> (<see cref="Workspace.ListIn"/>). The list alone: no runtime is made until a window opens one.
     /// </summary>
     /// <param name="config">The saved workspace list, which <see cref="SaveWorkspaces"/> writes back.</param>
     /// <param name="providers">The session's provider pool, which a workspace's provider configs are read through.</param>
-    public WorkspaceManager(WorkspacesConfig config, ProviderManager providers)
+    /// <param name="configuration">The session's configuration: the list is saved through it, and each workspace's folders sit
+    /// under its own.</param>
+    public WorkspaceManager(WorkspacesConfig config, ProviderManager providers, ConfigManager configuration)
     {
-        _savedConfig = config;
-        _providers   = providers;
+        _savedConfig   = config;
+        _providers     = providers;
+        _configuration = configuration;
 
         var workspaces = config.Contexts is { Count: > 0 } saved ? saved : [new Workspace()];
         foreach (var p in workspaces)
-            Workspaces.Add(p);
+            Keep(p);
+    }
+
+    /// <summary>Adds <paramref name="workspace"/> to <see cref="Workspaces"/>, listed in the session's configuration.</summary>
+    private void Keep(Workspace workspace)
+    {
+        workspace.ListIn(_configuration);
+        Workspaces.Add(workspace);
     }
 
     /// <summary>The reserved sub-folder of <c>Contexts\</c> that orphaned workspace data is moved into
@@ -69,12 +83,13 @@ public sealed class WorkspaceManager
     /// <para>
     /// Additive and idempotent: entries already in the list are kept as they are, and only folders no entry
     /// names are added (with a fresh symbol and colour — those lived only in the file that was lost). The
-    /// folders themselves are read for their names and never touched. Returns the names recovered.
+    /// folders themselves are read for their names and never touched. Returns the names recovered. The folders are those under
+    /// <paramref name="configuration"/>'s base, which the list is not yet kept by: this runs before it is.
     /// </para>
     /// </summary>
-    public static IReadOnlyList<string> RecoverWorkspacesFromDataFolders(WorkspacesConfig config)
+    public static IReadOnlyList<string> RecoverWorkspacesFromDataFolders(WorkspacesConfig config, ConfigManager configuration)
     {
-        var root = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts");
+        var root = Path.Combine(configuration.BaseDir, "Contexts");
         if (!Directory.Exists(root)) return [];
 
         var known     = config.Contexts.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -115,7 +130,7 @@ public sealed class WorkspaceManager
     {
         if (!listIsAuthoritative) return [];
 
-        var root = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts");
+        var root = Path.Combine(_configuration.BaseDir, "Contexts");
         if (!Directory.Exists(root)) return [];
 
         // Folder name == workspace Name (see WorkspaceDir); match case-insensitively like the filesystem.
@@ -154,9 +169,9 @@ public sealed class WorkspaceManager
     /// Lets go of what no listed workspace keeps on this machine alone. Caches, worked out again from what they were kept of, so
     /// let go of rather than quarantined; a folder in use is left for the next launch.
     /// </summary>
-    private static void ForgetOrphanedLocalFolders(IReadOnlySet<string> live)
+    private void ForgetOrphanedLocalFolders(IReadOnlySet<string> live)
     {
-        var root = Path.Combine(ConfigManager.Instance.LocalDir, "Contexts");
+        var root = Path.Combine(_configuration.LocalDir, "Contexts");
         if (!Directory.Exists(root)) return;
 
         foreach (var dir in Directory.GetDirectories(root))
@@ -186,7 +201,7 @@ public sealed class WorkspaceManager
     {
         workspace.EnsureSharedServicesLoaded(_providers);
         LocalColumns.Use(workspace.AiConfig, slot, model);
-        ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
+        workspace.SaveAiConfig();
     }
 
     /// <summary>Adds a new workspace with a random icon/colour to <see cref="Workspaces"/>.</summary>
@@ -194,7 +209,7 @@ public sealed class WorkspaceManager
     {
         var (icon, color) = WorkspaceStyle.Random();
         var workspace = new Workspace { Name = name, Icon = icon, Color = color };
-        Workspaces.Add(workspace);
+        Keep(workspace);
         WorkspacesRefreshed?.Invoke(this, EventArgs.Empty);
         return workspace;
     }
@@ -207,17 +222,17 @@ public sealed class WorkspaceManager
     {
         var (icon, color) = WorkspaceStyle.Random();
         var workspace = new Workspace { Name = name, Icon = icon, Color = color };
-        var destDir = WorkspaceDir(name);
+        var destDir = WorkspaceDir(_configuration, name);
 
         source.EnsureSharedServicesLoaded(_providers);
-        ConfigManager.Instance.SaveTo(destDir, source.AiConfig, source.AiConfig.ConfigName);
-        ConfigManager.Instance.SaveTo(destDir, source.Persona, source.Persona.ConfigName);
+        _configuration.SaveTo(destDir, source.AiConfig, source.AiConfig.ConfigName);
+        _configuration.SaveTo(destDir, source.Persona, source.Persona.ConfigName);
         foreach (var cfg in source.ProviderConfigs)
-            ConfigManager.Instance.SaveTo(destDir, cfg, cfg.ConfigName);
+            _configuration.SaveTo(destDir, cfg, cfg.ConfigName);
         foreach (var cfg in source.WorkspaceConfigs)
-            ConfigManager.Instance.SaveTo(destDir, cfg, cfg.ConfigName);
+            _configuration.SaveTo(destDir, cfg, cfg.ConfigName);
 
-        Workspaces.Add(workspace);
+        Keep(workspace);
         WorkspacesRefreshed?.Invoke(this, EventArgs.Empty);
         return workspace;
     }
@@ -245,16 +260,16 @@ public sealed class WorkspaceManager
     {
         if (!string.Equals(workspace.Name, newName, StringComparison.Ordinal))
         {
-            var oldDir = WorkspaceDir(workspace.Name);
-            var newDir = WorkspaceDir(newName);
+            var oldDir = WorkspaceDir(_configuration, workspace.Name);
+            var newDir = WorkspaceDir(_configuration, newName);
             // Skip the move on a case-only rename (same path on Windows) or when there's nothing to move.
             if (!string.Equals(oldDir, newDir, StringComparison.OrdinalIgnoreCase)
                 && Directory.Exists(oldDir) && !Directory.Exists(newDir))
         Directory.Move(oldDir, newDir);
 
                 // What it keeps on this machine alone goes with it.
-                var oldLocal = WorkspaceLocalDir(workspace.Name);
-                var newLocal = WorkspaceLocalDir(newName);
+                var oldLocal = WorkspaceLocalDir(_configuration, workspace.Name);
+                var newLocal = WorkspaceLocalDir(_configuration, newName);
                 if (!string.Equals(oldLocal, newLocal, StringComparison.OrdinalIgnoreCase)
                     && Directory.Exists(oldLocal) && !Directory.Exists(newLocal))
                     Directory.Move(oldLocal, newLocal);
@@ -292,14 +307,14 @@ public sealed class WorkspaceManager
 
     /// <summary>Deletes a workspace's data folder, swallowing IO failures (a locked file orphans the
     /// folder rather than crashing the delete).</summary>
-    private static void DeleteWorkspaceFolder(string name)
+    private void DeleteWorkspaceFolder(string name)
     {
         try
         {
-            var dir = WorkspaceDir(name);
+            var dir = WorkspaceDir(_configuration, name);
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
 
-            var local = WorkspaceLocalDir(name);
+            var local = WorkspaceLocalDir(_configuration, name);
             if (Directory.Exists(local)) Directory.Delete(local, recursive: true);
         }
         catch { /* leave an orphaned folder rather than fail the removal */ }
@@ -334,35 +349,39 @@ public sealed class WorkspaceManager
         return open is [var only] ? only : saved[0];
     }
 
-    /// <summary>Per-workspace data folder: <c>%AppData%\…\Contexts\&lt;name&gt;</c> (folder name kept for compat).</summary>
-    public static string WorkspaceDir(string name)
-        => Path.Combine(ConfigManager.Instance.BaseDir, "Contexts", name);
+    /// <summary>Per-workspace data folder under <paramref name="configuration"/>'s base: <c>%AppData%\…\Contexts\&lt;name&gt;</c>
+    /// (folder name kept for compat).</summary>
+    public static string WorkspaceDir(ConfigManager configuration, string name)
+        => Path.Combine(configuration.BaseDir, "Contexts", name);
 
     /// <summary>
     /// What a workspace keeps on this machine alone: <c>%LocalAppData%\…\Contexts\&lt;name&gt;</c> — caches too large to roam with
     /// its settings. Renamed, deleted and let go of with the workspace's own folder.
     /// </summary>
-    public static string WorkspaceLocalDir(string name)
-        => Path.Combine(ConfigManager.Instance.LocalDir, "Contexts", name);
+    public static string WorkspaceLocalDir(ConfigManager configuration, string name)
+        => Path.Combine(configuration.LocalDir, "Contexts", name);
 
     /// <summary>Persists the workspace list (names/colours/icons only).</summary>
     public void SaveWorkspaces()
     {
         _savedConfig.Contexts = [.. Workspaces];
-        ConfigManager.Instance.Save(_savedConfig, _savedConfig.ConfigName);
+        _configuration.Save(_savedConfig, _savedConfig.ConfigName);
     }
 
     /// <summary>Persists one workspace's AI ability config to its own folder.</summary>
-    public void SaveWorkspaceAiConfig(Workspace workspace)
-        => ConfigManager.Instance.SaveTo(WorkspaceDir(workspace.Name), workspace.AiConfig, workspace.AiConfig.ConfigName);
+    public void SaveWorkspaceAiConfig(Workspace workspace) => workspace.SaveAiConfig();
 
     /// <summary>Persists one workspace's assistant persona (name + system prompt) to its own folder.</summary>
     public void SaveWorkspacePersona(Workspace workspace)
-        => ConfigManager.Instance.SaveTo(WorkspaceDir(workspace.Name), workspace.Persona, workspace.Persona.ConfigName);
+        => _configuration.SaveTo(workspace.Dir, workspace.Persona, workspace.Persona.ConfigName);
 
     /// <summary>Persists one of a workspace's per-workspace feature configs to its own folder.</summary>
     public void SaveWorkspaceScopedConfig(Workspace workspace, IFeatureConfig config)
-        => ConfigManager.Instance.SaveTo(WorkspaceDir(workspace.Name), config, config.ConfigName);
+        => _configuration.SaveTo(workspace.Dir, config, config.ConfigName);
+
+    /// <summary>Persists one of a workspace's provider configs — the key or address a provider is reached with — to its own folder.</summary>
+    public void SaveWorkspaceProviderConfig(Workspace workspace, IProviderConfig config)
+        => _configuration.SaveTo(workspace.Dir, config, config.ConfigName);
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
@@ -385,7 +404,7 @@ public sealed class WorkspaceManager
             folded |= LocalColumns.Seed(workspace.AiConfig, Offered);
             folded |= LocalColumns.Settle(workspace.AiConfig, Offered);
         }
-        if (folded) ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
+        if (folded) workspace.SaveAiConfig();
         return folded;
     }
 

@@ -12,7 +12,6 @@ namespace Nexaflow.Tests.Core.Unit;
 /// may hold while the app is joined to it.
 /// </summary>
 [TestClass]
-[DoNotParallelize]   // rulings are the one ConfigManager's: a test's ruling would rule on another's settings
 [CoversNode("opt-save-validate")]
 public class ConfigRulingsTests
 {
@@ -28,12 +27,16 @@ public class ConfigRulingsTests
             => config is Rated && propertyName == nameof(Rated.Share) ? new ConfigRuling(value, why) : null;
     }
 
+    /// <summary>A configuration of the test's own, so a ruling it adds rules on no other test's settings.</summary>
+    private static ConfigManager NewConfig() => TestRuntimes.ConfigIn(TestTemp.CreateSubdirectory("rulings-").FullName);
+
     [TestMethod]
     public void ARuledSetting_ShowsTheRuling_ReadOnly_SayingWhy_AndSavingKeepsTheAppsOwn()
     {
-        using var ruled = ConfigManager.Instance.AddRulings(new RulesShare(40, "set by the service"));
+        var config = NewConfig();
+        using var ruled = config.AddRulings(new RulesShare(40, "set by the service"));
         var real = new Rated();
-        var section = new ConfigEditViewModel(real, "test-rated", "Rated");
+        var section = new ConfigEditViewModel(real, "test-rated", "Rated", config);
         var share = section.Properties.Single(p => p.PropertyName == nameof(Rated.Share));
         var other = section.Properties.Single(p => p.PropertyName == nameof(Rated.Other));
 
@@ -49,10 +52,11 @@ public class ConfigRulingsTests
     [TestMethod]
     public void ARulingTakenAway_LeavesTheSettingTheUsersAgain()
     {
-        var ruled = ConfigManager.Instance.AddRulings(new RulesShare(40, "set by the service"));
+        var config = NewConfig();
+        var ruled = config.AddRulings(new RulesShare(40, "set by the service"));
         ruled.Dispose();
 
-        var share = new ConfigEditViewModel(new Rated(), "test-rated", "Rated").Properties.Single(p => p.PropertyName == nameof(Rated.Share));
+        var share = new ConfigEditViewModel(new Rated(), "test-rated", "Rated", config).Properties.Single(p => p.PropertyName == nameof(Rated.Share));
 
         Assert.AreEqual((70, true, false), (share.Value, share.IsEnabled, share.IsRuled));
     }

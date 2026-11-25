@@ -59,8 +59,12 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// <summary>The session's feature system: the pages this runtime opens, and the features it builds for them.</summary>
     private readonly FeatureManager _features;
 
-    /// <summary>The saved workspaces, written back when this runtime's workspace records its last session or lets one go.</summary>
+    /// <summary>The saved workspaces, written back when this runtime's workspace records its last session or lets one go, or a
+    /// feature saves its per-workspace config.</summary>
     private readonly WorkspaceManager _savedWorkspaces;
+
+    /// <summary>The session's configuration, which a feature's global config is saved through.</summary>
+    private readonly ConfigManager _config;
 
     internal ShellServices(WorkspaceRuntime workspace, RuntimeSessionServices session)
     {
@@ -75,6 +79,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         _views        = session.Views;
         _features     = session.Features;
         _savedWorkspaces = session.SavedWorkspaces;
+        _config       = session.Config;
         Clipboard     = session.Clipboard;
         _folders.Busy.Changed += OnBusyFoldersChanged;
     }
@@ -964,9 +969,9 @@ public sealed class ShellServices : IShellServices, IDisposable
         // Configure panel loads them from); global feature configs go in the shared config root. Routing
         // a scoped config through the global Save would write where nothing reads it back.
         if (_features.IsWorkspaceScopedConfig(config.GetType()))
-            ConfigManager.Instance.SaveTo(_workspace.Workspace.Dir, config, config.ConfigName);
+            _savedWorkspaces.SaveWorkspaceScopedConfig(_workspace.Workspace, config);
         else
-            ConfigManager.Instance.Save(config, config.ConfigName);
+            _config.Save(config, config.ConfigName);
     }
 
     void IShellServices.OpenOptions(string configName)

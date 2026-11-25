@@ -12,7 +12,8 @@ namespace Nexaflow.Core.Services.ShellAi;
 /// </summary>
 /// <param name="workspace">The runtime the call is made in.</param>
 /// <param name="features">The session's feature system, which knows the pages the runtime can open.</param>
-public sealed class ShellAiContext(WorkspaceRuntime workspace, FeatureManager features)
+/// <param name="security">The security settings: whether the open windows are offered at all, and whether seeing them is asked first.</param>
+public sealed class ShellAiContext(WorkspaceRuntime workspace, FeatureManager features, SecurityConfig security)
 {
     /// <summary>Where the page sits, in a few lines: the time, the workspace, and the windows and tabs open.</summary>
     public string BuildContext()
@@ -55,8 +56,6 @@ public sealed class ShellAiContext(WorkspaceRuntime workspace, FeatureManager fe
             new GetOpenablePagesTool(workspace, features),
         };
 
-        var security = ConfigManager.Instance.GetAll().OfType<SecurityConfig>().FirstOrDefault()
-                       ?? new SecurityConfig();
         if (security.AllowWindowAccess != WindowAccessOption.No)
             tools.Add(new GetOpenWindowsTool(shell, security));
 

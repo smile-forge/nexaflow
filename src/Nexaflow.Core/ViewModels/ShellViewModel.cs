@@ -447,7 +447,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
     private OptionsViewModel BuildOptionsPanel()
     {
-        var vm = new OptionsViewModel(new ConfigPageModels(_session), _session.Features, _runtimes, _shellServices);
+        var vm = new OptionsViewModel(_session.Config, new ConfigPageModels(_session), _session.Features, _runtimes, _shellServices);
         vm.SaveError           += ShowErrorToast;
         vm.TabRefreshRequested += RefreshTabs;
         vm.SaveCompleted       += () =>
@@ -455,8 +455,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             OptionsOpen = false;
             // Neither a theme nor a language live-reflows (StaticResource, and strings resolved once as the XAML
             // loads — both by design); restart this window in place, reopening the same pane layout.
-            if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell
-                && (shell.Theme != ThemeManager.Current || !_session.Language.IsCurrent(shell.Language)))
+            var shell = _session.Shell;
+            if (shell.Theme != ThemeManager.Current || !_session.Language.IsCurrent(shell.Language))
                 _shellServices.RestartWindowForAppearance(this, shell.Theme, shell.Language);
         };
         if (RequestedOptionsSection is { } section)

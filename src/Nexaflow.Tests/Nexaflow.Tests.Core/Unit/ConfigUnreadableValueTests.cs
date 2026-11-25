@@ -14,7 +14,6 @@ namespace Nexaflow.Tests.Core.Unit;
 /// record, rather than throwing out of <see cref="ConfigManager.Register"/> and stopping startup.
 /// </summary>
 [TestClass]
-[DoNotParallelize]   // swaps the process-wide ConfigManager.Instance.BaseDir and FaultLog
 [CoversNode("opt-config-migration")]
 public class ConfigUnreadableValueTests
 {
@@ -41,10 +40,9 @@ public class ConfigUnreadableValueTests
     private static Version Current => typeof(ConfigUnreadableValueTests).Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
     private static Version Prior   => Current > new Version(0, 0, 0, 0) ? new Version(0, 0, 0, 0) : new Version(99, 0, 0, 0);
 
-    private string   _dir          = string.Empty;
-    private string   _savedBaseDir = string.Empty;
-    private CrashLog _savedLog     = null!;
-    private CrashLog _log          = null!;
+    private string        _dir    = string.Empty;
+    private CrashLog      _log    = null!;
+    private ConfigManager _config = null!;
 
     [TestInitialize]
     public void Setup()
@@ -53,18 +51,13 @@ public class ConfigUnreadableValueTests
         Directory.CreateDirectory(_dir);
 
         var now = DateTimeOffset.Now;   // one clock reading, so the log a test reads is the day it was written
-        _log          = new CrashLog(() => Path.Combine(_dir, "logs"), () => now, "test");
-        _savedLog     = ConfigManager.Instance.FaultLog;
-        _savedBaseDir = ConfigManager.Instance.BaseDir;
-        ConfigManager.Instance.FaultLog = _log;
-        ConfigManager.Instance.Initialize(_dir);
+        _log    = new CrashLog(() => Path.Combine(_dir, "logs"), () => now, "test");
+        _config = TestRuntimes.ConfigIn(_dir, _log);
     }
 
     [TestCleanup]
     public void Teardown()
     {
-        ConfigManager.Instance.Initialize(_savedBaseDir);
-        ConfigManager.Instance.FaultLog = _savedLog;
         try { Directory.Delete(_dir, recursive: true); } catch { }
     }
 
@@ -74,7 +67,7 @@ public class ConfigUnreadableValueTests
         var name = UniqueName();
         WriteConfig(name, Current, """{ "Language": "fr", "TextFontSize": 15, "Theme": "Light" }""");
 
-        var cfg = (ShapeChangedConfig)ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+        var cfg = (ShapeChangedConfig)_config.Register(new ShapeChangedConfig(), name);
 
         Assert.AreEqual(Language.English, cfg.Language, "a value that does not read leaves its property at the default");
         Assert.AreEqual(15, cfg.TextFontSize, "the values around it still load");
@@ -87,7 +80,7 @@ public class ConfigUnreadableValueTests
         var name = UniqueName();
         var path = WriteConfig(name, Current, """{ "Language": "fr", "TextFontSize": 15 }""");
 
-        ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+        _config.Register(new ShapeChangedConfig(), name);
 
         Assert.IsTrue(File.Exists(_log.CurrentPath), "the fallback to a default goes on record");
         var entry = File.ReadAllText(_log.CurrentPath);
@@ -103,7 +96,7 @@ public class ConfigUnreadableValueTests
         var name = UniqueName();
         WriteConfig(name, Current, """{ "Language": "French", "TextFontSize": 15 }""");
 
-        var cfg = (ShapeChangedConfig)ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+        var cfg = (ShapeChangedConfig)_config.Register(new ShapeChangedConfig(), name);
 
         Assert.AreEqual(Language.French, cfg.Language);
         Assert.IsFalse(File.Exists(_log.CurrentPath), "a clean load leaves no entry");
@@ -116,7 +109,7 @@ public class ConfigUnreadableValueTests
         var priorPath = WriteConfig(name, Prior, """{ "Language": "fr", "TextFontSize": 15 }""");
 
         var cfg = new ShapeChangedConfig();
-        ConfigManager.Instance.LoadFrom(_dir, cfg, name);
+        _config.LoadFrom(_dir, cfg, name);
 
         Assert.AreEqual(Language.English, cfg.Language);
         Assert.AreEqual(15, cfg.TextFontSize, "the readable values carry over");
@@ -132,7 +125,7 @@ public class ConfigUnreadableValueTests
         WriteConfig(name, Prior, """{ "Language": "fr" }""");
 
         var cfg = new SelfMigratingConfig();
-        ConfigManager.Instance.LoadFrom(_dir, cfg, name);
+        _config.LoadFrom(_dir, cfg, name);
 
         Assert.AreEqual(Language.French, cfg.Language, "the hook still runs after the carry-over skipped the value");
         Assert.IsFalse(File.Exists(_log.CurrentPath), "a value the hook owns is not a fault");
@@ -146,13 +139,13 @@ public class ConfigUnreadableValueTests
         var name = UniqueName();
         WriteConfig(name, Current, "{ this is not json");
 
-        var cfg = (ShapeChangedConfig)ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+        var cfg = (ShapeChangedConfig)_config.Register(new ShapeChangedConfig(), name);
 
         Assert.AreEqual(Language.English, cfg.Language, "a damaged file must not stop the app starting");
         Assert.AreEqual(13, cfg.TextFontSize);
-        CollectionAssert.Contains(ConfigManager.Instance.GetUnreadableConfigs().ToList(), name,
+        CollectionAssert.Contains(_config.GetUnreadableConfigs().ToList(), name,
             "reported as lost, which is what the user is told and the wizard re-asks on");
-        CollectionAssert.Contains(ConfigManager.Instance.GetDefaultedConfigs().ToList(), name,
+        CollectionAssert.Contains(_config.GetDefaultedConfigs().ToList(), name,
             "and as defaulted, because that is what it now holds");
         StringAssert.Contains(File.ReadAllText(_log.CurrentPath), "could not be read");
     }
@@ -164,7 +157,7 @@ public class ConfigUnreadableValueTests
         const string damaged = "{ this is not json";
         var path = WriteConfig(name, Current, damaged);
 
-        ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+        _config.Register(new ShapeChangedConfig(), name);
 
         Assert.IsFalse(File.Exists(path), "the file that cannot be read is moved out of the way");
         var kept = Directory.GetFiles(Path.Combine(_dir, name), "config_*.json.unreadable-*").Single();
@@ -178,7 +171,7 @@ public class ConfigUnreadableValueTests
         WriteConfig(name, Prior, "not json either");
 
         var cfg = new ShapeChangedConfig();
-        ConfigManager.Instance.LoadFrom(_dir, cfg, name);
+        _config.LoadFrom(_dir, cfg, name);
 
         Assert.AreEqual(13, cfg.TextFontSize, "an unreadable older file is a fallback, not a crash");
         StringAssert.Contains(File.ReadAllText(_log.CurrentPath), "could not be read");
@@ -189,11 +182,11 @@ public class ConfigUnreadableValueTests
     {
         var name = UniqueName();
         WriteConfig(name, Current, "{ this is not json");
-        var cfg = ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+        var cfg = _config.Register(new ShapeChangedConfig(), name);
 
-        ConfigManager.Instance.Save(cfg, name);
+        _config.Save(cfg, name);
 
-        CollectionAssert.DoesNotContain(ConfigManager.Instance.GetUnreadableConfigs().ToList(), name,
+        CollectionAssert.DoesNotContain(_config.GetUnreadableConfigs().ToList(), name,
             "once the user's answers are written there is nothing left to re-ask");
     }
 

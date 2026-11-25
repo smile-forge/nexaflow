@@ -124,8 +124,11 @@ public partial class App : Application
         UiTest = e.Args.Any(a => string.Equals(a, "--uiTest", StringComparison.OrdinalIgnoreCase));
         _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
 
+        // Where this launch keeps its configuration, and what stays on this machine alone — the session's, and the logs'.
+        var folders = AppDataFolders.ForThisProcess();
+
         // A journey fails on a binding WPF could not resolve, which it otherwise tells only a debugger.
-        if (UiTest) BindingErrorLog.Attach(() => ConfigManager.Instance.BaseDir);
+        if (UiTest) BindingErrorLog.Attach(() => folders.BaseDir);
 
         var openTabIdx = Array.FindIndex(e.Args, a => string.Equals(a, "--openTab", StringComparison.OrdinalIgnoreCase));
         OpenTabKind = openTabIdx >= 0 && openTabIdx + 1 < e.Args.Length ? e.Args[openTabIdx + 1] : null;
@@ -172,7 +175,7 @@ public partial class App : Application
         // and stays survivable; only what this sequence itself throws is terminal.
         try
         {
-            var host = OpenSession(ui);
+            var host = OpenSession(ui, folders);
             var activityManager = host.Activities;
             StartupTimings.Mark("InitializeApp");
 
@@ -223,7 +226,7 @@ public partial class App : Application
 
         // Update check — runs in both paths (the daemon finds updates windowless and posts a message;
         // the first window replays it as a toast). Skipped on first run.
-        if (!ConfigManager.Instance.IsFirstRun)
+        if (!_host!.Config.IsFirstRun)
             Task.Run(async () =>
             {
                 await Task.Delay(TimeSpan.FromSeconds(10));
@@ -245,9 +248,9 @@ public partial class App : Application
     /// Opens the session (<see cref="ShellHost"/>) on WPF — the clipboard, the folder watcher's window and the theme are WPF's — and
     /// wires what the session cannot name: the window a workspace rebuild opens, and the taskbar JumpList.
     /// </summary>
-    private ShellHost OpenSession(WpfUiThread ui)
+    private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
-        var host = new ShellHost(new ShellHostOptions(_resetRequested, UiTest),
+        var host = new ShellHost(new ShellHostOptions(folders, _resetRequested, UiTest),
                                  new ShellPlatform(ui, new ShellClipboard(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
                                                                      PageViews.FromCatalog),
                                                    Updates);
@@ -435,7 +438,8 @@ public partial class App : Application
             // stamped so post-update detection stays consistent.
             if (!UiTest && !StartupTimings.Enabled)
             {
-                var wizard = SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Features, _host.Providers, _host.SavedWorkspaces);
+                var wizard = SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Config, _host.Shell, _host.Features, _host.Providers,
+                                                                        _host.SavedWorkspaces);
                 if (wizard is not null)
                 {
                     var wizardWin = new SetupWizardWindow(wizard);
@@ -503,7 +507,7 @@ public partial class App : Application
     private static Workspace? StandbyTarget()
     {
     if (IsUpdating || OpenTabKind is not null || _host?.Workspaces.AnyWindowsOpen == true) return null;
-        if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is not { KeepWindowReady: true }) return null;
+        if (_host?.Shell is not { KeepWindowReady: true }) return null;
         if (_host?.SavedWorkspaces.Workspaces is not [var first, ..]) return null;
         return SettleSetupAhead(first) ? first : null;
     }
@@ -515,7 +519,8 @@ public partial class App : Application
     private static bool SettleSetupAhead(Workspace workspace)
     {
         if (_setupShown) return true;
-        if (!UiTest && !StartupTimings.Enabled && SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Features, _host.Providers, _host.SavedWorkspaces) is not null) return false;
+        if (!UiTest && !StartupTimings.Enabled && SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Config, _host.Shell, _host.Features,
+                                                                                          _host.Providers, _host.SavedWorkspaces) is not null) return false;
         _setupShown = true;
         FinishSetup();
         return true;
@@ -526,8 +531,7 @@ public partial class App : Application
     private static void FinishSetup()
     {
         StampLastRunVersion();
-        if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell)
-            _host!.Language.Select(shell.Language);
+        _host!.Language.Select(_host.Shell.Language);
     }
 
     /// <summary>What the setup wizard binds a settings page to: for a Core page that shows the session, its view-model over the
@@ -556,7 +560,7 @@ public partial class App : Application
     /// </summary>
     internal static void ResetAndRestart()
     {
-        ConfigManager.Instance.SuppressWrites();
+        _host?.Config.SuppressWrites();
 
         var exe = Environment.ProcessPath;
 
@@ -575,12 +579,11 @@ public partial class App : Application
     /// <summary>Records the current version so the next launch can detect an update (drives What's New).</summary>
     private static void StampLastRunVersion()
     {
-        if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is not { } shell)
-            return;
+        var shell   = _host!.Shell;
         var current = SetupWizardViewModel.CurrentVersion();
         if (shell.LastRunVersion == current) return;   // unchanged — skip the write
         shell.LastRunVersion = current;
-        try { ConfigManager.Instance.Save(shell, shell.ConfigName); } catch { }
+        try { _host.Config.Save(shell, shell.ConfigName); } catch { }
     }
 
     /// <summary>Resolves a workspace name to a saved <see cref="Workspace"/>, or null.</summary>

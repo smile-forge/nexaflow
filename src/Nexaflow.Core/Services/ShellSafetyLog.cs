@@ -9,7 +9,7 @@ namespace Nexaflow.Core.Services;
 
 /// <summary>
 /// The shell's safety log, kept while Options → Shell → Enable safety logging is on: one file per session in the
-/// <c>logs</c> folder under <see cref="ConfigManager.LocalDir"/> (<c>%LOCALAPPDATA%\Smile\nexaflow\logs</c>), from the
+/// <c>logs</c> folder under <see cref="AppDataFolders.LocalDir"/> (<c>%LOCALAPPDATA%\Smile\nexaflow\logs</c>), from the
 /// first step of startup to the last of shutdown, with every load or activation failure the shell meets between — a
 /// feature assembly that will not load or activate, the discovery cache, a provider assembly that is configured but not
 /// installed, a workspace folder it could not tidy — a one-line account of each fault the crash log takes, and each AI
@@ -46,9 +46,10 @@ internal sealed class ShellSafetyLog
         _version = version;
     }
 
-    /// <summary>The app-wide log, writing into the config root's local folder as it stands when logging turns on.</summary>
+    /// <summary>The app-wide log, writing into this process's local folder (<see cref="AppDataFolders"/>) — the session's — as it
+    /// stands when logging turns on.</summary>
     public static ShellSafetyLog Instance { get; } = new(
-        () => Path.Combine(ConfigManager.Instance.LocalDir, "logs"),
+        () => Path.Combine(AppDataFolders.ForThisProcess().LocalDir, "logs"),
         () => DateTimeOffset.Now,
         typeof(ShellSafetyLog).Assembly.GetName().Version?.ToString() ?? "unknown");
 
