@@ -435,6 +435,8 @@ nexaflowSetup/*.exe
 /test-samples/
 
 /.claude/*
+!/.claude/settings.json
+!/.claude/hooks/
 
 # Nexaflow Product Manager — live metadata (snapshots are committed under the export dir)
 .product/

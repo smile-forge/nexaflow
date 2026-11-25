@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexaflow project dependencies</title>
+<style>
+  :root { color-scheme: light dark;
+    --bg:#fafafa; --fg:#1b1b1f; --mut:#6b6b76; --edge:#8a8a99; --out:#2f6fed; --in:#e8710a; --back:#d33;
+    --panel:#ffffff; --line:#d8d8e0; }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg:#16161a; --fg:#e8e8ee; --mut:#9a9aa8; --edge:#6a6a78; --out:#6aa0ff; --in:#ffa14a; --back:#ff6b6b;
+    --panel:#1f1f25; --line:#34343e; } }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:13px/1.4 system-ui, "Segoe UI", sans-serif; overflow:hidden; }
+  #app { display:grid; grid-template-rows:auto auto 1fr; height:100%; }
+  #bar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:8px 12px;
+    background:var(--panel); border-bottom:1px solid var(--line); }
+  #bar h1 { font-size:14px; margin:0; font-weight:600; }
+  #bar .meta { color:var(--mut); }
+  #bar input[type=search] { padding:4px 8px; border:1px solid var(--line); border-radius:6px;
+    background:var(--bg); color:var(--fg); width:190px; }
+  button { font:inherit; padding:3px 10px; border:1px solid var(--line); border-radius:6px;
+    background:var(--bg); color:var(--fg); cursor:pointer; }
+  button:hover { border-color:var(--out); }
+  label.opt { display:flex; align-items:center; gap:4px; color:var(--mut); cursor:pointer; }
+  #chips { display:flex; flex-wrap:wrap; gap:6px; padding:6px 12px; border-bottom:1px solid var(--line); }
+  .chip { display:flex; align-items:stretch; border:1px solid var(--line); border-radius:999px; overflow:hidden;
+    background:var(--panel); }
+  .chip button { border:0; border-radius:0; background:transparent; padding:2px 8px; }
+  .chip .swatch { width:10px; display:inline-block; }
+  .chip.collapsed .name { font-style:italic; }
+  .chip.hidden { opacity:.45; }
+  #stage { position:relative; min-height:0; }
+  svg { width:100%; height:100%; display:block; cursor:grab; touch-action:none; }
+  svg.panning { cursor:grabbing; }
+  .edge { fill:none; stroke:var(--edge); stroke-width:1; opacity:.32; }
+  .edge.back { stroke:var(--back); stroke-dasharray:4 3; opacity:.7; }
+  .edge.out { stroke:var(--out); stroke-width:1.7; opacity:1; }
+  .edge.in { stroke:var(--in); stroke-width:1.7; opacity:1; }
+  .edge.dim { opacity:.04; }
+  .node { cursor:pointer; }
+  .node text { fill:var(--fg); font-size:11px; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+  .node rect { stroke-width:1.2; }
+  .node.group rect { stroke-width:2; }
+  .node.dim { opacity:.16; }
+  .node.sel rect { stroke-width:3; }
+  .node.match rect { stroke:var(--fg) !important; stroke-width:2.5; }
+  .node.dep rect { stroke:var(--out) !important; stroke-width:2.2; }
+  .node.rev rect { stroke:var(--in) !important; stroke-width:2.2; }
+  #panel { position:absolute; top:10px; right:10px; width:290px; max-height:calc(100% - 20px); overflow:auto;
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; display:none; }
+  #panel h2 { font-size:13px; margin:0 0 2px; word-break:break-all; }
+  #panel .sub { color:var(--mut); margin-bottom:6px; word-break:break-all; }
+  #panel h3 { font-size:11px; text-transform:uppercase; letter-spacing:.04em; margin:10px 0 3px; }
+  #panel h3.out { color:var(--out); } #panel h3.in { color:var(--in); }
+  #panel ul { margin:0; padding-left:16px; } #panel li { cursor:pointer; word-break:break-all; }
+  #panel li:hover { text-decoration:underline; }
+  #hint { position:absolute; left:12px; bottom:8px; color:var(--mut); font-size:12px; pointer-events:none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bar">
+    <h1>Nexaflow project dependencies</h1>
+    <span class="meta" id="meta"></span>
+    <input id="search" type="search" placeholder="find a project…" autocomplete="off">
+    <label class="opt"><input id="transitive" type="checkbox"> transitive</label>
+    <button id="expandAll">Expand all</button>
+    <button id="collapseBig">Collapse big groups</button>
+    <button id="fit">Fit</button>
+  </div>
+  <div id="chips"></div>
+  <div id="stage">
+    <svg id="map" xmlns="http://www.w3.org/2000/svg"><g id="edges"></g><g id="nodes"></g></svg>
+    <div id="panel"></div>
+    <div id="hint">drag to pan · wheel to zoom · click a project · double-click a group to open or close it · a project uses what is below it</div>
+  </div>
+</div>
+<script>
+const DATA = __DEPS_DATA__;
+
+const BIG_GROUP = 12;           // groups with more members than this start collapsed
+const MAX_ROW_WIDTH = 1800;     // a layer wider than this wraps onto another row
+const NODE_H = 26, ROW_GAP = 40, LAYER_GAP = 34, NODE_GAP = 12;
+const NS = 'http://www.w3.org/2000/svg';
+
+const $ = id => document.getElementById(id);
+const svg = $('map'), gEdges = $('edges'), gNodes = $('nodes'), panel = $('panel');
+const short = id => id.replace(/^Nexaflow\./, '');
+
+const memberCount = new Map();
+for (const n of DATA.nodes) memberCount.set(n.group, (memberCount.get(n.group) || 0) + 1);
+const groups = [...memberCount.keys()].sort();
+const hue = g => (groups.indexOf(g) * 137.508) % 360;
+const fill = g => g === 'external' ? 'hsl(0 0% 55% / .16)' : `hsl(${hue(g)} 60% 55% / .22)`;
+const stroke = g => g === 'external' ? 'hsl(0 0% 55%)' : `hsl(${hue(g)} 55% 48%)`;
+
+const collapsed = new Set(groups.filter(g => memberCount.get(g) > BIG_GROUP));
+const hidden = new Set();
+let selected = null;
+let view = null;
+
+// ---- the view: collapsed groups become one node, edges between the survivors are merged ----------------------
+function buildView() {
+  const nodes = new Map(), owner = new Map();
+  for (const n of DATA.nodes) {
+    if (hidden.has(n.group)) continue;
+    const isGroup = collapsed.has(n.group);
+    const id = isGroup ? 'group:' + n.group : n.id;
+    let v = nodes.get(id);
+    if (!v) {
+      v = { id, group: n.group, isGroup, members: [], label: isGroup ? '' : short(n.id) };
+      nodes.set(id, v);
+    }
+    v.members.push(n);
+    owner.set(n.id, id);
+  }
+  for (const v of nodes.values()) if (v.isGroup) v.label = `${v.group} (${v.members.length})`;
+  const edges = new Set();
+  for (const e of DATA.edges) {
+    const a = owner.get(e.from), b = owner.get(e.to);
+    if (a && b && a !== b) edges.add(a + '\n' + b);
+  }
+  return { nodes, edges };
+}
+
+// ---- layering: longest path from the projects nothing uses; cycles are broken at the edge that closes them ----
+function layout(v) {
+  const out = new Map(), inn = new Map();
+  for (const id of v.nodes.keys()) { out.set(id, []); inn.set(id, []); }
+  for (const e of v.edges) { const [a, b] = e.split('\n'); out.get(a).push(b); inn.get(b).push(a); }
+
+  const state = new Map(), post = [], back = new Set();
+  const visit = id => {
+    state.set(id, 1);
+    for (const m of out.get(id)) {
+      const s = state.get(m);
+      if (s === 1) back.add(id + '\n' + m); else if (!s) visit(m);
+    }
+    state.set(id, 2); post.push(id);
+  };
+  const ids = [...v.nodes.keys()];
+  for (const id of ids.filter(i => !inn.get(i).length).concat(ids)) if (!state.get(id)) visit(id);
+
+  const layer = new Map(ids.map(i => [i, 0]));
+  for (let i = post.length - 1; i >= 0; i--) {
+    const a = post[i];
+    for (const m of out.get(a)) if (!back.has(a + '\n' + m)) layer.set(m, Math.max(layer.get(m), layer.get(a) + 1));
+  }
+
+  const rows = [];
+  for (const id of ids) (rows[layer.get(id)] ||= []).push(id);
+  const label = id => v.nodes.get(id).label;
+  for (const row of rows) row.sort((a, b) => v.nodes.get(a).group.localeCompare(v.nodes.get(b).group) || label(a).localeCompare(label(b)));
+
+  // a few barycentre sweeps so that neighbours sit above and below each other
+  const index = new Map();
+  const reindex = row => row.forEach((id, i) => index.set(id, i));
+  rows.forEach(reindex);
+  const sweep = (row, neighbours) => {
+    const key = id => {
+      const ns = neighbours.get(id);
+      return ns.length ? ns.reduce((s, n) => s + index.get(n), 0) / ns.length : index.get(id);
+    };
+    const k = new Map(row.map(id => [id, key(id)]));
+    row.sort((a, b) => k.get(a) - k.get(b) || label(a).localeCompare(label(b)));
+    reindex(row);
+  };
+  for (let pass = 0; pass < 4; pass++) {
+    for (let l = 1; l < rows.length; l++) sweep(rows[l], inn);
+    for (let l = rows.length - 2; l >= 0; l--) sweep(rows[l], out);
+  }
+
+  const width = id => Math.max(64, label(id).length * 6.4 + 20);
+  const pos = new Map();
+  let y = 0;
+  for (const row of rows) {
+    const lines = [[]];
+    let w = 0;
+    for (const id of row) {
+      const need = width(id) + NODE_GAP;
+      if (w + need > MAX_ROW_WIDTH && lines[lines.length - 1].length) { lines.push([]); w = 0; }
+      lines[lines.length - 1].push(id); w += need;
+    }
+    for (const line of lines) {
+      const total = line.reduce((s, id) => s + width(id) + NODE_GAP, -NODE_GAP);
+      let x = -total / 2;
+      for (const id of line) { pos.set(id, { x: x + width(id) / 2, y, w: width(id), h: NODE_H }); x += width(id) + NODE_GAP; }
+      y += NODE_H + ROW_GAP;
+    }
+    y += LAYER_GAP;
+  }
+  return { pos, back, out, inn };
+}
+
+// ---- drawing ----------------------------------------------------------------------------------------------
+const el = (tag, attrs, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+let edgeEls = [], nodeEls = new Map(), lay = null;
+
+function render() {
+  view = buildView();
+  lay = layout(view);
+  gEdges.replaceChildren(); gNodes.replaceChildren();
+  edgeEls = []; nodeEls = new Map();
+
+  for (const e of view.edges) {
+    const [a, b] = e.split('\n');
+    const p = lay.pos.get(a), q = lay.pos.get(b), isBack = lay.back.has(e);
+    const x1 = p.x, y1 = isBack ? p.y : p.y + p.h, x2 = q.x, y2 = isBack ? q.y + q.h : q.y;
+    const dy = Math.max(24, Math.abs(y2 - y1) * 0.45) * (isBack ? -1 : 1);
+    const path = el('path', { class: 'edge' + (isBack ? ' back' : ''), d: `M${x1},${y1} C${x1},${y1 + dy} ${x2},${y2 - dy} ${x2},${y2}` }, gEdges);
+    edgeEls.push({ a, b, path });
+  }
+  for (const [id, v] of view.nodes) {
+    const p = lay.pos.get(id);
+    const g = el('g', { class: 'node' + (v.isGroup ? ' group' : ''), transform: `translate(${p.x - p.w / 2},${p.y})` }, gNodes);
+    el('rect', { width: p.w, height: p.h, rx: v.isGroup ? 13 : 5, style: `fill:${fill(v.group)};stroke:${stroke(v.group)}` }, g);
+    const t = el('text', { x: p.w / 2, y: p.h / 2 }, g);
+    t.textContent = v.label;
+    const title = el('title', {}, g);
+    title.textContent = v.isGroup ? `${v.group}: ${v.members.length} projects — double-click to open` : v.members[0].path;
+    g.addEventListener('click', ev => { ev.stopPropagation(); select(id); });
+    g.addEventListener('dblclick', ev => { ev.stopPropagation(); toggleCollapse(v.group); });
+    nodeEls.set(id, g);
+  }
+  if (selected && !view.nodes.has(selected)) selected = null;
+  paint();
+  renderChips();
+}
+
+function closure(start, adj, deep) {
+  const seen = new Set(), queue = [start];
+  while (queue.length) {
+    for (const m of adj.get(queue.shift()) || []) if (!seen.has(m)) { seen.add(m); if (deep) queue.push(m); }
+  }
+  return seen;
+}
+
+function paint() {
+  const q = $('search').value.trim().toLowerCase();
+  const deep = $('transitive').checked;
+  let dep = new Set(), rev = new Set();
+  if (selected) { dep = closure(selected, lay.out, deep); rev = closure(selected, lay.inn, deep); }
+  const matches = new Set();
+  if (q) for (const [id, v] of view.nodes) if (v.members.some(m => m.id.toLowerCase().includes(q))) matches.add(id);
+  const focus = selected || q;
+
+  for (const { a, b, path } of edgeEls) {
+    let cls = 'edge' + (lay.back.has(a + '\n' + b) ? ' back' : '');
+    if (selected) {
+      if ((a === selected || dep.has(a)) && dep.has(b)) cls += ' out';
+      else if ((b === selected || rev.has(b)) && rev.has(a)) cls += ' in';
+      else cls += ' dim';
+    } else if (q) cls += ' dim';
+    path.setAttribute('class', cls);
+  }
+  for (const [id, g] of nodeEls) {
+    const v = view.nodes.get(id);
+    let cls = 'node' + (v.isGroup ? ' group' : '');
+    if (id === selected) cls += ' sel';
+    else if (dep.has(id)) cls += ' dep';
+    else if (rev.has(id)) cls += ' rev';
+    if (matches.has(id)) cls += ' match';
+    if (focus && id !== selected && !dep.has(id) && !rev.has(id) && !matches.has(id)) cls += ' dim';
+    g.setAttribute('class', cls);
+  }
+  renderPanel(dep, rev);
+}
+
+function renderPanel(dep, rev) {
+  panel.replaceChildren();
+  if (!selected) { panel.style.display = 'none'; return; }
+  const v = view.nodes.get(selected);
+  panel.style.display = 'block';
+  const add = (tag, text, cls) => { const e = document.createElement(tag); e.textContent = text; if (cls) e.className = cls; panel.appendChild(e); return e; };
+  add('h2', v.isGroup ? v.group : short(v.members[0].id));
+  add('div', v.isGroup ? `${v.members.length} projects` : `${v.group} · ${v.members[0].path}`, 'sub');
+  if (v.isGroup) {
+    add('h3', 'Members');
+    const ul = document.createElement('ul');
+    for (const m of v.members) ul.appendChild(Object.assign(document.createElement('li'), { textContent: short(m.id) }));
+    panel.appendChild(ul);
+  }
+  const list = (title, cls, set) => {
+    add('h3', `${title} (${set.size})`, cls);
+    const ul = document.createElement('ul');
+    for (const id of [...set].sort()) {
+      const li = document.createElement('li');
+      li.textContent = view.nodes.get(id).label;
+      li.addEventListener('click', () => select(id));
+      ul.appendChild(li);
+    }
+    panel.appendChild(ul);
+  };
+  list('Uses', 'out', dep);
+  list('Used by', 'in', rev);
+}
+
+function select(id) { selected = selected === id ? null : id; paint(); }
+
+function toggleCollapse(group) {
+  if (memberCount.get(group) < 2 && !collapsed.has(group)) return;
+  collapsed.has(group) ? collapsed.delete(group) : collapsed.add(group);
+  selected = null; render(); fit();
+}
+
+function renderChips() {
+  const host = $('chips');
+  host.replaceChildren();
+  for (const g of groups) {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (collapsed.has(g) ? ' collapsed' : '') + (hidden.has(g) ? ' hidden' : '');
+    const sw = document.createElement('span'); sw.className = 'swatch'; sw.style.background = stroke(g);
+    const name = document.createElement('button'); name.className = 'name';
+    name.textContent = `${g} ${memberCount.get(g)}`;
+    name.title = 'open / close this group';
+    name.addEventListener('click', () => toggleCollapse(g));
+    const eye = document.createElement('button');
+    eye.textContent = hidden.has(g) ? 'show' : 'hide'; eye.title = 'hide or show this group';
+    eye.addEventListener('click', () => { hidden.has(g) ? hidden.delete(g) : hidden.add(g); selected = null; render(); fit(); });
+    chip.append(sw, name, eye);
+    host.appendChild(chip);
+  }
+}
+
+// ---- pan and zoom ------------------------------------------------------------------------------------------
+let vb = { x: 0, y: 0, w: 1000, h: 600 };
+const applyVb = () => svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+function fit() {
+  if (!lay || !lay.pos.size) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of lay.pos.values()) { x0 = Math.min(x0, p.x - p.w / 2); x1 = Math.max(x1, p.x + p.w / 2); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y + p.h); }
+  const pad = 30, r = svg.getBoundingClientRect(), aspect = r.width / r.height || 1.6;
+  let w = x1 - x0 + 2 * pad, h = y1 - y0 + 2 * pad;
+  if (w / h < aspect) w = h * aspect; else h = w / aspect;
+  vb = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
+  applyVb();
+}
+svg.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  const r = svg.getBoundingClientRect(), f = Math.exp(ev.deltaY * 0.0015);
+  const mx = vb.x + (ev.clientX - r.left) / r.width * vb.w, my = vb.y + (ev.clientY - r.top) / r.height * vb.h;
+  vb = { x: mx - (mx - vb.x) * f, y: my - (my - vb.y) * f, w: vb.w * f, h: vb.h * f };
+  applyVb();
+}, { passive: false });
+// The pointer is captured only once the press has become a drag: capturing on press would hand the click that
+// follows to the svg instead of the project that was pressed.
+let drag = null, dragged = false;
+svg.addEventListener('pointerdown', ev => { drag = { x: ev.clientX, y: ev.clientY, moved: false }; dragged = false; });
+svg.addEventListener('pointermove', ev => {
+  if (!drag) return;
+  const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+  if (!drag.moved) {
+    if (Math.hypot(dx, dy) < 4) return;
+    drag.moved = true; dragged = true;
+    svg.setPointerCapture(ev.pointerId); svg.classList.add('panning');
+  }
+  const r = svg.getBoundingClientRect();
+  vb.x -= dx / r.width * vb.w; vb.y -= dy / r.height * vb.h;
+  drag.x = ev.clientX; drag.y = ev.clientY; applyVb();
+});
+const endDrag = () => { drag = null; svg.classList.remove('panning'); };
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+// A click that reaches the svg itself landed on empty space (a project's own click stops here): clear the selection,
+// unless the press was the end of a pan.
+svg.addEventListener('click', () => {
+  if (dragged) { dragged = false; return; }
+  if (selected) { selected = null; paint(); }
+});
+
+// ---- controls ----------------------------------------------------------------------------------------------
+$('search').addEventListener('input', paint);
+$('transitive').addEventListener('change', paint);
+$('fit').addEventListener('click', fit);
+$('expandAll').addEventListener('click', () => { collapsed.clear(); selected = null; render(); fit(); });
+$('collapseBig').addEventListener('click', () => {
+  collapsed.clear(); for (const g of groups) if (memberCount.get(g) > BIG_GROUP) collapsed.add(g);
+  selected = null; render(); fit();
+});
+window.addEventListener('resize', fit);
+
+const when = [DATA.generated, DATA.branch && DATA.commit ? `${DATA.branch} @ ${DATA.commit}` : DATA.commit].filter(Boolean).join(' · ');
+$('meta').textContent = `${DATA.nodes.length} projects · ${DATA.edges.length} references${DATA.includesTests ? '' : ' · tests left out'} · ${when}`;
+render(); fit();
+</script>
+</body>
+</html>

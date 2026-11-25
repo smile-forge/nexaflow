@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/require-nfi-reads.sh\"",
+            "statusMessage": "Checking for reads around nfi"
+          }
+        ]
+      }
+    ]
+  }
+}

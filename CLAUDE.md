@@ -114,7 +114,7 @@ shell.
 | a pattern inside one file | `ask 'grep <regex> --from file:<relpath> \| source'` |
 | near this code | `ask 'node <id> \| near 2 \| grep <regex>'` |
 | to narrow what you just found | `ask '@ \| like <regex> \| files'` — every answer ends with its handle; `@3` is the third |
-| the rest of a long answer | `ask '@3 more'` — nothing is cut without the command that shows the rest |
+| the rest of a long answer — any command's | `more @3` · searched: `more @3 --grep <regex>` · whole: `more @3 --all` — a long answer prints what it concluded and folds its detail into a line naming its handle, kept by the resident process |
 | a block's text | `graph code <id> [--lines A-B]` · a file: `graph cat file:<relpath>` (past 400 lines, its outline; `--all` for the whole) |
 | a feature from the tree | `find <term>` · `describe <id> [--code]` · `tree <id> [--full]` |
 
@@ -171,7 +171,9 @@ What it guarantees, and why it is the only way files here are changed:
 - **Several edits are one change** — `script` writes all the files or none.
 - **Whitespace, endings, encoding and escaping are the tool's problem.** Write flush-left with `\n`; it lands indented
   for its destination with the file's endings and BOM. A single line written *with* leading whitespace is placed as
-  written — that is how an aligned continuation is done.
+  written — that is how an aligned continuation is done. Inside a string literal that spans lines nothing is placed:
+  the find must match its whitespace exactly and the text lands exactly as written; a refusal there shows the lines
+  with every space marked. `EditIndentationRuleTests` is the rule, case by case.
 
 | To | Run |
 |---|---|
@@ -224,6 +226,31 @@ compiler's binding) and the tests declaring `[CoversNode]` of its feature — ev
 named with their filter, never run for you — run them in Windows Sandbox with `Nexaflow.Tests.Sandbox`, which can also
 screenshot and drive the app there
 ([testing.md](docs/testing.md#running-journeys-in-windows-sandbox)).
+
+### Working in few steps
+
+Every step is a round trip that costs about 5 s before any output, whatever the tool does, so a job's time is set by
+how many steps it takes far more than by how fast nfi is. Fewer, larger steps — never fewer checks.
+
+- **Read in batches.** Every question a step needs goes in one `ask` (several quoted arguments, or `--stdin`); a file
+  you will come back to is read whole, once, with `graph cat --all`. Independent calls go out together in one
+  message. A hook (`.claude/hooks/require-nfi-reads.ps1`) refuses `Get-Content`, `Select-String`, `cat`, `grep`,
+  `rg`, `sed`, `git grep` and the Read, Grep and Glob tools on a checkout's files; build output and other ignored
+  files, the submodules and anything outside the checkout pass, as does a filter fed by a pipe.
+- **An answer is read whole.** A long answer prints what the command concluded — a build's verdict and first errors,
+  an edit's `compile:` and `impact:` — and folds its detail into a line naming its handle; `nfi more @n` reads the
+  rest. So nfi's output is never piped through `Select-Object`, `Select-String`, `head` or `grep`: what a filter cuts
+  is what the next call asks for again. An answer too noisy to read whole is an nfi defect — fix its output.
+- **One script per change.** A change across several files is one `graph edit script`, not an edit per file; a
+  mechanical change across many files is generated into a script, not typed out file by file.
+- **The edit's check is the build.** An edit's `compile:` lines are the build's answer for C#. `nfi build` is for
+  what the check cannot see — XAML markup, project files, assemblies added or files moved between them — once per
+  stage, not after every edit.
+- **Test while working.** `nfi test <id>` for what a change touched; whole suites once per stage, in the
+  background, while the next step goes on.
+- **Plan from the reading, not before it.** Before presenting a plan, read the docs for its territory and the goals
+  the user has stated for the area (features loading when used, say), and name each assumption about scope or
+  structure in the plan. A design question goes to the user before the plan, not back as a rejection.
 
 ## Hard Rules
 
