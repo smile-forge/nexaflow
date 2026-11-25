@@ -309,13 +309,26 @@ public partial class BreadcrumbBar : UserControl
     {
         if (string.IsNullOrEmpty(path)) return null;
 
-        var item = new MenuItem { Header = Str.Get("Shell.Breadcrumb.CopyPath") };
-        // Another process can hold the clipboard open; failing to copy is not worth an error dialog.
-        item.Click += (_, _) => _ = ClipboardRouter.Write(this, ComposedPayload.OfText(path));
+        var item = new MenuItem
+        {
+            Header           = Str.Get("Shell.Breadcrumb.CopyPath"),
+            Command          = CopyPathCommand,
+            CommandParameter = path,
+        };
         AutomationProperties.SetAutomationId(item, "Breadcrumb_CopyPath");
 
         var menu = new ContextMenu();
         menu.Items.Add(item);
         return menu;
     }
+
+    /// <summary>Copies the path it is handed, through the clipboard this bar's window offers.</summary>
+    private ICommand CopyPathCommand => _copyPath ??= new RelayCommand<string>(path =>
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        // Another process can hold the clipboard open; failing to copy is not worth an error dialog.
+        _ = ClipboardRouter.Write(this, ComposedPayload.OfText(path));
+    });
+
+    private ICommand? _copyPath;
 }
