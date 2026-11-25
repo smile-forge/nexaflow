@@ -4,10 +4,11 @@ namespace Nexaflow.Tests.Sandbox.Host;
 
 /// <summary>
 /// The sandbox a session runs in, as Windows Sandbox configuration XML. The checkout is mapped writable at
-/// <see cref="Checkout"/>, so the agent, the app and the journeys run from the build the host made and write their results
-/// back into it, exactly as a run on the host would; the host's .NET is mapped read-only where an app looks for it by
-/// default, and its WebView2 runtime read-only as a fixed-version runtime, so nothing has to be installed; and the folders
-/// the forwarded variables name are mapped read-only too.
+/// <see cref="Checkout"/>: the agent, the app and the journeys run from the session folder's copy of the build
+/// (<see cref="BuiltOutputSnapshot"/>), read the checkout's sources and samples, and write their results back into it,
+/// exactly as a run on the host would. The host's .NET is mapped read-only where an app looks for it by default, and its
+/// WebView2 runtime read-only as a fixed-version runtime, so nothing has to be installed; and the folders the forwarded
+/// variables name are mapped read-only too.
 /// </summary>
 internal sealed record SandboxConfiguration(
     string HostCheckout, string HostDotnet, HostWebView2? WebView2, int MemoryMB, bool Networking, bool AudioInput, bool Gpu,

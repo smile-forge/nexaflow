@@ -6,7 +6,8 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Sandbox.Agent;
 
 /// <summary>
-/// One run of the journey suite inside the sandbox: the built runner, filtered as asked, its console written to the run's
+/// One run of the journey suite inside the sandbox: the session's copy of the runner, which starts the copy's app,
+/// filtered as asked, its console written to the run's
 /// folder line by line — the host follows it from there — and its TRX report beside it. It is given the host's
 /// <c>NEXAFLOW_TEST_*</c> variables, rewritten to where the sandbox sees what they name.
 /// </summary>

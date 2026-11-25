@@ -7,8 +7,9 @@ using Nexaflow.Tests.Sandbox.Verbs;
 namespace Nexaflow.Tests.Sandbox.Host;
 
 /// <summary>
-/// The host's end of a session: starts the sandbox with this checkout mapped into it, keeps its window open beside the
-/// work, and carries agent verbs across as request files, printing what comes back.
+/// The host's end of a session: copies the build into the session folder, starts the sandbox with this checkout mapped
+/// into it and the agent running from that copy, keeps its window open beside the work, and carries agent verbs across as
+/// request files, printing what comes back.
 /// </summary>
 internal static class SandboxHost
 {
@@ -18,6 +19,9 @@ internal static class SandboxHost
     private static readonly TimeSpan AgentStartTimeout = TimeSpan.FromMinutes(4);
 
     private static readonly TimeSpan WindowTimeout = TimeSpan.FromMinutes(1);
+
+    /// <summary>How long a stopped sandbox is given to let go of the session's copy of the build before <c>stop</c> leaves it.</summary>
+    private static readonly TimeSpan SnapshotReleaseTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>The agent rewrites its heartbeat every two seconds, so this long without one means it is gone.</summary>
     private static readonly TimeSpan HeartbeatLimit = TimeSpan.FromSeconds(20);
@@ -64,11 +68,15 @@ internal static class SandboxHost
             throw new SandboxException($"This checkout's sandbox is already running ({previous.Root}). `stop` it first.");
 
         // Everything the sandbox will need, checked here rather than a minute into a boot.
-        _ = BuiltOutput.App;
-        _ = BuiltOutput.JourneyRunner;
+        var app = BuiltOutput.App;
+        var journeyRunner = BuiltOutput.JourneyRunner;
         var agent = Environment.ProcessPath ?? throw new SandboxException("Cannot tell where this exe is.");
+        if (BuiltOutput.Root != Checkout)
+            throw new SandboxException(
+                $"This is a session's copy of the tool ({BuiltOutput.Root}). Run the one built in the checkout ({Checkout}), so the session copies the build as it is now.");
         if (Path.GetRelativePath(Checkout, agent).StartsWith("..", StringComparison.Ordinal))
-            throw new SandboxException($"Run the copy of this exe built in the checkout ({Checkout}); the sandbox only sees the checkout.");
+            throw new SandboxException(
+                $"Run the copy of this exe built in the checkout ({Checkout}); the session's copy of the build keeps each output at its place there.");
 
         var monitor = MonitorDirectory.Choose(arguments.Value("monitor"));
         var forwarded = ForwardedEnvironment.FromHost(Checkout);
@@ -77,7 +85,17 @@ internal static class SandboxHost
             Checkout, HostDotnet(), webView2, arguments.IntValue("memory") ?? DefaultMemoryMB, !arguments.Flag("offline"), arguments.Flag("audio"), !arguments.Flag("no-gpu"),
             forwarded.Folders);
 
+        // The checkout's earlier sessions are over — a running one refused this start — so their copies of the build go.
+        foreach (var earlier in SessionFolder.EverySession(Checkout))
+            BuiltOutputSnapshot.Remove(earlier.Build, TimeSpan.Zero);
+
         var session = SessionFolder.CreateNew(Checkout);
+        var build = BuiltOutputSnapshot.Take(Checkout, session.Build, app,
+            [Path.GetDirectoryName(app)!, Path.GetDirectoryName(journeyRunner)!, Path.GetDirectoryName(agent)!]);
+        Console.WriteLine($"Copied the build: {build.Describe()}. The session runs this copy, so the checkout can be rebuilt meanwhile:");
+        foreach (var output in build.Outputs) Console.WriteLine($"  {Path.Combine(session.Build, output)}");
+        var agentCopy = Path.Combine(session.Build, Path.GetRelativePath(Checkout, agent));
+
         VisualCppRuntime.Stage(session.Redist);
         SessionFolder.WriteJson(session.EnvironmentFile, forwarded.Variables);
 
@@ -86,7 +104,7 @@ internal static class SandboxHost
         var smartAppControlOff = HostSmartAppControl.IsOff;
         string[] setup = [.. HostSmartAppControl.SandboxCommands(smartAppControlOff), .. webView2?.SandboxCommands ?? []];
         var logon = $"cmd.exe /c {string.Concat(setup.Select(command => command + " & "))}"
-                    + $"start \"Nexaflow sandbox agent\" /min \"{configuration.InSandbox(agent)}\" "
+                    + $"start \"Nexaflow sandbox agent\" /min \"{configuration.InSandbox(agentCopy)}\" "
                     + $"{VerbCatalogue.Agent.Name} --session \"{configuration.InSandbox(session.Root)}\"";
         var xml = configuration.ToXml(logon);
         File.WriteAllText(session.ConfigurationFile, xml);
@@ -146,7 +164,9 @@ internal static class SandboxHost
         var running = record is not null && WsbCli.Running().Contains(record.SandboxId);
         var agent = SessionFolder.ReadJson<AgentStatus>(session.AgentStatusFile);
 
+        var build = BuiltOutputSnapshot.Read(session.Build);
         Console.WriteLine($"session  {session.Root}");
+        Console.WriteLine(build is null ? "build    no copy — the session's start did not get as far" : $"build    {build.Describe()} — {session.Build}");
         Console.WriteLine($"sandbox  {(record is null ? "never started" : $"{record.SandboxId}, {(running ? "running" : "gone")}")}");
         Console.WriteLine($"window   {(SandboxWindow.IsOpen ? "open" : "closed — `show` reopens it")}");
         Console.WriteLine(agent is null
@@ -176,7 +196,9 @@ internal static class SandboxHost
         if (record is not null && WsbCli.Running().Contains(record.SandboxId))
             WsbCli.Stop(record.SandboxId);
         SessionFolder.ClearCurrent(Checkout);
-        Console.WriteLine($"Stopped. The session's results stay in {session.Root}.");
+        Console.WriteLine(BuiltOutputSnapshot.Remove(session.Build, SnapshotReleaseTimeout)
+            ? $"Stopped. The session's results stay in {session.Root}; its copy of the build is removed."
+            : $"Stopped. The session's results stay in {session.Root}; its copy of the build is still held open, and the next `start` removes it.");
         return 0;
     }
 

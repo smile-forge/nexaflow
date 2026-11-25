@@ -24,6 +24,9 @@ internal sealed class SessionFolder(string root)
     /// <summary>The Visual C++ runtime the host stages for the agent to install.</summary>
     public string Redist => Path.Combine(Root, "redist");
 
+    /// <summary>The copy of the build this session runs, taken when it started: <see cref="Host.BuiltOutputSnapshot"/>.</summary>
+    public string Build => Path.Combine(Root, "build");
+
     public string AgentStatusFile => Path.Combine(Root, "agent.json");
     public string HostRecordFile => Path.Combine(Root, "session.json");
     public string AgentLog => Path.Combine(Root, "agent.log");
@@ -46,6 +49,12 @@ internal sealed class SessionFolder(string root)
 
     /// <summary>Where every session of a checkout lives.</summary>
     public static string SessionsRoot(string checkout) => Path.Combine(checkout, "TestResults", "sandbox");
+
+    /// <summary>Every session the checkout has had, the current one among them.</summary>
+    public static IEnumerable<SessionFolder> EverySession(string checkout) =>
+        Directory.Exists(SessionsRoot(checkout))
+            ? Directory.EnumerateDirectories(SessionsRoot(checkout)).Select(root => new SessionFolder(root))
+            : [];
 
     /// <summary>A new session's folder, made the checkout's current one.</summary>
     public static SessionFolder CreateNew(string checkout)
