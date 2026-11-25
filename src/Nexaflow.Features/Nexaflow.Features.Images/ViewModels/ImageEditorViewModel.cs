@@ -249,7 +249,7 @@ public partial class ImageEditorViewModel : ObservableObject
         {
             if (await Cutter.CutOutAsync(MarkedRegion, CancellationToken.None) is { } png)
             {
-                if (_shell.Clipboard.Write(ComposedPayload.OfImage(png))) _shell.ShowNotification(Str.Get("Images.CutOut.Copied"));
+                if (await _shell.Clipboard.WriteAsync(ComposedPayload.OfImage(png))) _shell.ShowNotification(Str.Get("Images.CutOut.Copied"));
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or InvalidDataException or System.Runtime.InteropServices.ExternalException)

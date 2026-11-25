@@ -2226,6 +2226,6 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     }
 
     /// <summary>Whether the clipboard holds files a paste here would bring in.</summary>
-    public bool ClipboardHoldsFiles => _shell.Clipboard.Read().Contains(DragKinds.Files);
+    public bool ClipboardHoldsFiles => _shell.Clipboard.Kinds.Contains(DragKinds.Files);
 
 }

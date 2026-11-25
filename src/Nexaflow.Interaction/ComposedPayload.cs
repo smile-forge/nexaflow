@@ -1,9 +1,10 @@
 namespace Nexaflow.Interaction;
 
 /// <summary>
-/// A payload made rather than received: what the app puts on the clipboard, in the same <see cref="DragKinds"/> a drag or
-/// a paste is read in, so writing and reading share one vocabulary. Each kind holds what <see cref="DragKinds"/> says it
-/// holds. It never changes once made: <see cref="With"/> makes another.
+/// A payload at rest: one made to be put on the clipboard, or one taken from a drop or a paste
+/// (<see cref="DragPayloadReading.Take"/>), in the same <see cref="DragKinds"/> a drag is read in, so writing and reading
+/// share one vocabulary. Each kind holds what <see cref="DragKinds"/> says it holds, and nothing in it depends on a drag
+/// still being under way. It never changes once made: <see cref="With"/> makes another.
 /// </summary>
 public sealed class ComposedPayload : IDragPayload
 {

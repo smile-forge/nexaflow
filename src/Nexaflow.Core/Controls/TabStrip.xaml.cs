@@ -516,7 +516,7 @@ public partial class TabStrip : UserControl, IDropTarget
             ? new DropOffer(DropEffect.Move)
             : new DropOffer(DropEffect.Copy, Str.Get("Shell.Drop.OpenInTab"));
 
-    public void AcceptDrop(DropRequest request)
+    public async Task AcceptDropAsync(DropRequest request)
     {
         if (request.Payload.Read(Page.DragKind) is Page tab)
         {
@@ -524,18 +524,15 @@ public partial class TabStrip : UserControl, IDropTarget
             return;
         }
 
-        // Read now, while the drag is live; opened once it has returned, since building a page inside Windows' drop
-        // callback holds the application it came from still.
         IReadOnlyList<object> dropped = request.Payload.CarriesFiles()
             ? [.. request.Payload.FilesOnDisk().Select(path => new FileViewRequest(path))]
             : request.Payload.Link() is { } link ? [link] : [];
         if (dropped.Count == 0) return;
 
-        Dispatcher.BeginInvoke(() =>
-        {
-            FocusPane();
-            if (OpenDroppedCommand?.CanExecute(dropped) == true) OpenDroppedCommand.Execute(dropped);
-        });
+        // Opened once Windows' drop has returned: building a page inside its callback holds the application it came from still.
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Normal);
+        FocusPane();
+        if (OpenDroppedCommand?.CanExecute(dropped) == true) OpenDroppedCommand.Execute(dropped);
     }
 
     private void ReceiveTab(Page tab)

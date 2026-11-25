@@ -64,7 +64,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
                 return Task.FromResult(false);
 
             // False while another application holds the clipboard open.
-            return Task.FromResult(shell.Clipboard.Write(ComposedPayload.OfText(text)));
+            return shell.Clipboard.WriteAsync(ComposedPayload.OfText(text), ct);
         }
 
         /// <summary>

@@ -89,7 +89,11 @@ public sealed partial class MarkdownSurface : IDropTarget
         => IsReadOnly || request.Payload.CarriesFiles() ? null : new DropOffer(DropEffect.Copy);
 
     /// <inheritdoc/>
-    public void AcceptDrop(DropRequest request) => DropContent(request.Payload, new Point(request.At.X, request.At.Y));
+    public Task AcceptDropAsync(DropRequest request)
+    {
+        DropContent(request.Payload, new Point(request.At.X, request.At.Y));
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// What was dragged in from somewhere else, written where it was let go — at the end, where that was past the last of

@@ -12,7 +12,10 @@ namespace Nexaflow.Interaction;
 /// </summary>
 public interface IDropTarget
 {
-    /// <summary>The kinds it can take (<see cref="DragKinds"/>, or the app's own). It is asked only of a drag carrying one.</summary>
+    /// <summary>
+    /// The kinds it can take (<see cref="DragKinds"/>, or the app's own). It is asked only of a drag carrying one, and handed
+    /// every one of these the drag carries when it is dropped.
+    /// </summary>
     IReadOnlyList<string> AcceptedKinds { get; }
 
     /// <summary>
@@ -22,10 +25,12 @@ public interface IDropTarget
     DropOffer? OfferDrop(DropRequest request);
 
     /// <summary>
-    /// Takes the drop it offered. Runs inside Windows' drop callback: read what is wanted from the payload and return,
-    /// leaving slow work and any question to afterwards. A throw is reported to the reader by the shell.
+    /// Takes the drop it offered. Its <see cref="DropRequest.Payload"/> was taken as the drop landed
+    /// (<see cref="DragPayloadReading.Take"/>): every one of <see cref="AcceptedKinds"/> the drag carried, read in full, files
+    /// that came as content already staged — so it may wait before using it, and ask what to do. A throw is reported to the
+    /// reader by the shell.
     /// </summary>
-    void AcceptDrop(DropRequest request);
+    Task AcceptDropAsync(DropRequest request);
 
     /// <summary>The drag is no longer over it, or has been dropped: whatever the hover showed goes.</summary>
     void EndDropHover() { }

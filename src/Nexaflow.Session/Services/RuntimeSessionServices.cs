@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 

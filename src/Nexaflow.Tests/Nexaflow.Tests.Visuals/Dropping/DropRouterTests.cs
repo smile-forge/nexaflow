@@ -35,11 +35,12 @@ public class DropRouterTests
             return Answer;
         }
 
-        public void AcceptDrop(DropRequest request)
+        public Task AcceptDropAsync(DropRequest request)
         {
             if (Throws is { } failure) throw failure;
             Taken.Add(request);
             FilesTaken.Add([.. request.Payload.Files()]);
+            return Task.CompletedTask;
         }
 
         public void EndDropHover() => Ended++;

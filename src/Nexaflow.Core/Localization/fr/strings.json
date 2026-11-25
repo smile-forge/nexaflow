@@ -314,6 +314,7 @@
   "Shell.Drop.OpenInTab": "Ouvrir dans un onglet",
   "Shell.Drop.PinToRibbon": "Épingler au ruban",
   "Shell.Drop.FailedFormat": "Le dépôt a échoué : {0}",
+  "Shell.Paste.FailedFormat": "Le collage a échoué : {0}",
 
 
 

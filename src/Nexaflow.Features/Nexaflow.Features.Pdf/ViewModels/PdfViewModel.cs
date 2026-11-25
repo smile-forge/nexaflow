@@ -857,33 +857,33 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     /// <summary>Everything the Properties tab shows, as plain lines — the panel's most-wanted action.</summary>
     [RelayCommand]
-    private void CopyAllProperties()
+    private async Task CopyAllProperties()
     {
         if (Properties.Count == 0) return;
-        CopyOrSay(string.Join(Environment.NewLine, Properties));
+        await CopyOrSayAsync(string.Join(Environment.NewLine, Properties));
     }
 
     /// <summary>Copies the whole table of contents, indentation and page numbers included.</summary>
     [RelayCommand]
-    private void CopyOutline()
+    private async Task CopyOutline()
     {
         if (Contents.Count == 0) return;
         var text = string.Join(Environment.NewLine,
             Contents.Select(c => new string(' ', c.Level * 2) + c.CopyWithPage));
-        CopyOrSay(text);
+        await CopyOrSayAsync(text);
     }
 
     [RelayCommand]
-    private void CopyText(string? text)
+    private async Task CopyText(string? text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        CopyOrSay(text);
+        await CopyOrSayAsync(text);
     }
 
     /// <summary>Puts <paramref name="text"/> on the clipboard, or says it could not while another application holds it.</summary>
-    private void CopyOrSay(string text)
+    private async Task CopyOrSayAsync(string text)
     {
-        if (!_shell.Clipboard.Write(ComposedPayload.OfText(text))) _shell.ShowError(Str.Get("Pdf.Error.Clipboard"));
+        if (!await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(text))) _shell.ShowError(Str.Get("Pdf.Error.Clipboard"));
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────

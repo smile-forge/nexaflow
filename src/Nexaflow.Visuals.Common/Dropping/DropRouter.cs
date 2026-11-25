@@ -141,16 +141,24 @@ public sealed class DropRouter
             ? found.Request with { Modifiers = found.Request.Modifiers & ~KeyModifiers.Shift }
             : found.Request;
 
-        _hint.Hide();
-        try
-        {
-            found.Target.AcceptDrop(request);
-            e.Effects = ToWpf(Told(found.Effect, found.Request.Payload));
+            _hint.Hide();
+            try
+            {
+                // Read in full here, while Windows still holds the drag, so the target may take its time over what it was given.
+                var taken = request.Payload.Take(found.Target.AcceptedKinds, DropStaging.Default);
+                e.Effects = ToWpf(Told(found.Effect, found.Request.Payload));
+                _ = AcceptAsync(found.Target, request with { Payload = taken });
+            }
+            catch (Exception failure)
+            {
+                _failed(failure);
+            }
         }
-        catch (Exception failure)
+
+        private async Task AcceptAsync(IDropTarget target, DropRequest request)
         {
-            _failed(failure);
-        }
+            try { await target.AcceptDropAsync(request); }
+            catch (Exception failure) { _failed(failure); }
     }
 
     /// <summary>What the source is told of a drop: never that its files were moved, which is leave to delete them.</summary>

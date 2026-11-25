@@ -283,7 +283,7 @@ public partial class App : Application
     private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
         var host = new ShellHost(new ShellHostOptions(folders, SetupWizardViewModel.CurrentVersion(), _resetRequested, UiTest, _logging),
-                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), typeof(App).Assembly, ContentLanguages.Draws, new WpfPictureFitting(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
+                                 new ShellPlatform(ui, _clipboard = new ShellClipboard(this), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), typeof(App).Assembly, ContentLanguages.Draws, new WpfPictureFitting(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
                                                                      (catalog, dependencies, showComponents, logging) => _pageViews = PageViews.FromCatalog(catalog, dependencies, showComponents, logging)),
                                                    _updates);
         _host = host;
@@ -319,6 +319,9 @@ public partial class App : Application
     /// <summary>The session this process runs: open from the start-up on, ended in <see cref="OnExit"/>.</summary>
     private static ShellHost? _host;
 
+    /// <summary>The clipboard the session reads and writes, listening for its changes until the app exits.</summary>
+    private ShellClipboard? _clipboard;
+
     /// <summary>The views the session's pages are drawn with, made for it as it opens and handed to every window.</summary>
     private static PageViews? _pageViews;
     /// <summary>The app's sweep of its own drafts, at start and daily while it runs.</summary>
@@ -331,6 +334,7 @@ public partial class App : Application
 
         // The session ends: every workspace still running, the watches, the models held ahead, the AI host — each wait bounded.
         _host?.DisposeAsync().AsTask().Wait();
+        _clipboard?.Dispose();
         _singleInstance.Dispose();
 
         // The logs end last: a burst the crash log is still counting is written out, and the session's log closed on its last line.

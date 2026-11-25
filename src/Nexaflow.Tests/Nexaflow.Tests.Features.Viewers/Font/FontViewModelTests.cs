@@ -316,10 +316,10 @@ public class FontViewModelTests
 
         vm.CopyGlyphCommand.Execute(null);
         vm.CopyGlyphCommand.Execute(string.Empty);
-        shell.Clipboard.DidNotReceiveWithAnyArgs().Write(default!);
+        shell.Clipboard.DidNotReceiveWithAnyArgs().WriteAsync(default!, default);
 
         vm.CopyGlyphCommand.Execute("\u00C4");
-        shell.Clipboard.Received(1).Write(Arg.Is<IDragPayload>(p => p.Text() == "\u00C4"));
+        shell.Clipboard.Received(1).WriteAsync(Arg.Is<IDragPayload>(p => p.Text() == "\u00C4"), Arg.Any<CancellationToken>());
     }
 
     // ── Context preview (font-ai-preview) ─────────────────────────────────

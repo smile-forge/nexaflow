@@ -143,10 +143,11 @@ public partial class TerminalView : UserControl, IDropTarget
     public DropOffer? OfferDrop(DropRequest request)
         => DropHitTesting.IsInside(this.ElementUnder(request.At), TerminalSurface) ? new DropOffer(DropEffect.Copy) : null;
 
-    public void AcceptDrop(DropRequest request)
+    public Task AcceptDropAsync(DropRequest request)
     {
         if (ViewModel.FormatDroppedPaths(request.Payload) is { } text)
             ViewModel.SendText(text);
+        return Task.CompletedTask;
     }
 
     private void CopyTerminal_Click(object sender, RoutedEventArgs e) => CopyTerminalText();

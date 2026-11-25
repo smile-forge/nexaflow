@@ -386,7 +386,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         try
         {
             var png = await Task.Run(() => _editing.Exporter.ExportAsync(path, recipe, ImageContainer.Png, _cts.Token, made), _cts.Token);
-            if (_shell.Clipboard.Write(ComposedPayload.OfImage(png))) _shell.ShowNotification(Str.Get("Images.Copy.Done"));
+            if (await _shell.Clipboard.WriteAsync(ComposedPayload.OfImage(png))) _shell.ShowNotification(Str.Get("Images.Copy.Done"));
         }
         catch (OperationCanceledException)
         {

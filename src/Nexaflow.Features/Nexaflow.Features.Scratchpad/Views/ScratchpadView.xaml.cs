@@ -122,7 +122,11 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     public DropOffer? OfferDrop(DropRequest request)
         => new(DropEffect.Copy, Str.Get("Scratchpad.Drop.CreatePostIt"));
 
-    public void AcceptDrop(DropRequest request) => AddAsNotes(request.Payload, CanvasPointOf(request.At));
+    public Task AcceptDropAsync(DropRequest request)
+    {
+        AddAsNotes(request.Payload, CanvasPointOf(request.At));
+        return Task.CompletedTask;
+    }
 
     /// <summary>Where on the board a drop on this page is: under the pointer, or the middle of what shows for one let
     /// go over the toolbar or status bar.</summary>

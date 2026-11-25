@@ -400,7 +400,7 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
     }
 
     [RelayCommand]
-    private void CopyDetails(ProcessRowViewModel? row)
+    private async Task CopyDetails(ProcessRowViewModel? row)
     {
         if (row is null) return;
         var text = Str.Format("Processes.CopyDetails.Format",
@@ -410,21 +410,21 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
             BytesToTextConverter.Format(row.WorkingSet),
             $"{row.Description}{(row.Company.Length > 0 ? $" — {row.Company}" : "")}",
             row.Path);
-        Copy(text);
+        await CopyAsync(text);
     }
 
-    [RelayCommand] private void CopyName(ProcessRowViewModel? row) { if (row is not null) Copy(row.Name); }
-    [RelayCommand] private void CopyPid(ProcessRowViewModel? row)  { if (row is not null) Copy(row.Pid.ToString()); }
+    [RelayCommand] private async Task CopyName(ProcessRowViewModel? row) { if (row is not null) await CopyAsync(row.Name); }
+    [RelayCommand] private async Task CopyPid(ProcessRowViewModel? row)  { if (row is not null) await CopyAsync(row.Pid.ToString()); }
 
     [RelayCommand]
-    private void CopyPath(ProcessRowViewModel? row)
+    private async Task CopyPath(ProcessRowViewModel? row)
     {
         if (row is null) return;
         if (string.IsNullOrWhiteSpace(row.Path)) { _shell.ShowError(Str.Format("Processes.Error.NoImagePathFormat", row.Name)); return; }
-        Copy(row.Path);
+        await CopyAsync(row.Path);
     }
 
-    private void Copy(string text) => _shell.Clipboard.Write(ComposedPayload.OfText(text));
+    private Task CopyAsync(string text) => _shell.Clipboard.WriteAsync(ComposedPayload.OfText(text));
 
     // ── Hooks used by the AI tools ────────────────────────────────────────────────────────────────
     internal IReadOnlyList<ProcessRowViewModel> RowsSnapshot() => _rowsByPid.Values.ToList();

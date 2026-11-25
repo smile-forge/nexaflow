@@ -348,6 +348,7 @@
   "Shell.Drop.OpenInTab": "Open in a tab",
   "Shell.Drop.PinToRibbon": "Pin to the ribbon",
   "Shell.Drop.FailedFormat": "The drop didn't work: {0}",
+  "Shell.Paste.FailedFormat": "The paste didn't work: {0}",
 
 
 

@@ -9,6 +9,7 @@ using Nexaflow.IO.Common.Locations;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Localization;
 using System.IO;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Host;
 

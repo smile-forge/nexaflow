@@ -34,7 +34,7 @@ sealed class UsbDebugCollector(IReadOnlyList<ISubfeatureHandle<IUsbToolProvider>
     public async Task<string> CopyAsync(UsbDeviceNode device, IReadOnlyList<IUsbTool>? live, IReadOnlyList<string> log, CancellationToken ct)
     {
         var text = await TextAsync(device, live, log, ct);
-        return shell.Clipboard.Write(ComposedPayload.OfText(text))
+        return await shell.Clipboard.WriteAsync(ComposedPayload.OfText(text), ct)
             ? Str.Format("UsbProbe.Status.DebugCopied", device.DisplayName)
             : Str.Get("UsbProbe.Status.ClipboardBusy");
     }

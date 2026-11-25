@@ -56,7 +56,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             if (paths.Length == 0) return false;
 
             // Companions ride along, so a paste anywhere — here or in Explorer — moves them too.
-            return _shell.Clipboard.Write(ComposedPayload.OfFiles(_companions.WithCompanions(paths), cut: true));
+            return await _shell.Clipboard.WriteAsync(ComposedPayload.OfFiles(_companions.WithCompanions(paths), cut: true), ct);
         }
     }
 }

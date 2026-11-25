@@ -15,9 +15,9 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
     /// <see cref="CanPerformAction"/> gates visibility: the action is excluded
     /// from the strip entirely when the clipboard holds no pasteable files.
     /// <para>
-    /// The clipboard is read here, on the UI thread where it is legal to touch, and the transfer is
-    /// queued — so pasting a large folder no longer freezes the window, and it resolves name clashes
-    /// the same way a drag-drop does because both go through the same planner.
+    /// The clipboard is read when the paste is asked for, and the transfer is queued — so pasting a
+    /// large folder never freezes the window, and it resolves name clashes the same way a drag-drop
+    /// does because both go through the same planner.
     /// </para>
     /// </summary>
     public class PasteFiles(IShellServices shell, Operations.FileOperationQueue queue) : IFolderAction, ICacheable
@@ -31,23 +31,23 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public bool   AppliesToDrives       => true;   // can paste into a drive root
 
         /// <summary>
-        /// Re-evaluated each time the action strip is rebuilt so the button
-        /// disappears the moment the clipboard no longer contains files.
+        /// Re-evaluated each time the action strip is rebuilt — which the file view does when the
+        /// clipboard's kinds change — so the button comes and goes with files on the clipboard.
         /// </summary>
-        public bool CanPerformAction => shell.Clipboard.Read().Contains(DragKinds.Files);
+        public bool CanPerformAction => shell.Clipboard.Kinds.Contains(DragKinds.Files);
 
-        public Task<bool> PerformActionAsync(string destinationFolder, CancellationToken ct = default)
+        public async Task<bool> PerformActionAsync(string destinationFolder, CancellationToken ct = default)
         {
-            var held = shell.Clipboard.Read();
+            var held = await shell.Clipboard.ReadAsync([DragKinds.Files], ct);
             var paths = held.Files();
-            if (paths.Count == 0) return Task.FromResult(false);
+            if (paths.Count == 0) return false;
             var isCut = held.Contains(DragKinds.FilesCut);
 
             // The clipboard is only consumed once the cut has actually landed — a failed one is left in
             // place so the cause can be fixed and the paste repeated.
-            var op = queue.EnqueuePaste(paths, destinationFolder, isCut, onCutSucceeded: () => shell.Clipboard.Clear());
+            var op = queue.EnqueuePaste(paths, destinationFolder, isCut, onCutSucceeded: () => _ = shell.Clipboard.ClearAsync());
 
-            return Task.FromResult(op is not null);
+            return op is not null;
         }
 
         public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)

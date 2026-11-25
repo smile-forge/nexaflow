@@ -278,10 +278,10 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     }
 
     [RelayCommand]
-    private void CopyText(string? text)
+    private async Task CopyText(string? text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        _shell.Clipboard.Write(ComposedPayload.OfText(text));
+        await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(text));
     }
 
     private static void Push(List<double> buf, double v)

@@ -14,9 +14,9 @@ public sealed partial class CompressedViewModel : IDropTarget
     public DropOffer? OfferDrop(DropRequest request)
         => CanModify ? new DropOffer(DropEffect.Copy, Str.Get("Compressed.Drop.AddToArchive")) : DropOffer.Refused;
 
-    public void AcceptDrop(DropRequest request)
+    public async Task AcceptDropAsync(DropRequest request)
     {
         var sources = request.Payload.FilesOnDisk();
-        if (sources.Count > 0) _ = AddSourcesAsync(sources);
+        if (sources.Count > 0) await AddSourcesAsync(sources);
     }
 }

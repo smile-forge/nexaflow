@@ -70,8 +70,11 @@ public partial class PostItControl : System.Windows.Controls.UserControl, IDropT
                                             ? "Scratchpad.Drop.AttachToNote"
                                             : "Scratchpad.Drop.InsertInNote"));
 
-    public void AcceptDrop(DropRequest request)
-        => Editor.DropContent(request.Payload, TranslatePoint(new Point(request.At.X, request.At.Y), Editor));
+    public Task AcceptDropAsync(DropRequest request)
+    {
+        Editor.DropContent(request.Payload, TranslatePoint(new Point(request.At.X, request.At.Y), Editor));
+        return Task.CompletedTask;
+    }
 
     /// <summary>What was dragged in, said as the markdown this note keeps it as — the editor writes it where it was let go.</summary>
     private void OnContentDropped(object? sender, ContentDroppingEventArgs e)

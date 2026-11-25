@@ -445,7 +445,7 @@ public sealed partial class ArtistViewModel : ObservableObject, IPageViewModel, 
     [RelayCommand(CanExecute = nameof(HasSession))]
     private void PasteAsLayer()
     {
-        if (!_shell.Clipboard.Read().Contains(DragKinds.Image) || MakeLayered() is null) return;
+        if (!_shell.Clipboard.Kinds.Contains(DragKinds.Image) || MakeLayered() is null) return;
         Layers.PasteCommand.Execute(null);
     }
 

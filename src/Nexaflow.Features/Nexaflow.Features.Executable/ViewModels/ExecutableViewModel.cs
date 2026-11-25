@@ -334,7 +334,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
 
     /// <summary>Copies a row's value — the reason thumbprints and hashes are worth showing at all.</summary>
     [RelayCommand]
-    private void CopyValue(object? target)
+    private async Task CopyValue(object? target)
     {
         string? text = target switch
         {
@@ -346,7 +346,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
         };
         if (string.IsNullOrEmpty(text)) return;
 
-        if (_shell.Clipboard.Write(ComposedPayload.OfText(text)))
+        if (await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(text)))
             _shell.ShowNotification(Str.Get("Executable.Inspector.Copied"));
         else
             _shell.ShowError(Str.Get("Executable.Inspector.TheClipboardIsInUseBy"));

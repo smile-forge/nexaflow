@@ -26,7 +26,7 @@ public sealed partial class SolverResultViewModel : ObservableObject, IDisposabl
 
     private readonly Action<SolverResultViewModel> _remove;
     private readonly Action<string> _useAsDefinition;
-    private readonly Action<string> _copy;
+    private readonly Func<string, Task> _copy;
     private bool _disposed;
 
     /// <summary>Creates a cell that is already running.</summary>
@@ -42,7 +42,7 @@ public sealed partial class SolverResultViewModel : ObservableObject, IDisposabl
         DefinitionMode mode,
         Action<SolverResultViewModel> remove,
         Action<string> useAsDefinition,
-        Action<string> copy)
+        Func<string, Task> copy)
     {
         _token = _cts.Token;
         ChipLabel = chipLabel;
@@ -95,7 +95,7 @@ public sealed partial class SolverResultViewModel : ObservableObject, IDisposabl
 
     /// <summary>Copies the answer's markdown.</summary>
     [RelayCommand]
-    private void Copy() => _copy(Markdown);
+    private Task Copy() => _copy(Markdown);
 
     /// <summary>
     /// Feeds this answer back into the definition area, which is what makes the list a workbook
