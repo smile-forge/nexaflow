@@ -31,7 +31,7 @@ namespace Nexaflow.Core.Services;
 /// <param name="Dependencies">The third-party components the features declare, and what the last probe found of each.</param>
 /// <param name="Language">The UI language, which a window restarting for a new one selects.</param>
 /// <param name="Views">The view each open page is drawn with, let go when its tab closes.</param>
-/// <param name="HelpTools">The tools that read the help the app ships, which each runtime's assistant offers on every page.</param>
+/// <param name="NewAssistant">Makes a runtime's assistant, which the session does not build itself.</param>
 /// <param name="Logs">The session's logs, which each runtime logs to, and which make the <see cref="ILogger{T}"/> a feature asks for.</param>
 public sealed record RuntimeSessionServices(
     ConfigManager Config,
@@ -55,5 +55,5 @@ public sealed record RuntimeSessionServices(
     ExternalDependencyRegistry Dependencies,
     LanguageManager Language,
     IPageViews Views,
-    IReadOnlyList<IClientTool> HelpTools,
+    Func<WorkspaceRuntime, IWorkspaceAssistant> NewAssistant,
     ILoggerFactory Logs);

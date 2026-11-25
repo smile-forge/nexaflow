@@ -784,5 +784,5 @@ public partial class SetupWizardViewModel : ObservableObject
 
     /// <summary>The Core assembly version (matches the version ConfigManager stamps on config files).</summary>
     public static string CurrentVersion()
-        => (typeof(ShellConfig).Assembly.GetName().Version ?? new Version(0, 0, 0, 0)).ToString();
+        => (typeof(SetupWizardViewModel).Assembly.GetName().Version ?? new Version(0, 0, 0, 0)).ToString();
 }

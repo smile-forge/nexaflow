@@ -14,6 +14,7 @@ using Nexaflow.Core.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Viewing;
+using Nexaflow.Visuals.Text.Markdown;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Core;
@@ -48,7 +49,7 @@ internal static class TestRuntimes
     public static ShellLogging Logging => _logging.Value;
 
     private static readonly Lazy<ShellLogging> _logging =
-        new(() => ShellLogging.Open(AppDataFolders.ForThisProcess(), uiTest: false, profileStartup: false));
+        new(() => ShellLogging.Open(AppDataFolders.ForThisProcess(), SetupWizardViewModel.CurrentVersion(), uiTest: false, profileStartup: false));
 
     /// <summary>A logger in the suite's logs (<see cref="Logging"/>), for what a test builds that takes one.</summary>
     public static ILogger<T> LoggerFor<T>() => Logging.Factory.CreateLogger<T>();
@@ -57,7 +58,7 @@ internal static class TestRuntimes
     public static IUiThread CurrentUi() => new WpfUiThread(Dispatcher.CurrentDispatcher);
 
     /// <summary>A catalogue of the features beside the tests, indexing WPF's views as the app's does.</summary>
-    public static FeatureCatalog NewCatalog() => new(Config.BaseDir, typeof(ViewForAttribute), LoggerFor<FeatureCatalog>());
+    public static FeatureCatalog NewCatalog() => new(Config.BaseDir, SetupWizardViewModel.CurrentVersion(), typeof(ViewForAttribute), LoggerFor<FeatureCatalog>());
 
     /// <summary>Pages for no config: every section a test builds shows its settings as rows.</summary>
     public static ConfigPageModels RowsOnly { get; } = new(_ => null, session: null);
@@ -78,13 +79,15 @@ internal static class TestRuntimes
         var ui        = new WpfUiThread(Dispatcher.CurrentDispatcher);
         var locations = new LocationProviderRegistry();
         var dependencies = new ExternalDependencyRegistry(ui, Features.Catalog, [new AiHostReading(holds: null)]);
+        var shell     = new ShellConfig();
+        var security  = new SecurityConfig();
         return new WorkspaceRuntimeFactory(new RuntimeSessionServices(
-            Config, new ShellConfig(), new SecurityConfig(),
+            Config, shell, security,
             Providers, savedWorkspaces ?? SavedListOf(), Features, tasks, notify, VirtualFileSystem.Instance, locations,
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
             ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(), new WpfFilePickers(),
             dependencies, new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load, LoggerFor<LanguageManager>()),
-            PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), HelpTools: [], Logs: Logging.Factory));
+            PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), NewAssistant: new WorkspaceAssistants(Features, Providers, shell, security, [], tasks, notify).Create, Logs: Logging.Factory));
     }
 
     /// <summary>
@@ -127,7 +130,7 @@ internal static class TestRuntimes
         // As the app does: the session's help pages, and the window side's pictures of them.
         var language = new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load,
                                            LoggerFor<LanguageManager>());
-        var help     = new HelpLibrary(language);
+        var help     = new HelpLibrary(language, ContentLanguages.Draws);
         features.ProvideTool(help);
         features.ProvideTool(new HelpPictures(help, language));
         return features;

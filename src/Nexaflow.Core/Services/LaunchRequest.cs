@@ -1,4 +1,9 @@
 using System.IO;
+using System;
+using System.Windows;
+using System.Windows.Shell;
+using System.Windows.Threading;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -15,7 +20,7 @@ public sealed record LaunchRequest(string? WorkspaceName, string? OpenPath)
     public const string OpenSwitch = "--open";
 
     public static LaunchRequest Parse(IReadOnlyList<string> args)
-        => new(ValueAfter(args, JumpListService.ContextSwitch), AbsolutePath(ValueAfter(args, OpenSwitch)));
+        => new(ValueAfter(args, ContextSwitch), AbsolutePath(ValueAfter(args, OpenSwitch)));
 
     private static string? ValueAfter(IReadOnlyList<string> args, string name)
     {
@@ -40,4 +45,8 @@ public sealed record LaunchRequest(string? WorkspaceName, string? OpenPath)
         try { return Path.GetFullPath(path); }
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
     }
+
+    /// <summary>Command-line switch a JumpTask passes to request a specific Workspace
+    /// (the "--context" literal is a frozen CLI/IPC compat string).</summary>
+    public const string ContextSwitch = "--context";
 }

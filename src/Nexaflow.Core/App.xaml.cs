@@ -39,6 +39,7 @@ using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Services.Logging;
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Core.Help;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Core;
 
@@ -140,7 +141,7 @@ public partial class App : Application
         var folders = AppDataFolders.ForThisProcess();
 
         // The logs, before anything that writes to them: the exception hooks, the single-instance guard, the steps of start-up.
-        _logging     = ShellLogging.Open(folders, UiTest, _profilingStartup);
+        _logging     = ShellLogging.Open(folders, SetupWizardViewModel.CurrentVersion(), UiTest, _profilingStartup);
         _log         = _logging.Factory.CreateLogger<App>();
         _faultPolicy = new DispatcherFaultPolicy(() => DateTimeOffset.Now);
 
@@ -282,8 +283,8 @@ public partial class App : Application
     /// </summary>
     private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
-        var host = new ShellHost(new ShellHostOptions(folders, _resetRequested, UiTest, _logging),
-                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
+        var host = new ShellHost(new ShellHostOptions(folders, SetupWizardViewModel.CurrentVersion(), _resetRequested, UiTest, _logging),
+                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), ContentLanguages.Draws, () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
                                                                      (catalog, dependencies, showComponents, logging) => _pageViews = PageViews.FromCatalog(catalog, dependencies, showComponents, logging)),
                                                    _updates);
         _host = host;

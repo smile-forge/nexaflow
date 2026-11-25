@@ -74,7 +74,7 @@ public sealed class FeatureManager
         injectables.Add<WorkspaceRuntime>(nameof(WorkspaceRuntime), runtime => runtime);
         injectables.Add<IShellServices>(nameof(IShellServices), runtime => runtime.ShellServices);
         // A workspace with no AI provider still has an AIService, which answers that it has none.
-        injectables.Add<IAIService>(nameof(IAIService), runtime => runtime.AiService);
+        injectables.Add<IAIService>(nameof(IAIService), runtime => runtime.Assistant);
         // The runtime's own face of the file system — it routes the locations this runtime connected, which the process-wide
         // VirtualFileSystem.Instance cannot see; where a feature publishes a tree of its own for as long as it serves it; and the
         // locations the runtime has mounted, as a page lists them.

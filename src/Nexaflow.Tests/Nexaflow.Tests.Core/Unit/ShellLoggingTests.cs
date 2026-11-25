@@ -45,7 +45,7 @@ public class ShellLoggingTests
     [TestMethod]
     public void AFault_ReachesTheCrashLog_AndTheSessionsAccount()
     {
-        using var logging = ShellLogging.Open(_folders, uiTest: false, profileStartup: false);
+        using var logging = ShellLogging.Open(_folders, "1.2.3.4", uiTest: false, profileStartup: false);
         logging.Session.Apply(true);
         var log = logging.Factory.CreateLogger<ShellLoggingTests>();
 
@@ -60,7 +60,7 @@ public class ShellLoggingTests
     [TestMethod]
     public void AStep_ReachesOnlyTheSessionsAccount()
     {
-        using var logging = ShellLogging.Open(_folders, uiTest: false, profileStartup: false);
+        using var logging = ShellLogging.Open(_folders, "1.2.3.4", uiTest: false, profileStartup: false);
         logging.Session.Apply(true);
 
         logging.Factory.CreateLogger<ShellLoggingTests>().LogInformation("startup");
@@ -74,7 +74,7 @@ public class ShellLoggingTests
     {
         foreach (var uiTest in new[] { false, true })
         {
-            using var logging = ShellLogging.Open(_folders, uiTest, profileStartup: false);
+            using var logging = ShellLogging.Open(_folders, "1.2.3.4", uiTest, profileStartup: false);
             logging.Factory.CreateLogger(BindingErrorLogProvider.Category)
                    .LogWarning(new EventId(40), "{BindingError}", "BindingExpression path error: 'Missing' property not found");
 
@@ -85,17 +85,17 @@ public class ShellLoggingTests
     [TestMethod]
     public void TheProfiler_IsThere_OnlyWhenTheLaunchAskedForIt()
     {
-        using (var plain = ShellLogging.Open(_folders, uiTest: false, profileStartup: false))
+        using (var plain = ShellLogging.Open(_folders, "1.2.3.4", uiTest: false, profileStartup: false))
             Assert.IsNull(plain.Timings);
 
-        using var profiled = ShellLogging.Open(_folders, uiTest: false, profileStartup: true);
+        using var profiled = ShellLogging.Open(_folders, "1.2.3.4", uiTest: false, profileStartup: true);
         Assert.IsNotNull(profiled.Timings);
     }
 
     [TestMethod]
     public void Ending_WritesOutACollapsedBurst_AndClosesTheSessionsLog()
     {
-        var logging = ShellLogging.Open(_folders, uiTest: false, profileStartup: false);
+        var logging = ShellLogging.Open(_folders, "1.2.3.4", uiTest: false, profileStartup: false);
         logging.Session.Apply(true);
         var log = logging.Factory.CreateLogger<ShellLoggingTests>();
         Exception fault;

@@ -360,7 +360,7 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
 
     public string GetContext()
     {
-        var text = HelpPlainText.Extract(_doc.Markdown);
+        var text = _library.PlainText(_doc.Markdown);
         if (text.Length > ContextCap) text = text[..ContextCap] + "\n…";
         var standIn = _doc.MissingTopic is { } missing ? $" (there is no help for '{missing}' yet, so this is the list of help pages)" : "";
         return $"Nexaflow help, page '{Title}'{standIn}. It reads:\n{text}";

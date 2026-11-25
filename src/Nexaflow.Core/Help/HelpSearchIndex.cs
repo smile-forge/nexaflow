@@ -20,7 +20,7 @@ internal sealed record HelpHit(HelpTopic Topic, int Ordinal, string Preview);
 /// the same <see cref="TextSearchMatcher"/> the open page highlights with, so its counts and ordinals agree with what
 /// the reader sees. Built once, off the UI thread, the first time a search needs it.
 /// </summary>
-internal sealed class HelpSearchIndex(Func<IReadOnlyList<(HelpTopic Topic, string Markdown)>> source)
+internal sealed class HelpSearchIndex(Func<IReadOnlyList<(HelpTopic Topic, string Markdown)>> source, Func<string?, string> plainText)
 {
     private const int PreviewLength = 140;
 
@@ -86,7 +86,7 @@ internal sealed class HelpSearchIndex(Func<IReadOnlyList<(HelpTopic Topic, strin
     {
         lock (_gate)
             return _pages ??= Task.Run<IReadOnlyList<(HelpTopic Topic, string Text)>>(
-                () => source().Select(page => (page.Topic, HelpPlainText.Extract(page.Markdown))).ToList());
+                () => source().Select(page => (page.Topic, plainText(page.Markdown))).ToList());
     }
 
     private static string Preview(string line)

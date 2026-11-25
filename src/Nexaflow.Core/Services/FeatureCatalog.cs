@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Nexaflow.Core.ViewModels;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Plugins;
 
@@ -106,6 +106,9 @@ public sealed class FeatureCatalog
     /// holds it, and names no toolkit itself.
     /// </summary>
     private readonly Type _viewMarker;
+
+    /// <summary>The version of the app the index is built for: a cache from another version is built again.</summary>
+    private readonly string _appVersion;
     private string _exeDir = "";
     private string _coreFile = "";
 
@@ -120,11 +123,12 @@ public sealed class FeatureCatalog
     /// <summary>A catalogue whose index is cached under <paramref name="baseDir"/>, as <c>discovery\catalog.json</c>.</summary>
     /// <param name="baseDir">The configuration's base directory (<see cref="ConfigManager.BaseDir"/>).</param>
     /// <param name="log">Where the catalogue says how its index was built, and what it could not load, activate or cache.</param>
-    public FeatureCatalog(string baseDir, Type viewMarker, ILogger<FeatureCatalog> log)
+    public FeatureCatalog(string baseDir, string appVersion, Type viewMarker, ILogger<FeatureCatalog> log)
     {
         _cachePath = Path.Combine(baseDir, "discovery", "catalog.json");
         _log        = log;
         _viewMarker = viewMarker;
+        _appVersion = appVersion;
     }
 
     /// <summary>
@@ -139,7 +143,7 @@ public sealed class FeatureCatalog
         _exeDir   = Path.GetDirectoryName(typeof(FeatureCatalog).Assembly.Location)!;
         _coreFile = Path.GetFileName(typeof(FeatureCatalog).Assembly.Location);
 
-        var version = SetupWizardViewModel.CurrentVersion();
+        var version = _appVersion;
         var stamp   = FeatureCatalogStamp.Capture(_exeDir, _coreFile, _log);
 
 #if DEBUG

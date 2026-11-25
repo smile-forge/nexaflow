@@ -2,6 +2,7 @@ using Nexaflow.Core.Help;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -23,7 +24,8 @@ public class HelpSearchIndexTests
     private static HelpTopic Topic(string topic, string title) => new(topic, title, $"P.{topic}/help/{topic}.md");
 
     private static HelpSearchIndex Index(params (string Topic, string Title, string Markdown)[] pages)
-        => new(() => pages.Select(p => (Topic(p.Topic, p.Title), p.Markdown)).ToList());
+        => new(() => pages.Select(p => (Topic(p.Topic, p.Title), p.Markdown)).ToList(),
+               markdown => HelpPlainText.Extract(markdown, ContentLanguages.Draws));
 
     [TestMethod]
     public void PlainText_KeepsWhatRenders_AndDropsWhatDoesNot()
@@ -31,7 +33,7 @@ public class HelpSearchIndexTests
         var text = HelpPlainText.Extract(
             "# Title\n\nSee [the docs](https://example.com/secret) now.\n\n![alt words](x.png)\n\n" +
             "```mermaid\ngraph TD; hiddenNode\n```\n\n```csharp\nvar visible = 1;\n```\n\n" +
-            "| head | er |\n|---|---|\n| cellone | celltwo |\n\n<div>markup</div>\n");
+            "| head | er |\n|---|---|\n| cellone | celltwo |\n\n<div>markup</div>\n", ContentLanguages.Draws);
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         CollectionAssert.Contains(lines, "Title");

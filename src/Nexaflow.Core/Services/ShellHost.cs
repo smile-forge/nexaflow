@@ -26,7 +26,7 @@ namespace Nexaflow.Core.Services;
 /// <param name="UiTest">A UI journey drives the app: every feature is activated up front, and nothing is downloaded.</param>
 /// <param name="Logging">The process's logs, made by the app before the session: what the session logs to, and hands each service
 /// it makes a logger from.</param>
-internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool UiTest, ShellLogging Logging);
+internal sealed record ShellHostOptions(AppDataFolders Folders, string Version, bool Reset, bool UiTest, ShellLogging Logging);
 
 /// <summary>What the UI toolkit the shell runs on gives the session: the pieces only it can make.</summary>
 /// <param name="Ui">The thread the windows run on.</param>
@@ -35,6 +35,8 @@ internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool
 /// <param name="Themes">Folds the features' theme contributions into the theme applied.</param>
 /// <param name="ViewMarker">The attribute the toolkit's views are marked with, naming the model type each draws as its first
 /// argument: what the feature catalogue indexes views by.</param>
+/// <param name="FenceDrawn">Whether a fenced markdown block of an info string is drawn as something other than its text — a
+/// chart, a formula — by the toolkit's renderer: what a help page's searchable text leaves out.</param>
 /// <param name="FolderWatchers">Makes the folder watcher, which owns a window of the toolkit's.</param>
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
@@ -47,6 +49,7 @@ internal sealed record ShellPlatform(
     IFilePickers Pickers,
     IThemeHost Themes,
     Type ViewMarker,
+    Func<string?, bool> FenceDrawn,
     Func<IFolderWatcher> FolderWatchers,
     Action<ShellConfig> ApplyAppearance,
     Func<FeatureCatalog, ExternalDependencyRegistry, Action, ShellLogging, IPageViews> Views);
@@ -166,7 +169,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // A stored value that could not be read goes on record in the crash log, which writes into the same folders.
         Config = new ConfigManager(options.Folders.BaseDir, options.Folders.LocalDir, logs.CreateLogger<ConfigManager>());
         // The feature catalogue's index is cached under the configuration.
-        Catalog = new FeatureCatalog(Config.BaseDir, platform.ViewMarker, logs.CreateLogger<FeatureCatalog>());
+        Catalog = new FeatureCatalog(Config.BaseDir, options.Version, platform.ViewMarker, logs.CreateLogger<FeatureCatalog>());
         _log.StartupMilestone("Init.ConfigManager");
 
         // ── 1. Shell config ──────────────────────────────────────────────────
@@ -186,7 +189,7 @@ internal sealed class ShellHost : IAsyncDisposable
         Str.Source = Language;
         // The help pages, read through the language: the Help page's registration is given them (once the feature system is
         // made), and each runtime's assistant the tools that read them.
-        var help = Help = new HelpLibrary(Language);
+        var help = Help = new HelpLibrary(Language, platform.FenceDrawn);
         _log.StartupMilestone("Init.Language");
 
         Security = new SecurityConfig();
@@ -307,7 +310,10 @@ internal sealed class ShellHost : IAsyncDisposable
             LocationProviders, Discovered,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
             platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard, platform.Pickers,
-            Dependencies, Language, Views, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools], logs));
+            Dependencies, Language, Views,
+            new WorkspaceAssistants(Features, Providers, Shell, Security, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools],
+                                    Activities, Inbox.Post).Create,
+            logs));
         // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
                                            SavedWorkspaces.Workspaces.Contains, TimeProvider.System, logs.CreateLogger<WorkspaceRuntimes>());

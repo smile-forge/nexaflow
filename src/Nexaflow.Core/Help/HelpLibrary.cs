@@ -27,13 +27,17 @@ internal sealed partial class HelpLibrary
     private const string IndexName = "Nexaflow.Core/help/index.md";
 
     private readonly LanguageManager _language;
+
+    /// <summary>Whether a fenced block is drawn as something other than its text, as the toolkit's renderer draws it.</summary>
+    private readonly Func<string?, bool> _fenceDrawn;
     private readonly object _gate = new();
     private IReadOnlyList<HelpTopic>? _topics;
     private HelpSearchIndex? _index;
 
-    internal HelpLibrary(LanguageManager language)
+    internal HelpLibrary(LanguageManager language, Func<string?, bool> fenceDrawn)
     {
-        _language = language;
+        _language   = language;
+        _fenceDrawn = fenceDrawn;
         language.Changed += Forget;
     }
 
@@ -53,9 +57,12 @@ internal sealed partial class HelpLibrary
         get
         {
             lock (_gate)
-                return _index ??= new HelpSearchIndex(() => Topics.Select(t => (t, Load(t.Topic).Markdown)).ToList());
+                return _index ??= new HelpSearchIndex(() => Topics.Select(t => (t, Load(t.Topic).Markdown)).ToList(), PlainText);
         }
     }
+
+    /// <summary>A help page as the text a reader sees (<see cref="HelpPlainText"/>): what the search finds and the assistant reads.</summary>
+    public string PlainText(string? markdown) => HelpPlainText.Extract(markdown, _fenceDrawn);
 
     /// <summary>The help page for <paramref name="topic"/> (a page kind), if there is one.</summary>
     public HelpTopic? Find(string? topic)

@@ -2,6 +2,7 @@ using System.IO;
 using Nexaflow.Core.Help;
 using Nexaflow.Core.Localization;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -47,7 +48,7 @@ internal sealed class HelpFixture : IDisposable
             File.WriteAllBytes(Path.Combine(_dir, $"Nexaflow.Language.{code}.dll"), []);
 
         Language = new LanguageManager(_dir, (code, _) => packs[code], TestRuntimes.LoggerFor<LanguageManager>());
-        Library  = new HelpLibrary(Language);
+        Library  = new HelpLibrary(Language, ContentLanguages.Draws);
     }
 
     public LanguageManager Language { get; }

@@ -1,7 +1,7 @@
-using Nexaflow.Core.Controls;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Common.Theming;
+
 
 namespace Nexaflow.Core;
 
@@ -29,6 +29,9 @@ public sealed class ShellConfig : IFeatureConfig
     [ConfigDisplayName("Shell.Config.Shell.Language")]
     public string Language { get; set; } = "en";
 
+    /// <summary>The point size text content is read at until the person chooses another: the size the visuals start at.</summary>
+    public const double DefaultTextFontSize = 13.0;
+
     /// <summary>
     /// Point size text content is read at across the shell's text surfaces — the text/code editor, the
     /// markdown document, the hex grid. A viewer's own zoom multiplies this rather than replacing it, so
@@ -36,7 +39,7 @@ public sealed class ShellConfig : IFeatureConfig
     /// the hex grid's column metrics). Applies live, no restart.
     /// </summary>
     [ConfigDisplayName("Shell.Config.Shell.TextFontSize")]
-    public double TextFontSize { get; set; } = TextTypography.DefaultBaseFontSize;
+    public double TextFontSize { get; set; } = DefaultTextFontSize;
 
     /// <summary>
     /// When true, Nexaflow registers itself to launch at login with <c>--prestart</c> as a windowless

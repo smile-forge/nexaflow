@@ -3,7 +3,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Text.Markdown;
+
 
 namespace Nexaflow.Core.Help;
 
@@ -11,7 +11,7 @@ namespace Nexaflow.Core.Help;
 /// Gives a help page its menu: a <b>Topics</b> list of its <c>##</c> sections, placed where the introduction ends, and a
 /// link back to that list at the end of every section. Generated as the page loads rather than written into it, so every
 /// page — and every translation — has one that cannot drift from its headings. The links are ordinary in-page links,
-/// which the renderer resolves itself (<see cref="MarkdownAnchors"/>). A page with fewer than two sections is left as it
+/// which the renderer resolves itself (Visuals.Text's <c>MarkdownAnchors</c>). A page with fewer than two sections is left as it
 /// is: a list of one is not a menu.
 /// </summary>
 internal static partial class HelpContents

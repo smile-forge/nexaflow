@@ -8,18 +8,6 @@ using Nexaflow.Interaction;
 namespace Nexaflow.Core.Models;
 
 /// <summary>
-/// Carries a tab drag-and-drop pin request, optionally with an insert index.
-/// </summary>
-public record TabPinRequest(Page Tab, int InsertIndex = -1);
-
-/// <summary>
-/// Carries a handler-based pin request: a payload tagged with the drag-data <c>Format</c> it arrived as.
-/// Used for drag-drop of non-tab content (e.g. file actions, a browser URL) onto the ribbon; the
-/// matching <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> is resolved by the kinds the payload carries.
-/// </summary>
-public record RibbonPinRequest(IDragPayload Payload, int InsertIndex = -1);
-
-/// <summary>
 /// Represents one item in the customisable ribbon. Every look property defaults to the theme's own, so an item
 /// nobody styled follows the theme entirely.
 /// </summary>

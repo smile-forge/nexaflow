@@ -1,5 +1,5 @@
 using Nexaflow.Core.Models;
-using Nexaflow.Core.Services.Agent;
+
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Providers.Common;
@@ -9,7 +9,7 @@ namespace Nexaflow.Core.Services;
 /// <summary>
 /// Builds every <see cref="WorkspaceRuntime"/>, and is each one's link to what outlives it: the session's provider pool,
 /// background tasks, file system, watches and the locations found on this machine (<see cref="RuntimeSessionServices"/>). A
-/// runtime comes out wired — its <see cref="AIService"/>, <see cref="ShellServices"/>, file system and
+/// runtime comes out wired — its assistant, <see cref="ShellServices"/>, file system and
 /// <see cref="FeatureScope"/> made with it — and, from <see cref="Create"/>, started: its providers acquired and its
 /// connections mounted. The factory knows every runtime it built that has not ended, so the session can end them all.
 /// </summary>
@@ -70,16 +70,6 @@ public sealed class WorkspaceRuntimeFactory(RuntimeSessionServices session)
     internal void Ended(WorkspaceRuntime runtime)
     {
         lock (_liveGate) _live.Remove(runtime);
-    }
-
-    /// <summary>The assistant for <paramref name="runtime"/>'s workspace, its slow work run on the session's background tasks.</summary>
-    internal AIService NewAiService(WorkspaceRuntime runtime)
-    {
-        var jobs    = Session.Tasks is { } tasks ? new BackgroundJobs(tasks, runtime, Session.Notify) : null;
-        var service = new AIService(runtime, Session.Features, Session.Providers, Session.Shell, Session.Security,
-                                            runtime.Workspace.ConversationsDir, Session.HelpTools, jobs);
-        service.LoadAbilityConfig(runtime.Workspace.AiConfig);
-        return service;
     }
 
     /// <summary>A pool of sessions to the locations one runtime connects to, signed in from what the session holds.</summary>

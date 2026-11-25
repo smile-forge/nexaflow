@@ -8,7 +8,7 @@ namespace Nexaflow.Core.Models;
 
 /// <summary>
 /// A live workspace: the one or more window frames (<see cref="MainWindow"/>) running one <see cref="Workspace"/>, and the
-/// services they share — the window and tab registry (<see cref="ShellServices"/>), the assistant (<see cref="AiService"/>),
+/// services they share — the window and tab registry (<see cref="ShellServices"/>), the assistant (<see cref="Assistant"/>),
 /// the provider instances it acquired from the session's pool (deduplicated process-wide by <see cref="ProviderManager"/>),
 /// its file system and locations, and the feature instances built for it (<see cref="Features"/>). Built and started by
 /// <see cref="WorkspaceRuntimeFactory"/>; <see cref="DisposeAsync"/> ends it, letting go of everything it holds in order.
@@ -39,9 +39,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     /// before the runtime starts and after it ends.</summary>
     public ProviderSet? Providers { get; private set; }
 
-    /// <summary>The workspace's assistant, registered with <see cref="Providers"/>' execution instances. Built anew when the
-    /// runtime's services are renewed.</summary>
-    public AIService AiService { get; private set; }
+    /// <summary>The workspace's assistant, made for it by the session's assistant factory: what features are given as their
+    /// <see cref="IAIService"/>, and what this runtime hands its providers.</summary>
+    public IWorkspaceAssistant Assistant { get; }
 
     /// <summary>The window and tab registry this runtime's windows share.</summary>
     public ShellServices ShellServices { get; }
@@ -98,7 +98,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         Locations     = new RuntimeLocations(Vfs, session.NewLocationSessions(), session.Session.Discovered);
         Features      = new FeatureScope(workspace.Name);
         FeatureManager = session.Session.Features;
-        AiService     = session.NewAiService(this);
+        Assistant     = session.Session.NewAssistant(this);
         ShellServices = new ShellServices(this, session.Session);
     }
 
@@ -136,9 +136,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         // runtime's are weighed when a launch adopts it, so a window nobody has asked for yet loads nothing.
         if (!IsStandby) pool.Residency?.Preload(fresh.Execution.Values);
 
-        AiService.ClearProviders();
-        foreach (var (columnId, provider) in fresh.Execution)
-            AiService.Register(columnId, provider);
+        Assistant.UseProviders(fresh.Execution);
         RaiseProvidersChanged();
     }
 
@@ -159,7 +157,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     /// </summary>
     internal void Rest()
     {
-        AiService.ClearProviders();
+        Assistant.ReleaseProviders();
         _session.Providers.ReleaseProviderSet(Providers);
         Providers = null;
         RaiseProvidersChanged();
@@ -205,7 +203,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
         _session.StopJobsOf(this);
         Features.Close();
-        AiService.Dispose();
+        Assistant.Dispose();
         _session.Providers.ReleaseProviderSet(Providers);
         Providers = null;
         ShellServices.Dispose();

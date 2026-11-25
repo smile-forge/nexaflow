@@ -242,9 +242,11 @@ public class AgentLoopTests
         return svc;
     }
 
-    private static AIService BuildService(ILlmProvider provider)
+    private static AIService BuildService(ILlmProvider provider) => Configured(NewServiceOnAWiredRuntime(), provider);
+
+    /// <summary><paramref name="svc"/> answering through <paramref name="provider"/> for every ability a turn uses.</summary>
+    private static AIService Configured(AIService svc, ILlmProvider provider)
     {
-        var svc = NewServiceOnAWiredRuntime();
         svc.Register("c1", provider);   // execution instances are keyed by column id
         svc.LoadAbilityConfig(new AiConfig
         {
@@ -664,8 +666,8 @@ public class AgentLoopTests
     public async Task ThePagesItCanOpen_AreAskedFor_NotCarriedInEveryRequest()
     {
         var provider = new ScriptedLlmProvider(["Done."]);
-        var svc      = BuildService(provider);
-        var runtime  = (WorkspaceRuntime)typeof(AIService).GetField("_workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(svc)!;
+        var runtime  = TestRuntimes.Unstarted();
+        var svc      = Configured(runtime.AiService, provider);
 
         await svc.RunAgentAsync(new TestPage([]), "Open the AI chat.", true, new FakeApprover());
         var pages = await new GetOpenablePagesTool(runtime, runtime.FeatureManager).InvokeAsync([], CancellationToken.None);

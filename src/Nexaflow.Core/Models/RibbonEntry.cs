@@ -1,9 +1,7 @@
 using Nexaflow.Icons;
-using CommunityToolkit.Mvvm.ComponentModel;
-using System.Windows.Input;
-using Nexaflow.Visuals.Common.Theming;
-using Nexaflow.Visuals.Icons;
+
 using Nexaflow.Interaction;
+
 
 namespace Nexaflow.Core.Models;
 
@@ -57,3 +55,15 @@ public enum RibbonButtonShape { Standard, Rounded, Pill, Leaf, Circle, Squircle,
 
 /// <summary>How heavy a ribbon button's outline is; <see cref="None"/> draws none.</summary>
 public enum RibbonBorderWeight { None, Thin, Medium, Thick }
+
+/// <summary>
+/// Carries a tab drag-and-drop pin request, optionally with an insert index.
+/// </summary>
+public record TabPinRequest(Page Tab, int InsertIndex = -1);
+
+/// <summary>
+/// Carries a handler-based pin request: a payload tagged with the drag-data <c>Format</c> it arrived as.
+/// Used for drag-drop of non-tab content (e.g. file actions, a browser URL) onto the ribbon; the
+/// matching <see cref="Nexaflow.Features.Common.IRibbonPinHandler"/> is resolved by the kinds the payload carries.
+/// </summary>
+public record RibbonPinRequest(IDragPayload Payload, int InsertIndex = -1);

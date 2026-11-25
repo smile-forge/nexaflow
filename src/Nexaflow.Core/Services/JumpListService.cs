@@ -13,10 +13,6 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 public static class JumpListService
 {
-    /// <summary>Command-line switch a JumpTask passes to request a specific Workspace
-    /// (the "--context" literal is a frozen CLI/IPC compat string).</summary>
-    public const string ContextSwitch = "--context";
-
     private const string CategoryName = "Workspaces";
 
     /// <summary>
@@ -49,7 +45,7 @@ public static class JumpListService
                 CustomCategory   = CategoryName,
                 ApplicationPath  = exePath,
                 IconResourcePath = exePath,
-                Arguments        = $"{ContextSwitch} \"{cfg.Name}\"",
+                Arguments        = $"{LaunchRequest.ContextSwitch} \"{cfg.Name}\"",
             });
 
         try

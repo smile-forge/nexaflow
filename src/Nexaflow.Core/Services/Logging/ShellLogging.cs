@@ -43,9 +43,9 @@ public sealed class ShellLogging : IDisposable
     /// the local one, the binding errors beside the crash log when <paramref name="uiTest"/>, and the profiler when
     /// <paramref name="profileStartup"/>.
     /// </summary>
-    public static ShellLogging Open(AppDataFolders folders, bool uiTest, bool profileStartup)
+    public static ShellLogging Open(AppDataFolders folders, string version, bool uiTest, bool profileStartup)
     {
-        var version = typeof(ShellLogging).Assembly.GetName().Version?.ToString() ?? "unknown";
+
         Func<DateTimeOffset> clock = () => DateTimeOffset.Now;
         var crash   = new CrashLogProvider(() => folders.BaseDir, clock, version);
         var session = new SessionLogProvider(() => Path.Combine(folders.LocalDir, "logs"), clock, version, CrashLogProvider.FileNameFor);

@@ -22,7 +22,7 @@ using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Core.Services;
 
-public sealed class AIService : IAIService, IDisposable
+public sealed class AIService : IWorkspaceAssistant
 {
     // ── Provider registry ─────────────────────────────────────────────────
     // Keyed by ability-grid column id: each entry is a model-bound execution instance for that column.
@@ -46,6 +46,15 @@ public sealed class AIService : IAIService, IDisposable
         foreach (var provider in _providers.Values) provider.AvailabilityChanged -= OnProviderAvailabilityChanged;
         _providers.Clear();
     }
+
+    public void UseProviders(IReadOnlyDictionary<string, IAiProvider> execution)
+    {
+        ClearProviders();
+        foreach (var (columnId, provider) in execution)
+            Register(columnId, provider);
+    }
+
+    public void ReleaseProviders() => ClearProviders();
 
     /// <summary>Lets go of the providers it listened to: they are pooled, and outlive this assistant, so a provider another
     /// workspace still uses must not keep this one — and its runtime — alive.</summary>
@@ -116,7 +125,7 @@ public sealed class AIService : IAIService, IDisposable
     private bool AllowsAdultContent => !_shell.EnhancedAiProtection;
 
         /// <summary>The check every picture made passes while Enhanced AI Protection Mode is on; null while it is off.</summary>
-        private Generation.IPictureCheck? PictureCheck => _shell.EnhancedAiProtection ? _pool.Service<Tools.PictureChecking>() : null;
+        private Tools.IPictureCheck? PictureCheck => _shell.EnhancedAiProtection ? _pool.Service<Tools.PictureChecking>() : null;
 
     /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
     private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model, bool allowsAdultContent)

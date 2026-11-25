@@ -1,7 +1,7 @@
 using System.Text;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
-using Nexaflow.Visuals.Text.Markdown;
+
 
 namespace Nexaflow.Core.Help;
 
@@ -18,18 +18,17 @@ namespace Nexaflow.Core.Help;
 /// </summary>
 internal static class HelpPlainText
 {
-    // Fences nothing has registered a language for that still render as something other than their text — the
-    // maths the renderer typesets. A registered language answers for itself.
-    private static readonly HashSet<string> TypesetFences = new(StringComparer.OrdinalIgnoreCase) { "math", "latex", "tex" };
-
-    public static string Extract(string? markdown)
+    /// <param name="markdown">The page.</param>
+    /// <param name="fenceDrawn">Whether a fenced block of an info string is drawn as something other than its text — what the
+    /// toolkit's renderer charts or typesets; such a block's source is not what a reader sees, so it is left out.</param>
+    public static string Extract(string? markdown, Func<string?, bool> fenceDrawn)
     {
         var sb = new StringBuilder();
-        Blocks(ContentPart.Of(MarkdownParser.Worked(markdown ?? "")), sb);
+        Blocks(ContentPart.Of(MarkdownParser.Worked(markdown ?? "")), fenceDrawn, sb);
         return sb.ToString();
     }
 
-    private static void Blocks(ContentPart holder, StringBuilder sb)
+    private static void Blocks(ContentPart holder, Func<string?, bool> fenceDrawn, StringBuilder sb)
     {
         foreach (var part in holder.Children)
         {
@@ -46,25 +45,15 @@ internal static class HelpPlainText
                     continue;
 
                 case Kinds.Block:
-                    if (!IsTypeset((part.Node as BlockNode)?.Language)) Line(sb, Written(part));
+                    if (!fenceDrawn((part.Node as BlockNode)?.Language)) Line(sb, Written(part));
                     continue;
             }
 
             // A block of words is a line of them; anything else is the blocks it holds.
             if (part.Part(Roles.Body) is { Kind: Kinds.Words } words) Line(sb, MarkdownProse.Words(words));
-            else Blocks(part.Part(Roles.Body) ?? part, sb);
+            else Blocks(part.Part(Roles.Body) ?? part, fenceDrawn, sb);
         }
     }
-
-    /// <summary>
-    /// Whether a fence draws as a picture rather than as its own words. A registered language says so itself —
-    /// code colours what was typed and still shows it, a chart does not — and what none of them claims is
-    /// only typeset if it is on the short list above.
-    /// </summary>
-    private static bool IsTypeset(string? info)
-        => !string.IsNullOrWhiteSpace(info)
-           && (ContentLanguages.For(info) is { } language && !language.Editing.ShowsWhatWasWritten
-               || TypesetFences.Contains(info.Trim().Split(' ')[0]));
 
     /// <summary>What a block holds as written: its lines, without what a container put in front of each.</summary>
     private static string Written(ContentPart block)
