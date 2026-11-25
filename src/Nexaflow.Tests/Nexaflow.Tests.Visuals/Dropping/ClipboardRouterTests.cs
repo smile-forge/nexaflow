@@ -160,6 +160,27 @@ public class ClipboardRouterTests
     });
 
     [TestMethod]
+    public void ADialog_ReachesTheClipboardOfTheWindowThatOwnsIt() => UiThread.Run(() =>
+    {
+        var clipboard = new MemoryClipboard();
+        var owner = new Window { WindowStyle = WindowStyle.None, ShowActivated = false, ShowInTaskbar = false, Left = -4000, Top = -4000, Width = 50, Height = 50 };
+        ClipboardRouter.SetClipboard(owner, clipboard);
+        owner.Show();
+
+        var inDialog = new Border();
+        var dialog = new Window { Owner = owner, Content = new Border { Child = inDialog } };
+        try
+        {
+            Assert.AreSame(clipboard, ClipboardRouter.ClipboardFor(inDialog));
+        }
+        finally
+        {
+            dialog.Close();
+            owner.Close();
+        }
+    });
+
+    [TestMethod]
     public void Writing_FromSomethingShownNowhere_SaysNothingWasWritten() => UiThread.Run(() =>
         Assert.IsFalse(ClipboardRouter.Write(new Border(), ComposedPayload.OfText("lost")).GetAwaiter().GetResult()));
 }

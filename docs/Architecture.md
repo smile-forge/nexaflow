@@ -179,7 +179,7 @@ page — it only knows how to _host_ them — and nothing of the session's lives
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`: `WpfUiThread`, `ShellClipboard`, `WpfFilePickers`, `ShellFolderWatcher`, `WpfThemeHost`, `[ViewFor]` as the view marker, `ContentLanguages.Draws`, `WpfPictureFitting`, `PageViews`), hands it the app's version, applies the appearance settings, offers the clipboard to every window (`ClipboardRouter.ServeEveryWindow`), builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
+| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`: `WpfUiThread`, `ShellClipboard`, `WpfFilePickers`, `ShellFolderWatcher`, `WpfThemeHost`, `[ViewFor]` as the view marker, `ContentLanguages.Draws`, `WpfPictureFitting`, `PageViews`), hands it the app's version, applies the appearance settings, builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks; routes its drops (`DropRouter`) and pastes (`ClipboardRouter`) |
 | `ViewModels/ShellViewModel.cs` | Per-window VM and the session's `IWindowHost`: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open); showing, closing and placing its window, its pickers' owner |
 | `ViewModels/ConfigPageModels.cs` | The page a config is edited on where it has one of its own: the view marked `[ViewFor]` its model — its config, or the view-model a Core page that shows the session draws |
@@ -718,8 +718,8 @@ anything is a question a command answers whenever asked. The WPF app's is `Shell
 and `WindowsDataObject`.
 
 - **A view-model reaches it as `IShellServices.Clipboard`.** A control with no view-model reaches the one its window
-  offers — `ClipboardRouter.Clipboard`, inherited by everything a window shows, popups included — and copies with
-  `ClipboardRouter.Write(element, payload)`. Nothing reads or writes the toolkit's own clipboard but the app's adapter.
+  offers — `ClipboardRouter.Clipboard`, inherited by everything a window shows, popups included, and offered to the
+  dialogs it owns (`ClipboardFor`) — and copies with `ClipboardRouter.Write(element, payload)`. Nothing reads or writes the toolkit's own clipboard but the app's adapter.
 - **A paste is routed as a drop is.** The window's `ClipboardRouter` (beside `DropRouter`, attached by `MainWindow`) takes
   Ctrl+V, Shift+Insert and the Paste command, and hands the nearest `IPasteTarget` that can take what the clipboard holds —
   a page's view or view-model, or a control, from the focus out — what it held of its `PasteKinds`, taken; failing one

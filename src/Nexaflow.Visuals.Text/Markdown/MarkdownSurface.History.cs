@@ -136,14 +136,14 @@ public sealed partial class MarkdownSurface
         var asked = new ContentCopyingEventArgs(CopyingEvent, copy);
         RaiseEvent(asked);
 
-        return asked.Handled ? Task.FromResult(true) : ClipboardRouter.GetClipboard(this)?.WriteAsync(MarkdownClipboard.Payload(copy));
+        return asked.Handled ? Task.FromResult(true) : ClipboardRouter.ClipboardFor(this)?.WriteAsync(MarkdownClipboard.Payload(copy));
     }
 
     /// <inheritdoc/>
     bool IContentEvents.OnPaste()
     {
         // Shown nowhere that offers a clipboard, a host may still answer from what it holds.
-        if (ClipboardRouter.GetClipboard(this) is not { } clipboard) return PasteTaken(ComposedPayload.Empty);
+        if (ClipboardRouter.ClipboardFor(this) is not { } clipboard) return PasteTaken(ComposedPayload.Empty);
 
         _ = PasteFromAsync(clipboard);
         return true;

@@ -39,7 +39,7 @@ using Microsoft.Extensions.Logging;
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Core.Help;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Common.Dropping;
+
 
 namespace Nexaflow.Core;
 
@@ -166,8 +166,7 @@ public partial class App : Application
             },
             (attempt, ex) => _log.LogWarning(ex, "{Attempt}", attempt));
 
-        // Every window offers the session's clipboard to what it shows, so a control with no view-model still copies and pastes.
-        ClipboardRouter.ServeEveryWindow(() => _clipboard);
+
 
         var openTabIdx = Array.FindIndex(e.Args, a => string.Equals(a, "--openTab", StringComparison.OrdinalIgnoreCase));
         OpenTabKind = openTabIdx >= 0 && openTabIdx + 1 < e.Args.Length ? e.Args[openTabIdx + 1] : null;

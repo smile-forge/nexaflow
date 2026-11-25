@@ -9,8 +9,9 @@ namespace Nexaflow.Visuals.Common.Dropping;
 /// The clipboard as a window offers it: to every element in it, and to whatever a paste in it should land in.
 /// <para>
 /// <b>Reaching it.</b> A window carries the application's clipboard as <see cref="ClipboardProperty"/>, inherited by everything
-/// it shows, popups included, so a control with no view-model to ask still copies (<see cref="Write"/>) and reads through the
-/// one clipboard — never through the toolkit's own, and never through a static.
+/// it shows, popups included, and offered to the dialogs it owns (<see cref="ClipboardFor"/>), so a control with no view-model
+/// to ask still copies (<see cref="Write"/>) and reads through the one clipboard — never through the toolkit's own, and never
+/// through a static.
 /// </para>
 /// <para>
 /// <b>Paste.</b> In a window this is attached to (<see cref="Attach"/>), Ctrl+V, Shift+Insert and the Paste command go to the
@@ -65,15 +66,18 @@ public sealed class ClipboardRouter
         => new(root, clipboard, failed, targetOf, pageTarget);
 
     /// <summary>
-    /// Offers the application's clipboard to every window as it loads — a dialog, a tool window — as well as those
-    /// <see cref="Attach"/> routes, so what any of them shows can copy and paste. <paramref name="clipboard"/> is asked each time,
-    /// so it may be made after this is called; a window loaded before then is offered none.
+    /// The clipboard <paramref name="element"/> reaches: the one its window offers, inherited by everything the window shows —
+    /// popups included — or, in a dialog, the one offered by the window that owns it. Null where it is shown nowhere that
+    /// offers one.
     /// </summary>
-    public static void ServeEveryWindow(Func<IShellClipboard?> clipboard)
-        => EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((sender, _) =>
-        {
-            if (sender is Window window && GetClipboard(window) is null && clipboard() is { } offered) SetClipboard(window, offered);
-        }));
+    public static IShellClipboard? ClipboardFor(DependencyObject element)
+    {
+        if (GetClipboard(element) is { } offered) return offered;
+
+        for (var window = Window.GetWindow(element)?.Owner; window is not null; window = window.Owner)
+            if (GetClipboard(window) is { } owners) return owners;
+        return null;
+    }
 
     /// <summary>
     /// Puts <paramref name="payload"/> on the clipboard <paramref name="source"/> reaches: for a control with no view-model to
@@ -81,7 +85,7 @@ public sealed class ClipboardRouter
     /// shown nowhere that offers one.
     /// </summary>
     public static Task<bool> Write(DependencyObject source, IDragPayload payload)
-        => GetClipboard(source)?.WriteAsync(payload) ?? Task.FromResult(false);
+        => ClipboardFor(source)?.WriteAsync(payload) ?? Task.FromResult(false);
 
     private void OnCanPaste(object sender, CanExecuteRoutedEventArgs e)
     {
