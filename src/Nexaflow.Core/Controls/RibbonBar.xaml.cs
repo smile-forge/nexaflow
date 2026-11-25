@@ -55,9 +55,9 @@ public partial class RibbonBar : UserControl, IDropTarget
         DependencyProperty.Register(nameof(PinFromHandlerCommand),
             typeof(ICommand), typeof(RibbonBar));
 
-    public static readonly DependencyProperty RuntimeProperty =
-        DependencyProperty.Register(nameof(Runtime),
-            typeof(WorkspaceRuntime), typeof(RibbonBar));
+    public static readonly DependencyProperty ViewModelProperty =
+        DependencyProperty.Register(nameof(ViewModel),
+            typeof(RibbonViewModel), typeof(RibbonBar));
 
     public static readonly DependencyProperty ShellProperty =
         DependencyProperty.Register(nameof(Shell),
@@ -93,10 +93,11 @@ public partial class RibbonBar : UserControl, IDropTarget
         get => (ICommand?)GetValue(DeleteItemCommandProperty);
         set => SetValue(DeleteItemCommandProperty, value);
     }
-    public WorkspaceRuntime? Runtime
+    /// <summary>The ribbon's view-model, whose pin handlers say what may be dropped here besides a tab.</summary>
+    public RibbonViewModel? ViewModel
     {
-        get => (WorkspaceRuntime?)GetValue(RuntimeProperty);
-        set => SetValue(RuntimeProperty, value);
+        get => (RibbonViewModel?)GetValue(ViewModelProperty);
+        set => SetValue(ViewModelProperty, value);
     }
     public ICommand? PinFromHandlerCommand
     {
@@ -352,8 +353,7 @@ public partial class RibbonBar : UserControl, IDropTarget
 
     public IReadOnlyList<string> AcceptedKinds => [Page.DragKind, .. PinHandlers.SelectMany(handler => handler.AcceptedKinds)];
 
-    private IReadOnlyList<IRibbonPinHandler> PinHandlers
-        => Runtime is { } runtime ? FeatureManager.Instance.GetRibbonPinHandlers(runtime) : [];
+    private IReadOnlyList<IRibbonPinHandler> PinHandlers => ViewModel?.PinHandlers ?? [];
 
     public DropOffer? OfferDrop(DropRequest request)
     {

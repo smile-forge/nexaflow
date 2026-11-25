@@ -445,15 +445,21 @@ public partial class OptionsViewModel : ObservableObject
     public event Action<string>?              SaveError;
     public event Action<IEnumerable<string>>? TabRefreshRequested;
 
+    /// <summary>The session's feature system: every feature's config, and the pages a changed one refreshes.</summary>
+    private readonly FeatureManager _features;
+
     /// <param name="pages">What each <c>[CustomControl]</c> section is bound to: the session's view-model for a Core page that shows
     /// it, else its config.</param>
+    /// <param name="features">The session's feature system: every feature is activated so its config is listed, and a changed
+    /// config refreshes the pages built with it.</param>
     /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed.</param>
-    public OptionsViewModel(ConfigPageModels pages, Nexaflow.Features.Common.IShellServices? shell = null)
+    public OptionsViewModel(ConfigPageModels pages, FeatureManager features, Nexaflow.Features.Common.IShellServices? shell = null)
     {
+        _features = features;
         // Options lists every feature's global config. With lazy feature loading a config is registered only
         // when its assembly activates, so make sure they're all activated before reading the registry —
         // otherwise the panel would be missing sections for features not yet warmed up.
-        FeatureCatalog.Instance.EnsureAllActivated();
+        features.Catalog.EnsureAllActivated();
 
         // Stable sort: keep registration order but always float "About" to the bottom.
         var configs = ConfigManager.Instance.GetAll().OfType<IFeatureConfig>()
@@ -518,7 +524,7 @@ public partial class OptionsViewModel : ObservableObject
         // pages whose settings nobody touched — a Network sweep in flight among them.
         var activeCtx = WorkspaceManager.Instance.Runtimes?.FirstWithWindows;
         var pageKindsToRefresh = activeCtx is null ? [] : changed
-            .SelectMany(type => FeatureManager.Instance.GetPageKindsForConfig(type, activeCtx))
+            .SelectMany(type => _features.GetPageKindsForConfig(type, activeCtx))
             .Distinct()
             .ToList();
 

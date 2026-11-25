@@ -34,11 +34,11 @@ namespace Nexaflow.Core.Services;
 /// its global configs / archive handlers / theme contributions) are performed by a callback supplied at
 /// <see cref="Initialize"/> (see <see cref="FeatureManager"/>), so Core's "what to do with a discovered type"
 /// logic stays in one place.
+///
+/// One per session: <see cref="ShellHost"/> makes it, and the session's <see cref="FeatureManager"/> builds its index.
 /// </summary>
 public sealed class FeatureCatalog
 {
-    public static FeatureCatalog Instance { get; } = new();
-
     // ── Serialized index model (public for System.Text.Json) ──────────────────
 
     public sealed class TypeEntry
@@ -450,20 +450,6 @@ public sealed class FeatureCatalog
     /// Manage-AI / Configure panels, which need every scoped config materialized.</summary>
     public IReadOnlyList<Type> ResolveWorkspaceScopedConfigTypes()
         => ResolveAll(SnapshotRefs(t => t.Scoped && t.ConfigName is not null));
-
-    /// <summary>Workspace-scoped config types whose assembly is <b>already loaded</b> — never triggers a new
-    /// load. Lets the per-feature config view include a loaded feature's scoped config without forcing the
-    /// not-yet-loaded ones.</summary>
-    public IReadOnlyList<Type> ResolveLoadedWorkspaceScopedConfigTypes()
-    {
-        List<(string File, string Type)> refs = [];
-        lock (_lock)
-            foreach (var a in _index.Assemblies)
-                if (_loaded.ContainsKey(a.File))
-                    foreach (var t in a.Types)
-                        if (t.Scoped && t.ConfigName is not null) refs.Add((a.File, t.Name));
-        return ResolveAll(refs);
-    }
 
     /// <summary>Page-registration types whose constructor depends on <paramref name="configTypeFullName"/>,
     /// resolving (loading) their assemblies. Backs "which pages does this config affect" on config save.</summary>

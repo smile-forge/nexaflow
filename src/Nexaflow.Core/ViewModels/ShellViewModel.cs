@@ -447,7 +447,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
     private OptionsViewModel BuildOptionsPanel()
     {
-        var vm = new OptionsViewModel(new ConfigPageModels(_session.Dependencies, _session.Language), _shellServices);
+        var vm = new OptionsViewModel(new ConfigPageModels(_session.Dependencies, _session.Language, _session.Features), _session.Features,
+                                      _shellServices);
         vm.SaveError           += ShowErrorToast;
         vm.TabRefreshRequested += RefreshTabs;
         vm.SaveCompleted       += () =>
@@ -470,7 +471,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private WorkspaceConfigViewModel BuildWorkspaceConfigPanel()
     {
         var workspace = ConfigureTargetWorkspace ?? CurrentRuntime.Workspace;
-        var vm = new WorkspaceConfigViewModel(workspace, _shellServices);
+        var vm = new WorkspaceConfigViewModel(workspace, _session.Features, _shellServices);
         vm.ApplyError += ShowErrorToast;
         if (RequestedConfigureSection is { } section)
         {
@@ -1047,7 +1048,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (item.PageKind is not null)
         {
-            var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
+            var executor = _session.Features.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
             if (executor is not null)
             {
                 var paths = (ActivePageView as ISelectionProvider ?? ActivePageViewModel as ISelectionProvider)?.SelectedFilePaths
@@ -1073,7 +1074,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (item.PageKind is null) return;
 
-        var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
+        var executor = _session.Features.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
         if (executor is not null)
         {
             // Create the new window first so any OpenTab calls inside the executor land there.
@@ -1407,7 +1408,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     public ChatKeyResult HandleChatKey(ConsoleKey key, KeyModifiers modifiers, string text, int caretIndex)
     {
         var pageVm = ActivePageViewModel;
-        foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentRuntime))
+        foreach (var h in _session.Features.GetChatKeyHandlers(CurrentRuntime))
         {
             if (!h.CanHandle(pageVm)) continue;
             var result = h.HandleKey(key, modifiers, text, caretIndex, pageVm);
@@ -1417,10 +1418,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>The handlers the AI bar's drops are put to, for this window's runtime.</summary>
-    internal IReadOnlyList<IChatDropHandler> ChatDropHandlers => FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime);
+    internal IReadOnlyList<IChatDropHandler> ChatDropHandlers => _session.Features.GetChatDropHandlers(CurrentRuntime);
 
     /// <summary>What restates this window's crumbs before the bar draws them — the current runtime's filters.</summary>
-    public IReadOnlyList<IBreadcrumbDisplayFilter> BreadcrumbDisplayFilters => FeatureManager.Instance.GetBreadcrumbDisplayFilters(CurrentRuntime);
+    public IReadOnlyList<IBreadcrumbDisplayFilter> BreadcrumbDisplayFilters => _session.Features.GetBreadcrumbDisplayFilters(CurrentRuntime);
 
     /// <summary>The focused pane's page view-model, made if the page has not been shown yet.</summary>
     internal IPageViewModel? ActivePageViewModel => FocusedPane.ActivePage?.GetOrCreateViewModel();
@@ -1444,7 +1445,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void PushInputPreview(string text)
     {
         var pageVm = ActivePageViewModel;
-        foreach (var p in FeatureManager.Instance.GetChatInputPreviews(CurrentRuntime))
+        foreach (var p in _session.Features.GetChatInputPreviews(CurrentRuntime))
             if (p.CanPreview(pageVm)) p.OnInputChanged(text, pageVm);
     }
 

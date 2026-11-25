@@ -23,7 +23,8 @@ namespace Nexaflow.Core.Services;
 /// </para>
 /// </summary>
 /// <param name="ui">The thread <see cref="Updated"/> is raised on.</param>
-public sealed class ExternalDependencyRegistry(IUiThread ui)
+/// <param name="catalog">The feature catalogue, which finds every declaration the features ship.</param>
+public sealed class ExternalDependencyRegistry(IUiThread ui, FeatureCatalog catalog)
 {
     private readonly object _gate = new();
     private IReadOnlyList<ExternalDependencyReport> _reports = [];
@@ -86,7 +87,7 @@ public sealed class ExternalDependencyRegistry(IUiThread ui)
         ui.Post(() => Updated?.Invoke(this, EventArgs.Empty));
     }
 
-    private static List<ExternalDependencyReport> BuildReports() => BuildReports(Discover());
+    private List<ExternalDependencyReport> BuildReports() => BuildReports(Discover());
 
     /// <summary>
     /// The merge, with the declaring types handed in rather than discovered — the dedup, the Required-wins
@@ -130,9 +131,9 @@ public sealed class ExternalDependencyRegistry(IUiThread ui)
             .ToList();
     }
 
-    private static IEnumerable<Type> Discover()
+    private IEnumerable<Type> Discover()
     {
-        try { return FeatureCatalog.Instance.TypesImplementing<IExternalDependency>(); }
+        try { return catalog.TypesImplementing<IExternalDependency>(); }
         catch { return []; }
     }
 

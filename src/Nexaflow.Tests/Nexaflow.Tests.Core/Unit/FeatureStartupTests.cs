@@ -1,5 +1,4 @@
 using System.IO;
-using System.Windows.Threading;
 using Nexaflow.Core;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.WindowsFileSystem.Services;
@@ -18,9 +17,7 @@ public class FeatureStartupTests
     [TestMethod]
     public void AFeaturesOwnSetup_RunsWhenItsAssemblyActivates()
     {
-        FeatureManager.Instance.RegisterFeatures(new WpfUiThread(Dispatcher.CurrentDispatcher), new Nexaflow.IO.Common.Locations.LocationProviderRegistry());
-
-        FeatureCatalog.Instance.ActivateAssemblyOwning(typeof(WindowsFileSystemStartup).FullName!);
+        TestRuntimes.Features.Catalog.ActivateAssemblyOwning(typeof(WindowsFileSystemStartup).FullName!);
 
         Assert.IsTrue(Path.IsPathRooted(TemplatedCreateRegistry.Instance.TemplatesDir),
             "the file system set its template store up under the app's data folder as its assembly activated");

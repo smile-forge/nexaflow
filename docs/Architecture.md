@@ -87,8 +87,8 @@ A launch of a workspace already live opens a window on its runtime; tear-off and
 | `WorkspaceRuntimes` | The live workspaces: one runtime per `Workspace`, opened, resumed, made dormant and ended | Building a runtime (`WorkspaceRuntimeFactory`) |
 | `WorkspaceRuntimeFactory` | Builds every runtime from the session's services (`RuntimeSessionServices`), and ends those still running when the session ends | — |
 | `FolderActivity` | The session's file and folder watches — one per path, however many workspaces follow it — and its busy folders, so a folder being changed shows its wait in every workspace | — |
-| `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances on demand, kept in each runtime's `FeatureScope` | File-system contracts (those go to `FileSystemFeatureRegistry`) |
-| `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
+| `FeatureManager` | The feature system, made by the session over its `FeatureCatalog`, whose index it builds as it is made: holds the features' global configs and the app-wide tools they are given (`ProvideTool`), and builds feature instances on demand, kept in each runtime's `FeatureScope`. Handed to every window (`WindowServices`) and runtime (`RuntimeSessionServices`; the runtime carries it as `WorkspaceRuntime.FeatureManager`), and through them to what opens pages, offers handlers or lists configs — an Options page by its view-model (`ConfigPageModels`) | File-system contracts (those go to `FileSystemFeatureRegistry`) |
+| `FeatureCatalog` | The discovery engine, one per session (`ShellHost.Catalog`): a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
 | `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. The session makes it, points `Str` at it, and hands it to every window (`WindowServices`) and runtime (`RuntimeSessionServices`). A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
 | `HelpLibrary` | The help pages, read through the `LanguageManager`. The Help page's registration is given it by the feature injection (an app-wide tool, `FeatureManager.ProvideTool`); every runtime's assistant gets the tools that read it (`RuntimeSessionServices.HelpTools`) | — |
 | `ExternalDependencyRegistry` | The third-party components features declare (`IExternalDependency`), probed off the UI thread and cached; each finished probe announced on the session's `IUiThread`. Handed to every window — for About and the panel a page that could not be made is drawn with — and every runtime's `ShellServices`, which answers a feature's `GetDependencyStatus` | Installing a component |
@@ -186,7 +186,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
 | `ViewModels/ShellViewModel.cs` | Per-window VM: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open) |
 | `Services/ShellServices.cs` | `IShellServices` impl — **per-`WorkspaceRuntime`** (not an app-level singleton). Owns that runtime's window + tab registry, tearoff/cross-window moves, file watching, session capture/restore, window positioning |
-| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `WorkspaceRuntime` with scoped `IShellServices` + `IAIService`, kept in the runtime's `FeatureScope` until it ends. File-system contracts are **not** here (see below) |
+| `FeatureManager.cs` | One per session, made by `ShellHost`. Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `WorkspaceRuntime` with scoped `IShellServices` + `IAIService`, kept in the runtime's `FeatureScope` until it ends. File-system contracts are **not** here (see below) |
 | `Services/FeatureCatalog.cs` | The discovery engine behind `FeatureManager`. Persists the per-assembly type index to `…\Smile\nexaflow\discovery\catalog.json`, stamped with the app version **and** the feature-DLL set it was built from (`FeatureCatalogStamp`: name + length + write time per `Nexaflow.Features.*.dll` plus Core). Both must still match for the index to be trusted, and validating costs one directory enumeration with no assembly loads — so a same-version rebuild forces a rescan instead of silently serving an index that no longer describes the DLLs on disk (a stale index would render every newer page kind as an empty tab). Resolving a type loads + **activates** its assembly on demand (registering that assembly's global configs / archive handlers / theme contributions). A post-paint background warm-up activates the rest |
 | `Services/StartupTimings.cs` | Opt-in startup profiler (`--timing` flag / `NEXAFLOW_STARTUP_TIMING=1`); writes a milestone breakdown + `FIRST_WINDOW_MS` / `WINDOW_ON_DEMAND_MS` to stderr. Zero cost when off |
 | `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFileCreateWithOptions`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
@@ -763,25 +763,27 @@ app's files go. It takes no other input and restores only what the admin-owned m
 App.OnStartup
   → single-instance IPC listener                            ← a later launch never waits behind start-up
   → new ShellHost(options, ShellPlatform(WPF UI thread, clipboard, folder watcher, ApplyAppearance, page views)):
-      → the component registry (ExternalDependencyRegistry) and the page views made over it
+      → the feature catalogue (its index not yet built), the component registry (ExternalDependencyRegistry) over it, and the
+            page views made over both
       → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
       → register GLOBAL configs: ShellConfig (+ App applies the theme), WorkspacesConfig,
         FileMapConfig, ExternalAppsConfig
       → new LanguageManager(Languages\), Select(ShellConfig.Language), Str pointed at it   ← records the language;
             loads nothing — the first string or help page asked for reads the pack. After the first-run wizard
             the language is selected again, before the first window's strings resolve
-      → HelpLibrary over the language, provided to the feature injection for the Help page
+      → HelpLibrary over the language, for the Help page and the assistant's help tools
       → the AI host client, model residency, local tools
       → ProviderManager.Initialize(Activities, …)           ← records the shared ActivityManager
       → for each saved workspace: temp AiConfig ← ConfigManager.LoadFrom(workspace dir)
             (need each workspace's columns to know which provider DLLs to load)
       → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all workspaces' AiConfigs)
       → WorkspaceManager.Initialize(wcConfig)               ← loads the saved Workspaces list ONLY (no runtimes)
-      → WorkspaceRuntimeFactory + WorkspaceRuntimes          ← how runtimes are built, and the live ones
-      → FileMapManager / ExternalAppRegistry init
-      → FeatureManager.RegisterFeatures(ui)                 ← FeatureCatalog.Initialize: load the cached
+      → new FeatureManager(catalog, ui, location backends)  ← FeatureCatalog.Initialize: load the cached
             discovery index (no feature DLLs loaded) or, after an app update, one full rescan. Feature
-            assemblies load + activate lazily later (first use, or the post-paint background warm-up)
+            assemblies load + activate lazily later (first use, or the post-paint background warm-up); the file
+            system's activation sets up FileMapManager / ExternalAppRegistry
+      → the app-wide tools provided to the feature injection: the help pages, the picture and page tools
+      → WorkspaceRuntimeFactory + WorkspaceRuntimes          ← how runtimes are built, and the live ones
       → the machine's locations looked for, off the UI thread
   → JumpList
   → pick startup Workspace (Workspaces[0], or the one named by --context "Name")

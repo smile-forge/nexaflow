@@ -15,10 +15,18 @@ using System.Windows.Media;
 
 namespace Nexaflow.Core.Controls;
 
+/// <summary>
+/// The Workspaces section of Options: the saved list, edited as row copies and written back on Apply. Bound to a
+/// <see cref="WorkspacesConfigViewModel"/> the settings panel makes (<see cref="ViewModels.ConfigPageModels"/>), which carries the
+/// setup a workspace added here is taken through.
+/// </summary>
 public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ObservableCollection<Workspace>? _editWorkspaces;
     private WorkspacesConfig?              _config;
+
+    /// <summary>What the page is bound to: the saved list, and the setup a workspace added here is taken through.</summary>
+    private WorkspacesConfigViewModel?     _model;
 
     private static readonly Random _rng = new();
 
@@ -49,9 +57,10 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
 
         DataContextChanged += (_, e) =>
         {
-            if (e.NewValue is WorkspacesConfig cfg)
+            if (e.NewValue is WorkspacesConfigViewModel model)
             {
-                _config = cfg;
+                _model  = model;
+                _config = model.Config;
                 RebuildEditWorkspaces();
             }
         };
@@ -177,7 +186,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
     // wizard (provider → key → model → …) for it, and refresh the list (new workspace at the top).
     private void OnAddClick(object sender, RoutedEventArgs e)
     {
-        if (_config is null) return;
+        if (_config is null || _model is null) return;
 
         Apply();   // materialise existing edit rows first so nothing is lost
 
@@ -191,7 +200,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply, I
         WorkspaceManager.Instance.Workspaces.Move(WorkspaceManager.Instance.Workspaces.Count - 1, 0);
         WorkspaceManager.Instance.SaveWorkspaces();
 
-        var wizard = SetupWizardViewModel.BuildWorkspaceSetup(workspace);
+        var wizard = _model.SetupFor(workspace);
         new SetupWizardWindow(wizard) { Owner = Window.GetWindow(this) }.ShowDialog();
 
         RebuildEditWorkspaces();

@@ -668,12 +668,12 @@ public class AgentLoopTests
         var runtime  = (WorkspaceRuntime)typeof(AIService).GetField("_workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(svc)!;
 
         await svc.RunAgentAsync(new TestPage([]), "Open the AI chat.", true, new FakeApprover());
-        var pages = await new GetOpenablePagesTool(runtime).InvokeAsync([], CancellationToken.None);
+        var pages = await new GetOpenablePagesTool(runtime, runtime.FeatureManager).InvokeAsync([], CancellationToken.None);
 
         var system = provider.Conversations.Single()[0].Text;
         Assert.IsFalse(system.Contains("Openable pages"), "the catalogue is not in the prompt");
         StringAssert.Contains(system, "get_openable_pages", "the tool that lists it is offered");
-    foreach (var (kind, _) in FeatureManager.Instance.GetPageCatalog(runtime))
+    foreach (var (kind, _) in runtime.FeatureManager.GetPageCatalog(runtime))
             StringAssert.Contains(pages.ModelText, $"- {kind}", "the tool lists every page the runtime can open");
     }
 }

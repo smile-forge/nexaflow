@@ -553,7 +553,10 @@ public partial class SetupWizardViewModel : ObservableObject
     /// not be read at all takes the wizard through the workspace's AI setup again, because what that file
     /// held is gone and the user is being asked to confirm what replaced it.
     /// </summary>
-    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages)
+    /// <param name="startupWorkspace">The workspace the first window opens on, whose AI setup is asked for when it has none.</param>
+    /// <param name="pages">What a <c>[CustomControl]</c> page among the steps is bound to.</param>
+    /// <param name="features">The session's feature system, whose workspace-scoped configs the workspace's setup asks for.</param>
+    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages, FeatureManager features)
     {
         var steps = new List<IWizardStep>();
 
@@ -594,7 +597,7 @@ public partial class SetupWizardViewModel : ObservableObject
         startupWorkspace.EnsureSharedServicesLoaded();
         WorkspaceSetupContext? ctx = null;
         if (unreadable.Count > 0 || !IsWorkspaceConfigured(startupWorkspace))
-            ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace);
+            ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace, features);
 
         // 4. After an update, the models every workspace's Local column holds that are not here yet — a grid from before the
         //    column has it turned on here, before the workspace first runs — are offered for download in one step, each once
@@ -616,26 +619,28 @@ public partial class SetupWizardViewModel : ObservableObject
     /// <summary>
     /// Builds a wizard containing ONLY the workspace-setup steps (provider → key → model, plus any
     /// [MandatorySetup] persona / per-workspace configs) for <paramref name="workspace"/>. Used by the
-    /// Workspaces tab's "Add Workspace" to configure a freshly-created workspace.
+    /// Workspaces tab's "Add Workspace" to configure a freshly-created workspace; <paramref name="features"/> knows its
+    /// per-workspace configs.
     /// </summary>
-    public static SetupWizardViewModel BuildWorkspaceSetup(Workspace workspace)
+    public static SetupWizardViewModel BuildWorkspaceSetup(Workspace workspace, FeatureManager features)
     {
         workspace.EnsureSharedServicesLoaded();
         var steps = new List<IWizardStep>();
-        var ctx   = AppendWorkspaceSetupSteps(steps, workspace);
+        var ctx   = AppendWorkspaceSetupSteps(steps, workspace, features);
         return new SetupWizardViewModel(steps, ctx);
     }
 
     /// <summary>Appends provider-pick → provider-config → model-pick (+ mandatory persona/scoped
-    /// configs) for <paramref name="workspace"/>; returns the shared setup context.</summary>
-    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace)
+    /// configs) for <paramref name="workspace"/>, its scoped configs those <paramref name="features"/> knows; returns the shared
+    /// setup context.</summary>
+    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace, FeatureManager features)
     {
         ProviderManager.Instance.DiscoverAll();
         workspace.ReloadProviderConfigs();
         // Materialize every workspace-scoped config so a [MandatorySetup] one (e.g. Projects) gets a wizard
         // step. WorkspaceConfigs otherwise returns only configs already lazily materialized, so on first run
         // the scoped Projects config is absent and its step silently never shows.
-        workspace.MaterializeAllScopedConfigs();
+        workspace.MaterializeAllScopedConfigs(features);
 
         var ctx = new WorkspaceSetupContext
         {

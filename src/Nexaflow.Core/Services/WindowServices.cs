@@ -9,10 +9,13 @@ namespace Nexaflow.Core.Services;
 /// <param name="Dependencies">The third-party components the features declare, which the window's About page lists.</param>
 /// <param name="Language">The UI language: the window's Options lists the installed ones, and restarts the window for a new one.</param>
 /// <param name="Views">The view each open page is drawn with, which the window's panes show.</param>
+/// <param name="Features">The feature system: the pages the window opens, the handlers its chat bar and ribbon offer, and what
+/// its Options and Configure panels list.</param>
 public sealed record WindowServices(
     BackgroundActivityManager Activities,
     WorkspaceRuntimes Workspaces,
     MessageCenter Inbox,
     ExternalDependencyRegistry Dependencies,
     LanguageManager Language,
-    PageViews Views);
+    PageViews Views,
+    FeatureManager Features);

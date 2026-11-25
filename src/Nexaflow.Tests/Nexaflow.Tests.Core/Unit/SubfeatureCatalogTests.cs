@@ -142,7 +142,7 @@ public class SubfeatureCatalogTests
         var catalog = new FeatureCatalog();
         catalog.Initialize((_, _) => { });
 
-        var handles = new SubfeatureCatalog(catalog).Handles(typeof(INetworkProbe), workspace: null!);
+        var handles = new SubfeatureCatalog(catalog, TestRuntimes.Features).Handles(typeof(INetworkProbe), workspace: null!);
 
         Assert.IsTrue(handles.Count > 0);
         foreach (ISubfeatureHandle<INetworkProbe> h in handles)
@@ -158,7 +158,7 @@ public class SubfeatureCatalogTests
         var catalog = new FeatureCatalog();
         catalog.Initialize((_, _) => { });
 
-        IList handles = new SubfeatureCatalog(catalog).Handles(typeof(INetworkProbe), workspace: null!);
+        IList handles = new SubfeatureCatalog(catalog, TestRuntimes.Features).Handles(typeof(INetworkProbe), workspace: null!);
 
         Assert.IsInstanceOfType<IReadOnlyList<ISubfeatureHandle<INetworkProbe>>>(handles,
             "the DI assigns this straight into an IReadOnlyList<ISubfeatureHandle<T>> constructor parameter");

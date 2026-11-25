@@ -101,15 +101,15 @@ public sealed partial class Workspace : ObservableObject
     private readonly object _scopedLock = new();
 
     /// <summary>The per-workspace feature config of the given concrete type, materializing (and loading from
-    /// disk) on first request. Null when <paramref name="t"/> isn't a scoped config type. The owning
-    /// assembly is already loaded by the time a feature ctor asks for its scoped config, so this never
-    /// forces a deferred feature to load.</summary>
-    public IFeatureConfig? FindWorkspaceConfig(Type t)
+    /// disk) on first request. Null when <paramref name="t"/> isn't a scoped config type, as <paramref name="features"/>
+    /// knows them. The owning assembly is already loaded by the time a feature ctor asks for its scoped config, so this
+    /// never forces a deferred feature to load.</summary>
+    public IFeatureConfig? FindWorkspaceConfig(Type t, FeatureManager features)
     {
         lock (_scopedLock)
         {
             if (_scoped.TryGetValue(t, out var existing)) return existing;
-            if (!FeatureManager.Instance.IsWorkspaceScopedConfig(t)) return null;
+            if (!features.IsWorkspaceScopedConfig(t)) return null;
             try
             {
                 var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
@@ -121,20 +121,12 @@ public sealed partial class Workspace : ObservableObject
         }
     }
 
-    /// <summary>Materializes scoped configs for already-loaded feature assemblies (no new loads). Called
-    /// before a feature's merged config view is built, so a loaded feature's scoped config is included.</summary>
-    internal void MaterializeLoadedScopedConfigs()
+    /// <summary>Materializes every scoped config <paramref name="features"/> knows, loading the owning assemblies. Used by the
+    /// Configure / Manage-AI panels and on reload, which need the full set.</summary>
+    internal void MaterializeAllScopedConfigs(FeatureManager features)
     {
-        foreach (var t in FeatureManager.Instance.LoadedWorkspaceScopedConfigTypes)
-            FindWorkspaceConfig(t);
-    }
-
-    /// <summary>Materializes every scoped config, loading the owning assemblies. Used by the Configure /
-    /// Manage-AI panels and on reload, which need the full set.</summary>
-    internal void MaterializeAllScopedConfigs()
-    {
-        foreach (var t in FeatureManager.Instance.WorkspaceScopedConfigTypes)
-            FindWorkspaceConfig(t);
+        foreach (var t in features.WorkspaceScopedConfigTypes)
+            FindWorkspaceConfig(t, features);
     }
 
     [JsonIgnore] public string Dir => WorkspaceManager.WorkspaceDir(Name);
@@ -179,13 +171,6 @@ public sealed partial class Workspace : ObservableObject
     internal void ReloadProviderConfigs()
         => ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
 
-    /// <summary>Re-reads the per-workspace feature configs from this workspace's folder.</summary>
-    internal void ReloadWorkspaceConfigs()
-    {
-        lock (_scopedLock) _scoped.Clear();
-        MaterializeAllScopedConfigs();
-    }
-
     /// <summary>
     /// Re-reads ALL shared config (ability grid, persona, provider + per-workspace feature configs)
     /// from disk into the live instances. Called when the Configure panel closes after edits were
@@ -193,12 +178,12 @@ public sealed partial class Workspace : ObservableObject
     /// workspace from the saved values (the panel deliberately leaves the live instances untouched
     /// while editing).
     /// </summary>
-    internal void ReloadSharedConfigs()
+    internal void ReloadSharedConfigs(FeatureManager features)
     {
         ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
         ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
         ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
         lock (_scopedLock) _scoped.Clear();
-        MaterializeAllScopedConfigs();
+        MaterializeAllScopedConfigs(features);
     }
 }

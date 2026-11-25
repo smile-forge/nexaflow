@@ -141,7 +141,7 @@ public class ExternalDependencyRegistryTests
     {
         // The pre-flight contract: features must be able to ask about anything and get a safe "carry on"
         // rather than a false "missing" that would suppress a viewer that would have worked.
-        var status = new ExternalDependencyRegistry(Substitute.For<IUiThread>()).StatusOf("nothing-declares-this");
+        var status = new ExternalDependencyRegistry(Substitute.For<IUiThread>(), new FeatureCatalog()).StatusOf("nothing-declares-this");
         Assert.AreEqual(ExternalDependencyState.Unknown, status.State);
     }
 
@@ -153,7 +153,7 @@ public class ExternalDependencyRegistryTests
         var ui = Substitute.For<IUiThread>();
         Action? queued = null;
         ui.When(u => u.Post(Arg.Any<Action>())).Do(call => queued = call.Arg<Action>());
-        var registry = new ExternalDependencyRegistry(ui);
+        var registry = new ExternalDependencyRegistry(ui, new FeatureCatalog());
         var raised = 0;
         registry.Updated += (_, _) => raised++;
 

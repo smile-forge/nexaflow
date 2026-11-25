@@ -416,7 +416,7 @@ public sealed class AIService : IAIService, IDisposable
 
         // Fold in shell-level context + tools (local time, workspace, open windows/tabs, and the shell tools)
         // alongside the active page's.
-        var shellCtx = new ShellAi.ShellAiContext(_workspace);
+        var shellCtx = new ShellAi.ShellAiContext(_workspace, _features);
         tools.AddRange(shellCtx.BuildTools(scope));
 
         // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now, or one of
@@ -562,6 +562,9 @@ public sealed class AIService : IAIService, IDisposable
     /// <summary>The tools that read the help the app ships, offered on every page.</summary>
     private readonly IReadOnlyList<IClientTool> _helpTools;
 
+    /// <summary>The session's feature system: the query handlers it scores, and the pages a conversation reopens.</summary>
+    private readonly FeatureManager _features;
+
     /// <summary>Where each ability stands, and the offer of a download it waits on.</summary>
     private readonly AbilityReadiness _readiness;
 
@@ -569,13 +572,16 @@ public sealed class AIService : IAIService, IDisposable
 
     public ConversationRecord? ActiveConversation { get; }
 
-    /// <param name="workspace">The owning Workspace — used to resolve query handlers via FeatureManager.</param>
+    /// <param name="workspace">The runtime this assistant serves.</param>
+    /// <param name="features">The session's feature system, which builds the runtime's query handlers and reopens a conversation's pages.</param>
     /// <param name="conversationsDir">Full path to the directory where this workspace's conversations are stored.</param>
     /// <param name="helpTools">The tools that read the help the app ships — the session's, none where it ships no help.</param>
     /// <param name="jobs">Where slow tool calls run on in the background; without it, every call is waited for.</param>
-    public AIService(WorkspaceRuntime workspace, string conversationsDir, IReadOnlyList<IClientTool> helpTools, BackgroundJobs? jobs = null)
+    public AIService(WorkspaceRuntime workspace, FeatureManager features, string conversationsDir, IReadOnlyList<IClientTool> helpTools,
+                     BackgroundJobs? jobs = null)
     {
         _workspace = workspace;
+        _features  = features;
         _baseDir   = conversationsDir;
         _helpTools = helpTools;
         _jobs      = jobs;
@@ -588,7 +594,7 @@ public sealed class AIService : IAIService, IDisposable
         foreach (var ctx in conversation.Context)
         {
             if (string.IsNullOrEmpty(ctx.PageKind)) continue;
-            if (FeatureManager.Instance.CreateTab(ctx.PageKind, _workspace, ctx.PageParams) is { } page)
+            if (_features.CreateTab(ctx.PageKind, _workspace, ctx.PageParams) is { } page)
                 pages.Add(page);
         }
         return pages;
@@ -602,7 +608,7 @@ public sealed class AIService : IAIService, IDisposable
             {
                 PageKind        = p.PageKind!,
                 PageParams      = p.PageParams,
-                AssemblyVersion = FeatureManager.Instance.GetPageKindVersion(p.PageKind!),
+                AssemblyVersion = _features.GetPageKindVersion(p.PageKind!),
             })
             .ToList();
     }
@@ -677,7 +683,7 @@ public sealed class AIService : IAIService, IDisposable
             string EffectiveText,
             bool Prefixed)
         ScoreHandlers(string text, IPageViewModel? pageVm)
-        => RankHandlers(FeatureManager.Instance.GetQueryHandlers(_workspace).ToList(), text, pageVm);
+        => RankHandlers(_features.GetQueryHandlers(_workspace).ToList(), text, pageVm);
 
     /// <summary>
     /// <see cref="ScoreHandlers"/> over the handlers given. A leading symbol character routes to the handlers that own it,

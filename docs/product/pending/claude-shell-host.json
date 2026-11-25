@@ -309,14 +309,36 @@
           "class": "ConfigPageModels"
         }
       ]
+    },
+    "opt-section-workspaces": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/WorkspaceConfigControl.xaml.cs",
+          "class": "WorkspaceConfigControl"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/WorkspacesConfig.cs",
+          "class": "WorkspacesConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/WorkspacesConfigViewModel.cs",
+          "class": "WorkspacesConfigViewModel"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 16,
+  "changed_sets": 17,
   "touched_nodes": [
     "feature-startup",
     "messages-workspace-tag",
     "opt-about",
+    "opt-section-workspaces",
     "options",
     "shell-session",
     "ws-dormant-time",

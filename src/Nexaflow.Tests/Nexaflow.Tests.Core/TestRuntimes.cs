@@ -2,6 +2,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using Nexaflow.Core;
+using Nexaflow.Core.Help;
 using Nexaflow.Core.Localization;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
@@ -27,14 +28,28 @@ internal static class TestRuntimes
     {
         var ui        = new WpfUiThread(Dispatcher.CurrentDispatcher);
         var locations = new LocationProviderRegistry();
-        var dependencies = new ExternalDependencyRegistry(ui);
+        var dependencies = new ExternalDependencyRegistry(ui, Features.Catalog);
         return new WorkspaceRuntimeFactory(new RuntimeSessionServices(
-            ProviderManager.Instance, tasks, notify, VirtualFileSystem.Instance, locations,
+            ProviderManager.Instance, Features, tasks, notify, VirtualFileSystem.Instance, locations,
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
             ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(),
             dependencies, new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load),
-            PageViews.FromCatalog(dependencies), HelpTools: []));
+            PageViews.FromCatalog(Features.Catalog, dependencies), HelpTools: []));
     }
+
+    /// <summary>
+    /// The suite's feature system, made as the session makes it — over a catalogue of the suite's output, its features activated
+    /// into the suite's config root (<see cref="TestConfigIsolation"/>), and given the help pages the Help page's registration is
+    /// built with — the first time a test asks, and shared by every runtime the suite builds, as the session's is.
+    /// </summary>
+    public static FeatureManager Features => _features.Value;
+
+    private static readonly Lazy<FeatureManager> _features = new(() =>
+    {
+        var features = new FeatureManager(new FeatureCatalog(), new WpfUiThread(Dispatcher.CurrentDispatcher), new LocationProviderRegistry());
+        features.ProvideTool(new HelpLibrary(new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load)));
+        return features;
+    });
 
     /// <summary>A wired, unstarted runtime for <paramref name="workspace"/> (a fresh default one when none is given), standing ready
     /// for a launch that has not come yet when <paramref name="standby"/>.</summary>

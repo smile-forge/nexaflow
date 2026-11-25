@@ -71,9 +71,16 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
     private readonly Nexaflow.Features.Common.IShellServices? _shell;
 
-    public WorkspaceConfigViewModel(Workspace workspace, Nexaflow.Features.Common.IShellServices? shell = null)
+    /// <summary>The session's feature system, which knows the workspace-scoped configs the panel edits.</summary>
+    private readonly FeatureManager _features;
+
+    /// <param name="workspace">The workspace the panel configures.</param>
+    /// <param name="features">The session's feature system, which knows the workspace-scoped configs the panel edits.</param>
+    /// <param name="shell">The shell an <see cref="Nexaflow.Features.Common.IShellAware"/> page is handed.</param>
+    public WorkspaceConfigViewModel(Workspace workspace, FeatureManager features, Nexaflow.Features.Common.IShellServices? shell = null)
     {
         _workspace = workspace;
+        _features  = features;
         _shell   = shell;
         _title   = Str.Format("Shell.Workspace.Configure.TitleFormat", workspace.Name);
 
@@ -90,7 +97,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         ConfigManager.Instance.LoadFrom(dir, _persona, _persona.ConfigName);
 
         _providerConfigs  = ProviderManager.Instance.LoadProviderConfigs(dir);
-        _workspaceConfigs = LoadEditingWorkspaceConfigs(dir);
+        _workspaceConfigs = LoadEditingWorkspaceConfigs(dir, features);
 
         // Capability instances for the ability grid's model lists (model-agnostic; columns: none).
         _editingProviderSet  = ProviderManager.Instance.AcquireProviderSet(_providerConfigs, []);
@@ -183,10 +190,10 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         }
     }
 
-    private static List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)
+    private static List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir, FeatureManager features)
     {
         var list = new List<IFeatureConfig>();
-        foreach (var t in FeatureManager.Instance.WorkspaceScopedConfigTypes)
+        foreach (var t in features.WorkspaceScopedConfigTypes)
         {
             var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
             ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);
@@ -212,7 +219,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _dirty = false;
 
         // Pull the just-saved values into the live workspace, then rebuild the running workspace (if any).
-        _workspace.ReloadSharedConfigs();
+        _workspace.ReloadSharedConfigs(_features);
         WorkspaceManager.Instance.Runtimes?.Restart(_workspace);
         return true;
     }

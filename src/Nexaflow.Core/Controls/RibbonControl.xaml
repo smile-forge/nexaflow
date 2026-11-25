@@ -44,6 +44,6 @@
                         OpenInNewWindowCommand="{Binding InternalOpenInNewWindowCommand, ElementName=Root}"
                         DeleteItemCommand="{Binding InternalDeleteCommand, ElementName=Root}"
                         Shell="{Binding Shell, ElementName=Root}"
-                        Runtime="{Binding Runtime, ElementName=Root}"/>
+                        ViewModel="{Binding ViewModel, ElementName=Root}"/>
     </Grid>
 </UserControl>

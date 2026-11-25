@@ -191,7 +191,7 @@ internal static class PickerRoots
         // even the volumes are a provider's rows.
         if (workspace is null) return [];
 
-        try { return ThisPcItemSet.Collect(FeatureManager.Instance.GetThisPcItemProviders(workspace), allowVirtual: false); }
+        try { return ThisPcItemSet.Collect(workspace.FeatureManager.GetThisPcItemProviders(workspace), allowVirtual: false); }
         catch { return []; }
     }
 

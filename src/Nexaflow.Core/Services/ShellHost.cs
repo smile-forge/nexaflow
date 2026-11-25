@@ -29,14 +29,14 @@ internal sealed record ShellHostOptions(bool Reset, bool UiTest);
 /// <param name="FolderWatchers">Makes the folder watcher, which owns a window of the toolkit's.</param>
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
-/// <param name="Views">Makes the view each open page is drawn with, from the toolkit's views; a page that could not be made is
-/// drawn naming the session's missing components that may be why.</param>
+/// <param name="Views">Makes the view each open page is drawn with, from the toolkit's views the feature catalogue marks as drawing
+/// it; a page that could not be made is drawn naming the session's missing components that may be why.</param>
 internal sealed record ShellPlatform(
     IUiThread Ui,
     IShellClipboard Clipboard,
     Func<ShellFolderWatcher> FolderWatchers,
     Action<ShellConfig> ApplyAppearance,
-    Func<ExternalDependencyRegistry, PageViews> Views);
+    Func<FeatureCatalog, ExternalDependencyRegistry, PageViews> Views);
 
 /// <summary>
 /// The shell session: everything that lives as long as the process — from login when the app starts with Windows, otherwise
@@ -104,6 +104,13 @@ internal sealed class ShellHost : IAsyncDisposable
     /// <summary>The view each open page is drawn with, kept while its tab is open, in whichever window.</summary>
     public PageViews Views { get; }
 
+    /// <summary>The feature catalogue: which feature type implements which contract, and the assemblies loaded as they are needed.</summary>
+    public FeatureCatalog Catalog { get; } = new();
+
+    /// <summary>The feature system: builds each runtime's feature instances from the catalogue, and holds the features' global
+    /// configs and the app-wide tools they are given.</summary>
+    public FeatureManager Features { get; }
+
     /// <summary>
     /// Opens the session up to what the first window needs: the configuration and the shell's settings, the AI host, the
     /// providers every workspace names, the workspace list, the feature catalogue and the runtime factory. Runs on the UI
@@ -116,8 +123,8 @@ internal sealed class ShellHost : IAsyncDisposable
         Folders  = new FolderActivity(platform.Ui, platform.FolderWatchers);
         Inbox    = new MessageCenter(platform.Ui);
         Discovered = new DiscoveredLocations(LocationProviders);
-        Dependencies = new ExternalDependencyRegistry(platform.Ui);
-        Views = platform.Views(Dependencies);
+        Dependencies = new ExternalDependencyRegistry(platform.Ui, Catalog);
+        Views = platform.Views(Catalog, Dependencies);
 
         // ── 0. Base path — single source of truth for all app-data paths ─────
         // NEXAFLOW_CONFIG_DIR overrides the default (used by UI tests for an isolated, fresh config
@@ -154,10 +161,9 @@ internal sealed class ShellHost : IAsyncDisposable
         Language = new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load);
         Language.Select(Shell.Language);
         Str.Source = Language;
-        // The help pages, read through the language: the Help page's registration is given them, and each runtime's assistant
-        // the tools that read them.
+        // The help pages, read through the language: the Help page's registration is given them (once the feature system is
+        // made), and each runtime's assistant the tools that read them.
         var help = new HelpLibrary(Language);
-        FeatureManager.Instance.ProvideTool(help);
         StartupTimings.Mark("Init.Language");
 
         var securityConfig = new SecurityConfig();
@@ -213,11 +219,6 @@ internal sealed class ShellHost : IAsyncDisposable
             _aiHost, holds, hardware,
             new LocalModelDownloads(assets, Activities, WorkspaceManager.Instance.UseLocalModel), _cudaPack, pictureTools, pictureSelection,
             pageReading, pictureErasing, sceneDepth, pictureChecking);
-        FeatureManager.Instance.ProvideTool<IPictureTools>(pictureTools);
-        FeatureManager.Instance.ProvideTool<IPictureSelection>(pictureSelection);
-        FeatureManager.Instance.ProvideTool<IPageReading>(pageReading);
-        FeatureManager.Instance.ProvideTool<IPictureErasing>(pictureErasing);
-        FeatureManager.Instance.ProvideTool<ISceneDepth>(sceneDepth);
         StartupTimings.Mark("Init.LocalTools");
 
         // Load each workspace's AI config (stored per-workspace on disk) to discover which provider
@@ -236,7 +237,7 @@ internal sealed class ShellHost : IAsyncDisposable
         ProviderManager.Instance.LoadConfigured(allProviderFiles);
         StartupTimings.Mark("Init.Providers");
 
-        // ── 4. Workspaces — the list, and the factory their runtimes are built by ──
+        // ── 4. Workspaces — the list ─────────────────────────────────────────
         WorkspaceManager.Instance.Initialize(wcConfig);
 
         // Quarantine workspace data folders orphaned by an older build's version-bump config reset (before
@@ -249,8 +250,31 @@ internal sealed class ShellHost : IAsyncDisposable
         // Persist the rebuilt list at once, so the recovery holds even if this session ends badly.
         if (listUnreadable) WorkspaceManager.Instance.SaveWorkspaces();
 
+        // ── 5. Feature system ────────────────────────────────────────────────
+        // Builds the (cached) discovery index — on a normal launch this loads NO feature assemblies.
+        // Each assembly is loaded + activated lazily (first page, handler query, or the post-paint warm-up
+        // of StartBackground); activation registers that assembly's global configs, archive handlers /
+        // codecs (into the VFS) and theme contributions (folded below the theme applied in step 1), and runs the
+        // feature's own setup for the session (IFeatureStartup) — the file system's file map and registries among them.
+        Features = new FeatureManager(Catalog, platform.Ui, LocationProviders);
+
+        // The app-wide tools every workspace's features are given by their contract: the help pages, and the local tools above.
+        Features.ProvideTool(help);
+        Features.ProvideTool<IPictureTools>(pictureTools);
+        Features.ProvideTool<IPictureSelection>(pictureSelection);
+        Features.ProvideTool<IPageReading>(pageReading);
+        Features.ProvideTool<IPictureErasing>(pictureErasing);
+        Features.ProvideTool<ISceneDepth>(sceneDepth);
+
+        // UI-test automation (--uiTest) drives the app far faster than a human and would outrun the
+        // post-paint background warm-up, racing features that haven't loaded yet. Force every feature
+        // assembly to load + activate synchronously now so the whole app is ready before automation starts.
+        if (options.UiTest) Catalog.EnsureAllActivated();
+        StartupTimings.Mark("Init.Features");
+
+        // ── 6. Runtimes — the factory each is built by, the live ones, and what each window is given ──
         RuntimeFactory = new WorkspaceRuntimeFactory(new RuntimeSessionServices(
-            ProviderManager.Instance, Activities, Inbox.Post, VirtualFileSystem.Instance,
+            ProviderManager.Instance, Features, Activities, Inbox.Post, VirtualFileSystem.Instance,
             LocationProviders, Discovered,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
             platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard,
@@ -259,42 +283,26 @@ internal sealed class ShellHost : IAsyncDisposable
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
                                            workspace => WorkspaceManager.Instance.Workspaces.Contains(workspace), TimeProvider.System);
         WorkspaceManager.Instance.Runtimes = Workspaces;
-        Windows = new WindowServices(Activities, Workspaces, Inbox, Dependencies, Language, Views);
+        Windows = new WindowServices(Activities, Workspaces, Inbox, Dependencies, Language, Views, Features);
         StartupTimings.Mark("Init.Workspaces");
 
-        // ── 5. Feature system ────────────────────────────────────────────────
-        // Builds the (cached) discovery index — on a normal launch this loads NO feature assemblies.
-        // Each assembly is loaded + activated lazily (first page, handler query, or the post-paint warm-up
-        // of StartBackground); activation registers that assembly's global configs, archive handlers /
-        // codecs (into the VFS) and theme contributions (folded below the theme applied in step 1), and runs the
-        // feature's own setup for the session (IFeatureStartup) — the file system's file map and registries among them.
-        FeatureManager.Instance.RegisterFeatures(platform.Ui, LocationProviders);
-
-        // UI-test automation (--uiTest) drives the app far faster than a human and would outrun the
-        // post-paint background warm-up, racing features that haven't loaded yet. Force every feature
-        // assembly to load + activate synchronously now so the whole app is ready before automation starts.
-        if (options.UiTest) FeatureCatalog.Instance.EnsureAllActivated();
-        StartupTimings.Mark("Init.Features");
-
-
-
-        // ── 6b. Damaged config: say so, say what came back ───────────────────
+        // ── 7. Damaged config: say so, say what came back ────────────────────
         // Settings that could not be read are already on defaults and on record in the crash log; this is
         // what tells the user, rather than leaving them to notice. The setup wizard opens for the same
         // reason (SetupWizardViewModel.Build re-asks on an unreadable config), so this is the account of
         // what happened and the wizard is the re-verification.
         ReportUnreadableConfigs(recoveredWorkspaces);
 
-        // ── 7. About — read-only Options section (registered last so it sorts to the bottom) ──
+        // ── 8. About — read-only Options section (registered last so it sorts to the bottom) ──
         var aboutConfig = new AboutConfig();
         ConfigManager.Instance.Register(aboutConfig, aboutConfig.ConfigName);
 
-        // ── 8. The machine's locations — looked for once, for every workspace, off the UI thread ──
+        // ── 9. The machine's locations — looked for once, for every workspace, off the UI thread ──
         // The backends are loaded and the first look started now, beside the first window's build rather than ahead of it; a
         // runtime lets it finish, up to a point, before it mounts (WorkspaceRuntimeFactory.AwaitFirstDiscovery).
         _firstDiscovery = Task.Run(() =>
         {
-            FeatureManager.Instance.EnsureLocationProviders();
+            Features.EnsureLocationProviders();
             return Discovered.StartAsync();
         });
     }
@@ -309,7 +317,7 @@ internal sealed class ShellHost : IAsyncDisposable
     /// second or two without blocking first paint. The task ends when every feature is active.
     /// </summary>
     public Task StartBackground()
-        => Task.Run(() => FeatureCatalog.Instance.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
+        => Task.Run(() => Catalog.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
 
     /// <summary>
     /// Ends the session, in the reverse of the order it started: every workspace runtime still running — with windows, on

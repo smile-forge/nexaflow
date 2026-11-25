@@ -70,7 +70,7 @@ public partial class RibbonViewModel : ObservableObject
 
     public Workspace? Workspace => _workspace;
 
-    /// <summary>The Workspace this ribbon belongs to — used only to resolve pin handlers.</summary>
+    /// <summary>The runtime this ribbon belongs to — used only to resolve its pin handlers and the pages the editor offers.</summary>
     public void SetRuntime(WorkspaceRuntime? workspace) => _runtime = workspace;
 
     /// <summary>
@@ -284,7 +284,7 @@ public partial class RibbonViewModel : ObservableObject
                 && r.PageKind == pageKind
                 && ParamsEqual(r.PageParams, prms));
 
-        var entries = FeatureManager.Instance.GetRibbonCatalogPages(_runtime)
+        var entries = _runtime.FeatureManager.GetRibbonCatalogPages(_runtime)
             .Where(p => !string.IsNullOrEmpty(p.PageKind))
             .Where(p => !AlreadyInRibbon(p.PageKind!, p.PageParams))
             .Select(p => new RibbonCatalogEntry(p.Title, p.Icon, p.PageKind!, p.PageParams))
@@ -305,7 +305,7 @@ public partial class RibbonViewModel : ObservableObject
         if (string.IsNullOrEmpty(tab.PageKind)) return;
 
         var handler = _runtime is not null
-            ? FeatureManager.Instance.GetTabPinHandler(tab.PageKind, _runtime)
+            ? _runtime.FeatureManager.GetTabPinHandler(tab.PageKind, _runtime)
             : null;
 
         var result = handler is not null ? handler.Pin(tab, insertIndex) : TabMetadataResult(tab);
@@ -314,6 +314,11 @@ public partial class RibbonViewModel : ObservableObject
         InsertPin(result, insertIndex);
     }
 
+    /// <summary>The pin handlers of the runtime this ribbon belongs to: what may be dropped on it besides a tab. None before the
+    /// ribbon is given its runtime.</summary>
+    public IReadOnlyList<IRibbonPinHandler> PinHandlers
+        => _runtime is { } runtime ? runtime.FeatureManager.GetRibbonPinHandlers(runtime) : [];
+
     /// <summary>
     /// Handle a handler-based pin: the first <see cref="IRibbonPinHandler"/> that takes a kind the payload carries and
     /// makes buttons of it has them inserted where they were dropped, in order, less any already there.
@@ -321,9 +326,7 @@ public partial class RibbonViewModel : ObservableObject
     [RelayCommand]
     public void PinFromHandler(RibbonPinRequest request)
     {
-        if (_runtime is null) return;
-
-        foreach (var handler in FeatureManager.Instance.GetRibbonPinHandlers(_runtime))
+        foreach (var handler in PinHandlers)
         {
             if (!request.Payload.ContainsAny(handler.AcceptedKinds)) continue;
 

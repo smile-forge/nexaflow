@@ -56,6 +56,9 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// <summary>The view each open page is drawn with, let go when its tab closes.</summary>
     private readonly PageViews _views;
 
+    /// <summary>The session's feature system: the pages this runtime opens, and the features it builds for them.</summary>
+    private readonly FeatureManager _features;
+
     internal ShellServices(WorkspaceRuntime workspace, RuntimeSessionServices session)
     {
         _workspace    = workspace;
@@ -67,6 +70,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         _dependencies = session.Dependencies;
         _language     = session.Language;
         _views        = session.Views;
+        _features     = session.Features;
         Clipboard     = session.Clipboard;
         _folders.Busy.Changed += OnBusyFoldersChanged;
     }
@@ -238,7 +242,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         var layout = current.CaptureTabLayout();
 
         if (theme != ThemeManager.Current)
-            ThemeManager.Apply(theme, FeatureManager.Instance.ThemeContributionUris);
+            ThemeManager.Apply(theme, _features.ThemeContributionUris);
         _language.Select(language);
 
         // Fresh window, opened where the old one is meant to be, then close the old one.
@@ -664,7 +668,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     // ── Tab creation ──────────────────────────────────────────────────────
 
     public IReadOnlyList<Page> GetContextItemPages()
-        => FeatureManager.Instance.GetContextItemPages(_workspace);
+        => _features.GetContextItemPages(_workspace);
 
     /// <summary>
     /// The workspace's open tabs in window → pane → strip order. Reads the windows rather than
@@ -685,7 +689,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         var seen    = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Default-openable pages first, so a page wins a label clash with a ribbon shortcut.
-        foreach (var page in FeatureManager.Instance.GetRibbonCatalogPages(_workspace))
+        foreach (var page in _features.GetRibbonCatalogPages(_workspace))
         {
             if (page.PageKind is not { } kind || !seen.Add(page.Title)) continue;
             var pageParams = page.PageParams;
@@ -701,8 +705,8 @@ public sealed class ShellServices : IShellServices, IDisposable
 
     private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
     {
-        if (FeatureManager.Instance.IsRegistered(pageKind))
-            return FeatureManager.Instance.CreateTab(pageKind, _workspace, pageParams);
+        if (_features.IsRegistered(pageKind))
+            return _features.CreateTab(pageKind, _workspace, pageParams);
 
         return MakePlaceholderTab(pageKind, "📄");
     }
@@ -955,7 +959,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         // Workspace-scoped configs are persisted per-workspace under Contexts\<name>\ (the same place the
         // Configure panel loads them from); global feature configs go in the shared config root. Routing
         // a scoped config through the global Save would write where nothing reads it back.
-        if (FeatureManager.Instance.IsWorkspaceScopedConfig(config.GetType()))
+        if (_features.IsWorkspaceScopedConfig(config.GetType()))
             ConfigManager.Instance.SaveTo(_workspace.Workspace.Dir, config, config.ConfigName);
         else
             ConfigManager.Instance.Save(config, config.ConfigName);
@@ -1004,7 +1008,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         {
             // Instances are cached per (type, workspace) and ctor-injected with this
             // workspace's shell/ai/configs — same path as feature tab creation.
-            if (FeatureManager.Instance.Instantiate(type, _workspace) is IGenericObjectHandler handler
+            if (_features.Instantiate(type, _workspace) is IGenericObjectHandler handler
                 && handler.CanHandleObject(obj))
             {
                 handler.Handle(obj);
@@ -1036,7 +1040,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     // assembly has been warmed up yet — resolving each one loads + activates its assembly on demand. This is
     // what keeps the first FileSystem page's action set complete before the background warm-up finishes.
     public IEnumerable<Type> DiscoverImplementations<TInterface>()
-        => FeatureCatalog.Instance.TypesImplementing<TInterface>();
+        => _features.Catalog.TypesImplementing<TInterface>();
 
     // Cached probe, not a fresh one: features call this on the UI thread just before using a component, and
     // the registry owns both the probing and the "not probed yet" answer.
@@ -1054,7 +1058,7 @@ public sealed class ShellServices : IShellServices, IDisposable
 
         foreach (var type in DiscoverImplementations<IFileTextExtractor>())
         {
-            if (FeatureManager.Instance.Instantiate(type, _workspace) is not IFileTextExtractor extractor)
+            if (_features.Instantiate(type, _workspace) is not IFileTextExtractor extractor)
                 continue;
             try { if (extractor.CanExtract(path)) return extractor; }
             catch { }

@@ -44,7 +44,7 @@ are `*PageRegistration.cs`) at the root, `ViewModels/`, `Views/`. Copy the cspro
 
 ## The entry point — `IPageRegistration`
 
-The one required contract. `FeatureManager.RegisterFeatures()` discovers it by reflection (reading
+The one required contract. The session's `FeatureManager` discovers it by reflection (reading
 `static StaticPageKind` without instantiating) and builds one instance **per `WorkspaceRuntime`**, injecting:
 any `IFeatureConfig` from the **same assembly**, the runtime's `IShellServices`, and its `IAIService`.
 

@@ -58,6 +58,10 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     /// <summary>The feature instances built for this runtime, let go of when its services are renewed and when it ends.</summary>
     public FeatureScope Features { get; }
 
+    /// <summary>The session's feature system, which builds this runtime's feature instances (<see cref="Features"/>) and opens its
+    /// pages.</summary>
+    public FeatureManager FeatureManager { get; }
+
     /// <summary>
     /// True while this runtime stands ready for a launch that has not come yet (<see cref="StandbyWindow"/>): its window is
     /// built but not shown, it is not among <see cref="WorkspaceManager"/>'s live runtimes, its models are not weighed for
@@ -83,6 +87,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         Vfs           = new LocationFileSystem(session.Session.FileSystem);
         Locations     = new RuntimeLocations(Vfs, session.NewLocationSessions(), session.Session.Discovered);
         Features      = new FeatureScope(workspace.Name);
+        FeatureManager = session.Session.Features;
         AiService     = session.NewAiService(this);
         ShellServices = new ShellServices(this, session.Session);
     }
