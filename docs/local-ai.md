@@ -387,7 +387,7 @@ lines the host wrote to its error output (`AiHostExitedEventArgs`). The request 
 last of those lines. What is written about it follows Options → Shell → Enable safety logging, and nothing is written
 while that is off. While it is on:
 
-- the shell's log records the end — why, with the code named — and those last lines (`ShellSafetyLog.AiHostEnded`);
+- the shell's log records the end — why, with the code named — and those last lines (`ShellHost.RecordAiHostEnded`);
 - the host's own log, `aihost-<time>-<pid>.log` beside it, takes ONNX Runtime's errors (a logging function on its
   environment), llama.cpp's warnings and errors, and ggml's message when it aborts (`ggml_set_abort_callback`), each
   line flushed as it is written;

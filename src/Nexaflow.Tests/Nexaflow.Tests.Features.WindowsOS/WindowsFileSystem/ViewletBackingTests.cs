@@ -79,7 +79,7 @@ public class ViewletBackingTests
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<Nexaflow.Features.Common.ThisPc.IThisPcItemProvider>().Returns(Array.Empty<Type>());
-        return FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        return new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).Registry;
     }
 
     private static IReadOnlyList<string> NamesFor(string folderPath)
@@ -169,7 +169,7 @@ public class ViewletBackingTests
         { NativeRoots = [distro], NativePaths = new SameNames() });
         var shell = Substitute.For<IShellServices>();
         shell.DiscoverImplementations<IFolderViewlet>().Returns([typeof(ToolingViewlet), typeof(ChangingViewlet), typeof(HostViewlet)]);
-        var registry = FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files);
+        var registry = new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files).Registry;
 
         string[] Offered(string folder) => FolderViewletRegistry.GetMatchingViewlets(folder, registry).Select(v => v.DisplayName).ToArray();
         return (Offered(@"::viewlet-probe\repo"), Offered(Path.Combine(distro, "repo")), Offered(Path.Combine(_dir, "repo")));
@@ -241,7 +241,7 @@ public class ViewletBackingTests
         var shell = Substitute.For<IShellServices>();
         shell.DiscoverImplementations<IFileAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderAction>().Returns([typeof(LocalOnlyFolderAction), typeof(ThroughTheFilesFolderAction)]);
-        var actions = new FileActionManager(FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files));
+        var actions = new FileActionManager(new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files).Registry);
         var canPerform = actions.SnapshotCanPerform().Folder;
 
         string[] Selected(string path) => actions.FilterFolderActions(

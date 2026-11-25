@@ -31,17 +31,18 @@ namespace Nexaflow.Core.Services;
 public sealed class SubfeatureCatalog
 {
     private readonly FeatureCatalog _catalog;
-
-    /// <summary>The process-wide instance, over the app's discovery index.</summary>
-    public static SubfeatureCatalog Instance { get; } = new(FeatureCatalog.Instance);
+    private readonly FeatureManager _features;
 
     /// <summary>
-    /// Builds a resolver over a specific <see cref="FeatureCatalog"/>. The catalog is injected rather than
-    /// reached for so this is testable against a freshly-scanned index — the app's singleton is only
-    /// initialised during startup, and a test that had to initialise it would drag the whole shell's
-    /// activation side-effects in with it.
+    /// Builds a resolver over a specific <see cref="FeatureCatalog"/>, whose plugins <paramref name="features"/> builds. The
+    /// catalog is given rather than taken from the session so this is testable against a freshly-scanned index: the session's
+    /// is the one its <see cref="FeatureManager"/> built, with the whole shell's activation side-effects behind it.
     /// </summary>
-    public SubfeatureCatalog(FeatureCatalog catalog) => _catalog = catalog;
+    public SubfeatureCatalog(FeatureCatalog catalog, FeatureManager features)
+    {
+        _catalog  = catalog;
+        _features = features;
+    }
 
     /// <summary>
     /// Lazy handles for every indexed subfeature implementing <paramref name="contract"/>, ordered by
@@ -57,7 +58,7 @@ public sealed class SubfeatureCatalog
         var list       = (IList)Activator.CreateInstance(listType)!;
 
         foreach (var (file, type, meta) in found)
-            list.Add(Activator.CreateInstance(handleType, _catalog, file, type, meta, workspace)!);
+            list.Add(Activator.CreateInstance(handleType, _catalog, _features, file, type, meta, workspace)!);
 
         return list;
     }
@@ -86,6 +87,7 @@ public sealed class SubfeatureCatalog
     /// </summary>
     private sealed class SubfeatureHandle<T>(
         FeatureCatalog catalog,
+        FeatureManager features,
         string file,
         string typeName,
         FeatureCatalog.SubfeatureEntry meta,
@@ -121,7 +123,7 @@ public sealed class SubfeatureCatalog
                     // Same DI, same per-workspace cache and eviction a page registration gets. Note Core does
                     // NOT hand a plugin IShellServices: capability is granted afterwards by the host feature,
                     // which is what lets the host withhold it.
-                    _value = (T)FeatureManager.Instance.Instantiate(type, workspace);
+                    _value = (T)features.Instantiate(type, workspace);
                     return _value;
                 }
             }

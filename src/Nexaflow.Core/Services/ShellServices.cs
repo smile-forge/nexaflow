@@ -27,27 +27,71 @@ namespace Nexaflow.Core.Services;
 
 /// <summary>
 /// Per-Workspace shell service that owns that workspace's tab + window registry.
-/// One instance per <see cref="WorkspaceRuntime"/> (created by <see cref="WorkspaceManager"/>
-/// during bootstrap, before any window); each <see cref="MainWindow"/> showing this
+/// One instance per <see cref="WorkspaceRuntime"/> (created with it by <see cref="WorkspaceRuntimeFactory"/>,
+/// before any window); each <see cref="MainWindow"/> showing this
 /// workspace registers its <see cref="IWindowHost"/> on activation and unregisters on close.
 /// </summary>
-public sealed class ShellServices : IShellServices
+public sealed class ShellServices : IShellServices, IDisposable
 {
     private readonly WorkspaceRuntime _workspace;
     private readonly IBackgroundActivityManager? _activity;
-    private readonly Elevation.ElevatedBridgeLauncher _elevation = new();
+    private readonly Elevation.ElevatedBridgeLauncher _elevation;
 
-    // This workspace's UI dispatcher, captured on the thread that bootstraps it (the UI thread).
-    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    /// <summary>The thread the windows run on.</summary>
+    private readonly IUiThread _ui;
 
-    // Folders with an in-flight mutation; browsers show "please wait" for these until they clear.
-    private readonly FolderBusyTracker _busyFolders = new();
+    /// <summary>The session's watches, and its folders with an in-flight mutation — browsers show "please wait" for these until
+    /// they clear, in every workspace.</summary>
+    private readonly FolderActivity _folders;
 
-    public ShellServices(WorkspaceRuntime workspace, IBackgroundActivityManager? activity = null)
+    /// <summary>Posts a message to the session's inbox.</summary>
+    private readonly Action<NotificationItem> _notify;
+
+    /// <summary>The third-party components the features declare, which a feature asks about before it uses one.</summary>
+    private readonly ExternalDependencyRegistry _dependencies;
+
+    /// <summary>The UI language, selected again when a window restarts for a new one.</summary>
+    private readonly LanguageManager _language;
+
+    /// <summary>The view each open page is drawn with, let go when its tab closes.</summary>
+    private readonly PageViews _views;
+
+    /// <summary>The session's feature system: the pages this runtime opens, and the features it builds for them.</summary>
+    private readonly FeatureManager _features;
+
+    /// <summary>The saved workspaces, written back when this runtime's workspace records its last session or lets one go, or a
+    /// feature saves its per-workspace config.</summary>
+    private readonly WorkspaceManager _savedWorkspaces;
+
+    /// <summary>The session's configuration, which a feature's global config is saved through.</summary>
+    private readonly ConfigManager _config;
+
+    internal ShellServices(WorkspaceRuntime workspace, RuntimeSessionServices session)
     {
-        _workspace = workspace;
-        _activity  = activity;
-        _busyFolders.Changed += () => _ui.InvokeAsync(() => FolderBusyChanged?.Invoke());
+        _workspace    = workspace;
+        _activity     = session.Tasks;
+        _elevation    = session.Elevation;
+        _ui           = session.Ui;
+        _folders      = session.Folders;
+        _notify       = session.Notify;
+        _dependencies = session.Dependencies;
+        _language     = session.Language;
+        _views        = session.Views;
+        _features     = session.Features;
+        _savedWorkspaces = session.SavedWorkspaces;
+        _config       = session.Config;
+        Clipboard     = session.Clipboard;
+        _folders.Busy.Changed += OnBusyFoldersChanged;
+    }
+
+    private void OnBusyFoldersChanged() => _ui.Post(() => FolderBusyChanged?.Invoke());
+
+    /// <summary>Closes every file and folder watch the runtime's pages left open, and stops hearing of busy folders: the runtime
+    /// has ended. On the UI thread, where the folder watcher's window is.</summary>
+    public void Dispose()
+    {
+        _folders.Busy.Changed -= OnBusyFoldersChanged;
+        _folders.Release(this);
     }
 
     /// <summary>
@@ -86,7 +130,7 @@ public sealed class ShellServices : IShellServices
             finally
             {
                 if (onComplete is not null && !cancelled)
-                    _ui.Invoke(() => onComplete(ok));
+                    _ui.Run(() => onComplete(ok));
             }
         });
     }
@@ -123,12 +167,6 @@ public sealed class ShellServices : IShellServices
     // ── Window registry ───────────────────────────────────────────────────
 
     private readonly List<IWindowHost> _windows = [];
-
-    // Active file watches, deduped by full path: one FileChangeWatcher per path fans out to its subscribers.
-    private readonly Dictionary<string, WatchGroup> _watchGroups = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Made on the first folder watched: it owns a window on this workspace's UI thread.</summary>
-    private ShellFolderWatcher? _folderWatcher;
     private IWindowHost? _focused;
 
     /// <summary>
@@ -143,7 +181,14 @@ public sealed class ShellServices : IShellServices
     /// <summary>The focused window, or the first open one (null when window-less).</summary>
     internal IWindowHost? FocusedWindow => _focused ?? _windows.FirstOrDefault();
 
-    internal void RegisterWindow(IWindowHost host) => _windows.Add(host);
+    /// <summary>Raised when a window attaches to this runtime or leaves it.</summary>
+    internal event EventHandler? WindowsChanged;
+
+    internal void RegisterWindow(IWindowHost host)
+    {
+        _windows.Add(host);
+        WindowsChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     internal void UnregisterWindow(IWindowHost host)
     {
@@ -159,15 +204,9 @@ public sealed class ShellServices : IShellServices
         if (_focused == host)
             _focused = _windows.FirstOrDefault();
 
-        // When this workspace's last window closes, release its runtime resources.
-        WorkspaceManager.Instance.NotifyWindowClosed(_workspace);
-
-        // Shut down only when no windows remain across all live workspaces.
-        // In --prestart daemon mode, stay alive windowless so the next click can show a window
-        // instantly. During an update the updater ends the process once its installer script is
-        // running; shutting down here would end it before the script starts.
-        if (!WorkspaceManager.Instance.AnyWindowsOpen && !App.IsResident && !App.IsUpdating)
-            Application.Current.Shutdown();
+        // The session's registry hears of it: a runtime with no window left turns dormant, and the app with none open anywhere
+        // may end.
+        WindowsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -212,8 +251,8 @@ public sealed class ShellServices : IShellServices
         var layout = current.CaptureTabLayout();
 
         if (theme != ThemeManager.Current)
-            ThemeManager.Apply(theme, FeatureManager.Instance.ThemeContributionUris);
-        LanguageManager.Instance.Select(language);
+            ThemeManager.Apply(theme, _features.ThemeContributionUris);
+        _language.Select(language);
 
         // Fresh window, opened where the old one is meant to be, then close the old one.
         var fresh = CreateWindowFactory();
@@ -245,7 +284,7 @@ public sealed class ShellServices : IShellServices
     public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
                         Page? caller = null, bool inRightPane = false)
     {
-        _ui.Invoke(() => OpenTabCore(pageKind, pageParams, caller, inRightPane));
+        _ui.Run(() => OpenTabCore(pageKind, pageParams, caller, inRightPane));
     }
 
     /// <summary>Resolves the window a tab open should target: the one showing <paramref name="caller"/>,
@@ -316,7 +355,7 @@ public sealed class ShellServices : IShellServices
     // small interval that (being below Render) still lets the window frame paint before the tabs load, so
     // it stays snappy — and debounced so an open-then-reconfigure pair collapses to a single restore. The
     // tabs + page content ease in (PaneView / TabStrip) so this reads as a settle rather than a hard pop.
-    private DispatcherTimer? _defaultTabsTimer;
+    private IUiTimer? _defaultTabsTimer;
     private IReadOnlyList<DefaultTabDescriptor>? _pendingDefaultTabs;
 
     /// <summary>Raised once the tabs <see cref="OpenDefaultTabs"/> deferred have opened.</summary>
@@ -331,10 +370,8 @@ public sealed class ShellServices : IShellServices
     public void OpenDefaultTabs(IReadOnlyList<DefaultTabDescriptor> tabs)
     {
         _pendingDefaultTabs = tabs;
-        _defaultTabsTimer ??= new DispatcherTimer(
-            TimeSpan.FromMilliseconds(40), DispatcherPriority.Background, OnDefaultTabsTick, _ui);
-        _defaultTabsTimer.Stop();
-        _defaultTabsTimer.Start();
+        _defaultTabsTimer ??= _ui.CreateTimer(TimeSpan.FromMilliseconds(40), OnDefaultTabsTick, UiTimerPriority.Background, once: true);
+        _defaultTabsTimer.Restart();
     }
 
     /// <summary>Synchronously restores a captured pane layout (see <see cref="IWindowHost.CaptureTabLayout"/>)
@@ -342,7 +379,17 @@ public sealed class ShellServices : IShellServices
     /// itself and needs the tabs present immediately (no debounce/flash).</summary>
     public void RestoreTabLayout(IReadOnlyList<DefaultTabDescriptor> tabs) => OpenLayout(tabs);
 
-    private void OnDefaultTabsTick(object? sender, EventArgs e)
+    /// <summary>
+    /// The tabs a window opening on this workspace shows: the session the workspace left, at once, when the window is resuming it
+    /// from dormancy; its startup tabs otherwise (<see cref="OpenDefaultTabs"/>).
+    /// </summary>
+    internal void OpenWorkspaceTabs()
+    {
+        if (_workspace.TakeResumedSession() is { Count: > 0 } session) OpenLayout(session);
+        else OpenDefaultTabs(_workspace.Workspace.DefaultTabs);
+    }
+
+    private void OnDefaultTabsTick()
     {
         _defaultTabsTimer?.Stop();
         var tabs = _pendingDefaultTabs;
@@ -412,7 +459,7 @@ public sealed class ShellServices : IShellServices
                 ? layout.ToList()
                 : null;
         }
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _savedWorkspaces.SaveWorkspaces();
     }
 
     /// <summary>Once the default tabs are up, offers a one-click restore of the recorded last session.</summary>
@@ -427,6 +474,7 @@ public sealed class ShellServices : IShellServices
         var restore = new RelayCommand(() => RestoreSession(session));
         var note = new NotificationItem
         {
+        Workspace     = _workspace.Workspace,
             Title         = Str.Get("Shell.Notifications.RestoreTitle"),
             Body          = Str.Get("Shell.Notifications.RestoreBody"),
             Severity      = MessageSeverity.Info,
@@ -434,7 +482,7 @@ public sealed class ShellServices : IShellServices
             ToastDuration = TimeSpan.FromSeconds(3),
             Actions       = [new MessageAction(Str.Get("Shell.Notifications.Restore"), restore, IsPrimary: true)],
         };
-        MessageCenter.Instance.Post(note);
+        _notify(note);
     }
 
     private void RestoreSession(IReadOnlyList<DefaultTabDescriptor> session)
@@ -442,7 +490,7 @@ public sealed class ShellServices : IShellServices
         CloseAllTabs();
         RestoreTabLayout(session);
         _workspace.Workspace.LastSessionTabs = null;   // consumed — don't offer it again
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _savedWorkspaces.SaveWorkspaces();
     }
 
     /// <summary>Order-independent (per pane) equality of two tabsets by pane + kind + params (ignores the
@@ -470,7 +518,7 @@ public sealed class ShellServices : IShellServices
     }
 
     /// <summary>Lets go of a closed page's view; the page has already disposed its view-model as it closed.</summary>
-    private static void DisposePage(Page tab) => PageViews.Instance.Release(tab);
+    private void DisposePage(Page tab) => _views.Release(tab);
 
     /// <summary>
     /// Closes every tab across all of this workspace's windows (windows stay open). Used when the
@@ -483,194 +531,36 @@ public sealed class ShellServices : IShellServices
     }
 
     /// <summary>
-    /// Closes every window in this workspace except <paramref name="keep"/>. Used on a workspace
-    /// switch so the change collapses to the acting window instead of leaving the others empty and
-    /// showing the old workspace.
-    /// </summary>
-    internal void CloseOtherWindows(IWindowHost keep)
-    {
-        foreach (var host in _windows.Where(w => !ReferenceEquals(w, keep)).ToList())
-            host.Window.Close();
-    }
-
-    /// <summary>
-    /// Closes every window in this workspace. The last close runs <see cref="UnregisterWindow"/> →
-    /// <see cref="WorkspaceManager.NotifyWindowClosed"/>, releasing the workspace's providers and
-    /// evicting its caches. Used by <see cref="WorkspaceManager.RestartWorkspace"/> after a fresh
-    /// replacement workspace+window is already showing.
+    /// Closes every window in this workspace, recording no session: the runtime is being replaced or its workspace deleted. Used by
+    /// <see cref="WorkspaceRuntimes.Restart"/> after a fresh replacement window is already showing, and by
+    /// <see cref="WorkspaceRuntimes.Close"/>.
     /// </summary>
     internal void CloseAllWindows()
     {
         _suppressSessionCapture = true;   // rebuild/delete teardown — not a user closing the workspace
         foreach (var host in _windows.ToList())
             host.Window.Close();
-        DisposeAllWatches();
     }
 
     // ── File watching ──────────────────────────────────────────────────────
     // Features call WatchFile instead of creating their own FileChangeWatcher, so dispatcher
     // marshalling, per-path dedup and teardown live here rather than leaking into each feature.
 
-    public IFileWatch WatchFile(string path, Action onChanged)
-    {
-        // A file on a location is watched by the location, where it can watch; everything else where it is on disk.
-        bool remote = _workspace.Vfs.GetBacking(path) is VirtualBacking.Remote;
-        var key = remote ? path : SafeFullPath(path);
-        if (!_watchGroups.TryGetValue(key, out var group))
-        {
-            group = new WatchGroup();
-            if (remote)
-            {
-                _ = WatchOnLocationAsync(path, key, group);
-            }
-            else
-            {
-                try
-                {
-                    group.Watcher = new FileChangeWatcher(key);
-                    group.Watcher.Changed += () => OnWatchChanged(key);
-                }
-                catch { /* missing directory etc. — the handle is inert but still disposable */ }
-            }
-            _watchGroups[key] = group;
-        }
+    public IFileWatch WatchFile(string path, Action onChanged) => _folders.WatchFile(this, _workspace.Vfs, path, onChanged);
 
-        var handle = new FileWatch(this, key, onChanged);
-        group.Subscribers.Add(handle);
-        return handle;
-    }
+    public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) => _folders.WatchFolder(this, path, onChanged);
 
-    /// <summary>
-    /// Sets up the location's own watch for a file on it. A location without <c>Watch</c> answers null, and the handle stays
-    /// inert — the viewer reloads when asked. The group may have gone (every subscriber disposed) while the watch was
-    /// being set up, and then the watch goes too.
-    /// </summary>
-    private async Task WatchOnLocationAsync(string path, string key, WatchGroup group)
-    {
-        ILocationWatch? watch;
-        try { watch = await _workspace.Vfs.WatchChangesAsync(path, recursive: false); }
-        catch (IOException) { return; }
-        if (watch is null) return;
+    public Task RunOnUiAsync(Action action) => _ui.RunAsync(action);
 
-        if (!_watchGroups.TryGetValue(key, out var current) || !ReferenceEquals(current, group))
-        {
-            watch.Dispose();
-            return;
-        }
-        watch.Changed += _ => OnWatchChanged(key);
-        group.Location = watch;
-    }
-
-    public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) =>
-        (_folderWatcher ??= new ShellFolderWatcher(_ui)).Watch(path, onChanged);
-
-    public Task RunOnUiAsync(Action action)
-    {
-        if (_ui.CheckAccess()) { action(); return Task.CompletedTask; }
-        return _ui.InvokeAsync(action).Task;
-    }
-
-    public Task<T> RunOnUiAsync<T>(Func<Task<T>> action)
-        => _ui.CheckAccess() ? action() : _ui.InvokeAsync(action).Task.Unwrap();
+    public Task<T> RunOnUiAsync<T>(Func<Task<T>> action) => _ui.RunAsync(action);
 
     public IUiTimer CreateUiTimer(TimeSpan interval, Action tick, UiTimerPriority priority = UiTimerPriority.Background) =>
-        new DispatcherUiTimer(_ui, interval, tick, priority, once: false);
+        _ui.CreateTimer(interval, tick, priority, once: false);
 
         public IUiTimer CreateUiDelay(TimeSpan delay, Action elapsed, UiTimerPriority priority = UiTimerPriority.Background) =>
-            new DispatcherUiTimer(_ui, delay, elapsed, priority, once: true);
+            _ui.CreateTimer(delay, elapsed, priority, once: true);
 
-        public IShellClipboard Clipboard { get; } = new ShellClipboard();
-
-    // The raw watcher event arrives on a thread-pool thread; hop to the UI thread, then fan out.
-    private void OnWatchChanged(string key) => _ui.InvokeAsync(() =>
-    {
-        if (!_watchGroups.TryGetValue(key, out var group)) return;
-        foreach (var sub in group.Subscribers.ToArray())
-            sub.RaiseChanged();
-    });
-
-    private void Unwatch(string key, FileWatch handle)
-    {
-        if (!_watchGroups.TryGetValue(key, out var group)) return;
-        group.Subscribers.Remove(handle);
-        if (group.Subscribers.Count == 0)
-        {
-            group.Watcher?.Dispose();
-            group.Location?.Dispose();
-            _watchGroups.Remove(key);
-        }
-    }
-
-    private void DisposeAllWatches()
-    {
-        foreach (var group in _watchGroups.Values)
-        {
-            group.Watcher?.Dispose();
-            group.Location?.Dispose();
-        }
-        _watchGroups.Clear();
-        _folderWatcher?.Dispose();
-        _folderWatcher = null;
-    }
-
-    private string SafeFullPath(string path)
-    {
-        try
-        {
-            // Watch the outermost real container, so a request to watch a file *inside* an archive
-            // (a non-existent OS path) watches the archive that actually changes on disk. Resolving such
-            // a container change back to the specific inner view is deferred.
-            //
-            // SplitOutermostContainer runs FIRST because it is the mount-aware one: Path.GetFullPath
-            // cannot parse a "::mount\…" path and would throw straight into the catch, leaving the
-            // watcher pointed at a virtual path that no FileSystemWatcher can observe.
-            var outer = _workspace.Vfs.SplitOutermostContainer(path).RealContainer;
-            return Path.GetFullPath(_workspace.Vfs.TryResolveReal(outer) ?? outer);
-        }
-        catch { return path; }
-    }
-
-    private sealed class WatchGroup
-    {
-        public FileChangeWatcher? Watcher;
-        /// <summary>The location's own watch, for a file on one; set once the location answers.</summary>
-        public ILocationWatch? Location;
-        public readonly List<FileWatch> Subscribers = [];
-    }
-
-    // The wrapper returned to callers: toggle Enabled to hold/flush, dispose to stop watching.
-    private sealed class FileWatch(ShellServices owner, string key, Action onChanged) : IFileWatch
-    {
-        private bool _enabled = true;
-        private bool _pending;
-        private bool _disposed;
-
-        public bool Enabled
-        {
-            get => _enabled;
-            set
-            {
-                if (_enabled == value) return;
-                _enabled = value;
-                if (value && _pending) { _pending = false; onChanged(); }
-            }
-        }
-
-        // Always invoked on the UI thread (from the marshalled fan-out).
-        public void RaiseChanged()
-        {
-            if (_disposed) return;
-            if (_enabled) onChanged();
-            else _pending = true;
-        }
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            owner.Unwatch(key, this);
-        }
-    }
+        public IShellClipboard Clipboard { get; }
 
     public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
         => FindTabCore(pageKind, pageParams);
@@ -678,21 +568,21 @@ public sealed class ShellServices : IShellServices
     // Post to the global MessageCenter — the focused window toasts it (errors) or it lands in the
     // shared inbox (notifications). See MessageCenter / ShellViewModel.
     public void ShowError(string message) =>
-        MessageCenter.Instance.Post(new NotificationItem
+        _notify(new NotificationItem
         {
-            Title = Str.Get("Shell.Notifications.ErrorTitle"), Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.ErrorTitle"), Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
 
     public void ShowNotification(string message) =>
-        MessageCenter.Instance.Post(new NotificationItem
+        _notify(new NotificationItem
         {
-            Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info,
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info,
         });
 
     public void ShowNotification(string message, Page tab) =>
-        MessageCenter.Instance.Post(new NotificationItem
+        _notify(new NotificationItem
         {
-            Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info, ShowToast = true,
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info, ShowToast = true,
             Actions = [new MessageAction(Str.Get("Shell.Notifications.Open"), new RelayCommand(() => ActivateTab(tab)), IsPrimary: true)],
         });
 
@@ -787,7 +677,7 @@ public sealed class ShellServices : IShellServices
     // ── Tab creation ──────────────────────────────────────────────────────
 
     public IReadOnlyList<Page> GetContextItemPages()
-        => FeatureManager.Instance.GetContextItemPages(_workspace);
+        => _features.GetContextItemPages(_workspace);
 
     /// <summary>
     /// The workspace's open tabs in window → pane → strip order. Reads the windows rather than
@@ -808,7 +698,7 @@ public sealed class ShellServices : IShellServices
         var seen    = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Default-openable pages first, so a page wins a label clash with a ribbon shortcut.
-        foreach (var page in FeatureManager.Instance.GetRibbonCatalogPages(_workspace))
+        foreach (var page in _features.GetRibbonCatalogPages(_workspace))
         {
             if (page.PageKind is not { } kind || !seen.Add(page.Title)) continue;
             var pageParams = page.PageParams;
@@ -824,8 +714,8 @@ public sealed class ShellServices : IShellServices
 
     private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
     {
-        if (FeatureManager.Instance.IsRegistered(pageKind))
-            return FeatureManager.Instance.CreateTab(pageKind, _workspace, pageParams);
+        if (_features.IsRegistered(pageKind))
+            return _features.CreateTab(pageKind, _workspace, pageParams);
 
         return MakePlaceholderTab(pageKind, "📄");
     }
@@ -929,8 +819,8 @@ public sealed class ShellServices : IShellServices
                                    CancellationToken ct = default)
     {
         var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => ConfirmAsync(title, message, confirmLabel, cancelLabel, ct));
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => ConfirmAsync(title, message, confirmLabel, cancelLabel, ct));
 
         var host = _focused ?? _windows.FirstOrDefault();
         if (host is null) return Task.FromResult(false);
@@ -951,8 +841,8 @@ public sealed class ShellServices : IShellServices
     public IReadOnlyList<(string Title, IReadOnlyList<(string Title, string? PageKind)> Tabs)> GetWindowsWithTabs()
     {
         var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(GetWindowsWithTabs);
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(GetWindowsWithTabs);
 
         var result = new List<(string, IReadOnlyList<(string, string?)>)>(_windows.Count);
         var n = 1;
@@ -972,8 +862,8 @@ public sealed class ShellServices : IShellServices
                                            string? initialPath = null)
     {
         var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => PickOpenFileAsync(extensions, initialPath));
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => PickOpenFileAsync(extensions, initialPath));
 
         var owner = FocusedWindow?.Window;
         return Task.FromResult(FileBrowserWindow.Show(initialPath, extensions, owner, _workspace));
@@ -983,8 +873,8 @@ public sealed class ShellServices : IShellServices
                                                           string? initialPath = null)
     {
         var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => PickOpenFilesAsync(extensions, initialPath));
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => PickOpenFilesAsync(extensions, initialPath));
 
         var owner = FocusedWindow?.Window;
         return Task.FromResult(FileBrowserWindow.ShowMany(initialPath, extensions, owner, _workspace));
@@ -993,8 +883,8 @@ public sealed class ShellServices : IShellServices
     public Task<string?> PickFolderAsync(string? initialPath = null)
     {
         var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => PickFolderAsync(initialPath));
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => PickFolderAsync(initialPath));
 
         return Task.FromResult(FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window, _workspace));
     }
@@ -1009,8 +899,8 @@ public sealed class ShellServices : IShellServices
                                            string? initialPath = null, long bytes = 0)
     {
         var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => PickSaveFileAsync(defaultFileName, types, initialPath, bytes));
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => PickSaveFileAsync(defaultFileName, types, initialPath, bytes));
 
         return Task.FromResult(FileBrowserWindow.ShowSave(defaultFileName, types, initialPath, bytes,
                                                           FocusedWindow?.Window, _workspace));
@@ -1022,7 +912,7 @@ public sealed class ShellServices : IShellServices
     // shell-level overlay — rename / delete — call this from their confirm callback.
     void IShellServices.RequestRefresh()
     {
-        _ui.Invoke(() =>
+        _ui.Run(() =>
         {
             // The page the user is looking at: each pane of a split window has an active page of its own.
             var active = FocusedWindow?.ActiveTab;
@@ -1035,10 +925,10 @@ public sealed class ShellServices : IShellServices
     public event Action? FolderBusyChanged;
 
     IDisposable IShellServices.MarkFolderBusy(string folderPath, string message)
-        => _busyFolders.Mark(folderPath, message);
+        => _folders.Busy.Mark(folderPath, message);
 
     string? IShellServices.GetFolderBusyMessage(string folderPath)
-        => _busyFolders.MessageFor(folderPath);
+        => _folders.Busy.MessageFor(folderPath);
 
     void IShellServices.MoveFolderInBackground(string sourcePath, string destinationPath, string busyMessage,
                                                Action<bool>? onComplete)
@@ -1048,7 +938,7 @@ public sealed class ShellServices : IShellServices
         var handles = new[] { sourcePath, ParentOf(sourcePath), ParentOf(destinationPath) }
             .Where(p => !string.IsNullOrEmpty(p))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(p => _busyFolders.Mark(p!, busyMessage))
+            .Select(p => _folders.Busy.Mark(p!, busyMessage))
             .ToList();
 
         QueueBackgroundTask(
@@ -1078,14 +968,14 @@ public sealed class ShellServices : IShellServices
         // Workspace-scoped configs are persisted per-workspace under Contexts\<name>\ (the same place the
         // Configure panel loads them from); global feature configs go in the shared config root. Routing
         // a scoped config through the global Save would write where nothing reads it back.
-        if (FeatureManager.Instance.IsWorkspaceScopedConfig(config.GetType()))
-            ConfigManager.Instance.SaveTo(_workspace.Workspace.Dir, config, config.ConfigName);
+        if (_features.IsWorkspaceScopedConfig(config.GetType()))
+            _savedWorkspaces.SaveWorkspaceScopedConfig(_workspace.Workspace, config);
         else
-            ConfigManager.Instance.Save(config, config.ConfigName);
+            _config.Save(config, config.ConfigName);
     }
 
     void IShellServices.OpenOptions(string configName)
-        => _ui.Invoke(() =>
+        => _ui.Run(() =>
         {
             // IWindowHost is implemented only by ShellViewModel; the feature reaches this via
             // IShellServices, never IWindowHost itself.
@@ -1094,7 +984,7 @@ public sealed class ShellServices : IShellServices
         });
 
     void IShellServices.OpenWorkspaceConfig(string configName)
-        => _ui.Invoke(() =>
+        => _ui.Run(() =>
         {
             // Deep-link the Configure overlay to this workspace, on the named section.
             if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
@@ -1102,14 +992,14 @@ public sealed class ShellServices : IShellServices
         });
 
     void IShellServices.ShowOverlay(object overlayViewModel)
-        => _ui.Invoke(() =>
+        => _ui.Run(() =>
         {
             if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
                 vm.ShowOverlay(overlayViewModel);
         });
 
     void IShellServices.CloseOverlay()
-        => _ui.Invoke(() =>
+        => _ui.Run(() =>
         {
             if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
                 vm.CloseOverlay();
@@ -1127,7 +1017,7 @@ public sealed class ShellServices : IShellServices
         {
             // Instances are cached per (type, workspace) and ctor-injected with this
             // workspace's shell/ai/configs — same path as feature tab creation.
-            if (FeatureManager.Instance.Instantiate(type, _workspace) is IGenericObjectHandler handler
+            if (_features.Instantiate(type, _workspace) is IGenericObjectHandler handler
                 && handler.CanHandleObject(obj))
             {
                 handler.Handle(obj);
@@ -1159,17 +1049,17 @@ public sealed class ShellServices : IShellServices
     // assembly has been warmed up yet — resolving each one loads + activates its assembly on demand. This is
     // what keeps the first FileSystem page's action set complete before the background warm-up finishes.
     public IEnumerable<Type> DiscoverImplementations<TInterface>()
-        => FeatureCatalog.Instance.TypesImplementing<TInterface>();
+        => _features.Catalog.TypesImplementing<TInterface>();
 
     // Cached probe, not a fresh one: features call this on the UI thread just before using a component, and
     // the registry owns both the probing and the "not probed yet" answer.
     public Nexaflow.Features.Common.Dependencies.ExternalDependencyStatus GetDependencyStatus(string id)
-        => ExternalDependencyRegistry.Instance.StatusOf(id);
+        => _dependencies.StatusOf(id);
 
     // Selection lives here rather than in the caller so the shell — which owns the instances' lifetime —
     // also owns deciding which one applies. Instances are cached per (type, workspace) and ctor-injected with
     // this workspace's shell/ai/configs, the same path as feature tab creation, and are released by
-    // FeatureManager.EvictWorkspace. A CanExtract that throws disqualifies that extractor rather than
+    // the runtime's FeatureScope. A CanExtract that throws disqualifies that extractor rather than
     // failing the lookup: one broken feature must not make every file unsearchable.
     public IFileTextExtractor? GetFileTextExtractor(string path)
     {
@@ -1177,7 +1067,7 @@ public sealed class ShellServices : IShellServices
 
         foreach (var type in DiscoverImplementations<IFileTextExtractor>())
         {
-            if (FeatureManager.Instance.Instantiate(type, _workspace) is not IFileTextExtractor extractor)
+            if (_features.Instantiate(type, _workspace) is not IFileTextExtractor extractor)
                 continue;
             try { if (extractor.CanExtract(path)) return extractor; }
             catch { }

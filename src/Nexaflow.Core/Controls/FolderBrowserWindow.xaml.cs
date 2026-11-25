@@ -181,17 +181,15 @@ public partial class FolderBrowserWindow : Window
 /// </summary>
 internal static class PickerRoots
 {
+    /// <summary>This PC's rows as <paramref name="workspace"/>'s providers list them — whoever opens a picker hands it the runtime it
+    /// opens for (a window's shell, through <see cref="Nexaflow.Features.Common.IShellServices.PickFolderAsync"/>).</summary>
     public static IReadOnlyList<ThisPcRow> For(WorkspaceRuntime? workspace)
     {
-        // Providers don't vary by workspace, so any live one will do when the caller has none to hand
-        // (the Options browse buttons, the workspace folder picker).
-        workspace ??= WorkspaceManager.Instance.FirstActive;
-
-        // No live workspace — tests, early startup — means nothing to build providers from, and so nothing to list:
+        // No runtime — the setup wizard before any window, tests — means nothing to build providers from, and so nothing to list:
         // even the volumes are a provider's rows.
         if (workspace is null) return [];
 
-        try { return ThisPcItemSet.Collect(FeatureManager.Instance.GetThisPcItemProviders(workspace), allowVirtual: false); }
+        try { return ThisPcItemSet.Collect(workspace.FeatureManager.GetThisPcItemProviders(workspace), allowVirtual: false); }
         catch { return []; }
     }
 

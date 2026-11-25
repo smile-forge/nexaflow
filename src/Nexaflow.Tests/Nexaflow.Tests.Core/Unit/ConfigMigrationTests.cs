@@ -8,7 +8,6 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
-[DoNotParallelize]   // the Register cases mutate the process-wide ConfigManager.Instance.BaseDir
 [CoversNode("opt-config-migration")]
 public class ConfigMigrationTests
 {
@@ -52,7 +51,7 @@ public class ConfigMigrationTests
             File.WriteAllText(priorPath, "{\"SomeValue\":\"carried\"}");
 
             var cfg = new MigrationFakeConfig();
-            ConfigManager.Instance.LoadFrom(dir, cfg, "migfake");
+            TestRuntimes.Config.LoadFrom(dir, cfg, "migfake");
 
             Assert.AreEqual("carried", cfg.SomeValue);
             Assert.IsFalse(File.Exists(priorPath), "stale older file should be deleted after migration");
@@ -74,7 +73,7 @@ public class ConfigMigrationTests
             File.WriteAllText(Path.Combine(cfgDir, $"config_{prior}.json"), "{\"OldName\":\"legacy\"}");
 
             var cfg = new HookFakeConfig();
-            ConfigManager.Instance.LoadFrom(dir, cfg, "hookfake");
+            TestRuntimes.Config.LoadFrom(dir, cfg, "hookfake");
 
             Assert.IsTrue(cfg.Hooked, "the IConfigMigration hook should run on a version mismatch");
             Assert.AreEqual("legacy", cfg.NewName, "the hook should see the raw previous JSON");
@@ -89,7 +88,7 @@ public class ConfigMigrationTests
         try
         {
             var cfg = new MigrationFakeConfig { SomeValue = "untouched" };
-            ConfigManager.Instance.LoadFrom(dir, cfg, "absent");
+            TestRuntimes.Config.LoadFrom(dir, cfg, "absent");
             Assert.AreEqual("untouched", cfg.SomeValue);
             Assert.IsFalse(Directory.Exists(Path.Combine(dir, "absent")));
         }
@@ -99,41 +98,39 @@ public class ConfigMigrationTests
     [TestMethod]
     public void Register_MigratedConfig_IsTrackedMigrated_NotDefaulted()
     {
-        var dir   = TempDir();
-        var saved = ConfigManager.Instance.BaseDir;
+        var dir = TempDir();
         try
         {
-            ConfigManager.Instance.Initialize(dir);
+            var config = TestRuntimes.ConfigIn(dir);
             var (_, prior) = Versions<MigrationFakeConfig>();
             var name   = "regmig_" + Guid.NewGuid().ToString("N");
             var cfgDir = Path.Combine(dir, name);
             Directory.CreateDirectory(cfgDir);
             File.WriteAllText(Path.Combine(cfgDir, $"config_{prior}.json"), "{\"SomeValue\":\"x\"}");
 
-            ConfigManager.Instance.Register(new MigrationFakeConfig(), name);
+            config.Register(new MigrationFakeConfig(), name);
 
-            CollectionAssert.Contains(ConfigManager.Instance.GetMigratedConfigs().ToList(), name);
-            CollectionAssert.DoesNotContain(ConfigManager.Instance.GetDefaultedConfigs().ToList(), name);
+            CollectionAssert.Contains(config.GetMigratedConfigs().ToList(), name);
+            CollectionAssert.DoesNotContain(config.GetDefaultedConfigs().ToList(), name);
         }
-        finally { ConfigManager.Instance.Initialize(saved); Cleanup(dir); }
+        finally { Cleanup(dir); }
     }
 
     [TestMethod]
     public void Register_BrandNewConfig_IsTrackedDefaulted_NotMigrated()
     {
-        var dir   = TempDir();
-        var saved = ConfigManager.Instance.BaseDir;
+        var dir = TempDir();
         try
         {
-            ConfigManager.Instance.Initialize(dir);
+            var config = TestRuntimes.ConfigIn(dir);
             var name = "regnew_" + Guid.NewGuid().ToString("N");
 
-            ConfigManager.Instance.Register(new MigrationFakeConfig(), name);
+            config.Register(new MigrationFakeConfig(), name);
 
-            CollectionAssert.Contains(ConfigManager.Instance.GetDefaultedConfigs().ToList(), name);
-            CollectionAssert.DoesNotContain(ConfigManager.Instance.GetMigratedConfigs().ToList(), name);
+            CollectionAssert.Contains(config.GetDefaultedConfigs().ToList(), name);
+            CollectionAssert.DoesNotContain(config.GetMigratedConfigs().ToList(), name);
         }
-        finally { ConfigManager.Instance.Initialize(saved); Cleanup(dir); }
+        finally { Cleanup(dir); }
     }
 
     private static string TempDir()

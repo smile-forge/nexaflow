@@ -78,7 +78,7 @@ private static async Task<FileSystemViewModel> AtPathAsync(string path)
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
-        var vm = new FileSystemViewModel(path, shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).Browse(path);
         await vm.Browsing;
         return vm;
     }

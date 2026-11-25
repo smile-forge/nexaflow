@@ -21,10 +21,10 @@ public class AbilityChainTests
         try
         {
             var saved = new AiConfig { Assignments = { ["GeneralIntelligence"] = AbilityChain.Of("b", "a") } };
-            ConfigManager.Instance.SaveTo(dir, saved, saved.ConfigName);
+            TestRuntimes.Config.SaveTo(dir, saved, saved.ConfigName);
 
             var loaded = new AiConfig();
-            ConfigManager.Instance.LoadFrom(dir, loaded, loaded.ConfigName);
+            TestRuntimes.Config.LoadFrom(dir, loaded, loaded.ConfigName);
 
             CollectionAssert.AreEqual(new[] { "b", "a" }, loaded.Assignments["GeneralIntelligence"].ColumnIds.ToArray());
         }
@@ -39,13 +39,13 @@ public class AbilityChainTests
         {
             // The file name carries the running version, so the loader reads it as it stands — no migration step.
             var config = new AiConfig();
-            ConfigManager.Instance.SaveTo(dir, config, config.ConfigName);
+            TestRuntimes.Config.SaveTo(dir, config, config.ConfigName);
             var file = Directory.GetFiles(Path.Combine(dir, config.ConfigName), "config_*.json").Single();
             File.WriteAllText(file,
                 """{ "Columns": [ { "Id": "c1", "ProviderName": "Claude", "Model": "m" } ], "Assignments": { "GeneralIntelligence": "c1", "ImageRecognition": "" } }""");
 
             var loaded = new AiConfig();
-            ConfigManager.Instance.LoadFrom(dir, loaded, loaded.ConfigName);
+            TestRuntimes.Config.LoadFrom(dir, loaded, loaded.ConfigName);
 
             CollectionAssert.AreEqual(new[] { "c1" }, loaded.Assignments["GeneralIntelligence"].ColumnIds.ToArray());
             Assert.IsTrue(loaded.Assignments["ImageRecognition"].IsEmpty, "an unassigned ability stays unassigned");

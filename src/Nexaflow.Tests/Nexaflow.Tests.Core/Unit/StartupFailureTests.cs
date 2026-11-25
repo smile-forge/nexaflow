@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Services;
+using Nexaflow.Core.Services.Logging;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -16,16 +18,16 @@ namespace Nexaflow.Tests.Core.Unit;
 public class StartupFailureTests
 {
     private readonly List<string> _steps = [];
-    private string?  _told;
-    private string   _dir = string.Empty;
-    private CrashLog _log = null!;
+    private string?          _told;
+    private string           _dir = string.Empty;
+    private CrashLogProvider _log = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _dir = Path.Combine(TestTemp.Root, "nexaflow-startup-failure-" + Guid.NewGuid().ToString("N"));
         var now = DateTimeOffset.Now;   // one clock reading, so the log a test reads is the day it was written
-        _log = new CrashLog(() => _dir, () => now, "test");
+        _log = new CrashLogProvider(() => _dir, () => now, "test");
     }
 
     [TestCleanup]
@@ -64,7 +66,8 @@ public class StartupFailureTests
     }
 
     private StartupFailure NewFailure() => new(
-        _log,
+        new LoggerFactory([_log]).CreateLogger("Startup"),
+        () => _log.CurrentPath,
         releaseInstance: () => _steps.Add(File.Exists(_log.CurrentPath) ? "release" : "release before the fault was recorded"),
         tell:            message => { _told = message; _steps.Add("tell"); },
         exit:            code => _steps.Add($"exit {code}"));

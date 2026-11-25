@@ -23,10 +23,13 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
     private readonly IShellServices _shell;
     private readonly IVirtualFileSystem _vfs;
 
-    public DeleteFile(IShellServices shell, IVirtualFileSystem vfs)
+    private readonly Operations.FileOperationQueue _queue;
+
+    public DeleteFile(IShellServices shell, IVirtualFileSystem vfs, Operations.FileOperationQueue queue)
     {
         _shell = shell;
         _vfs   = vfs;
+        _queue = queue;
     }
 
     // ── IFileAction ───────────────────────────────────────────────────────────
@@ -74,16 +77,14 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
         var paths = new List<string>(new Services.ShellPath(_vfs).RealForMutation(filePaths));
         if (paths.Count == 0) return Task.FromResult(false);
 
-        var queue = Operations.FileOperationQueue.For(_shell, _vfs);
-
         if (force)
         {
-            queue.EnqueueDelete(paths, permanent: true);
+            _queue.EnqueueDelete(paths, permanent: true);
             return Task.FromResult(true);
         }
 
         // What the Recycle Bin cannot hold goes for good, so the question says that instead.
-        bool recyclable = paths.TrueForAll(queue.IsRecyclable);
+        bool recyclable = paths.TrueForAll(_queue.IsRecyclable);
         string message = (paths.Count == 1, recyclable) switch
         {
             (true,  true)  => Str.Format("WindowsFileSystem.Delete.ConfirmOneFormat", Path.GetFileName(paths[0])),
@@ -95,7 +96,7 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
         _shell.ShowConfirmation(
             title:     Str.Get(recyclable ? "WindowsFileSystem.Delete.ConfirmTitle" : "WindowsFileSystem.Delete.PermanentTitle"),
             message:   message,
-            onConfirm: () => queue.EnqueueDelete(paths, permanent: !recyclable),
+            onConfirm: () => _queue.EnqueueDelete(paths, permanent: !recyclable),
             onCancel:  () => { });
 
         return Task.FromResult(false);   // the actual delete is deferred to the confirm callback

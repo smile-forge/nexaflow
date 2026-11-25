@@ -14,7 +14,7 @@ for the ability to switch.
 | **Build** | `src/Nexaflow.Languages/Nexaflow.Language.<code>/` — a three-line project importing `LanguagePack.targets`, which embeds every `Localization/<code>/` file under `src/*/` and `src/*/*/` (test projects excepted). |
 | **Names** | Each file is embedded as `<ProjectFolder>/<path under Localization/<code>/>`, forward-slashed: `Nexaflow.Core/strings.json`, `Nexaflow.Features.Markdown/help/images/markdown/qr-codes.png`. |
 | **Ship** | `LanguagePacks.Deploy.targets` (imported by Core and Tests.Core) builds every pack and copies it to `$(OutDir)Languages\`. The installer's harvest ships the folder, and a guard fails the installer build when a pack is missing. |
-| **Run** | `LanguageManager` (Core, one per process) lists packs by file name, loads the active pack and English — only those, and only on first use — and serves every resource along the chain *active → English*. |
+| **Run** | `LanguageManager` (Core, one per session: `ShellHost` makes it and points `Str` at it) lists packs by file name, loads the active pack and English — only those, and only on first use — and serves every resource along the chain *active → English*. |
 
 Packs are **drop-ins**. They are not in `deps.json`; `LanguageManager` loads them by path into a load context of
 their own, and nothing in them is code.
@@ -53,7 +53,7 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
   — visible, never a crash. `Str.Format` shows a translation whose placeholders don't fit its arguments as written
   rather than throwing.
 - **Cost.** `{loc:Str}` resolves once, as the XAML loads: no `DynamicResource`, no binding. The first lookup reads
-  every `strings.json` into one frozen table (`StartupTimings` marks it `Language.Strings`); every later lookup is
+  every `strings.json` into one frozen table (logged as the startup milestone `Language.Strings`); every later lookup is
   a dictionary read.
 - **Features** reach `Str` through `Nexaflow.Visuals.Common`, which they already reference. Core sets `Str.Source`
   at startup, the same shape as `TextTypography`, so nothing needs Core.

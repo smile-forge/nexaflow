@@ -9,6 +9,7 @@ using NSubstitute;
 using System.Threading.Tasks;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Features.WindowsFileSystem.Services;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -45,6 +46,15 @@ public class DeleteActionTests
         return p;
     }
 
+    /// <summary>Delete as the runtime's file browser builds it, with that runtime's operation queue in <paramref name="queue"/>.</summary>
+    private static DeleteFile DeleteAction(IShellServices shell, IVirtualFileSystem vfs, out FileOperationQueue queue)
+    {
+        queue = new FileOperationQueue(shell, vfs, new FileCompanions(shell));
+        return new DeleteFile(shell, vfs, queue);
+    }
+
+    private static DeleteFile DeleteAction(IShellServices shell, IVirtualFileSystem vfs) => DeleteAction(shell, vfs, out _);
+
     // ── The gate ──────────────────────────────────────────────────────────────
 
     [TestMethod]
@@ -53,7 +63,7 @@ public class DeleteActionTests
         var shell = Substitute.For<IShellServices>();   // never runs either callback
         var file = File_("keep.txt");
 
-        var acted = await new DeleteFile(shell, VirtualFileSystem.Instance).PerformActionAsync(file);
+        var acted = await DeleteAction(shell, VirtualFileSystem.Instance).PerformActionAsync(file);
 
         Assert.IsFalse(acted, "the delete is deferred to the confirmation, so nothing has happened yet");
         Assert.IsTrue(File.Exists(file));
@@ -71,7 +81,7 @@ public class DeleteActionTests
         shell.When(s => s.ShowConfirmation(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action>(), Arg.Any<Action>()))
              .Do(ci => title = ci.ArgAt<string>(0));
 
-        await new DeleteFile(shell, vfs).PerformActionAsync(@"::nas\home\notes.md");
+        await DeleteAction(shell, vfs).PerformActionAsync(@"::nas\home\notes.md");
 
         Assert.AreEqual(Str.Get("WindowsFileSystem.Delete.PermanentTitle"), title,
             "a file on a location cannot go to the Recycle Bin, so the question has to say it is gone for good");
@@ -86,7 +96,7 @@ public class DeleteActionTests
              .Do(ci => ((Action)ci[3]).Invoke());       // the cancel callback
         var file = File_("keep.txt");
 
-        await new DeleteFile(shell, VirtualFileSystem.Instance).PerformActionAsync(file);
+        await DeleteAction(shell, VirtualFileSystem.Instance).PerformActionAsync(file);
 
         Assert.IsTrue(File.Exists(file));
         shell.DidNotReceive().RequestRefresh();
@@ -101,8 +111,8 @@ public class DeleteActionTests
                                            Arg.Any<Action>(), Arg.Any<Action>()))
              .Do(ci => messages.Add(ci.ArgAt<string>(1)));
 
-        await new DeleteFile(shell, VirtualFileSystem.Instance).PerformActionAsync(File_("budget.xlsx"));
-        await new DeleteFile(shell, VirtualFileSystem.Instance).PerformActionAsync([File_("a.txt"), File_("b.txt"), File_("c.txt")]);
+        await DeleteAction(shell, VirtualFileSystem.Instance).PerformActionAsync(File_("budget.xlsx"));
+        await DeleteAction(shell, VirtualFileSystem.Instance).PerformActionAsync([File_("a.txt"), File_("b.txt"), File_("c.txt")]);
 
         Assert.AreEqual(Str.Format("WindowsFileSystem.Delete.ConfirmOneFormat", "budget.xlsx"), messages[0],
                         "with one file the prompt should say which one — that is the whole check");
@@ -114,7 +124,7 @@ public class DeleteActionTests
     {
         var shell = Substitute.For<IShellServices>();
 
-        Assert.IsFalse(await new DeleteFile(shell, VirtualFileSystem.Instance).PerformActionAsync([]));
+        Assert.IsFalse(await DeleteAction(shell, VirtualFileSystem.Instance).PerformActionAsync([]));
 
         shell.DidNotReceiveWithAnyArgs().ShowConfirmation(default!, default!, default!, default!);
     }
@@ -127,10 +137,10 @@ public class DeleteActionTests
         var shell = Substitute.For<IShellServices>().Runs();
         var file  = File_("gone.txt");
 
-        var acted = await new DeleteFile(shell, VirtualFileSystem.Instance).PerformActionAsync(file, force: true);
+        var acted = await DeleteAction(shell, VirtualFileSystem.Instance, out var queue).PerformActionAsync(file, force: true);
 
         Assert.IsTrue(acted);
-        await FileOperationQueue.For(shell, VirtualFileSystem.Instance).Operations[^1].Completion;
+        await queue.Operations[^1].Completion;
 
         Assert.IsFalse(File.Exists(file), "a forced delete is permanent — not the Recycle Bin");
         shell.DidNotReceiveWithAnyArgs().ShowConfirmation(default!, default!, default!, default!);
@@ -161,7 +171,7 @@ public class DeleteActionTests
     [TestMethod]
     public void ItDeclaresItselfDestructive_WhichIsWhatMakesTheButtonRed()
     {
-        var action = new DeleteFile(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
+        var action = DeleteAction(Substitute.For<IShellServices>(), VirtualFileSystem.Instance);
 
         Assert.IsTrue(action.IsDestructive);
         Assert.IsFalse(action.AppliesToRoot, "no Delete button over a drive root");

@@ -69,7 +69,7 @@ public class ThisPcDriveActionsTests
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
 
-        return FileSystemViewModel.CreateThisPc(shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        return new FileBrowserRuntime(shell, ai, new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).ThisPc();
     }
 
     private static FileSystemEntry Drive(string letter) =>

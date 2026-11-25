@@ -221,8 +221,8 @@ public class VirtualBackingActionTests
     public async Task APinnedVerbOrProgram_IsRebuiltWithTheWorkspacesFileSystem()
     {
         var vfs      = Workspace();
-        var registry = FileSystemFeatureRegistry.For(NSubstitute.Substitute.For<IShellServices>(), NSubstitute.Substitute.For<IAIService>(),
-                                                     new Dictionary<Type, IFeatureConfig>(), vfs);
+        var registry = new FileBrowserRuntime(NSubstitute.Substitute.For<IShellServices>(), NSubstitute.Substitute.For<IAIService>(),
+                                              new Dictionary<Type, IFeatureConfig>(), vfs).Registry;
         var pinnedVerb = new ShellVerbAction(VirtualFileSystem.Instance, "open", "Open", "probe.exe \"%1\"", "/");
         var pinnedApp  = new CustomAction(new ExternalAppDefinition { DisplayName = "Probe", ApplicationPath = "probe.exe", Arguments = "#filepath" },
                                           VirtualFileSystem.Instance);

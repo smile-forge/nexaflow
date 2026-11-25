@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,43 +17,33 @@ namespace Nexaflow.Features.WindowsFileSystem.Operations;
 /// Every copy, move and delete the file browser starts, and the only thing that starts one.
 /// <para>
 /// The enqueue is synchronous and does no IO: it plans destinations, makes a
-/// <see cref="FileOperation"/>, and hands the work to the shell's background queue. That is the
-/// whole fix for a drop that used to run its copy inside the OLE <c>IDropTarget::Drop</c> callback —
-/// a 200 GB folder froze the app, and the window having no message pump meant Windows could not
-/// deliver the next drop at all. Dropping three folders now enqueues three operations.
+/// <see cref="FileOperation"/>, and hands the work to the shell's background queue. A copy run inside
+/// the OLE <c>IDropTarget::Drop</c> callback would hold the window for as long as it took — a 200 GB
+/// folder freezes the app, and with no message pump Windows cannot deliver the next drop at all — so
+/// dropping three folders enqueues three operations instead.
 /// </para>
 /// <para>
-/// One instance per <see cref="IShellServices"/>, i.e. per workspace runtime, so an operation
-/// outlives the tab that started it and is visible from every file-browser tab in that runtime.
-/// (A workspace rebuild makes a new shell and orphans this entry, exactly as it does for
-/// <see cref="Services.FileSystemFeatureRegistry"/>; anything already running finishes unwatched
-/// rather than being cancelled, because a copy should survive a tab closing.)
+/// One per workspace runtime (<see cref="FeatureServiceAttribute"/>), so an operation outlives the
+/// tab that started it and is visible from every file-browser tab in that runtime. Anything still
+/// running when the runtime ends finishes unwatched rather than being cancelled, because a copy
+/// should survive a tab closing.
 /// </para>
 /// </summary>
+[FeatureService]
 public sealed class FileOperationQueue : IFileOperationHost
 {
-    private static readonly ConditionalWeakTable<IShellServices, FileOperationQueue> _instances = new();
-    private static readonly object _instancesLock = new();
-
-    /// <summary>The queue for <paramref name="shell"/>, made on first ask, running its work through
-    /// <paramref name="vfs"/> — the same runtime's file system.</summary>
-    public static FileOperationQueue For(IShellServices shell, IVirtualFileSystem vfs)
-    {
-        lock (_instancesLock)
-        {
-            if (!_instances.TryGetValue(shell, out var q))
-                _instances.Add(shell, q = new FileOperationQueue(shell, vfs));
-            return q;
-        }
-    }
-
     private readonly IShellServices _shell;
+
+    private readonly Services.FileCompanions _companions;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _volumeGates = new(StringComparer.OrdinalIgnoreCase);
 
-    private FileOperationQueue(IShellServices shell, IVirtualFileSystem vfs)
+    /// <summary>The queue of <paramref name="shell"/>'s runtime, running its work through <paramref name="vfs"/> — the same
+    /// runtime's file system — with every file taking along the <paramref name="companions"/> the features declare.</summary>
+    public FileOperationQueue(IShellServices shell, IVirtualFileSystem vfs, Services.FileCompanions companions)
     {
-        _shell     = shell;
-        FileSystem = vfs;
+        _shell      = shell;
+        _companions = companions;
+        FileSystem  = vfs;
     }
 
     /// <summary>The runtime's file system every transfer and delete goes through where the disk cannot reach — under a
@@ -91,7 +80,7 @@ public sealed class FileOperationQueue : IFileOperationHost
         // companions, which the engine sends after it under its resolved name. Then both ends as the change is made by:
         // a location's file keeps the location's path, however it was named, so the change goes through the location.
         var paths   = new Services.ShellPath(FileSystem);
-        var planned = Services.FileCompanions.For(_shell).Attach(
+        var planned = _companions.Attach(
             FileOperationDestinations.Plan(sources, paths.AsWindowsNames(destinationFolder), move, out var refusals));
         List<TransferItem> items = [.. planned.Select(item => item with
         {
@@ -129,7 +118,7 @@ public sealed class FileOperationQueue : IFileOperationHost
         if (real.Length == 0) return null;
 
         var request = new FileTransferRequest(
-            TransferKind.Delete, Services.FileCompanions.For(_shell).Attach([.. real.Select(p => new TransferItem(p, p))]), ConflictPolicy.Fail)
+            TransferKind.Delete, _companions.Attach([.. real.Select(p => new TransferItem(p, p))]), ConflictPolicy.Fail)
             { FileSystem = FileSystem };
 
         // A delete says nothing when it works: the files being gone is its own confirmation.
@@ -238,8 +227,8 @@ public sealed class FileOperationQueue : IFileOperationHost
         return string.IsNullOrEmpty(name) ? trimmed : name;
     }
 
-    /// <summary>One notification per operation, as it finishes. The old code collected every failure
-    /// and reported once at the very end — after hours, or never if the app was closed first.</summary>
+    /// <summary>One notification per operation, as it finishes — not one for everything at the very end,
+    /// which can be hours away, or never if the app is closed first.</summary>
     private void Announce(FileOperation op)
     {
         if (op.State is FileOperationState.Cancelled) return;

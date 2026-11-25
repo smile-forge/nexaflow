@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
@@ -15,13 +16,14 @@ using System.Windows.Threading;
 namespace Nexaflow.Core;
 
 /// <summary>
-/// Singleton registry of feature-level tab factories, configs, query handlers, keyboard handlers,
-/// drop targets and ribbon-pin handlers. Discovery is delegated to <see cref="FeatureCatalog"/>: call
-/// <see cref="RegisterFeatures"/> at startup to build the (cached) discovery index without eagerly loading
-/// every feature assembly. Feature assemblies load lazily — when <see cref="CreateTab"/> / the typed
-/// <c>Get*</c> helpers resolve a type, or during the post-paint background warm-up. Each assembly's first
-/// load runs <see cref="OnAssemblyActivated"/>, which registers that assembly's global configs / archive
-/// handlers / theme contributions (the work that used to happen eagerly at startup).
+/// The session's feature system: the registry of feature-level tab factories, configs, query handlers, keyboard handlers,
+/// drop targets and ribbon-pin handlers. One per session — <see cref="ShellHost"/> makes it and hands it to every window
+/// (<see cref="WindowServices"/>) and runtime (<see cref="RuntimeSessionServices"/>, carried as
+/// <see cref="WorkspaceRuntime.FeatureManager"/>). Discovery is delegated to its <see cref="Catalog"/>, whose (cached) index
+/// it builds as it is made, without eagerly loading every feature assembly. Feature assemblies load lazily — when
+/// <see cref="CreateTab"/> / the typed <c>Get*</c> helpers resolve a type, or during the post-paint background warm-up. Each
+/// assembly's first load runs <see cref="OnAssemblyActivated"/>, which registers that assembly's global configs / archive
+/// handlers / theme contributions.
 ///
 /// File-system contracts (<c>IFileAction</c>, <c>IFolderAction</c>, <c>IFileCreateAction</c>,
 /// <c>IFolderViewlet</c>) are still discovered via <see cref="IShellServices.DiscoverImplementations{T}"/>
@@ -29,8 +31,6 @@ namespace Nexaflow.Core;
 /// </summary>
 public sealed class FeatureManager
 {
-    public static FeatureManager Instance { get; } = new();
-
     // Per-assembly GLOBAL config instances — populated as assemblies activate (warm-up thread or UI thread).
     private readonly ConcurrentDictionary<Type, IFeatureConfig> _configs = new();
 
@@ -54,19 +54,22 @@ public sealed class FeatureManager
     /// Configure panels (which need every scoped config). Startup paths use the lazy
     /// <see cref="Models.Workspace.FindWorkspaceConfig"/> instead.
     /// </summary>
-    public IReadOnlyList<Type> WorkspaceScopedConfigTypes => FeatureCatalog.Instance.ResolveWorkspaceScopedConfigTypes();
-
-    /// <summary>Scoped config types whose assembly is already loaded — never forces a new load.</summary>
-    public IReadOnlyList<Type> LoadedWorkspaceScopedConfigTypes => FeatureCatalog.Instance.ResolveLoadedWorkspaceScopedConfigTypes();
+    public IReadOnlyList<Type> WorkspaceScopedConfigTypes => Catalog.ResolveWorkspaceScopedConfigTypes();
 
     /// <summary>True if <paramref name="configType"/> is a <c>[WorkspaceScopedConfig]</c> — index-only, no load.</summary>
     public bool IsWorkspaceScopedConfig(Type configType)
-        => configType.FullName is { } n && FeatureCatalog.Instance.IsWorkspaceScopedConfig(n);
+        => configType.FullName is { } n && Catalog.IsWorkspaceScopedConfig(n);
 
     // Theme resource dictionaries contributed by features, accumulated as assemblies activate.
     private readonly HashSet<Uri> _themeContributionUris = [];
     private readonly object _themeLock = new();
-    private Dispatcher? _ui;
+    private readonly IUiThread _ui;
+
+    /// <summary>The session's location backends, which every feature's are registered in.</summary>
+    private readonly LocationProviderRegistry _locationProviders;
+
+    /// <summary>Resolves the sets of subfeatures a feature asks for, from the catalog.</summary>
+    private readonly SubfeatureCatalog _subfeatures;
     private volatile bool _themeRefreshQueued;
     private int _themeGen;        // bumped when new contribution URIs are added
     private int _themeApplied;    // last generation merged into Application.Resources
@@ -74,27 +77,50 @@ public sealed class FeatureManager
     /// <summary>Pack URIs of every feature-contributed theme <c>ResourceDictionary</c> activated so far.
     /// Re-applied below the active theme on a theme switch (see ShellServices).</summary>
     public IReadOnlyList<Uri> ThemeContributionUris { get { lock (_themeLock) return _themeContributionUris.ToList(); } }
-
-    // ── Per-(Type, Workspace) instance cache ────────────────────────────
-    private readonly Dictionary<WorkspaceRuntime, Dictionary<Type, object>> _cache = new();
-    private readonly object _cacheLock = new();
-
-    /// <summary>The <see cref="FeatureServiceAttribute"/> types being built, so one that needs itself is a defect rather than
-    /// endless recursion. Guarded by <see cref="_cacheLock"/>, under which every build runs.</summary>
-    private readonly HashSet<Type> _servicesBuilding = [];
-
     // ── Registration ──────────────────────────────────────────────────────
 
-    /// <summary>Builds the (cached) discovery index. No feature assemblies are loaded on the cache-hit path.</summary>
-    public void RegisterFeatures()
+    /// <summary>The session's configuration, which every feature's global config is registered in and saved through.</summary>
+    private readonly ConfigManager _config;
+
+    /// <summary>The session's logs: what makes the <see cref="ILogger{T}"/> a feature's constructor asks for.</summary>
+    private readonly ILoggerFactory _logs;
+
+    /// <summary>Where a feature's setup that failed is put on record.</summary>
+    private readonly ILogger<FeatureManager> _log;
+
+    /// <summary>
+    /// The session's feature system over <paramref name="catalog"/>: builds the catalog's (cached) discovery index — no feature
+    /// assemblies are loaded on the cache-hit path — and activates Core. A feature's global configs are registered in
+    /// <paramref name="config"/>, its theme is folded in on <paramref name="ui"/>, however its assembly came to load, and its
+    /// location backends are registered in <paramref name="locationProviders"/>. A feature whose constructor asks for an
+    /// <see cref="ILogger{T}"/> is given one made by <paramref name="logs"/>, the session's logs, which also hear of a feature's setup
+    /// that failed.
+    /// </summary>
+    public FeatureManager(FeatureCatalog catalog, ConfigManager config, IUiThread ui, LocationProviderRegistry locationProviders,
+                          ILoggerFactory logs)
     {
-        _ui = Dispatcher.CurrentDispatcher;   // captured on the UI thread for theme marshaling
-        FeatureCatalog.Instance.Initialize(OnAssemblyActivated);
+        Catalog            = catalog;
+        _config            = config;
+        _ui                = ui;
+        _locationProviders = locationProviders;
+        _logs              = logs;
+        _log               = logs.CreateLogger<FeatureManager>();
+        _subfeatures       = new SubfeatureCatalog(catalog, this);
+        catalog.Initialize(OnAssemblyActivated);
     }
+
+    /// <summary>Which feature type implements which contract, and the assemblies loaded as they are needed.</summary>
+    public FeatureCatalog Catalog { get; }
 
     private static readonly string ArchiveHandlerName = typeof(IArchiveHandler).FullName!;
     private static readonly string StreamCodecName    = typeof(IStreamCodec).FullName!;
     private static readonly string LocationProviderName = typeof(ILocationProvider).FullName!;
+
+    private static readonly string FeatureStartupName = typeof(IFeatureStartup).FullName!;
+
+    /// <summary>What a feature's setup is given of the session: the global configs, the data folder, and saving a config.</summary>
+    private FeatureStartupContext StartupContext()
+        => new(_configs, _config.BaseDir, config => _config.Save(config, config.ConfigName));
 
     /// <summary>
     /// Side-effects of loading a feature assembly, performed once on its first load: register its global
@@ -115,9 +141,9 @@ public sealed class FeatureManager
                 try
                 {
                     var cfg = (IFeatureConfig)Activator.CreateInstance(configType)!;
-                    // ConfigManager.Register is first-wins and returns the canonical instance — startup may
-                    // have pre-registered some (e.g. FileMapConfig); use the canonical so all consumers share it.
-                    _configs[configType] = (IFeatureConfig)ConfigManager.Instance.Register(cfg, cfg.ConfigName);
+                    // ConfigManager.Register is first-wins and returns the canonical instance; use the canonical so all consumers
+                    // share it.
+                    _configs[configType] = (IFeatureConfig)_config.Register(cfg, cfg.ConfigName);
                 }
                 catch { }
             }
@@ -159,6 +185,14 @@ public sealed class FeatureManager
                             themeChanged = true;
         }
 
+        // The feature's own setup for the session, now its global configs are registered and before anything of it is built.
+        foreach (var te in entry.Types)
+        {
+            if (!te.Contracts.Contains(FeatureStartupName) || asm.GetType(te.Name) is not { } startupType) continue;
+            try { ((IFeatureStartup)Activator.CreateInstance(startupType)!).Start(StartupContext()); }
+            catch (Exception ex) { _log.LogWarning(ex, "setting up {Feature} for the session", startupType.FullName); }
+        }
+
         if (themeChanged)
         {
             lock (_themeLock) _themeGen++;
@@ -173,14 +207,14 @@ public sealed class FeatureManager
     /// </summary>
     public void EnsureLocationProviders()
     {
-        foreach (var type in FeatureCatalog.Instance.TypesImplementing<ILocationProvider>())
+        foreach (var type in Catalog.TypesImplementing<ILocationProvider>())
             RegisterLocationProvider(type);
     }
 
-    private static void RegisterLocationProvider(Type type)
+    private void RegisterLocationProvider(Type type)
     {
-        if (LocationProviderRegistry.Instance.Providers.Any(p => p.GetType() == type)) return;
-        try { if (Activator.CreateInstance(type) is ILocationProvider provider) LocationProviderRegistry.Instance.Register(provider); }
+        if (_locationProviders.Providers.Any(p => p.GetType() == type)) return;
+        try { if (Activator.CreateInstance(type) is ILocationProvider provider) _locationProviders.Register(provider); }
         catch { /* a backend that cannot be built reaches nothing; its connections are listed unreachable */ }
     }
 
@@ -190,7 +224,7 @@ public sealed class FeatureManager
     /// queued (async) theme refresh hasn't run yet.</summary>
     private void EnsureThemeApplied()
     {
-        if (_ui?.CheckAccess() == true) ApplyThemeNow();
+        if (_ui.IsCurrent) ApplyThemeNow();
     }
 
     // Re-merges the accumulated feature theme contributions below the active theme. On the UI thread this
@@ -199,12 +233,10 @@ public sealed class FeatureManager
     // load holding the catalog lock on the UI thread.
     private void RequestThemeRefresh()
     {
-        var ui = _ui;
-        if (ui is null) return;
-        if (ui.CheckAccess()) { ApplyThemeNow(); return; }
+        if (_ui.IsCurrent) { ApplyThemeNow(); return; }
         if (_themeRefreshQueued) return;
         _themeRefreshQueued = true;
-        ui.BeginInvoke(DispatcherPriority.Background, () => { _themeRefreshQueued = false; ApplyThemeNow(); });
+        _ui.PostInBackground(() => { _themeRefreshQueued = false; ApplyThemeNow(); });
     }
 
     private void ApplyThemeNow()
@@ -223,61 +255,21 @@ public sealed class FeatureManager
     // ── Instantiation ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates (or returns a cached) instance of <paramref name="targetType"/> with constructor args
-    /// resolved from <paramref name="workspace"/> and the registered global config instances.
+    /// The instance of <paramref name="targetType"/> built for <paramref name="workspace"/> — built the first time, from
+    /// constructor args resolved from the runtime and the registered global config instances, and kept in its
+    /// <see cref="WorkspaceRuntime.Features"/> until the runtime renews its services or ends.
     /// <para>
     /// <b>Never returns null — it throws.</b> Every way this can fail is a wiring defect: an unknown
     /// constructor parameter, a global config that never registered, a scoped config whose load threw, a
-    /// constructor that threw, or a runtime handed over before <c>BootstrapServices</c> wired it. Returning
-    /// null for any of those is how a feature silently disappears — the caller enumerating implementations
-    /// just skips it, nothing logs, and the symptom surfaces months later as "that never worked".
-    /// </para>
-    /// <para>
-    /// In particular a missing <see cref="IShellServices"/> or <c>IAIService</c> is <b>not</b> a tolerable
-    /// state. <c>WorkspaceManager.BootstrapServices</c> creates both unconditionally — an
-    /// <c>AIService</c> exists whether or not the user configured a provider, and answers accordingly — so by
-    /// the time any runtime reaches a feature they are present. Null means pre-bootstrap or post-teardown,
-    /// and a feature built then would misbehave in ways far harder to trace than an exception here.
+    /// constructor that threw, or a runtime that has already ended. Returning null for any of those is how a
+    /// feature silently disappears — the caller enumerating implementations just skips it, nothing logs, and the
+    /// symptom surfaces months later as "that never worked".
     /// </para>
     /// </summary>
-    /// <exception cref="InvalidOperationException">The type has no public constructor, or no constructor
-    /// whose parameters can be satisfied.</exception>
+    /// <exception cref="InvalidOperationException">The type has no public constructor, no constructor whose parameters can be
+    /// satisfied, or the runtime has ended.</exception>
     public object Instantiate(Type targetType, WorkspaceRuntime workspace)
-    {
-        lock (_cacheLock)
-        {
-            if (!_cache.TryGetValue(workspace, out var ctxCache))
-            {
-                ctxCache = new Dictionary<Type, object>();
-                _cache[workspace] = ctxCache;
-            }
-
-            if (ctxCache.TryGetValue(targetType, out var cached))
-                return cached;
-
-            var instance = BuildOrThrow(targetType, workspace);
-            ctxCache[targetType] = instance;
-            return instance;
-        }
-    }
-
-    /// <summary>
-    /// Drops all cached feature/handler instances built for <paramref name="workspace"/>. Called when a
-    /// Workspace is reconfigured (its AIService/providers were replaced) or disposed, so the next request
-    /// rebuilds handlers against the live services. See WorkspaceManager.
-    /// </summary>
-    public void EvictWorkspace(WorkspaceRuntime workspace)
-    {
-        Dictionary<Type, object>? evicted;
-        lock (_cacheLock)
-            if (!_cache.Remove(workspace, out evicted)) return;
-
-        // A feature's own services end with the instances that captured the runtime's services, the runtime's tabs already gone:
-        // what they hold is let go — a store's pending writes written.
-        foreach (var (type, instance) in evicted)
-            if (type.IsDefined(typeof(FeatureServiceAttribute), inherit: false) && instance is IDisposable disposable)
-                try { disposable.Dispose(); } catch { /* teardown must not break a workspace closing */ }
-    }
+        => workspace.Features.GetOrBuild(targetType, () => BuildOrThrow(targetType, workspace));
 
     private object BuildOrThrow(Type t, WorkspaceRuntime workspace)
     {
@@ -315,9 +307,8 @@ public sealed class FeatureManager
     /// <summary>
     /// The constructor arguments, or null with <paramref name="defect"/> describing why none could be found.
     /// <para>
-    /// Every failure here is a defect rather than a tolerable state, including a missing
-    /// <see cref="IShellServices"/> / <c>IAIService</c>: <c>WorkspaceManager.BootstrapServices</c> builds both
-    /// unconditionally, so a runtime that reaches a feature always carries them.
+    /// Every failure here is a defect rather than a tolerable state. A runtime is built with its
+    /// <see cref="IShellServices"/> and <c>IAIService</c>, so a feature always finds both.
     /// </para>
     /// </summary>
     private object?[]? TryResolveArgs(ConstructorInfo ctor, WorkspaceRuntime workspace, out string? defect)
@@ -337,20 +328,11 @@ public sealed class FeatureManager
             }
             else if (typeof(IShellServices).IsAssignableFrom(pt))
             {
-                if (workspace.ShellServices is null)
-                    return Defect(out defect, $"parameter '{name}' needs IShellServices, but this "
-                        + "WorkspaceRuntime has none — it was handed over before BootstrapServices wired it, "
-                        + "or after its last window closed");
                 args[i] = workspace.ShellServices;
             }
             else if (typeof(IAIService).IsAssignableFrom(pt))
             {
-                // Not "the user has no AI provider" — that workspace still gets an AIService, which answers
-                // that it has none. A null here means the runtime itself isn't live.
-                if (workspace.AiService is null)
-                    return Defect(out defect, $"parameter '{name}' needs IAIService, but this "
-                        + "WorkspaceRuntime has none — it was handed over before BootstrapServices wired it, "
-                        + "or after its last window closed");
+                // A workspace with no AI provider still has an AIService, which answers that it has none.
                 args[i] = workspace.AiService;
             }
             else if (pt == typeof(IVirtualFileSystem))
@@ -370,6 +352,11 @@ public sealed class FeatureManager
                 // The locations this runtime has mounted, as a page lists them — the same runtime file system.
                 args[i] = workspace.Vfs;
             }
+            else if (pt.IsGenericType && pt.GetGenericTypeDefinition() == typeof(ILogger<>))
+            {
+                // The feature's own log, in the session's: its entries reach every destination under the category the type argument names.
+                args[i] = Activator.CreateInstance(typeof(Logger<>).MakeGenericType(pt.GetGenericArguments()), _logs);
+            }
             else if (_tools.TryGetValue(pt, out var tool))
             {
                 args[i] = tool;
@@ -378,10 +365,10 @@ public sealed class FeatureManager
             {
                 // A feature's own service: the runtime's one instance, from the cache its registrations come from, built with
                 // the same injection the first time something asks for it.
-                if (!_servicesBuilding.Add(pt))
+                if (!workspace.Features.BeginService(pt))
                     return Defect(out defect, $"the feature service '{pt.Name}' required by parameter '{name}' needs itself to be built");
                 try { args[i] = Instantiate(pt, workspace); }
-                finally { _servicesBuilding.Remove(pt); }
+                finally { workspace.Features.EndService(pt); }
             }
             else if (pt == typeof(IReadOnlyDictionary<Type, IFeatureConfig>))
             {
@@ -390,7 +377,7 @@ public sealed class FeatureManager
             else if (typeof(IFeatureConfig).IsAssignableFrom(pt))
             {
                 // Scoped config: workspace-specific instance (lazily materialized).
-                if (workspace.Workspace.FindWorkspaceConfig(pt) is { } scoped)
+                if (workspace.Workspace.FindWorkspaceConfig(pt, this) is { } scoped)
                     args[i] = scoped;
                 else if (IsWorkspaceScopedConfig(pt))
                     return Defect(out defect, $"the workspace-scoped config '{pt.Name}' required by parameter "
@@ -400,7 +387,7 @@ public sealed class FeatureManager
                 {
                     // Global config — ensure its owning assembly has been activated, then resolve.
                     if (!_configs.ContainsKey(pt) && pt.FullName is { } fn)
-                        FeatureCatalog.Instance.ActivateAssemblyOwning(fn);
+                        Catalog.ActivateAssemblyOwning(fn);
                     if (_configs.TryGetValue(pt, out var cfg)) args[i] = cfg;
                     else
                         // Activation is what registers a global config, so reaching here means the owning
@@ -413,13 +400,13 @@ public sealed class FeatureManager
             // every discovered plugin implementing T as a descriptor, with NO assembly loaded.
             else if (SubfeatureArg.IsHandleList(pt, out var handleContract))
             {
-                args[i] = SubfeatureCatalog.Instance.Handles(handleContract!, workspace);
+                args[i] = _subfeatures.Handles(handleContract!, workspace);
             }
             // IReadOnlyList<T> where T is a contract some [Subfeature] implements — the eager form. Loads
             // every owning assembly, so it only suits a small fixed plugin set.
             else if (SubfeatureArg.IsInstanceList(pt, out var instanceContract))
             {
-                args[i] = SubfeatureCatalog.Instance.Resolve(instanceContract!, workspace);
+                args[i] = _subfeatures.Resolve(instanceContract!, workspace);
             }
             else if (parms[i].IsOptional)
             {
@@ -428,7 +415,7 @@ public sealed class FeatureManager
             else
             {
                 return Defect(out defect, $"parameter '{name}' is of type '{pt.Name}', which the feature DI "
-                    + "does not supply (it injects IShellServices, IAIService, IVirtualFileSystem, ILocationPublisher, WorkspaceRuntime, the app-wide tools such as IPictureTools, "
+                    + "does not supply (it injects IShellServices, IAIService, IVirtualFileSystem, ILocationPublisher, WorkspaceRuntime, ILogger<T>, the app-wide tools such as IPictureTools, "
                     + "IFeatureConfig, a feature's own [FeatureService] classes, and subfeature sets as IReadOnlyList<ISubfeatureHandle<T>> or "
                     + "IReadOnlyList<T>). If you meant a subfeature set, check that at least one type "
                     + "carrying [Subfeature] implements that contract and shipped as a scanned "
@@ -447,43 +434,43 @@ public sealed class FeatureManager
     // ── Typed Get* helpers ────────────────────────────────────────────────
 
     public IReadOnlyList<IQueryHandler> GetQueryHandlers(WorkspaceRuntime ctx)
-        => Instantiate<IQueryHandler>(FeatureCatalog.Instance.TypesImplementing<IQueryHandler>(), ctx);
+        => Instantiate<IQueryHandler>(Catalog.TypesImplementing<IQueryHandler>(), ctx);
 
     public IReadOnlyList<IRibbonPinHandler> GetRibbonPinHandlers(WorkspaceRuntime ctx)
-        => Instantiate<IRibbonPinHandler>(FeatureCatalog.Instance.TypesImplementing<IRibbonPinHandler>(), ctx);
+        => Instantiate<IRibbonPinHandler>(Catalog.TypesImplementing<IRibbonPinHandler>(), ctx);
 
     /// <summary>Contributors of extra "This PC" rows, for shell surfaces that show them outside the file
     /// browser — the themed file and folder pickers, which have no <see cref="IShellServices"/> of their
     /// own and so cannot go through <c>FileSystemFeatureRegistry</c>.</summary>
     public IReadOnlyList<IThisPcItemProvider> GetThisPcItemProviders(WorkspaceRuntime ctx)
-        => Instantiate<IThisPcItemProvider>(FeatureCatalog.Instance.TypesImplementing<IThisPcItemProvider>(), ctx);
+        => Instantiate<IThisPcItemProvider>(Catalog.TypesImplementing<IThisPcItemProvider>(), ctx);
 
     /// <summary>Chat-bar key handlers (Up/Down history, Tab completion) for this workspace.</summary>
     public IReadOnlyList<IChatKeyHandler> GetChatKeyHandlers(WorkspaceRuntime ctx)
-        => Instantiate<IChatKeyHandler>(FeatureCatalog.Instance.TypesImplementing<IChatKeyHandler>(), ctx);
+        => Instantiate<IChatKeyHandler>(Catalog.TypesImplementing<IChatKeyHandler>(), ctx);
 
     /// <summary>Chat-bar drop handlers (drag a file → insert its path) for this workspace.</summary>
     public IReadOnlyList<IChatDropHandler> GetChatDropHandlers(WorkspaceRuntime ctx)
-        => Instantiate<IChatDropHandler>(FeatureCatalog.Instance.TypesImplementing<IChatDropHandler>(), ctx);
+        => Instantiate<IChatDropHandler>(Catalog.TypesImplementing<IChatDropHandler>(), ctx);
 
     /// <summary>The runtime's breadcrumb display filters in stacking order (<see cref="IBreadcrumbDisplayFilter.Order"/>).</summary>
     public IReadOnlyList<IBreadcrumbDisplayFilter> GetBreadcrumbDisplayFilters(WorkspaceRuntime ctx)
-        => [.. Instantiate<IBreadcrumbDisplayFilter>(FeatureCatalog.Instance.TypesImplementing<IBreadcrumbDisplayFilter>(), ctx)
+        => [.. Instantiate<IBreadcrumbDisplayFilter>(Catalog.TypesImplementing<IBreadcrumbDisplayFilter>(), ctx)
                .OrderBy(f => f.Order)];
 
     /// <summary>Chat-bar input-preview handlers (live echo of what you're typing) for this workspace.</summary>
     public IReadOnlyList<IChatInputPreview> GetChatInputPreviews(WorkspaceRuntime ctx)
-        => Instantiate<IChatInputPreview>(FeatureCatalog.Instance.TypesImplementing<IChatInputPreview>(), ctx);
+        => Instantiate<IChatInputPreview>(Catalog.TypesImplementing<IChatInputPreview>(), ctx);
 
     /// <summary>The tab-pin handler that snapshots tabs of <paramref name="tabPageKind"/>, or null.</summary>
     public ITabPinHandler? GetTabPinHandler(string tabPageKind, WorkspaceRuntime ctx)
-        => Instantiate<ITabPinHandler>(FeatureCatalog.Instance.TypesImplementing<ITabPinHandler>(), ctx)
+        => Instantiate<ITabPinHandler>(Catalog.TypesImplementing<ITabPinHandler>(), ctx)
             .FirstOrDefault(h => h.TabPageKind == tabPageKind);
 
     /// <summary>The click-time executor for ribbon buttons of <paramref name="pageKind"/>, or null
     /// (in which case the button simply opens that page kind as a tab).</summary>
     public IRibbonItemExecutor? GetRibbonItemExecutor(string pageKind, WorkspaceRuntime ctx)
-        => Instantiate<IRibbonItemExecutor>(FeatureCatalog.Instance.TypesImplementing<IRibbonItemExecutor>(), ctx)
+        => Instantiate<IRibbonItemExecutor>(Catalog.TypesImplementing<IRibbonItemExecutor>(), ctx)
             .FirstOrDefault(e => e.PageKind == pageKind);
 
     /// <summary>
@@ -494,7 +481,7 @@ public sealed class FeatureManager
     public IReadOnlyList<Page> GetContextItemPages(WorkspaceRuntime ctx)
     {
         var pages = new List<Page>();
-        foreach (var pageKind in FeatureCatalog.Instance.PageKinds())
+        foreach (var pageKind in Catalog.PageKinds())
             if (ResolveRegistration(pageKind, ctx) is { CanBeContextItem: true }
                 && CreateTab(pageKind, ctx) is { } page)
                 pages.Add(page);
@@ -509,7 +496,7 @@ public sealed class FeatureManager
     public IReadOnlyList<Page> GetRibbonCatalogPages(WorkspaceRuntime ctx)
     {
         var pages = new List<Page>();
-        foreach (var pageKind in FeatureCatalog.Instance.PageKinds())
+        foreach (var pageKind in Catalog.PageKinds())
         {
             if (ResolveRegistration(pageKind, ctx) is not { CanBeContextItem: true } reg) continue;
             foreach (var page in reg.CreatePageDefinitions())
@@ -531,16 +518,16 @@ public sealed class FeatureManager
     }
 
     private IPageRegistration? ResolveRegistration(string pageKind, WorkspaceRuntime ctx)
-        => FeatureCatalog.Instance.TryGetPageRegistrationType(pageKind, out var regType) && regType is not null
+        => Catalog.TryGetPageRegistrationType(pageKind, out var regType) && regType is not null
             ? Instantiate(regType, ctx) as IPageRegistration
             : null;
 
     // ── Tab creation ──────────────────────────────────────────────────────
 
-    public bool IsRegistered(string pageKind) => FeatureCatalog.Instance.HasPageKind(pageKind);
+    public bool IsRegistered(string pageKind) => Catalog.HasPageKind(pageKind);
 
     /// <summary>The version of the feature assembly that owns <paramref name="pageKind"/>, or null if unknown.</summary>
-    public string? GetPageKindVersion(string pageKind) => FeatureCatalog.Instance.GetPageKindVersion(pageKind);
+    public string? GetPageKindVersion(string pageKind) => Catalog.GetPageKindVersion(pageKind);
 
     public Page? CreateTab(string pageKind, WorkspaceRuntime workspace,
                            Dictionary<string, string>? pageParams = null)
@@ -581,7 +568,7 @@ public sealed class FeatureManager
     public IReadOnlyList<(string PageKind, IReadOnlyList<PageParameter> Parameters)> GetPageCatalog(WorkspaceRuntime ctx)
     {
         var result = new List<(string, IReadOnlyList<PageParameter>)>();
-        foreach (var pageKind in FeatureCatalog.Instance.PageKinds())
+        foreach (var pageKind in Catalog.PageKinds())
             if (ResolveRegistration(pageKind, ctx) is { } reg)
                 result.Add((pageKind, reg.Parameters));
         return result;
@@ -590,7 +577,7 @@ public sealed class FeatureManager
     public IReadOnlyList<string> GetPageKindsForConfig(Type configType, WorkspaceRuntime ctx)
     {
         if (configType.FullName is not { } fn) return [];
-        var regTypes = FeatureCatalog.Instance.ResolvePageRegistrationsForConfig(fn);
+        var regTypes = Catalog.ResolvePageRegistrationsForConfig(fn);
         var pageKinds = new List<string>(regTypes.Count);
         foreach (var regType in regTypes)
             if (Instantiate(regType, ctx) is IPageRegistration reg)

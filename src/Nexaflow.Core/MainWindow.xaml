@@ -977,6 +977,14 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
+                                        <!-- The workspace the message is about: one person, one inbox, every context in it. -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,3"
+                                                    Visibility="{Binding Workspace, Converter={StaticResource NullToVis}}">
+                                            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                     Fill="{Binding Workspace.Color, Converter={StaticResource ColorStringToBrush}}"/>
+                                            <TextBlock Text="{Binding Workspace.Name}" Margin="5,0,0,0" FontSize="10"
+                                                       Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
                                         <TextBox Text="{Binding Title}"
                                                  Style="{StaticResource SelectableText}"
                                                  Foreground="{StaticResource TextBrush}"
@@ -1166,11 +1174,20 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <TextBlock Grid.Column="1" Text="{Binding Title}"
-                               FontSize="13" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextBrush}"
-                               TextWrapping="Wrap"
-                               VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <!-- The workspace the message is about, when it is about one. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,3"
+                                    Visibility="{Binding Workspace, Converter={StaticResource NullToVis}}">
+                            <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                     Fill="{Binding Workspace.Color, Converter={StaticResource ColorStringToBrush}}"/>
+                            <TextBlock Text="{Binding Workspace.Name}" Margin="5,0,0,0" FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Title}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
 
                     <Button AutomationProperties.AutomationId="Toast_Dismiss" Grid.Column="2" VerticalAlignment="Top"
                             Style="{StaticResource TopBarAction}"

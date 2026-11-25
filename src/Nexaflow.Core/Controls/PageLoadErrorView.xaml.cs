@@ -21,13 +21,19 @@ namespace Nexaflow.Core.Controls;
 public partial class PageLoadErrorView : UserControl
 {
     private readonly string _details;
+    private readonly ExternalDependencyRegistry _dependencies;
+    private readonly Action _showComponents;
 
-    public PageLoadErrorView() : this(null, null) { }
-
-    /// <param name="page">The page that failed, for its title and kind. Null in design/test construction.</param>
+    /// <param name="page">The page that failed, for its title and kind; null when there is none to name.</param>
     /// <param name="error">The exception the content factory threw.</param>
-    public PageLoadErrorView(Page? page, Exception? error)
+    /// <param name="dependencies">The session's components, any missing one of which is named as the likely cause — given by
+    /// the session's <see cref="PageViews"/>, which makes this view.</param>
+    /// <param name="showComponents">Opens the About page, which lists every component, in a window open on the session.</param>
+    /// <param name="logPath">The crash log the failure was recorded in — by the <see cref="PageViews"/> that caught it.</param>
+    public PageLoadErrorView(Page? page, Exception? error, ExternalDependencyRegistry dependencies, Action showComponents, string logPath)
     {
+        _dependencies   = dependencies;
+        _showComponents = showComponents;
         InitializeComponent();
 
         var what = Describe(page);
@@ -39,13 +45,7 @@ public partial class PageLoadErrorView : UserControl
 
         ShowLikelyCauses();
 
-        // This view exists because the failure was CAUGHT — so it never reaches the dispatcher handler, and
-        // until now nothing wrote it down. "Also written to …" was simply untrue, and the consequence was
-        // real: a customer reported a PDF tab failing to open and their crash log had no record of it.
-        // Record it here, where the failure actually surfaces.
-        if (error is not null) CrashLog.Instance.Record(error);
-
-        LogPathText.Text = Str.Format("Shell.PageError.LogPathFormat", CrashLog.Instance.CurrentPath);
+        LogPathText.Text = Str.Format("Shell.PageError.LogPathFormat", logPath);
     }
 
     private static string? Describe(Page? page)
@@ -76,7 +76,7 @@ public partial class PageLoadErrorView : UserControl
         IReadOnlyList<ExternalDependencyReport> blocking;
         try
         {
-            blocking = ExternalDependencyRegistry.Instance.Reports.Where(r => r.IsBlocking).ToList();
+            blocking = _dependencies.Reports.Where(r => r.IsBlocking).ToList();
         }
         catch { return; }
 
@@ -94,10 +94,7 @@ public partial class PageLoadErrorView : UserControl
 
     private void OnComponentsClick(object sender, RoutedEventArgs e)
     {
-        // Via the interface, like AboutControl's reset button: the concrete ShellServices implements the
-        // options members explicitly.
-        IShellServices? shell = WorkspaceManager.Instance.FirstActive?.ShellServices;
-        try { shell?.OpenOptions("about"); }
+        try { _showComponents(); }
         catch { }
     }
 }

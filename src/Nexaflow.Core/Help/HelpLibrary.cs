@@ -17,16 +17,15 @@ namespace Nexaflow.Core.Help;
 /// Reads through <see cref="LanguageManager"/>, so a page the active language lacks comes from English, and the lot is
 /// forgotten when the language changes. Nothing is read until Help is first opened.
 /// </para>
+/// <para>
+/// The session makes one over its language (<see cref="Services.ShellHost"/>) and hands it to the Help page's registration,
+/// by the feature injection, and to every runtime's assistant, as the tools that read it.
+/// </para>
 /// </summary>
 internal sealed partial class HelpLibrary
 {
     public const string IndexTopic = "index";
     private const string IndexName = "Nexaflow.Core/help/index.md";
-
-    private static HelpLibrary? _shared;
-
-    /// <summary>The process's library, over the app's language packs.</summary>
-    public static HelpLibrary Shared => _shared ??= new HelpLibrary(LanguageManager.Instance);
 
     private readonly LanguageManager _language;
     private readonly object _gate = new();

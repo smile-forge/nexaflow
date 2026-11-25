@@ -195,14 +195,15 @@ public partial class PaneView : UserControl
 
     private void UpdateContent()
     {
-        var page = Pane?.ActivePage;
+        var pane = Pane;
+        var page = pane?.ActivePage;
 
         // Read before ViewOf, which is the thing that would build it: no view yet means this page has never been shown,
         // and only that first show earns the settle-in animation.
-        var firstShow = page is null || PageViews.Instance.Shown(page) is null;
+        var firstShow = page is null || pane!.Views.Shown(page) is null;
 
         // Never throws: a page whose view-model or view could not be made is drawn by the panel that says why.
-        var content = page is null ? null : PageViews.Instance.ViewOf(page);
+        var content = page is null ? null : pane!.Views.ViewOf(page);
 
         if (ReferenceEquals(ContentHost.Content, content)) return;
 

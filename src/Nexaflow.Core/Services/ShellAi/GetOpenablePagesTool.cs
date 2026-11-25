@@ -9,7 +9,9 @@ namespace Nexaflow.Core.Services.ShellAi;
 /// The kinds of page <c>open_page</c> can open, with the parameters each takes — asked for when the assistant is
 /// about to open one, rather than carried in every request.
 /// </summary>
-public sealed class GetOpenablePagesTool(WorkspaceRuntime workspace) : IClientTool
+/// <param name="workspace">The runtime the pages would open in.</param>
+/// <param name="features">The session's feature system, which knows the pages the runtime can open.</param>
+public sealed class GetOpenablePagesTool(WorkspaceRuntime workspace, FeatureManager features) : IClientTool
 {
     public string Name => "get_openable_pages";
 
@@ -22,7 +24,7 @@ public sealed class GetOpenablePagesTool(WorkspaceRuntime workspace) : IClientTo
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        var catalog = FeatureManager.Instance.GetPageCatalog(workspace);
+        var catalog = features.GetPageCatalog(workspace);
         var text = new StringBuilder();
         foreach (var (kind, parameters) in catalog.OrderBy(c => c.PageKind, StringComparer.OrdinalIgnoreCase))
         {

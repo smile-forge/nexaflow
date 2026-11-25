@@ -210,6 +210,16 @@ public class OptionsJourneyTests : OptionsOverlayJourney
         Check("And on again", () => SetToggle("ShellKeepWindowReadyToggle", true));
         Check("Not starting with Windows takes the choice away again", () =>
             SetToggle("ShellPrestartToggle", false) && WaitForId("ShellKeepWindowReadyToggle", 1) is null);
+
+        // A workspace left stays ready for a while, so going back to it is instant: five minutes until the user picks another time.
+        Check("A workspace left stays ready five minutes until the user picks another time", () =>
+            WaitForId("ShellDormantWorkspaceCombo", 5)?.AsComboBox().SelectedItem?.Text == "5 minutes");
+        Check("Another time can be picked", () =>
+        {
+            var combo = WaitForId("ShellDormantWorkspaceCombo", 5)?.AsComboBox();
+            combo?.Select("15 minutes");
+            return combo?.SelectedItem?.Text == "15 minutes";
+        });
     }
 
     /// <summary>
@@ -405,8 +415,8 @@ public class OptionsJourneyTests : OptionsOverlayJourney
     /// right-click menu rather than the chrome's Options button: its identity, its startup tabs, the AI ability grid, and every
     /// <c>[WorkspaceScopedConfig]</c> editor such as Console and Projects.
     /// <para>
-    /// <b>Never pressed:</b> a workspace in the switcher (switching — even to this workspace — reconfigures the runtime
-    /// and closes every tab), the add-column panel's Add (it needs a configured provider and model), and the pickers'
+    /// <b>Never pressed:</b> a workspace in the switcher (switching moves the window to another workspace and closes its
+    /// tabs — <c>WorkspaceLifetimesJourneyTests</c> drives it), the add-column panel's Add (it needs a configured provider and model), and the pickers'
     /// OK (it needs something picked). The app runs against a throwaway config dir, so what the panel applies on the
     /// way out is discarded with it.
     /// </para>

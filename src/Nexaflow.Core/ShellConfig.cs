@@ -53,6 +53,14 @@ public sealed class ShellConfig : IFeatureConfig
     [ConfigDisplayName("Shell.Config.Shell.KeepWindowReady")]
     public bool KeepWindowReady { get; set; } = true;
 
+    /// <summary>
+    /// How many minutes a workspace stays dormant once its last window has gone — switched away from, or closed — before it ends:
+    /// meanwhile its providers are back in the pool, but coming back to it is instant, its tabs as they were. Zero ends it at once.
+    /// Read each time a workspace turns dormant, so a change applies from the next.
+    /// </summary>
+    [ConfigDisplayName("Shell.Config.Shell.DormantWorkspaceMinutes")]
+    public int DormantWorkspaceMinutes { get; set; } = 5;
+
 
     /// <summary>
     /// When true, a theme's animated backdrop (the <c>Scene.{Region}</c> layer a <c>ThemedRegion</c>
@@ -73,7 +81,7 @@ public sealed class ShellConfig : IFeatureConfig
 
     /// <summary>
     /// Safety logging: while it is on, each session's startup and shutdown, and every load or activation failure the shell
-    /// meets, are written to a file of their own under <c>%LOCALAPPDATA%\Smile\nexaflow\logs</c> (<c>ShellSafetyLog</c>), and
+    /// meets, are written to a file of their own under <c>%LOCALAPPDATA%\Smile\nexaflow\logs</c> (<c>SessionLogProvider</c>), and
     /// the AI host keeps its log beside them. Off by default. Applies live; the AI host follows the next time it starts.
     /// </summary>
     [ConfigDisplayName("Shell.Config.Shell.SafetyLogging")]

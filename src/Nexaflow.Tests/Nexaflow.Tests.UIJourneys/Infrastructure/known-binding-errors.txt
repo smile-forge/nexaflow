@@ -1,7 +1,7 @@
 # Binding errors the app is known to report, which a journey lets pass.
 #
 # The app, under --uiTest, writes each binding error WPF reports to binding-errors.log in its config root, one
-# signature per line (Nexaflow.Core.Services.BindingErrorLog). UITestBase fails a journey on any signature not
+# signature per line (Nexaflow.Core.Services.Logging.BindingErrorLogProvider). UITestBase fails a journey on any signature not
 # listed here, so a binding that names a member its object no longer has is caught where it is shown.
 #
 # Copy a signature exactly as the failure prints it, with a comment above it saying why it cannot be fixed yet.

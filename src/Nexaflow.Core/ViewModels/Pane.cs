@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 
 namespace Nexaflow.Core.ViewModels;
@@ -7,10 +8,14 @@ namespace Nexaflow.Core.ViewModels;
 /// <summary>
 /// A pane = the strip of pages on one side of the shell plus the currently active page.
 /// The TabStrip and BreadcrumbBar are views onto a Pane; the Pane is not aware of them.
-/// One Pane per window today; the future SplitPaneNode wraps two.
+/// A window has one, or two under a <see cref="SplitPaneNode"/>.
 /// </summary>
-public partial class Pane : ObservableObject, IPaneNode
+/// <param name="views">The session's page views, which the pane's view draws its active page with.</param>
+public partial class Pane(PageViews views) : ObservableObject, IPaneNode
 {
+    /// <summary>The view each page is drawn with: the session's, so a page moved to another pane or window keeps its own.</summary>
+    public PageViews Views { get; } = views;
+
     public ObservableCollection<Page> Pages { get; } = [];
 
     [ObservableProperty] private Page? _activePage;

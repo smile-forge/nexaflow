@@ -65,26 +65,35 @@ and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red b
 
 There are nesting scopes. **Getting a thing's scope wrong is the easiest way to introduce a bug**, so this is the canonical reference for what is central to the process vs tied to a `Workspace` (saved config) vs a `WorkspaceRuntime` (runtime) vs per-feature vs per-window/tab.
 
-The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved, shared configuration shown in the dropdown — name/colour/icon, default + last-session tabsets, AI ability grid, persona, ribbon layout, provider configs, conversations; a **`WorkspaceRuntime`** (`Models/WorkspaceRuntime.cs`) is a runtime grouping of one-or-more window frames all running ONE Workspace. App/IPC launch always creates a *new* WorkspaceRuntime (launch ×3 ⇒ 3 runtimes, possibly all on one Workspace); tear-off / "open in new window" reuse the *same* runtime; switching the dropdown reconfigures the current runtime in place (`WorkspaceManager.SwitchWorkspace`); closing a runtime's last window disposes it.
+The model has three lifetimes, nested. The **session** (`ShellHost`, `Services/ShellHost.cs`) is the process — from sign-in when Nexaflow starts with Windows, otherwise from the first window to the last — and owns everything every workspace shares: one person works across several contexts, so the file system, its watches, the AI host and the inbox are the session's. A **`Workspace`** (`Models/Workspace.cs`) is the saved, shared configuration shown in the dropdown — name/colour/icon, default + last-session tabsets, AI ability grid, persona, ribbon layout, provider configs, conversations. A **`WorkspaceRuntime`** (`Models/WorkspaceRuntime.cs`) is that workspace live: **at most one per `Workspace`** (`WorkspaceRuntimes`), shared by every window that shows it.
+
+A launch of a workspace already live opens a window on its runtime; tear-off and "open in new window" join it too. Switching a window's dropdown moves *that window* to the other workspace's runtime and leaves its old workspace's other windows as they are. A runtime whose last window goes turns **dormant** — its providers back in the pool, so local models nothing else uses unload, while its configuration, assistant and feature instances stay — and the next window to come back resumes it at once, its tabs as they were. It ends after `ShellConfig.DormantWorkspaceMinutes` (five by default), or at once when its workspace is deleted. One whose background jobs still run stays active until they finish: the work is the person's, and needs the workspace's models.
 
 > **Frozen names:** the on-disk and IPC strings `workcontexts` (config name), `Contexts\` (data folder) and
 > `--context` (command-line/IPC flag) are compat contracts and never change. `Profile` and `WorkContext` are never
 > type or member names.
 
-### Central — one instance per process
+### Central — the session (one per process)
 
-`*.Instance` singletons created during `App.InitializeApp`, before any window:
+`ShellHost` builds the session in three stages — what the first window needs (its constructor), what follows the first frame (`FirstWindowDrawn`), what runs in the background meanwhile (`StartBackground`) — and ends it in reverse (`DisposeAsync`): every workspace runtime, the watches, the models held ahead, the AI host. It names no UI toolkit: the UI thread (`IUiThread`), the clipboard and the folder watcher's window come from the app in a `ShellPlatform`, and `SessionLayerWpfTests` keeps the session layer so. What it has not yet handed over is still reached as a `*.Instance` singleton; `CoreSingletonRatchetTests` counts those left.
 
 | Singleton | Owns | NOT responsible for |
 |-----------|------|---------------------|
-| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-workspace config in that workspace's folder | — |
-| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — creating one loads nothing; cooled + disposed on last release | Holds provider **configs** — those live on the saved `Workspace` |
+| `ConfigManager` | Base data path; **global** config registry. `Register(cfg,name)` = global config; `LoadFrom`/`SaveTo(dir,…)` = per-workspace config in that workspace's folder; what rules on a setting the app does not decide alone (`AddRulings`). One per session, made by `ShellHost` over this launch's folders (`AppDataFolders` — `%AppData%` and `%LocalAppData%\Smile\nexaflow`, or the root `NEXAFLOW_CONFIG_DIR` sets apart) and handed by constructor to whatever reads or writes a config: the feature and provider systems, the saved workspaces — which list each `Workspace` in it, so its folders and its own configs resolve — every runtime (`RuntimeSessionServices`) and window (`WindowServices`), whose Options, Configure and wizard view-models are given it | Writing down a stored value it could not read — it logs it as a fault (`ILogger<ConfigManager>`), which the crash log keeps |
+| `ShellLogging` (`Services/Logging/`) | The process's logs: one `ILoggerFactory` (Microsoft.Extensions.Logging) over the destinations each entry reaches, each keeping to its own level, file and format — the crash log (`CrashLogProvider`: `Error` and above, always, a file a day `crash-yyyy-MM-dd.log` in the config root, kept 10 days, 8 MB a day, a burst of identical faults written as five traces and a count), the session's log (`SessionLogProvider`: `Information` and above while Options → Shell → Enable safety logging is on, one `shell-<time>-<pid>.log` a session under `%LocalAppData%\Smile\nexaflow\logs`, which the AI host logs beside; what startup logs before the shell config loads is held in memory, then written out or dropped), the binding errors WPF reports, under `--uiTest` only (`BindingErrorLogProvider` → `binding-errors.log` in the config root, fed by the app's `BindingErrorTrace`), and the startup profiler, under `--timing` only (`StartupTimings`, timing the milestones logged through `StartupMilestones`). Made first by `App.OnStartup` from `AppDataFolders` — before the exception hooks, the single-instance guard and every startup step — held by the app and its fault handlers, and handed to `ShellHost` (`ShellHostOptions.Logging`), which hands each service it makes an `ILogger<T>`, or the factory, by constructor; every window (`WindowServices.Logging`) and runtime (`RuntimeSessionServices.Logs`) is given it, and a feature whose constructor asks for an `ILogger<T>` is given one by the feature injection | Whether a fault the UI thread's handler caught is still worth handling — `DispatcherFaultPolicy` decides that; the logs only record |
+| `ProviderManager` | Loads provider **assemblies** by file name; records provider/config **types**; owns the shared `ActivityManager`; owns the **global ref-counted provider instance pool** (`AcquireProviderSet`/`ReleaseProviderSet`). Each `ILlmProvider` is **model-bound** (model injected via `ProviderModel`): one *capability* instance per (type+config) for model enumeration, plus one *execution* instance per (type+config+**model**) the grid assigns — creating one loads nothing; cooled + disposed on last release. One per session, made by `ShellHost` with the app-wide services a provider may take, and handed to every window (`WindowServices`) and runtime (`RuntimeSessionServices`; the runtime carries it as `WorkspaceRuntime.ProviderPool`) | Holds provider **configs** — those live on the saved `Workspace` |
 | `ModelResidency` | Which pooled models stay loaded: those `ModelPreloadConfig` (**global**) loads ahead, warmed after the first window draws; any other let go once idle. Counts each use in `ModelUseHistory` — **machine-local**, `model-use.json` in the AI folder beside the models, not per workspace: the models are loaded once for every workspace, and what is worth loading ahead depends on this machine | Loading a model before first paint |
 | `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
-| `WorkspaceManager` | The `Workspaces` list (dropdown source) + the live `WorkspaceRuntime`s; create/switch/reconfigure/dispose lifecycle | — |
-| `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances **per (Type, WorkspaceRuntime)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
-| `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
-| `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
+| `WorkspaceManager` | The `Workspaces` list (dropdown source): saved workspaces — add, clone, rename, delete, persist. Made by the session over the saved `WorkspacesConfig` and handed to every window (`WindowServices.SavedWorkspaces`) and runtime (`RuntimeSessionServices`), and through them to the Options and Configure pages by their view-models | Live runtimes (`WorkspaceRuntimes`) |
+| `WorkspaceRuntimes` | The live workspaces: one runtime per `Workspace`, opened, resumed, made dormant and ended | Building a runtime (`WorkspaceRuntimeFactory`) |
+| `WorkspaceRuntimeFactory` | Builds every runtime from the session's services (`RuntimeSessionServices`), and ends those still running when the session ends | — |
+| `FolderActivity` | The session's file and folder watches — one per path, however many workspaces follow it — and its busy folders, so a folder being changed shows its wait in every workspace | — |
+| `FeatureManager` | The feature system, made by the session over its `FeatureCatalog`, whose index it builds as it is made: holds the features' global configs and the app-wide tools they are given (`ProvideTool`), and builds feature instances on demand, kept in each runtime's `FeatureScope`. Handed to every window (`WindowServices`) and runtime (`RuntimeSessionServices`; the runtime carries it as `WorkspaceRuntime.FeatureManager`), and through them to what opens pages, offers handlers or lists configs — an Options page by its view-model (`ConfigPageModels`) | File-system contracts (those go to `FileSystemFeatureRegistry`) |
+| `FeatureCatalog` | The discovery engine, one per session (`ShellHost.Catalog`): a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
+| `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. The session makes it, points `Str` at it, and hands it to every window (`WindowServices`) and runtime (`RuntimeSessionServices`). A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
+| `HelpLibrary` | The help pages, read through the `LanguageManager`. The Help page's registration is given it by the feature injection (an app-wide tool, `FeatureManager.ProvideTool`); every runtime's assistant gets the tools that read it (`RuntimeSessionServices.HelpTools`) | — |
+| `ExternalDependencyRegistry` | The third-party components features declare (`IExternalDependency`), probed off the UI thread and cached; each finished probe announced on the session's `IUiThread`. A declaration of the session's own takes what it is judged from in its constructor — what Nexaflow's own models need, the AI host's reading of its runtime (`AiHostReading`) — and the registry builds it with the services the session made it with. Handed to every window — for About and the panel a page that could not be made is drawn with — and every runtime's `ShellServices`, which answers a feature's `GetDependencyStatus` | Installing a component |
+| `PageViews` | The view each open page is drawn with, made on first show and kept until its tab closes, so a tab moved between panes or windows keeps it. Made by the app (`ShellPlatform.Views` — only the app knows the views): every window's panes draw with it, every runtime's `ShellServices` lets a closed page's go | The page's view-model (the `Page` holds it) |
 | `FileMapManager`, `ExternalAppRegistry`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 | `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`LocalAiFolder`; `NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume by the AI host SDK's store | — |
 
@@ -103,9 +112,9 @@ Every config (global or per-workspace) persists as `…\{configName}\config_{Ass
 2. A shape change the carry-over can't express (a rename or restructure) opts into **`IConfigMigration`** — a tiny one-method interface mirrored in `Features.Common` and `Providers.Common` (kept parallel so the layering rule holds; Core checks both). Its `MigrateFrom(previousJson, previousVersion)` runs right after the carry-over, with the raw old JSON in hand.
 3. The result is rewritten under the current version and the stale files are deleted (**write-then-delete**, so a failed write never loses the prior data).
 
-Every load is lenient per value, not only a migration's. A stored value that no longer reads as its property's type — written by a build where that property had another shape, such as an enum that became a string — is skipped, so the property keeps its default, and is recorded in the crash log (`ConfigManager.FaultLog`). A dev build and the installed release share one `config_{AssemblyVersion}.json` while their versions match, so without this either could stop the other from starting. A config implementing `IConfigMigration` is handed the raw old JSON, so recovering such a value during a migration is the hook's job and nothing is recorded.
+Every load is lenient per value, not only a migration's. A stored value that no longer reads as its property's type — written by a build where that property had another shape, such as an enum that became a string — is skipped, so the property keeps its default, and is logged as a fault through the logger the session's `ConfigManager` is made with, which the crash log keeps. A dev build and the installed release share one `config_{AssemblyVersion}.json` while their versions match, so without this either could stop the other from starting. A config implementing `IConfigMigration` is handed the raw old JSON, so recovering such a value during a migration is the hook's job and nothing is recorded.
 
-A file that cannot be read **at all** — corrupt JSON, or one the process cannot open — is the same principle a file wide: the config keeps whatever was recovered before the read failed and defaults for the rest, the fault is recorded, and the name is tracked in `GetUnreadableConfigs` (and in `GetDefaultedConfigs`, which is what it now holds). Corrupt content is renamed aside as `config_{Version}.json.unreadable-{stamp}`, so the next launch starts from a clean file with the damaged bytes still there to recover by hand; a file that merely could not be opened is left alone, since its data is probably good. An unreadable `workcontexts` costs the workspace **list**, not the workspaces: `WorkspaceManager.RecoverWorkspacesFromDataFolders` rebuilds it from the folders under `Contexts\` — each folder name is a workspace name — so every workspace comes back pointing at its own conversations, notes, ribbon and provider config, with a fresh symbol and colour (those lived only in the lost file). `App.InitializeApp` runs that before the provider scan, persists it at once, and reports what happened through `MessageCenter`; the setup wizard then opens to re-verify.
+A file that cannot be read **at all** — corrupt JSON, or one the process cannot open — is the same principle a file wide: the config keeps whatever was recovered before the read failed and defaults for the rest, the fault is recorded, and the name is tracked in `GetUnreadableConfigs` (and in `GetDefaultedConfigs`, which is what it now holds). Corrupt content is renamed aside as `config_{Version}.json.unreadable-{stamp}`, so the next launch starts from a clean file with the damaged bytes still there to recover by hand; a file that merely could not be opened is left alone, since its data is probably good. An unreadable `workcontexts` costs the workspace **list**, not the workspaces: `WorkspaceManager.RecoverWorkspacesFromDataFolders` rebuilds it from the folders under `Contexts\` — each folder name is a workspace name — so every workspace comes back pointing at its own conversations, notes, ribbon and provider config, with a fresh symbol and colour (those lived only in the lost file). `ShellHost` runs that before the provider scan, persists it at once, and reports what happened through `MessageCenter`; the setup wizard then opens to re-verify.
 
 Migrated configs are tracked apart from brand-new ones (`GetMigratedConfigs` vs `GetDefaultedConfigs`). The first-run/update **setup wizard** (`SetupWizardViewModel.Build`) therefore re-asks for a global mandatory config only when it is genuinely new **or** its migrated data still fails the required-field check (`AreRequiredPropertiesSatisfied`) — never for information already on disk; the workspace/provider/model flow is skipped because the migrated per-workspace configs keep `IsWorkspaceConfigured` true. An **unreadable** config is the one case that overrides that: the wizard leads with what was lost and recovered, and runs the workspace/provider/model flow whether or not the workspace still looks configured, because what is there is exactly what the user is being asked to confirm. File-type mappings (`FileMapManager.SyncBundledDefaults`) follow the same spirit through a `_defaults.json` hash manifest: a changed bundled default refreshes mappings the user hasn't touched and leaves customized ones alone, fast-pathing when the bundle is unchanged.
 
@@ -126,25 +135,27 @@ A `Workspace` (`Core/Models/Workspace.cs`) is a named, themed, saved configurati
 | workspace-scoped feature configs | Any `IFeatureConfig` marked `[WorkspaceScopedConfig]` (saved via `WorkspaceManager.SaveWorkspaceScopedConfig`) | `<configName>/` |
 | `DefaultTabs` / `LastSessionTabs` / `SuppressSessionRestore` | The tabset a fresh window opens with; the last session's tabset when it differed (a toast offers one-click restore); and the Configure panel's opt-out, which stops that tabset being recorded at all and drops any already held | inline in `workcontexts` |
 
-### Per-`WorkspaceRuntime` — runtime (one per app/IPC launch; can have many windows)
+### Per-`WorkspaceRuntime` — live (one per live `Workspace`; can have many windows)
 
-A `WorkspaceRuntime` (`Core/Models/WorkspaceRuntime.cs`) points at one `Workspace` and owns the live per-session services, built by `WorkspaceManager.CreateWorkspace` / rebuilt in place by `SwitchWorkspace`/`ReconfigureWorkspace`:
+A `WorkspaceRuntime` (`Core/Models/WorkspaceRuntime.cs`) runs one `Workspace` and owns its live services. `WorkspaceRuntimeFactory` builds it wired — assistant, shell services, file system, feature scope — and started; `WorkspaceRuntimes` holds it and moves it through its states (`WorkspaceRuntimeState`: Starting → Active ⇄ Dormant → Ended, each raised as `StateChanged`); `DisposeAsync` ends it, letting go of what it holds in order:
 
 | Member on `WorkspaceRuntime` | What it scopes |
 |------------------------------|----------------|
-| `Providers : ProviderSet` | The live provider instances **acquired from the pool** for this runtime (deduped by config process-wide); released when the runtime is reconfigured/disposed |
-| `AiService : AIService` | The agent loop + AI-input-bar routing — resolves each `AiAbility` through the workspace's assignments + this runtime's providers; reads/writes the workspace's conversations |
-| `ShellServices : ShellServices` | This runtime's **window + tab registry** (every window in the runtime). Stable for the runtime's life — a workspace switch reconfigures internals, not this object |
+| `Providers : ProviderSet` | The live provider instances **acquired from the pool** for this runtime (deduped by config process-wide); released when it turns dormant or ends, acquired again when it resumes |
+| `AiService : AIService` | The agent loop + AI-input-bar routing — resolves each `AiAbility` through the workspace's assignments + this runtime's providers; reads/writes the workspace's conversations. Kept while dormant, its providers unhooked |
+| `ShellServices : ShellServices` | This runtime's **window + tab registry** (every window that shows it). Stable for the runtime's life |
 | `Vfs : LocationFileSystem` | This runtime's **file system**: the shared `VirtualFileSystem` plus the remote locations this runtime has connected ([remote-locations.md](remote-locations.md)). Stable for the runtime's life |
+| `Features : FeatureScope` | The feature instances built for it, `[FeatureService]` ones included; let go of when it ends, after which nothing more is built for it |
 
 The `IShellServices` / `IAIService` / `IVirtualFileSystem` injected into a feature are the **active runtime's** instances (`FeatureManager` resolves them per `WorkspaceRuntime`). So "open a tab", "ask the AI" and "read that file" always act within exactly one runtime — and only the runtime's file system can see the locations it connected, which `VirtualFileSystem.Instance` cannot.
 
-The Options and Manage-AI overlays are **modal** — they block switching. A live workspace can't be deleted, and there
-is always at least one workspace.
+The Options and Manage-AI overlays are **modal** — they block switching. A workspace a window shows can't be removed from
+the list; deleting it from its own window moves the window to another workspace first, and its runtime ends rather than
+turning dormant. There is always at least one workspace.
 
 ### Per-window / per-tab
 
-- A **window** (`IWindowHost`) registers into its runtime's `ShellServices`. Several windows can share one runtime (tear-off / "open in new window"); switching the dropdown reconfigures the runtime **in place** for all of its windows (`SwitchWorkspace` — tabs close, providers/AIService rebuilt against the target workspace).
+- A **window** (`IWindowHost`) registers into its runtime's `ShellServices`. Several windows can share one runtime (tear-off / "open in new window"). Switching the dropdown moves *this* window to the other workspace's runtime: it joins that runtime first — so the session is never without a window — then leaves its own, whose tabs in it close; when it was the last window there, the workspace records its session and turns dormant. The window then shows the workspace it joined: the session that workspace left, when it was dormant; its startup tabs otherwise.
 - A **`Page`** (tab) is built by `FeatureManager.CreateTab(pageKind, runtime, params)` → the matching `IPageRegistration.CreatePageDefinition`. Its view-model is made lazily by `ViewModelFactory` and lives for the life of the tab; the view that draws it is Core's (`PageViews`), found by `[ViewFor]`.
 
 ### Per-feature (assembly)
@@ -161,22 +172,24 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), the launch arguments (`LaunchRequest`: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow"), and the single-instance IPC that forwards a later launch (a new window = a new runtime; an `--open` path goes to the one workspace with windows open, else the first) |
+| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`), applies the appearance settings, builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), the launch arguments (`LaunchRequest`: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow"), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
+| `Services/ShellHost.cs` | The session's composition root: builds, in stages, and owns everything every workspace shares, and ends it in reverse |
+| `Services/WorkspaceRuntimes.cs` | The live workspaces: one runtime per `Workspace`, opened, resumed, made dormant and ended; a window's switch moves it between them |
 | `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
 | `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`/`Vfs`) |
 | `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue |
 | `Services/Agent/ClientBlockParser.cs`, `ParsedAssistantTurn.cs` | The assistant wire-protocol parser the agent loop reads fenced `client_tool` blocks with. Core-only, so it lives in Core — not a feature contract |
-| `Services/WorkspaceManager.cs` | Singleton: the `Workspaces` list + live `WorkspaceRuntime`s; `Initialize`/`CreateWorkspace`/`SwitchWorkspace`/`ReconfigureWorkspace`/`NotifyWindowClosed`, `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
-| `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); an execution instance is followed by `ModelResidency`, which loads its model ahead or lets it go idle, and cools with its pool lifetime |
+| `Services/WorkspaceManager.cs` | One per session, made by `ShellHost`: the saved `Workspaces` list; `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
+| `ProviderManager.cs` | One per session, made by `ShellHost`: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); an execution instance is followed by `ModelResidency`, which loads its model ahead or lets it go idle, and cools with its pool lifetime |
 | `ProviderSet.cs` | A runtime's acquired provider **instances** + the workspace's configs + assembly map + pool keys |
 | `Services/AIService.cs` | `IAIService` impl — **per-`WorkspaceRuntime`**: provider registry, ability→model resolution, the agent loop, conversation history |
 | `AI/AiConfig.cs` | Per-workspace AI ability config (`Columns` + each ability's `AbilityChain` of columns in `Assignments`); rendered by `AiAbilityGridControl` |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
 | `ViewModels/ShellViewModel.cs` | Per-window VM: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open) |
 | `Services/ShellServices.cs` | `IShellServices` impl — **per-`WorkspaceRuntime`** (not an app-level singleton). Owns that runtime's window + tab registry, tearoff/cross-window moves, file watching, session capture/restore, window positioning |
-| `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `WorkspaceRuntime` with scoped `IShellServices` + `IAIService` (`EvictWorkspace` drops them on reconfigure). File-system contracts are **not** here (see below) |
+| `FeatureManager.cs` | One per session, made by `ShellHost`. Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `WorkspaceRuntime` with scoped `IShellServices` + `IAIService`, kept in the runtime's `FeatureScope` until it ends. File-system contracts are **not** here (see below) |
 | `Services/FeatureCatalog.cs` | The discovery engine behind `FeatureManager`. Persists the per-assembly type index to `…\Smile\nexaflow\discovery\catalog.json`, stamped with the app version **and** the feature-DLL set it was built from (`FeatureCatalogStamp`: name + length + write time per `Nexaflow.Features.*.dll` plus Core). Both must still match for the index to be trusted, and validating costs one directory enumeration with no assembly loads — so a same-version rebuild forces a rescan instead of silently serving an index that no longer describes the DLLs on disk (a stale index would render every newer page kind as an empty tab). Resolving a type loads + **activates** its assembly on demand (registering that assembly's global configs / archive handlers / theme contributions). A post-paint background warm-up activates the rest |
-| `Services/StartupTimings.cs` | Opt-in startup profiler (`--timing` flag / `NEXAFLOW_STARTUP_TIMING=1`); writes a milestone breakdown + `FIRST_WINDOW_MS` / `WINDOW_ON_DEMAND_MS` to stderr. Zero cost when off |
+| `Services/StartupTimings.cs` | Opt-in startup profiler (`--timing` flag / `NEXAFLOW_STARTUP_TIMING=1`): a destination of the process's logs (`ShellLogging`) that times each startup milestone the shell logs (`StartupMilestones.StartupMilestone`); writes a milestone breakdown + `FIRST_WINDOW_MS` / `WINDOW_ON_DEMAND_MS` to stderr. Not made when off — the milestones then reach only the session's log |
 | `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFileCreateWithOptions`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
 | `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-workspace** (constructed with the workspace's own folder, shared by its runtimes), not a single global `ribbon.json`. Bundled defaults live in `Ribbon/default-ribbon.json` (`LoadDefaults`) |
 | `Services/WindowManager.cs` | Static DPI/monitor/cursor maths only — tab/window lifecycle is `ShellServices` |
@@ -266,7 +279,7 @@ a cloud API or a local server like Ollama — or owned, where Nexaflow is the wh
 run in the **AI host** (`src/Nexaflow.AiHost/`): `Nexaflow.AiHost.exe` beside the app, started on the first request
 by the app's one `AiHostClient`, bound to the kill-on-close job, and replaced when it dies or stops answering
 ([local-ai.md](local-ai.md)). The provider for them, "Nexaflow" (`Nexaflow.Providers.AiHost`), gets the client the way
-any provider gets an app-wide service: `ProviderManager.Initialize` is handed the services, and a provider constructor
+any provider gets an app-wide service: the session's `ProviderManager` is made with the services, and a provider constructor
 parameter of a service's type receives it. A request says how urgent it is (`LlmUrgency`), which the host schedules
 the GPU by. A new workspace's setup asks who runs its AI where the machine can run an owned model
 (`WorkspaceAiDefaults`).
@@ -580,6 +593,9 @@ public sealed class MyConfig : IFeatureConfig
 The title and each label are string-table keys, so the section reads in the active language — [localization.md → Options](localization.md#options).
 
 For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]` to the config class and implement `ICustomConfigApply` on the control.
+The control is made by its parameterless constructor and bound to the config. It reaches no service itself: a Core page that
+shows the session — About, Shell, Workspaces — is bound instead to a view-model `ConfigPageModels` makes from the session's services,
+which the window hands its Options and the app its setup wizard.
 
 ---
 
@@ -746,49 +762,66 @@ app's files go. It takes no other input and restores only what the admin-owned m
 
 ```
 App.OnStartup
-  → new BackgroundActivityManager()                         ← the one shared activity surface
-  → InitializeApp(activityManager):
-      → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
-      → register GLOBAL configs: ShellConfig (+ apply theme), WorkspacesConfig,
+  → AppDataFolders.ForThisProcess()                         ← %AppData% + %LocalAppData%\Smile\nexaflow, or the root
+        NEXAFLOW_CONFIG_DIR sets apart
+  → ShellLogging.Open(the folders, --uiTest, --timing)      ← the process's logs, before anything that writes to them:
+        the exception hooks (the UI thread's judged by DispatcherFaultPolicy), WPF's binding trace under --uiTest,
+        the single-instance guard, every startup step
+  → single-instance IPC listener                            ← a later launch never waits behind start-up
+  → new ShellHost(options (the folders, --reset, --uiTest, the logs), ShellPlatform(WPF UI thread, clipboard, folder
+        watcher, ApplyAppearance, page views)):
+      → new ConfigManager(the folders, its logger)          ← the session's configuration, handed by constructor to
+            whatever reads or writes a config
+      → the session's log turned on or off by ShellConfig.SafetyLogging, once it has loaded
+      → the feature catalogue, its index cached under the configuration (not yet built)
+      → register GLOBAL configs: ShellConfig (+ App applies the theme), WorkspacesConfig,
         FileMapConfig, ExternalAppsConfig
-      → LanguageManager.Initialize(Languages\, ShellConfig.Language)   ← records the language, points Str at it;
+      → new LanguageManager(Languages\), Select(ShellConfig.Language), Str pointed at it   ← records the language;
             loads nothing — the first string or help page asked for reads the pack. After the first-run wizard
             the language is selected again, before the first window's strings resolve
-      → ProviderManager.Initialize(activityManager)         ← records the shared ActivityManager
-      → for each saved workspace: temp AiConfig ← ConfigManager.LoadFrom(workspace dir)
+      → HelpLibrary over the language, for the Help page and the assistant's help tools
+      → the AI host client, model residency, local tools
+      → new ProviderManager(config, Activities, model store, residency, app-wide services)   ← the provider pool
+      → the component registry (ExternalDependencyRegistry) over the catalogue and the AI host's reading, and the page
+            views made over both
+      → for each saved workspace: temp AiConfig ← config.LoadFrom(WorkspaceManager.WorkspaceDir(config, name))
             (need each workspace's columns to know which provider DLLs to load)
-      → ProviderManager.LoadConfigured(⋃ AssemblyFileName across all workspaces' AiConfigs)
-      → WorkspaceManager.Initialize(wcConfig)               ← loads the saved Workspaces list ONLY (no runtimes)
-      → FileMapManager / ExternalAppRegistry init
-      → FeatureManager.RegisterFeatures()                   ← FeatureCatalog.Initialize: load the cached
+      → providers.LoadConfigured(⋃ AssemblyFileName across all workspaces' AiConfigs)
+      → new WorkspaceManager(wcConfig, providers, config)   ← the saved Workspaces list ONLY (no runtimes), each
+            workspace listed in the configuration (Workspace.ListIn), so its folders and own configs resolve
+      → new FeatureManager(catalog, config, ui, location backends, the logs)  ← FeatureCatalog.Initialize: load the cached
             discovery index (no feature DLLs loaded) or, after an app update, one full rescan. Feature
-            assemblies load + activate lazily later (first use, or the post-paint background warm-up)
-      → JumpList, single-instance IPC listener
+            assemblies load + activate lazily later (first use, or the post-paint background warm-up); the file
+            system's activation sets up FileMapManager / ExternalAppRegistry
+      → the app-wide tools provided to the feature injection: the help pages, the picture and page tools
+      → WorkspaceRuntimeFactory + WorkspaceRuntimes          ← how runtimes are built, and the live ones
+      → the machine's locations looked for, off the UI thread
+  → JumpList
   → pick startup Workspace (Workspaces[0], or the one named by --context "Name")
-  → WorkspaceManager.CreateWorkspace(workspace)             ← workspace.EnsureSharedServicesLoaded +
-        bootstrap: AcquireProviderSet(pool) → new AIService(runtime, Conversations\) →
-        register providers → LoadAbilityConfig → ShellServices; returns the WorkspaceRuntime
-  → new MainWindow(activityManager, startupRuntime)         ← window bound to ONE runtime
-      → ShellViewModel(runtime)   (CurrentRuntime = runtime)
+  → WorkspaceRuntimes.Open(workspace)                       ← its runtime: running, resumed, or built by
+        WorkspaceRuntimeFactory — workspace.EnsureSharedServicesLoaded, AIService + ShellServices +
+        FeatureScope made with it, AcquireProviderSet(pool) → register providers, mount its connections
+  → new MainWindow(WindowServices, runtime)                 ← window on ONE runtime at a time
+      → ShellViewModel(WindowServices, runtime)   (CurrentRuntime = runtime)
           → ribbon binds runtime.Workspace → RibbonViewModel.SetWorkspace → Load() (shared layout)
-          → OpenDefaultTabs()
-  → win.Show()
-  → a throw from InitializeApp or the first window ends the launch (StartupFailure): recorded in the crash log,
-        single-instance guard released, a message naming the log unless the launch is unattended (--prestart,
+          → OpenWorkspaceTabs()   ← the session it left when resumed from dormancy, its startup tabs otherwise
+  → win.Show(); its first frame → ShellHost.FirstWindowDrawn (models load ahead); ShellHost.StartBackground (warm-up)
+  → a throw from the session's start or the first window ends the launch (StartupFailure): recorded in the crash
+        log, single-instance guard released, a message naming the log unless the launch is unattended (--prestart,
         --uiTest, --timing), exit code 1 — never a windowless process that swallows every later launch
 
-  (Each subsequent app/IPC launch = a NEW WorkspaceRuntime. Tear-off / "open in new window" reuse the
-   SAME runtime. --prestart launches the windowless resident daemon: InitializeApp runs, NO runtime is
-   created; a later click / JumpList signal opens a window — a new runtime — via the IPC listener.)
+  (A later launch of a workspace already live = a new window on ITS runtime. Tear-off / "open in new window"
+   join the SAME runtime. --prestart launches the windowless resident daemon: the session opens, NO runtime is
+   created; a later click / JumpList signal opens a window via the IPC listener.)
 
   (While the daemon has no window open it keeps a StandbyWindow: once the post-paint warm-up finishes, and
    again a moment after the last window closes, it builds Workspaces[0]'s runtime on standby
-   (WorkspaceManager.CreateStandbyWorkspace — not live, no session recorded, no model weighed for loading
-   ahead) and its first window, shows that window cloaked, disabled and off the taskbar so it lays out and
-   draws without being seen or taking focus, then hides it. A plain launch of that workspace claims it —
-   AdoptStandby makes the runtime live and the window is shown in place — so the click costs a show, not a
-   build. Any other window opening discards it; the setup wizard, when due, runs first and no standby is
-   built ahead of it. Options → Shell → "Keep a window ready" (ShellConfig.KeepWindowReady, offered only
+   (WorkspaceRuntimes.OpenStandby — that workspace's one runtime, no window counted, no session recorded, no model
+   weighed for loading ahead) and its first window, shows that window cloaked, disabled and off the taskbar so it
+   lays out and draws without being seen or taking focus, then hides it. A plain launch of that workspace claims it —
+   WorkspaceRuntimes.Adopt weighs its models and the window is shown in place — so the click costs a show, not a
+   build. Any other window opening discards it, ending its runtime; the setup wizard, when due, runs first and no
+   standby is built ahead of it. Options → Shell → "Keep a window ready" (ShellConfig.KeepWindowReady, offered only
    beside Start with Windows) turns it off, read each time a standby would be built.)
 ```
 
@@ -798,7 +831,7 @@ App.OnStartup
 User clicks ribbon button
   → RibbonControl.InternalRibbonActionCommand → ShellViewModel.OpenRibbonItem(item)
   → _shellServices.OpenTab(item.PageKind, item.PageParams)   ← persisted items carry only PageKind/params
-  → PaneView asks PageViews.ViewOf(page)    ← ViewModelFactory run, then the [ViewFor] view made, on first show
+  → PaneView asks its pane's PageViews.ViewOf(page)    ← ViewModelFactory run, then the [ViewFor] view made, on first show
   → ActiveTab = page, breadcrumbs updated
 
 Feature code calls shellServices.OpenTab("PageKind", params, callerPage)

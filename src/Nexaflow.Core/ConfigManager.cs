@@ -2,20 +2,22 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Services;
 
 namespace Nexaflow.Core;
 
 /// <summary>
-/// Singleton registry that loads and persists config POCOs to
-/// %AppData%\Smile\nexaflow\{configName}\config_{version}.json.
+/// The session's configuration: the registry that loads and persists config POCOs to
+/// <c>{BaseDir}\{configName}\config_{version}.json</c>, and a workspace's or anything else's under a folder of their own
+/// (<see cref="LoadFrom"/> / <see cref="SaveTo"/>). The session makes one (<see cref="Services.ShellHost"/>) and hands it by
+/// constructor to whatever reads or writes a config.
 /// A file that cannot be read or is not JSON throws; a single stored value that no longer reads as its property's
 /// type keeps the property's default and is recorded in the crash log, so one stale setting never stops startup.
+/// It is also what rules on the settings the app does not decide alone (<see cref="AddRulings"/>).
 /// </summary>
-public sealed class ConfigManager
+public sealed class ConfigManager : IConfigRulings
 {
-    public static ConfigManager Instance { get; } = new();
-
     private readonly List<object>    _configs         = [];
     private readonly HashSet<string> _seen            = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, object> _byName = new(StringComparer.OrdinalIgnoreCase);
@@ -81,7 +83,19 @@ public sealed class ConfigManager
         catch { return string.Empty; }
     }
 
-    private ConfigManager() { }
+    /// <summary>A configuration kept under <paramref name="baseDir"/>, with what stays on this machine alone under
+    /// <paramref name="localDir"/>.</summary>
+    /// <param name="baseDir">Where every config is kept (<see cref="BaseDir"/>).</param>
+    /// <param name="localDir">Where what is kept on this machine alone goes (<see cref="LocalDir"/>).</param>
+    /// <param name="log">Where a stored value that could not be read is put on record, as a fault — so the crash log keeps it, and a
+    /// setting that fell back to its default is traceable rather than silently gone. Logging needs no dispatcher, so it is safe under
+    /// the config lock on any thread.</param>
+    public ConfigManager(string baseDir, string localDir, ILogger<ConfigManager> log)
+    {
+        BaseDir  = baseDir;
+        LocalDir = localDir;
+        _log     = log;
+    }
 
     /// <summary>
     /// True if no persisted config files existed for any registered config (first run).
@@ -90,32 +104,16 @@ public sealed class ConfigManager
     public bool IsFirstRun { get; private set; } = true;
 
     /// <summary>
-    /// Application base directory — all config subdirectories are created beneath this.
-    /// Defaults to <c>%AppData%\Smile\nexaflow</c>. Call <see cref="Initialize"/> from
-    /// App.xaml.cs before the first <see cref="Register"/> call to override.
+    /// The configuration's base directory — every config's folder is beneath it: <c>%AppData%\Smile\nexaflow</c>, or the root
+    /// a run was set apart in (<see cref="AppDataFolders"/>).
     /// </summary>
-    public string BaseDir { get; private set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Smile", "nexaflow");
+    public string BaseDir { get; }
 
     /// <summary>
     /// Where what is kept on this machine alone goes — caches worked out again when they are gone, too large to roam with the
-    /// settings. Defaults to <c>%LocalAppData%\Smile\nexaflow</c>; set by <see cref="Initialize"/>.
+    /// settings: <c>%LocalAppData%\Smile\nexaflow</c>, or beside the base of a run set apart (<see cref="AppDataFolders"/>).
     /// </summary>
-    public string LocalDir { get; private set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Smile", "nexaflow");
-
-    /// <summary>
-    /// Sets the application base directory, and where what is kept on this machine alone goes — beside the base, as
-    /// <c>local</c>, where none is given. Must be called once before any <see cref="Register"/> or <see cref="Save"/> calls so
-    /// the paths are defined in a single place (App.xaml.cs).
-    /// </summary>
-    public void Initialize(string baseDir, string? localDir = null)
-    {
-        BaseDir  = baseDir;
-        LocalDir = localDir ?? Path.Combine(baseDir, "local");
-    }
+    public string LocalDir { get; }
 
     /// <summary>
     /// Permanently stops all config writes for the remainder of the process. Armed just before a
@@ -123,12 +121,8 @@ public sealed class ConfigManager
     /// </summary>
     public void SuppressWrites() => _suppressWrites = true;
 
-    /// <summary>
-    /// Where a stored value that could not be read is put on record: the crash log, so a setting that fell back to its
-    /// default is traceable rather than silently gone. Recording needs no dispatcher, so it is safe under the config
-    /// lock on any thread. The Core test suite points it at a log of its own.
-    /// </summary>
-    internal CrashLog FaultLog { get; set; } = CrashLog.Instance;
+    /// <summary>Where a stored value that could not be read is put on record.</summary>
+    private readonly ILogger<ConfigManager> _log;
 
     private string GetConfigDir(string configName) => Path.Combine(BaseDir, configName);
 
@@ -140,7 +134,7 @@ public sealed class ConfigManager
     /// <em>canonical</em> instance for <paramref name="configName"/>. Duplicate names keep the
     /// first registration (first wins); a later caller gets that original instance back rather than
     /// its own — so every consumer of a given config shares one object. Callers that may register a
-    /// config already wired by startup (e.g. <see cref="FeatureManager"/> vs App.xaml.cs) must use
+    /// config already wired by startup (e.g. <see cref="FeatureManager"/> vs <see cref="Services.ShellHost"/>) must use
     /// the returned value, not the instance they passed in.
     /// When only an older assembly version's file exists, its data is migrated forward (see
     /// <see cref="LoadOrMigrate"/>) rather than discarded. Throws <see cref="IOException"/> when a
@@ -408,9 +402,9 @@ public sealed class ConfigManager
             catch { kept = null; }   // left in place; it is reported either way
         }
 
-        FaultLog.Record(new InvalidDataException(
+        _log.LogError(new InvalidDataException(
             $"{path} could not be read, so its settings fall back to their defaults."
-          + (kept is null ? string.Empty : $" The file is kept as {kept}."), cause));
+          + (kept is null ? string.Empty : $" The file is kept as {kept}."), cause), "a configuration file could not be read");
     }
 
     /// <summary>Parses the version out of a <c>config_{version}.json</c> path, or null if it doesn't match.</summary>
@@ -464,9 +458,9 @@ public sealed class ConfigManager
         return unreadable;
     }
 
-    /// <summary>Puts each value <see cref="Load"/> could not read on record in <see cref="FaultLog"/>.</summary>
+    /// <summary>Puts each value <see cref="Load"/> could not read on record, as a fault.</summary>
     private void Record(List<InvalidDataException> unreadable)
     {
-        foreach (var fault in unreadable) FaultLog.Record(fault);
+        foreach (var fault in unreadable) _log.LogError(fault, "a stored setting could not be read");
     }
 }

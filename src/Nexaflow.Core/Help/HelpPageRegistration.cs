@@ -9,7 +9,9 @@ namespace Nexaflow.Core.Help;
 /// kind to explain — omit it for the list of every help page — and <c>query</c> searches as it opens. Neither says
 /// which tab this is, only where to look, so a window keeps one Help tab and every open re-points it.
 /// </summary>
-public sealed class HelpPageRegistration(IShellServices shell) : IPageRegistration
+/// <param name="shell">The runtime's shell.</param>
+/// <param name="library">The session's help pages, which the feature injection hands over as an app-wide tool.</param>
+internal sealed class HelpPageRegistration(IShellServices shell, HelpLibrary library) : IPageRegistration
 {
     public static string StaticPageKind => "Help";
 
@@ -28,7 +30,7 @@ public sealed class HelpPageRegistration(IShellServices shell) : IPageRegistrati
         var page = new Page { Title = Str.Get("Help.Tab.Title"), Icon = "❓" };
         // Closes over the page rather than the params: the shell stamps PageParams after this returns, and a re-point
         // that lands before the tab is first shown has to be what the view model reads when it is.
-        page.ViewModelFactory = () => new HelpViewModel(HelpLibrary.Shared, shell, page);
+        page.ViewModelFactory = () => new HelpViewModel(library, shell, page);
         return page;
     }
 }

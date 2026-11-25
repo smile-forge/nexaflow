@@ -8,9 +8,15 @@ using System.Windows.Media;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Common.Localization;
 using System.ComponentModel;
+using Nexaflow.Core.Services.Logging;
 
 namespace Nexaflow.Core.Controls;
 
+/// <summary>
+/// The Shell section of Options and the setup wizard. Bound to a <see cref="ShellConfigViewModel"/> the settings panel makes
+/// (<see cref="ViewModels.ConfigPageModels"/>), which carries the session's language for the picker; it saves into the config
+/// that view-model was made over.
+/// </summary>
 public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private ShellConfigViewModel? _vm;
@@ -20,12 +26,11 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
         InitializeComponent();
         DataContextChanged += (_, e) =>
         {
-            if (e.NewValue is ShellConfig cfg)
+            if (e.NewValue is ShellConfigViewModel vm)
             {
                 if (_vm is not null) _vm.PropertyChanged -= OnChoicesChanged;
-                _vm = new ShellConfigViewModel(cfg);
+                _vm = vm;
                 _vm.PropertyChanged += OnChoicesChanged;
-                RootPanel.DataContext = _vm;
                 HasChangesChanged?.Invoke(this, EventArgs.Empty);
             }
         };
@@ -43,13 +48,15 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
 
     public void Apply()
     {
-        if (DataContext is ShellConfig cfg && _vm is not null)
+        if (_vm is not null)
         {
+            var cfg = _vm.Config;
             cfg.Theme                      = _vm.Theme;
             cfg.Language                   = _vm.Language;
             cfg.TextFontSize               = _vm.TextFontSize;
             cfg.PrestartAtLogin            = _vm.PrestartAtLogin;
             cfg.KeepWindowReady            = _vm.KeepWindowReady;
+            cfg.DormantWorkspaceMinutes    = _vm.DormantWorkspaceMinutes;
             cfg.DisableAnimationsOnBattery = _vm.DisableAnimationsOnBattery;
             cfg.EnhancedAiProtection       = _vm.EnhancedAiProtection;
             cfg.SafetyLogging              = _vm.SafetyLogging;
@@ -66,7 +73,7 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply, IConf
             TextTypography.BaseFontSize = _vm.TextFontSize;
 
             // Live as well: the session's log opens or closes now; the AI host's follows the next time the host starts.
-            ShellSafetyLog.Instance.Apply(_vm.SafetyLogging);
+            _vm.ApplySafetyLogging();
 
             _vm.AcceptAsSaved();
         }
@@ -85,21 +92,32 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     public IReadOnlyList<ThemeChoice> ThemeOptions { get; } =
         [.. Enum.GetValues<ThemeOption>().Select(t => new ThemeChoice(t.ToString(), ThemeChoice.Shown(t)))];
 
-    /// <summary>The installed language packs, read from their file names (nothing is loaded to list them). Before
-    /// startup has created the language manager — a design surface, a test — only English is on offer.</summary>
-    public IReadOnlyList<LanguageInfo> LanguageOptions { get; } =
-        LanguageManager.TryInstance?.Available ?? [new LanguageInfo(LanguageManager.FallbackCode, "English", "")];
+    /// <summary>The installed language packs, read from their file names (nothing is loaded to list them).</summary>
+    public IReadOnlyList<LanguageInfo> LanguageOptions { get; }
+
+    /// <summary>The config the page shows, which <see cref="ShellConfigControl.Apply"/> saves the choices into.</summary>
+    public ShellConfig Config { get; }
 
     /// <summary>Sizes offered for <see cref="TextFontSize"/>. A fixed list rather than a spinner over the
     /// whole clamped range: every step here is one a reader would actually pick, and the large end is
     /// coarse because a point either way stops mattering once the text is that big.</summary>
     public IReadOnlyList<double> TextSizeOptions { get; } = [9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32];
 
+    /// <summary>How long a workspace left may stay ready, offered for <see cref="DormantWorkspaceMinutes"/>: steps a person moving
+    /// between tasks would pick, from closing it at once to an hour.</summary>
+    public IReadOnlyList<DormancyOption> DormancyOptions { get; } =
+    [
+        new(0, Str.Get("Shell.Options.Shell.DormantEndAtOnce")),
+        new(1, Str.Get("Shell.Options.Shell.DormantOneMinute")),
+        .. new[] { 5, 15, 30, 60 }.Select(minutes => new DormancyOption(minutes, Str.Format("Shell.Options.Shell.DormantMinutesFormat", minutes))),
+    ];
+
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private string _selectedTheme;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private string _selectedLanguage;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private double _textFontSize;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _prestartAtLogin;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _keepWindowReady;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private int _dormantWorkspaceMinutes;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _disableAnimationsOnBattery;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _enhancedAiProtection;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChanges))] private bool _safetyLogging;
@@ -110,11 +128,11 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
 
     /// <summary>Every choice the page saves, as one value, so the page and its saved state compare whole.</summary>
     private readonly record struct Choices(
-        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool KeepWindowReady, bool DisableAnimationsOnBattery,
-        bool EnhancedAiProtection, bool SafetyLogging);
+        string Theme, string Language, double TextFontSize, bool PrestartAtLogin, bool KeepWindowReady, int DormantWorkspaceMinutes,
+        bool DisableAnimationsOnBattery, bool EnhancedAiProtection, bool SafetyLogging);
 
-    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, KeepWindowReady, DisableAnimationsOnBattery,
-                                   EnhancedAiProtection, SafetyLogging);
+    private Choices Current => new(SelectedTheme, SelectedLanguage, TextFontSize, PrestartAtLogin, KeepWindowReady, DormantWorkspaceMinutes,
+                                   DisableAnimationsOnBattery, EnhancedAiProtection, SafetyLogging);
 
     // What the page last saved, or opened on — taken after the language and size were snapped onto offered values,
     // since a config the page had to normalise is not an edit the user made.
@@ -130,19 +148,34 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
         OnPropertyChanged(nameof(HasChanges));
     }
 
-    public ShellConfigViewModel(ShellConfig cfg)
+    /// <summary>The session's log, opened or closed to match <see cref="SafetyLogging"/> when the page is applied.</summary>
+    private readonly SessionLogProvider _sessionLog;
+
+    /// <summary>Opens or closes the session's log to match the choice — live; the AI host's log follows the next time the host
+    /// starts.</summary>
+    public void ApplySafetyLogging() => _sessionLog.Apply(SafetyLogging);
+
+    /// <param name="cfg">The config the page shows and saves into.</param>
+    /// <param name="language">The session's UI language, whose installed packs the picker offers.</param>
+    /// <param name="sessionLog">The session's log, which the safety-logging choice opens and closes as it is applied.</param>
+    public ShellConfigViewModel(ShellConfig cfg, LanguageManager language, SessionLogProvider sessionLog)
     {
+        Config                      = cfg;
+        _sessionLog                 = sessionLog;
+        LanguageOptions             = language.Available;
         _selectedTheme              = cfg.Theme.ToString();
         // As a code the list offers, so the combo shows a selection: the "English" an older build stored, or a
         // language whose pack has since been removed, both open on English — which is what the app is running in.
-        var language                = LanguageManager.Normalize(cfg.Language);
-        _selectedLanguage           = LanguageOptions.Any(l => l.Code == language) ? language : LanguageManager.FallbackCode;
+        var configured              = LanguageManager.Normalize(cfg.Language);
+        _selectedLanguage           = LanguageOptions.Any(l => l.Code == configured) ? configured : LanguageManager.FallbackCode;
         // Snapped onto an offered size so the combo shows a selection: a config carrying 13.5 (or anything
         // off-list, including a value a future build offered) would otherwise open blank and, once touched,
         // silently become whichever size the user happened to click past.
         _textFontSize               = NearestOfferedSize(cfg.TextFontSize);
         _prestartAtLogin            = cfg.PrestartAtLogin;
         _keepWindowReady            = cfg.KeepWindowReady;
+        // Snapped onto an offered time, as the size is, so the combo shows a selection.
+        _dormantWorkspaceMinutes    = DormancyOptions.MinBy(o => Math.Abs(o.Minutes - cfg.DormantWorkspaceMinutes))!.Minutes;
         _disableAnimationsOnBattery = cfg.DisableAnimationsOnBattery;
         _enhancedAiProtection       = cfg.EnhancedAiProtection;
         _safetyLogging              = cfg.SafetyLogging;
@@ -183,6 +216,13 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
                 nearest = option;
         return nearest;
     }
+}
+
+/// <summary>A time a workspace left may stay ready, as the Shell page offers it. Read aloud — by a screen reader, by UI
+/// Automation — as its label.</summary>
+public sealed record DormancyOption(int Minutes, string Label)
+{
+    public override string ToString() => Label;
 }
 
 /// <summary>One theme the picker offers: <paramref name="Value"/> is what is saved, <paramref name="Display"/> what is read.</summary>

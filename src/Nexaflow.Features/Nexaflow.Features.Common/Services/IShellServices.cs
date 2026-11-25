@@ -317,8 +317,8 @@ public interface IShellServices
     /// <remarks>
     /// Central point for cross-assembly type discovery so feature services
     /// (e.g. file-system action / viewlet registries) don't each duplicate
-    /// the reflection walk. Assumes <c>FeatureManager.RegisterFeatures</c>
-    /// has already loaded every feature DLL into the AppDomain.
+    /// the reflection walk. Answered from the session's feature catalogue,
+    /// which loads the assemblies holding them as it resolves each type.
     /// </remarks>
     IEnumerable<Type> DiscoverImplementations<TInterface>();
 

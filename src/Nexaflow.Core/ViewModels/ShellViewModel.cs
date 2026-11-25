@@ -84,7 +84,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     void IWindowHost.ShowError(string message) => ShowError(Str.Get("Shell.Errors.Error"), message);
     void IWindowHost.ShowNotification(string message)
-        => MessageCenter.Instance.Post(new NotificationItem { Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message });
+        => _inbox.Post(new NotificationItem { Workspace = CurrentRuntime.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message });
     void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel,
                                       string? confirmLabel, string? cancelLabel)
         => ShowConfirmation(title, prompt, onConfirm, onCancel, confirmLabel, cancelLabel);
@@ -167,11 +167,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>The focused pane's page view, when it has been shown: what a view itself offers (keys, a selection).</summary>
-    internal FrameworkElement? ActivePageView => ActiveTab is { } tab ? PageViews.Instance.Shown(tab) : null;
+    internal FrameworkElement? ActivePageView => ActiveTab is { } tab ? _session.Views.Shown(tab) : null;
 
     private void WireRootPane()
     {
-        var first    = new Pane();
+        var first    = new Pane(_session.Views);
         FocusedPane  = first;
         RootPaneNode = first;     // fires OnRootPaneNodeChanged → subscribes the leaf pane(s)
     }
@@ -213,7 +213,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     // ── Notifications ─────────────────────────────────────────────────────
     // The inbox is a single app-wide store shared by every window (see MessageCenter).
-    public ObservableCollection<NotificationItem> Notifications => MessageCenter.Instance.Messages;
+    public ObservableCollection<NotificationItem> Notifications => _inbox.Messages;
 
     [ObservableProperty] private int  _unreadCount;
     [ObservableProperty] private bool _notificationsOpen;
@@ -228,17 +228,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     partial void OnCurrentRuntimeChanged(WorkspaceRuntime value) => WorkspaceTasks.Refresh();
 
-    /// <summary>This window's workspace was removed (in the Options panel, or by another window): it shows the first that remains.</summary>
+    /// <summary>This window's workspace was removed (in the Options panel, or by another window): it shows the first left.</summary>
     private void OnWorkspacesRefreshed(object? sender, EventArgs e)
     {
-        if (CurrentRuntime is null || WorkspaceManager.Instance.Workspaces.Contains(CurrentRuntime.Workspace)) return;
-        var fallback = WorkspaceManager.Instance.Workspaces.FirstOrDefault();
+        if (CurrentRuntime is null || _session.SavedWorkspaces.Workspaces.Contains(CurrentRuntime.Workspace)) return;
+        var fallback = _session.SavedWorkspaces.Workspaces.FirstOrDefault();
         if (fallback is not null)
-            _ui.Invoke(() =>
-            {
-                WorkspaceManager.Instance.SwitchWorkspace(CurrentRuntime!, fallback);
-                OnPropertyChanged(nameof(CurrentRuntime));
-            });
+            _ui.Invoke(() => MoveToWorkspace(fallback));
     }
 
     /// <summary>The workspace's models changed: the mic follows its Speech In chain, and the AI's line what its own models need.</summary>
@@ -293,7 +289,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void RecomputeLocalAiNotice()
     {
-        LocalAiNotice = ProviderManager.Instance.Service<IAiHost>() is { Unreachable: { } why } && CurrentRuntime.AiService is { UsesOwnModels: true }
+        LocalAiNotice = _session.Providers.Service<IAiHost>() is { Unreachable: { } why } && CurrentRuntime.AiService is { UsesOwnModels: true }
             ? Str.Format("Shell.AiBar.LocalAiUnreachable", why)
             : null;
     }
@@ -395,18 +391,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     private void ShowError(string title, string message)
-        => MessageCenter.Instance.Post(new NotificationItem
+        => _inbox.Post(new NotificationItem
         {
-            Title = title, Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+            Workspace = CurrentRuntime.Workspace, Title = title, Body = message, Severity = MessageSeverity.Error, ShowToast = true,
         });
 
     public void ShowErrorToast(string message) => ShowError(Str.Get("Shell.Errors.Settings"), message);
 
     /// <summary>Posts a transient informational toast (e.g. "Exported N conversations").</summary>
     public void ShowInfoToast(string title, string message)
-        => MessageCenter.Instance.Post(new NotificationItem
+        => _inbox.Post(new NotificationItem
         {
-            Title = title, Body = message, Severity = MessageSeverity.Info, ShowToast = true,
+            Workspace = CurrentRuntime.Workspace, Title = title, Body = message, Severity = MessageSeverity.Info, ShowToast = true,
         });
 
     // ── Unified overlay host ──────────────────────────────────────────────
@@ -451,7 +447,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
     private OptionsViewModel BuildOptionsPanel()
     {
-        var vm = new OptionsViewModel(_shellServices);
+        var vm = new OptionsViewModel(_session.Config, new ConfigPageModels(_session), _session.Features, _runtimes, _shellServices);
         vm.SaveError           += ShowErrorToast;
         vm.TabRefreshRequested += RefreshTabs;
         vm.SaveCompleted       += () =>
@@ -459,8 +455,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             OptionsOpen = false;
             // Neither a theme nor a language live-reflows (StaticResource, and strings resolved once as the XAML
             // loads — both by design); restart this window in place, reopening the same pane layout.
-            if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell
-                && (shell.Theme != ThemeManager.Current || !LanguageManager.Instance.IsCurrent(shell.Language)))
+            var shell = _session.Shell;
+            if (shell.Theme != ThemeManager.Current || !_session.Language.IsCurrent(shell.Language))
                 _shellServices.RestartWindowForAppearance(this, shell.Theme, shell.Language);
         };
         if (RequestedOptionsSection is { } section)
@@ -474,7 +470,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private WorkspaceConfigViewModel BuildWorkspaceConfigPanel()
     {
         var workspace = ConfigureTargetWorkspace ?? CurrentRuntime.Workspace;
-        var vm = new WorkspaceConfigViewModel(workspace, _shellServices);
+        var vm = new WorkspaceConfigViewModel(workspace, _session, _shellServices);
         vm.ApplyError += ShowErrorToast;
         if (RequestedConfigureSection is { } section)
         {
@@ -512,7 +508,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     [ObservableProperty, NotifyPropertyChangedFor(nameof(BreadcrumbDisplayFilters))] private WorkspaceRuntime _currentRuntime = null!;
 
     /// <summary>The saved workspaces shown in the dropdown.</summary>
-    public ObservableCollection<Workspace> Workspaces => WorkspaceManager.Instance.Workspaces;
+    public ObservableCollection<Workspace> Workspaces => _session.SavedWorkspaces.Workspaces;
 
     /// <summary>False while a modal overlay (Options / Manage-AI) is open — blocks workspace switching.</summary>
     public bool CanSwitchWorkspace => !OptionsOpen && !WorkspaceConfigOpen;
@@ -524,21 +520,45 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         if (!CanSwitchWorkspace) return;
         if (ReferenceEquals(workspace, CurrentRuntime?.Workspace)) return;
 
-        // Cancel any in-flight AI send before the workspace is reconfigured under it.
+        // Cancel any in-flight AI send before the window leaves the workspace it was sent in.
         _aiSendCts?.Cancel();
 
-        // Collapse the workspace to this window: the others would otherwise be left empty (their
-        // tabs close on reconfigure) and still showing the old workspace's ribbon.
-        _shellServices.CloseOtherWindows(this);
+        MoveToWorkspace(workspace);
+    }
 
-        // In-place: keep this Workspace object, reconfigure it for the new workspace (tabs close,
-        // providers/AIService rebuilt). ShellServices/windows reference the Workspace, which is
-        // unchanged — only its internals swap — so no window fix-up is needed.
-        WorkspaceManager.Instance.SwitchWorkspace(CurrentRuntime!, workspace);
+    /// <summary>
+    /// Moves this window to <paramref name="workspace"/>. It joins that workspace's runtime — the one running, the dormant one
+    /// resumed, or a new one — before it leaves its own, so the session is never without a window. Leaving closes its tabs; its
+    /// workspace's other windows stay as they are, and when this was the last of them the workspace records its session and turns
+    /// dormant. The window then shows the workspace it joined: the session it left, when it was dormant; its startup tabs otherwise.
+    /// </summary>
+    private void MoveToWorkspace(Workspace workspace)
+    {
+        var from = CurrentRuntime;
+        var to   = _runtimes.Open(workspace);
+        if (ReferenceEquals(from, to)) return;
 
-        // Same Workspace reference; re-raise so the ribbon (bound to CurrentRuntime.Workspace)
-        // and the selector reload for the new workspace.
-        OnPropertyChanged(nameof(CurrentRuntime));
+        to.ShellServices.RegisterWindow(this);
+        from.ShellServices.UnregisterWindow(this);
+
+        // Leaving closed the tabs; the panes that showed them go too, so the window starts over on one empty pane, as a new
+        // window does, for the workspace it joined to fill.
+        WireRootPane();
+        AttachRuntime(from, to);
+
+        to.ShellServices.SetFocused(this);
+        to.ShellServices.OpenWorkspaceTabs();
+    }
+
+    /// <summary>This window now shows <paramref name="to"/>: what it follows of a runtime — its providers, for the mic and the
+    /// AI's line — it follows there.</summary>
+    private void AttachRuntime(WorkspaceRuntime from, WorkspaceRuntime to)
+    {
+        from.ProvidersChanged -= OnRuntimeProvidersChanged;
+        CurrentRuntime = to;
+        to.ProvidersChanged += OnRuntimeProvidersChanged;
+        RecomputeVoiceAvailable();
+        RecomputeLocalAiNotice();
     }
 
     // ── Options overlay ───────────────────────────────────────────────────
@@ -630,7 +650,17 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// </summary>
     public ShellAIResponseHandler Ai { get; }
 
-    private ShellServices _shellServices;
+    /// <summary>The window and tab registry of the workspace this window shows now.</summary>
+    private ShellServices _shellServices => CurrentRuntime.ShellServices;
+
+    /// <summary>The session's live workspaces, which this window moves between.</summary>
+    private readonly WorkspaceRuntimes _runtimes;
+
+    /// <summary>The session's inbox: this window shows every message in it and toasts the new ones.</summary>
+    private readonly MessageCenter _inbox;
+
+        /// <summary>What this window is given of the session: its page views, language and components among them.</summary>
+        private readonly WindowServices _session;
 
     /// <summary>
     /// Set by MainWindow after the RibbonControl is initialised so the shell can
@@ -686,19 +716,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _pageCoveredByOverlay = covered;
 
         foreach (var page in LeafPanes.SelectMany(p => p.Pages))
-            if ((PageViews.Instance.Shown(page) as IAirspaceContent ?? page.ViewModel as IAirspaceContent) is { } airspace)
+            if ((_session.Views.Shown(page) as IAirspaceContent ?? page.ViewModel as IAirspaceContent) is { } airspace)
                 airspace.SetCoveredByOverlay(covered);
     }
 
-    public ShellViewModel(BackgroundActivityManager activityManager,
-                          WorkspaceRuntime workspace)
+    public ShellViewModel(WindowServices session, WorkspaceRuntime workspace)
     {
+        _session = session;
+        var activityManager = session.Activities;
         _activityManager = activityManager;
+        _inbox           = session.Inbox;
         // NB: AiIsBusy is NOT coupled to background activity — the AI bar locks only while an actual
         // AI run is in flight (driven by SendAiMessage). Background tasks (NuGet checks, downloads,
         // conversation analysis) report through the activity ticker without blocking AI input.
         _currentRuntime = workspace;
-        _shellServices = workspace.ShellServices!;
+        _runtimes       = session.Workspaces;
         WorkspaceTasks = new WorkspaceBackgroundTasks(activityManager, () => CurrentRuntime);
         WorkspaceTasks.PropertyChanged += (_, e) =>
         {
@@ -749,13 +781,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _help = new HelpPaneController(this);   // before the panes exist: their first page change already asks it
         WireRootPane();
 
-        WorkspaceManager.Instance.WorkspacesRefreshed += OnWorkspacesRefreshed;
+        _session.SavedWorkspaces.WorkspacesRefreshed += OnWorkspacesRefreshed;
 
         // ── Voice input availability + the AI's line ─────────────────────────
         // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away. What the
         // workspace's own models need is the host they run in: out of reach, the AI's line says so.
         workspace.ProvidersChanged += OnRuntimeProvidersChanged;
-        if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged += OnHostReachabilityChanged;
+        if (_session.Providers.Service<IAiHost>() is { } host) host.ReachabilityChanged += OnHostReachabilityChanged;
 
         // A spoken conversation owns the bar as dictation does: what is heard fills the box, and the mic stops it.
         Voice.Heard += text => AiInputText = text;
@@ -786,21 +818,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // mutation that ObservableCollection doesn't surface) — otherwise other windows' badges go stale.
         Notifications.CollectionChanged += OnInboxChanged;
         foreach (var m in Notifications) m.PropertyChanged += OnMessageItemChanged;
-        MessageCenter.Instance.MessagePosted += OnMessagePosted;
+        _inbox.MessagePosted += OnMessagePosted;
         RecomputeUnread();
     }
 
     /// <summary>Detaches shared-store handlers so a closed window's view-model can be collected.</summary>
     public void Detach()
     {
-        MessageCenter.Instance.MessagePosted -= OnMessagePosted;
+        _inbox.MessagePosted -= OnMessagePosted;
 
         // The host outlives its windows: unhooked, or this window stays rooted by it.
-        if (ProviderManager.Instance.Service<IAiHost>() is { } host) host.ReachabilityChanged -= OnHostReachabilityChanged;
+        if (_session.Providers.Service<IAiHost>() is { } host) host.ReachabilityChanged -= OnHostReachabilityChanged;
 
         // The workspace list and the runtime outlive their windows: unhook them, or a closed window stays rooted and keeps
         // switching the runtime other windows show. A window that closes while listening stops listening.
-        WorkspaceManager.Instance.WorkspacesRefreshed -= OnWorkspacesRefreshed;
+        _session.SavedWorkspaces.WorkspacesRefreshed -= OnWorkspacesRefreshed;
         CurrentRuntime.ProvidersChanged -= OnRuntimeProvidersChanged;
         _ = Voice.StopAsync();
 
@@ -840,7 +872,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void DrainPendingToasts()
     {
-        foreach (var m in MessageCenter.Instance.PendingToasts.ToList())
+        foreach (var m in _inbox.PendingToasts.ToList())
         {
             m.ShownAsToast = true;
             ShowToast(m);
@@ -856,7 +888,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>The language a conversation is held in: the app's.</summary>
-    private static string SpokenLanguage() => (LanguageManager.TryInstance?.Current ?? LanguageManager.FallbackCode)[..2].ToLowerInvariant();
+    private string SpokenLanguage() => _session.Language.Current[..2].ToLowerInvariant();
 
     // ── Tab commands ──────────────────────────────────────────────────────
 
@@ -943,7 +975,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         var left = OwningPane(tab) ?? SoleLeaf;
         left.Remove(tab);
-        var right = new Pane();
+        var right = new Pane(_session.Views);
         right.Add(tab);
         Split(left, right);
     }
@@ -953,7 +985,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>Splits the tab area, adding an empty right-hand pane.</summary>
     [RelayCommand(CanExecute = nameof(CanSplitEmpty))]
-    private void SplitEmpty() => Split(SoleLeaf, new Pane());
+    private void SplitEmpty() => Split(SoleLeaf, new Pane(_session.Views));
 
     private bool CanSplitEmpty() => !IsSplit;
 
@@ -1019,7 +1051,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (item.PageKind is not null)
         {
-            var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
+            var executor = _session.Features.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
             if (executor is not null)
             {
                 var paths = (ActivePageView as ISelectionProvider ?? ActivePageViewModel as ISelectionProvider)?.SelectedFilePaths
@@ -1045,7 +1077,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (item.PageKind is null) return;
 
-        var executor = FeatureManager.Instance.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
+        var executor = _session.Features.GetRibbonItemExecutor(item.PageKind, CurrentRuntime);
         if (executor is not null)
         {
             // Create the new window first so any OpenTab calls inside the executor land there.
@@ -1087,7 +1119,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     [RelayCommand]
-    private void DismissNotification(NotificationItem item) => MessageCenter.Instance.Remove(item);
+    private void DismissNotification(NotificationItem item) => _inbox.Remove(item);
 
     // ── Toast ──────────────────────────────────────────────────────────────
 
@@ -1140,7 +1172,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (RootPaneNode is SplitPaneNode split)
             return ReferenceEquals(split.First, subject) ? split.Second : split.First;
-        var beside = new Pane();
+        var beside = new Pane(_session.Views);
         Split(subject, beside);
         return beside;
     }
@@ -1189,7 +1221,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (CurrentRuntime?.Workspace is not { } source) return;
 
-        var mgr   = WorkspaceManager.Instance;
+        var mgr   = _session.SavedWorkspaces;
         var clone = mgr.CloneWorkspace(source, mgr.UniqueWorkspaceName($"{source.Name} copy"));
         mgr.SaveWorkspaces();        // persist the new workspace in the dropdown list immediately
 
@@ -1209,7 +1241,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         var tabs = CaptureLayout();
         workspace.DefaultTabs = tabs;
-        WorkspaceManager.Instance.SaveWorkspaces();
+        _session.SavedWorkspaces.SaveWorkspaces();
 
         ShowInfoToast(Str.Get("Shell.Workspace.DefaultTabs.Set"),
         tabs.Count == 0 ? Str.Get("Shell.Workspace.DefaultTabs.SavedNone")
@@ -1254,10 +1286,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// </summary>
     public void RequestDeleteWorkspace(Workspace workspace)
     {
-        var mgr = WorkspaceManager.Instance;
+        var mgr = _session.SavedWorkspaces;
         if (mgr.Workspaces.Count <= 1) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
 
-        var liveWs = mgr.FindLiveWorkspace(workspace);
+        var liveWs = _runtimes.Find(workspace);
 
         var message = ReferenceEquals(liveWs, CurrentRuntime) && liveWs is not null
         ? Str.Format("Shell.Workspace.Delete.AskActiveFormat", workspace.Name)
@@ -1270,33 +1302,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void DeleteWorkspace(Workspace workspace, WorkspaceRuntime? liveWs)
     {
-        var mgr = WorkspaceManager.Instance;
+        var mgr = _session.SavedWorkspaces;
 
         if (ReferenceEquals(liveWs, CurrentRuntime))
         {
-            // The active workspace: collapse to this window and move it onto a surviving workspace BEFORE
-            // the delete, so the app is never left window-less (closing the last window shuts it down) and
-            // the list-refresh that follows finds this runtime already on a workspace that still exists.
+            // The active workspace: move this window onto a surviving workspace BEFORE the delete, so the app is never left
+            // window-less (closing the last window shuts it down) and the list-refresh that follows finds this window already on a
+            // workspace that still exists.
             var fallback = mgr.Workspaces.FirstOrDefault(w => !ReferenceEquals(w, workspace));
             if (fallback is null) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
 
-            _shellServices.CloseOtherWindows(this);
-            mgr.SwitchWorkspace(CurrentRuntime!, fallback);
-            mgr.DeleteWorkspace(workspace, force: true);
-            WorkspaceConfigOpen = false;
-            return;
+            MoveToWorkspace(fallback);
         }
 
-        if (liveWs is not null)
-        {
-            // A different live workspace: tear down its windows (last close disposes it), then delete.
-            liveWs.ShellServices?.CloseAllWindows();
-            mgr.DeleteWorkspace(workspace, force: true);
-            WorkspaceConfigOpen = false;
-            return;
-        }
-
-        // An inactive workspace: straightforward delete; close the Configure overlay.
+        // Its runtime ends now — any other window still showing it closes — rather than staying dormant for a workspace that is gone.
+        _runtimes.Close(workspace);
         mgr.DeleteWorkspace(workspace);
         WorkspaceConfigOpen = false;
     }
@@ -1391,7 +1411,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     public ChatKeyResult HandleChatKey(ConsoleKey key, KeyModifiers modifiers, string text, int caretIndex)
     {
         var pageVm = ActivePageViewModel;
-        foreach (var h in FeatureManager.Instance.GetChatKeyHandlers(CurrentRuntime))
+        foreach (var h in _session.Features.GetChatKeyHandlers(CurrentRuntime))
         {
             if (!h.CanHandle(pageVm)) continue;
             var result = h.HandleKey(key, modifiers, text, caretIndex, pageVm);
@@ -1401,10 +1421,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>The handlers the AI bar's drops are put to, for this window's runtime.</summary>
-    internal IReadOnlyList<IChatDropHandler> ChatDropHandlers => FeatureManager.Instance.GetChatDropHandlers(CurrentRuntime);
+    internal IReadOnlyList<IChatDropHandler> ChatDropHandlers => _session.Features.GetChatDropHandlers(CurrentRuntime);
 
     /// <summary>What restates this window's crumbs before the bar draws them — the current runtime's filters.</summary>
-    public IReadOnlyList<IBreadcrumbDisplayFilter> BreadcrumbDisplayFilters => FeatureManager.Instance.GetBreadcrumbDisplayFilters(CurrentRuntime);
+    public IReadOnlyList<IBreadcrumbDisplayFilter> BreadcrumbDisplayFilters => _session.Features.GetBreadcrumbDisplayFilters(CurrentRuntime);
 
     /// <summary>The focused pane's page view-model, made if the page has not been shown yet.</summary>
     internal IPageViewModel? ActivePageViewModel => FocusedPane.ActivePage?.GetOrCreateViewModel();
@@ -1428,7 +1448,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void PushInputPreview(string text)
     {
         var pageVm = ActivePageViewModel;
-        foreach (var p in FeatureManager.Instance.GetChatInputPreviews(CurrentRuntime))
+        foreach (var p in _session.Features.GetChatInputPreviews(CurrentRuntime))
             if (p.CanPreview(pageVm)) p.OnInputChanged(text, pageVm);
     }
 

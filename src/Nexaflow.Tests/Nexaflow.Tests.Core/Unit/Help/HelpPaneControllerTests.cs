@@ -1,7 +1,9 @@
 using Nexaflow.Core.Help;
+using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -15,10 +17,14 @@ namespace Nexaflow.Tests.Core.Unit;
 [CoversNode("help-pane-controller")]
 public class HelpPaneControllerTests
 {
+    /// <summary>Page views for panes whose pages are never drawn.</summary>
+    private static readonly PageViews Undrawn = new(new ViewRegistry(_ => null), (_, _) => throw new InvalidOperationException("a pane under test draws nothing"),
+    TestRuntimes.LoggerFor<PageViews>());
+
     // A window's panes and the moves the controller makes on them, without the window.
     private sealed class PaneHost : IHelpPaneHost
     {
-        public List<Pane> Panes { get; } = [new Pane()];
+        public List<Pane> Panes { get; } = [new Pane(Undrawn)];
         public Pane Focused { get; set; }
         public HashSet<Page> Pinned { get; } = [];
 
@@ -29,7 +35,7 @@ public class HelpPaneControllerTests
 
         public Pane SplitBeside(Pane subject)
         {
-            var beside = new Pane();
+            var beside = new Pane(Undrawn);
             Panes.Add(beside);
             return beside;
         }
@@ -86,7 +92,7 @@ public class HelpPaneControllerTests
     public void AlreadySplit_HelpOpensInThePaneBesideThePageInUse()
     {
         var host = new PaneHost();
-        host.Panes.Add(new Pane());
+        host.Panes.Add(new Pane(Undrawn));
         host.Open(host.Panes[0], "Markdown");
         host.Open(host.Panes[1], "Text");
         host.Focused = host.Panes[1];

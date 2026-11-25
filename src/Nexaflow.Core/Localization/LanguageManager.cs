@@ -4,6 +4,8 @@ using System.IO;
 using System.Text.Json;
 using Nexaflow.Core.Services;
 using Nexaflow.Visuals.Common.Localization;
+using Microsoft.Extensions.Logging;
+using Nexaflow.Core.Services.Logging;
 
 namespace Nexaflow.Core.Localization;
 
@@ -18,31 +20,14 @@ namespace Nexaflow.Core.Localization;
 /// language, so after that first read none of this costs anything — a switch works like a theme switch (the window
 /// restarts), never by live re-binding.
 /// </para>
-/// Central, one per process, like <see cref="ThemeManager"/>. See docs/localization.md.
+/// The session makes one (<see cref="ShellHost"/>), points <see cref="Str"/> at it, and hands it to what lists the installed
+/// languages or changes the active one: every window, every runtime's <see cref="ShellServices"/>, and the help library. See
+/// docs/localization.md.
 /// </summary>
-internal sealed class LanguageManager : ILocalizedStringSource
+public sealed class LanguageManager : ILocalizedStringSource
 {
     public const string PackFilePrefix = "Nexaflow.Language.";
     public const string FallbackCode   = "en";
-
-    private static LanguageManager? _instance;
-
-    /// <summary>The process's language manager, set by <see cref="Initialize"/> at startup.</summary>
-    public static LanguageManager Instance =>
-        _instance ?? throw new InvalidOperationException("LanguageManager.Initialize has not run.");
-
-    /// <summary><see cref="Instance"/>, or null before startup has created it (design time, tests).</summary>
-    public static LanguageManager? TryInstance => _instance;
-
-    /// <summary>Creates the process's manager over <paramref name="languagesDir"/>, selects
-    /// <paramref name="configured"/> and points <see cref="Str"/> at it. Loads nothing.</summary>
-    public static void Initialize(string languagesDir, string? configured)
-    {
-        var manager = new LanguageManager(languagesDir, AssemblyLanguagePack.Load);
-        manager.Select(configured);
-        _instance  = manager;
-        Str.Source = manager;
-    }
 
     private static readonly JsonDocumentOptions JsonOptions =
         new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
@@ -51,6 +36,8 @@ internal sealed class LanguageManager : ILocalizedStringSource
 
     private readonly string _dir;
     private readonly Func<string, string, ILanguagePack> _load;
+
+    private readonly ILogger<LanguageManager> _log;
     private readonly Dictionary<string, ILanguagePack?> _packs = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private IReadOnlyList<LanguageInfo>? _available;
@@ -58,10 +45,12 @@ internal sealed class LanguageManager : ILocalizedStringSource
 
     /// <param name="languagesDir">The folder the packs are dropped into.</param>
     /// <param name="load">Opens the pack for (code, path); throws for a file that is not one.</param>
-    internal LanguageManager(string languagesDir, Func<string, string, ILanguagePack> load)
+    /// <param name="log">Where the string table's first reading is marked among the startup milestones.</param>
+    internal LanguageManager(string languagesDir, Func<string, string, ILanguagePack> load, ILogger<LanguageManager> log)
     {
         _dir     = languagesDir;
         _load    = load;
+        _log     = log;
         _strings = NewStringTable();
     }
 
@@ -206,7 +195,7 @@ internal sealed class LanguageManager : ILocalizedStringSource
                 using (var stream = pack.Open(name))
                     if (stream is not null) Merge(table, stream);
 
-        StartupTimings.Mark("Language.Strings");
+        _log.StartupMilestone("Language.Strings");
         return table.ToFrozenDictionary(StringComparer.Ordinal);
     }
 

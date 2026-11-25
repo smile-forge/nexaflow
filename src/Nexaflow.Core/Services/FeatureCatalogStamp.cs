@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using Microsoft.Extensions.Logging;
 
 namespace Nexaflow.Core.Services;
 
@@ -50,9 +51,10 @@ public static class FeatureCatalogStamp
 
     /// <summary>
     /// The current stamp for <paramref name="exeDir"/>: every feature and location assembly plus Core, name-ordered so
-    /// two captures of the same directory compare equal regardless of enumeration order.
+    /// two captures of the same directory compare equal regardless of enumeration order. A directory that cannot be read is
+    /// told to <paramref name="log"/>, and gives an empty stamp.
     /// </summary>
-    public static List<FeatureFileStamp> Capture(string exeDir, string coreFile)
+    public static List<FeatureFileStamp> Capture(string exeDir, string coreFile, ILogger log)
     {
         var stamps = new List<FeatureFileStamp>();
         try
@@ -73,7 +75,7 @@ public static class FeatureCatalogStamp
         {
             // An unreadable directory yields an empty stamp, which matches nothing — so the catalog rescans
             // rather than trusting an index it cannot verify.
-            ShellSafetyLog.Instance.Failed("stamping the feature assemblies for the catalog cache", ex);
+            log.LogWarning(ex, "stamping the feature assemblies for the catalog cache");
             return [];
         }
 

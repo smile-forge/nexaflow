@@ -44,7 +44,7 @@ public sealed class RuntimeLocationsTests
         _vfs         = new LocationFileSystem(VirtualFileSystem.Instance);
         _discovered  = new DiscoveredLocations(registry);
         _locations   = new RuntimeLocations(_vfs, new LocationSessionPool(registry, secrets), _discovered);
-        _connections = new WorkspaceConnections(TestTemp.CreateSubdirectory("nexa-runtime-").FullName, new NoSecrets());
+        _connections = new WorkspaceConnections(TestTemp.CreateSubdirectory("nexa-runtime-").FullName, TestRuntimes.Config, new NoSecrets());
     }
 
     [TestCleanup]
@@ -119,7 +119,7 @@ public sealed class RuntimeLocationsTests
         _locations.Follow(_connections);
         await _vfs.WriteAllTextAsync($@"{Root}\notes.md", "remote");
 
-        var other = new WorkspaceConnections(TestTemp.CreateSubdirectory("nexa-runtime-other-").FullName, new NoSecrets());
+        var other = new WorkspaceConnections(TestTemp.CreateSubdirectory("nexa-runtime-other-").FullName, TestRuntimes.Config, new NoSecrets());
         other.Save(_nas with { Label = "NAS at home" });
         _locations.Follow(other);
         Assert.AreEqual("remote", await _vfs.ReadAllTextAsync($@"{Root}\notes.md"));

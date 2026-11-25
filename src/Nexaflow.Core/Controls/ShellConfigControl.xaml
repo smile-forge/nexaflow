@@ -147,6 +147,29 @@
                            FontSize="11" TextWrapping="Wrap"/>
             </StackPanel>
 
+            <!-- ── Workspaces you leave ── -->
+            <Grid Margin="0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{loc:Str Shell.Options.Shell.Dormant}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1"
+                          Style="{StaticResource DarkComboBox}"
+                          Width="140" HorizontalAlignment="Left"
+                          AutomationProperties.AutomationId="ShellDormantWorkspaceCombo"
+                          ItemsSource="{Binding DormancyOptions}"
+                          DisplayMemberPath="Label"
+                          SelectedValuePath="Minutes"
+                          SelectedValue="{Binding DormantWorkspaceMinutes}"/>
+            </Grid>
+            <TextBlock Margin="180,2,0,12"
+                       Text="{loc:Str Shell.Options.Shell.DormantNote}"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="11" TextWrapping="Wrap"/>
+
             <!-- ── Background animations on battery ── -->
             <Grid Margin="0,12,0,2">
                 <Grid.ColumnDefinitions>

@@ -9,9 +9,6 @@ namespace Nexaflow.IO.Common.Locations;
 /// </summary>
 public sealed class LocationProviderRegistry
 {
-    /// <summary>The process's backends.</summary>
-    public static LocationProviderRegistry Instance { get; } = new();
-
     private ILocationProvider[] _providers = [];
 
     /// <summary>Every registered backend, in the order they arrived.</summary>

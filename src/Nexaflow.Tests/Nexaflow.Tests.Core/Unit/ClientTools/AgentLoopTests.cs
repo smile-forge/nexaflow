@@ -209,7 +209,7 @@ public class AgentLoopTests
 
     /// <summary>
     /// An AIService on a runtime that carries both live services, the way
-    /// <c>WorkspaceManager.BootstrapServices</c> leaves one before any feature sees it.
+    /// <c>WorkspaceRuntimeFactory</c> builds one before any feature sees it.
     /// <para>
     /// It matters here because the agent's page catalog is built from this runtime
     /// (<c>get_openable_pages</c> → <c>GetPageCatalog</c>), and that catalog is what tells the agent which
@@ -219,14 +219,7 @@ public class AgentLoopTests
     /// </summary>
     private static AIService NewServiceOnAWiredRuntime()
     {
-        var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, TestTemp.Root);
-        Set(nameof(WorkspaceRuntime.AiService), svc);
-        Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
-        return svc;
-
-        void Set(string property, object value) =>
-            typeof(WorkspaceRuntime).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(ws, [value]);
+        return TestRuntimes.Unstarted().AiService;
     }
 
     // Conversation on c1, a distinct image-recognition model on c2.
@@ -675,12 +668,12 @@ public class AgentLoopTests
         var runtime  = (WorkspaceRuntime)typeof(AIService).GetField("_workspace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(svc)!;
 
         await svc.RunAgentAsync(new TestPage([]), "Open the AI chat.", true, new FakeApprover());
-        var pages = await new GetOpenablePagesTool(runtime).InvokeAsync([], CancellationToken.None);
+        var pages = await new GetOpenablePagesTool(runtime, runtime.FeatureManager).InvokeAsync([], CancellationToken.None);
 
         var system = provider.Conversations.Single()[0].Text;
         Assert.IsFalse(system.Contains("Openable pages"), "the catalogue is not in the prompt");
         StringAssert.Contains(system, "get_openable_pages", "the tool that lists it is offered");
-    foreach (var (kind, _) in FeatureManager.Instance.GetPageCatalog(runtime))
+    foreach (var (kind, _) in runtime.FeatureManager.GetPageCatalog(runtime))
             StringAssert.Contains(pages.ModelText, $"- {kind}", "the tool lists every page the runtime can open");
     }
 }

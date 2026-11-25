@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Plugins;
@@ -34,11 +35,11 @@ namespace Nexaflow.Core.Services;
 /// its global configs / archive handlers / theme contributions) are performed by a callback supplied at
 /// <see cref="Initialize"/> (see <see cref="FeatureManager"/>), so Core's "what to do with a discovered type"
 /// logic stays in one place.
+///
+/// One per session: <see cref="ShellHost"/> makes it, and the session's <see cref="FeatureManager"/> builds its index.
 /// </summary>
 public sealed class FeatureCatalog
 {
-    public static FeatureCatalog Instance { get; } = new();
-
     // ── Serialized index model (public for System.Text.Json) ──────────────────
 
     public sealed class TypeEntry
@@ -95,6 +96,9 @@ public sealed class FeatureCatalog
     private readonly Dictionary<string, (string File, string Type)> _views = new(StringComparer.Ordinal);
 
     private Action<Assembly, AssemblyEntry>? _onActivated;
+    private readonly string _cachePath;
+
+    private readonly ILogger<FeatureCatalog> _log;
     private string _exeDir = "";
     private string _coreFile = "";
 
@@ -105,6 +109,15 @@ public sealed class FeatureCatalog
     };
 
     // ── Initialization ────────────────────────────────────────────────────────
+
+    /// <summary>A catalogue whose index is cached under <paramref name="baseDir"/>, as <c>discovery\catalog.json</c>.</summary>
+    /// <param name="baseDir">The configuration's base directory (<see cref="ConfigManager.BaseDir"/>).</param>
+    /// <param name="log">Where the catalogue says how its index was built, and what it could not load, activate or cache.</param>
+    public FeatureCatalog(string baseDir, ILogger<FeatureCatalog> log)
+    {
+        _cachePath = Path.Combine(baseDir, "discovery", "catalog.json");
+        _log       = log;
+    }
 
     /// <summary>
     /// Builds the discovery index (from the on-disk cache when its version matches the running app,
@@ -119,7 +132,7 @@ public sealed class FeatureCatalog
         _coreFile = Path.GetFileName(typeof(FeatureCatalog).Assembly.Location);
 
         var version = SetupWizardViewModel.CurrentVersion();
-        var stamp   = FeatureCatalogStamp.Capture(_exeDir, _coreFile);
+        var stamp   = FeatureCatalogStamp.Capture(_exeDir, _coreFile, _log);
 
 #if DEBUG
         // Debug builds never read or write the cache — a full scan loads every assembly, so a feature broken
@@ -141,7 +154,7 @@ public sealed class FeatureCatalog
         {
             _index = cached;
             rebuilt = false;
-            ShellSafetyLog.Instance.Step($"feature catalog: cache hit ({_index.Assemblies.Count} assemblies); no feature DLLs scanned");
+            _log.LogInformation("feature catalog: cache hit ({Assemblies} assemblies); no feature DLLs scanned", _index.Assemblies.Count);
         }
         else
         {
@@ -151,7 +164,7 @@ public sealed class FeatureCatalog
             SaveCache(_index);
 #endif
             rebuilt = true;
-            ShellSafetyLog.Instance.Step($"feature catalog: full scan of {_index.Assemblies.Count} assemblies in {sw.ElapsedMilliseconds} ms");
+            _log.LogInformation("feature catalog: full scan of {Assemblies} assemblies in {Milliseconds} ms", _index.Assemblies.Count, sw.ElapsedMilliseconds);
         }
 
         lock (_lock)
@@ -214,7 +227,7 @@ public sealed class FeatureCatalog
         return idx;
     }
 
-    private static AssemblyEntry ScanAssembly(Assembly asm, string file, bool viewsOnly)
+    private AssemblyEntry ScanAssembly(Assembly asm, string file, bool viewsOnly)
     {
         var entry = new AssemblyEntry { File = file, Version = asm.GetName().Version?.ToString() ?? "" };
 
@@ -223,7 +236,7 @@ public sealed class FeatureCatalog
         catch (ReflectionTypeLoadException ex)
         {
             // Indexed without the types that failed, so the rest of the assembly still works — but say which, and why.
-            ShellSafetyLog.Instance.Failed($"reading every type in {file}", ex);
+            _log.LogWarning(ex, "reading every type in {File}", file);
             types = ex.Types.Where(t => t is not null).ToArray()!;
         }
 
@@ -340,7 +353,7 @@ public sealed class FeatureCatalog
             if (_activated.Add(file) && _byFile.TryGetValue(file, out var entry) && _onActivated is { } cb)
             {
                 try { cb(asm, entry); }
-                catch (Exception ex) { ShellSafetyLog.Instance.Failed($"activating {file}", ex); }
+                catch (Exception ex) { _log.LogWarning(ex, "activating {File}", file); }
             }
             return asm;
         }
@@ -354,7 +367,7 @@ public sealed class FeatureCatalog
         if (existing is not null) return existing;
 
         try { return Assembly.LoadFrom(Path.Combine(_exeDir, file)); }
-        catch (Exception ex) { ShellSafetyLog.Instance.Failed($"loading {file}", ex); return null; }
+        catch (Exception ex) { _log.LogWarning(ex, "loading {File}", file); return null; }
     }
 
     /// <summary>Resolves a type by (assembly file, full name), loading + activating the assembly if needed.</summary>
@@ -451,20 +464,6 @@ public sealed class FeatureCatalog
     public IReadOnlyList<Type> ResolveWorkspaceScopedConfigTypes()
         => ResolveAll(SnapshotRefs(t => t.Scoped && t.ConfigName is not null));
 
-    /// <summary>Workspace-scoped config types whose assembly is <b>already loaded</b> — never triggers a new
-    /// load. Lets the per-feature config view include a loaded feature's scoped config without forcing the
-    /// not-yet-loaded ones.</summary>
-    public IReadOnlyList<Type> ResolveLoadedWorkspaceScopedConfigTypes()
-    {
-        List<(string File, string Type)> refs = [];
-        lock (_lock)
-            foreach (var a in _index.Assemblies)
-                if (_loaded.ContainsKey(a.File))
-                    foreach (var t in a.Types)
-                        if (t.Scoped && t.ConfigName is not null) refs.Add((a.File, t.Name));
-        return ResolveAll(refs);
-    }
-
     /// <summary>Page-registration types whose constructor depends on <paramref name="configTypeFullName"/>,
     /// resolving (loading) their assemblies. Backs "which pages does this config affect" on config save.</summary>
     public IReadOnlyList<Type> ResolvePageRegistrationsForConfig(string configTypeFullName)
@@ -503,7 +502,7 @@ public sealed class FeatureCatalog
             if (already) continue;
             try { EnsureLoaded(f); activated++; } catch { }
         }
-        ShellSafetyLog.Instance.Step($"feature catalog: warm-up activated {activated} feature assembly(ies)");
+        _log.LogInformation("feature catalog: warm-up activated {Activated} feature assembly(ies)", activated);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -528,33 +527,31 @@ public sealed class FeatureCatalog
 
     // ── Cache persistence ─────────────────────────────────────────────────────
 
-    private static string CachePath => Path.Combine(ConfigManager.Instance.BaseDir, "discovery", "catalog.json");
-
-    private static CatalogIndex? TryLoadCache()
+    private CatalogIndex? TryLoadCache()
     {
         try
         {
-            if (File.Exists(CachePath))
-                return JsonSerializer.Deserialize<CatalogIndex>(File.ReadAllText(CachePath), _json);
+            if (File.Exists(_cachePath))
+                return JsonSerializer.Deserialize<CatalogIndex>(File.ReadAllText(_cachePath), _json);
         }
-        catch (Exception ex) { ShellSafetyLog.Instance.Failed("reading the feature catalog cache", ex); }
+        catch (Exception ex) { _log.LogWarning(ex, "reading the feature catalog cache"); }
         return null;
     }
 
-    private static void SaveCache(CatalogIndex idx)
+    private void SaveCache(CatalogIndex idx)
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
-            File.WriteAllText(CachePath, JsonSerializer.Serialize(idx, _json));
+            Directory.CreateDirectory(Path.GetDirectoryName(_cachePath)!);
+            File.WriteAllText(_cachePath, JsonSerializer.Serialize(idx, _json));
         }
-        catch (Exception ex) { ShellSafetyLog.Instance.Failed("writing the feature catalog cache", ex); }
+        catch (Exception ex) { _log.LogWarning(ex, "writing the feature catalog cache"); }
     }
 
     /// <summary>Drops the on-disk index (Debug builds, which always rescan).</summary>
-    private static void DeleteCache()
+    private void DeleteCache()
     {
-        try { if (File.Exists(CachePath)) File.Delete(CachePath); }
-        catch (Exception ex) { ShellSafetyLog.Instance.Failed("deleting the feature catalog cache", ex); }
+        try { if (File.Exists(_cachePath)) File.Delete(_cachePath); }
+        catch (Exception ex) { _log.LogWarning(ex, "deleting the feature catalog cache"); }
     }
 }

@@ -232,13 +232,14 @@ public class LocalAiRequirementsTests
     [TestMethod]
     public void TheRequirements_AreListedOnTheAboutPage_EachAnsweringRatherThanThrowing()
     {
-        var catalog = new FeatureCatalog();
+        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
         catalog.Initialize((_, _) => { });
         var discovered = catalog.TypesImplementing<IExternalDependency>();
         foreach (var type in Declarations)
             CollectionAssert.Contains(discovered.ToList(), type, $"{type.Name} must be found where About looks");
 
-        var reports = ExternalDependencyRegistry.BuildReports(Declarations);
+        // Built as the session builds them, with its reading of the AI host — here a session that runs none.
+        var reports = ExternalDependencyRegistry.BuildReports(Declarations, [new AiHostReading(holds: null)]);
         Assert.AreEqual(Declarations.Length, reports.Count, "each requirement is a row of its own");
         foreach (var report in reports)
         {

@@ -16,7 +16,7 @@ public sealed class GetRibbonButtonsTool(WorkspaceRuntime workspace) : IClientTo
 
     public Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
-        workspace.Workspace.EnsureSharedServicesLoaded();
+        workspace.Workspace.EnsureSharedServicesLoaded(workspace.ProviderPool);
         var items = workspace.Workspace.RibbonService?.Load() ?? RibbonLayoutService.LoadDefaults();
 
         var sb    = new StringBuilder("Ribbon buttons:\n");

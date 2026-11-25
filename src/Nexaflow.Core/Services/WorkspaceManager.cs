@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services.Agent;
@@ -5,6 +7,7 @@ using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -12,74 +15,63 @@ using System.Windows;
 
 namespace Nexaflow.Core.Services;
 
+/// <summary>
+/// The saved workspaces — the list the selector and the taskbar's jump list show — and what adds, clones, renames and deletes
+/// them, each written back to disk. The live runtimes are not here (<see cref="WorkspaceRuntimes"/>). The session makes one
+/// (<see cref="ShellHost"/>) and hands it to what reads or changes the list.
+/// </summary>
 public sealed class WorkspaceManager
 {
-    public static WorkspaceManager Instance { get; } = new();
-
     /// <summary>
     /// Saved workspace configurations — what the dropdown and taskbar JumpList show.
-    /// Populated by <see cref="Initialize"/>; never contains runtime-only data.
+    /// Never contains runtime-only data.
     /// </summary>
     public ObservableCollection<Workspace> Workspaces { get; } = [];
 
     /// <summary>
-    /// Live runtime workspaces. One is created per app/IPC launch; removed when its last window
-    /// closes. Not exposed publicly — callers use <see cref="CreateWorkspace"/> / <see cref="SwitchWorkspace"/>.
-    /// </summary>
-    private readonly List<WorkspaceRuntime> _workspaces = [];
-
-    /// <summary>
-    /// Fired after <see cref="Initialize"/> or when workspaces are added/removed, so listeners
+    /// Fired when workspaces are added/removed, so listeners
     /// (JumpList, ShellViewModel) can refresh their derived state.
     /// </summary>
     public event EventHandler? WorkspacesRefreshed;
 
-    /// <summary>Raised when the last window open in any live workspace has closed — the app has no window left.</summary>
-    internal event EventHandler? LastWindowClosed;
+    /// <summary>The saved workspace list on disk, which <see cref="SaveWorkspaces"/> writes.</summary>
+    private readonly WorkspacesConfig _savedConfig;
 
-    /// <summary>The first live workspace, or null when no windows are open (e.g. daemon mode).</summary>
-    public WorkspaceRuntime? FirstActive => _workspaces.FirstOrDefault();
+    /// <summary>The session's provider pool, which a workspace's provider configs are read through.</summary>
+    private readonly ProviderManager _providers;
 
-    /// <summary>True when at least one window is open across all live workspaces.</summary>
-    internal bool AnyWindowsOpen
-        => _workspaces.Any(w => w.ShellServices is { } s && s.HasWindows);
+    /// <summary>The session's configuration: the list is saved through it, and every workspace in it is listed in it.</summary>
+    private readonly ConfigManager _configuration;
 
-    private WorkspacesConfig? _savedConfig;
-
-    /// <summary>
-    /// Set by <c>App</c> at startup. Given a freshly-created <see cref="WorkspaceRuntime"/>, builds (but does
-    /// not show) its first window host and wires the tear-off factory — the same logic App uses on
-    /// launch. Lets <see cref="RestartWorkspace"/> spin up a new workspace+window without Core.Services
-    /// referencing <c>MainWindow</c>.
-    /// </summary>
-    internal Func<WorkspaceRuntime, IWindowHost>? WindowHostFactory { get; set; }
-
-    /// <summary>The app's background tasks: each workspace's assistant runs its slow work there, and a workspace's jobs stop when
-    /// its models go.</summary>
-    internal BackgroundActivityManager? BackgroundTasks { get; set; }
-
-    /// <summary>Where <paramref name="ws"/>'s assistant runs its slow work, telling the user through the app's notifications when
-    /// each piece ends; null before the app has its background tasks.</summary>
-    private BackgroundJobs? JobsOf(WorkspaceRuntime ws)
-        => BackgroundTasks is { } tasks ? new(tasks, ws, MessageCenter.Instance.Post) : null;
-
-    private WorkspaceManager() { }
+    /// <summary>Where what the list tidied of the workspaces' folders, and what it could not, is put on record.</summary>
+    private readonly ILogger<WorkspaceManager> _log;
 
     /// <summary>
-    /// Loads workspace configurations (workspaces) from <paramref name="config"/>. Does NOT create
-    /// any runtime <see cref="WorkspaceRuntime"/> objects — those are created lazily when windows open.
-    /// Must be called AFTER <see cref="ProviderManager"/> has loaded its assemblies.
+    /// The saved workspaces <paramref name="config"/> holds, or one default workspace where it holds none, each listed in
+    /// <paramref name="configuration"/> (<see cref="Workspace.ListIn"/>). The list alone: no runtime is made until a window opens one.
     /// </summary>
-    public void Initialize(WorkspacesConfig config)
+    /// <param name="config">The saved workspace list, which <see cref="SaveWorkspaces"/> writes back.</param>
+    /// <param name="providers">The session's provider pool, which a workspace's provider configs are read through.</param>
+    /// <param name="configuration">The session's configuration: the list is saved through it, and each workspace's folders sit
+    /// under its own.</param>
+    /// <param name="log">Where the list says what it tidied of the workspaces' folders, and what it could not.</param>
+    public WorkspaceManager(WorkspacesConfig config, ProviderManager providers, ConfigManager configuration, ILogger<WorkspaceManager> log)
     {
-        _savedConfig = config;
-        Workspaces.Clear();
+        _savedConfig   = config;
+        _providers     = providers;
+        _configuration = configuration;
+        _log           = log;
 
         var workspaces = config.Contexts is { Count: > 0 } saved ? saved : [new Workspace()];
         foreach (var p in workspaces)
-            Workspaces.Add(p);
+            Keep(p);
+    }
 
-        WorkspacesRefreshed?.Invoke(this, EventArgs.Empty);
+    /// <summary>Adds <paramref name="workspace"/> to <see cref="Workspaces"/>, listed in the session's configuration.</summary>
+    private void Keep(Workspace workspace)
+    {
+        workspace.ListIn(_configuration);
+        Workspaces.Add(workspace);
     }
 
     /// <summary>The reserved sub-folder of <c>Contexts\</c> that orphaned workspace data is moved into
@@ -97,12 +89,13 @@ public sealed class WorkspaceManager
     /// <para>
     /// Additive and idempotent: entries already in the list are kept as they are, and only folders no entry
     /// names are added (with a fresh symbol and colour — those lived only in the file that was lost). The
-    /// folders themselves are read for their names and never touched. Returns the names recovered.
+    /// folders themselves are read for their names and never touched. Returns the names recovered. The folders are those under
+    /// <paramref name="configuration"/>'s base, which the list is not yet kept by: this runs before it is.
     /// </para>
     /// </summary>
-    public static IReadOnlyList<string> RecoverWorkspacesFromDataFolders(WorkspacesConfig config)
+    public static IReadOnlyList<string> RecoverWorkspacesFromDataFolders(WorkspacesConfig config, ConfigManager configuration)
     {
-        var root = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts");
+        var root = Path.Combine(configuration.BaseDir, "Contexts");
         if (!Directory.Exists(root)) return [];
 
         var known     = config.Contexts.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -136,14 +129,14 @@ public sealed class WorkspaceManager
     /// HARD-GATED on <paramref name="listIsAuthoritative"/>: the list is only trustworthy when it actually
     /// loaded (or migrated) from disk. When it defaulted — missing or unreadable <c>workcontexts.json</c> —
     /// EVERY folder looks orphaned, and moving them all would be the very data-loss this guards against, so
-    /// it is skipped entirely. Call once at startup, right after <see cref="Initialize"/>. Returns the
+    /// it is skipped entirely. Call once at startup, right after the list is made. Returns the
     /// folder names quarantined (for logging / tests).
     /// </summary>
     public IReadOnlyList<string> QuarantineOrphanedDataFolders(bool listIsAuthoritative)
     {
         if (!listIsAuthoritative) return [];
 
-        var root = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts");
+        var root = Path.Combine(_configuration.BaseDir, "Contexts");
         if (!Directory.Exists(root)) return [];
 
         // Folder name == workspace Name (see WorkspaceDir); match case-insensitively like the filesystem.
@@ -166,14 +159,15 @@ public sealed class WorkspaceManager
             catch (Exception ex)
             {
                 // A locked file leaves the folder in place rather than crashing startup — retried next launch.
-                ShellSafetyLog.Instance.Failed($"quarantining the orphaned workspace folder '{name}'", ex);
+                _log.LogWarning(ex, "quarantining the orphaned workspace folder '{Folder}'", name);
             }
         }
 
         ForgetOrphanedLocalFolders(live);
 
         if (moved.Count > 0)
-            ShellSafetyLog.Instance.Step($"workspaces: quarantined {moved.Count} orphaned workspace folder(s) into '{OrphanQuarantineDir}': {string.Join(", ", moved)}");
+            _log.LogInformation("workspaces: quarantined {Count} orphaned workspace folder(s) into '{Quarantine}': {Folders}",
+                                moved.Count, OrphanQuarantineDir, string.Join(", ", moved));
 
         return moved;
     }
@@ -182,9 +176,9 @@ public sealed class WorkspaceManager
     /// Lets go of what no listed workspace keeps on this machine alone. Caches, worked out again from what they were kept of, so
     /// let go of rather than quarantined; a folder in use is left for the next launch.
     /// </summary>
-    private static void ForgetOrphanedLocalFolders(IReadOnlySet<string> live)
+    private void ForgetOrphanedLocalFolders(IReadOnlySet<string> live)
     {
-        var root = Path.Combine(ConfigManager.Instance.LocalDir, "Contexts");
+        var root = Path.Combine(_configuration.LocalDir, "Contexts");
         if (!Directory.Exists(root)) return;
 
         foreach (var dir in Directory.GetDirectories(root))
@@ -192,7 +186,7 @@ public sealed class WorkspaceManager
             if (live.Contains(Path.GetFileName(dir))) continue;
 
             try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex) { ShellSafetyLog.Instance.Failed($"removing the orphaned local workspace folder '{dir}'", ex); }
+            catch (Exception ex) { _log.LogWarning(ex, "removing the orphaned local workspace folder '{Folder}'", dir); }
         }
     }
 
@@ -207,137 +201,14 @@ public sealed class WorkspaceManager
     }
 
     /// <summary>
-    /// Creates a brand-new runtime <see cref="WorkspaceRuntime"/> for <paramref name="workspace"/> with
-    /// fully-bootstrapped per-Workspace services. Always returns a fresh instance — used on every
-    /// app/IPC launch (launching the app N times ⇒ N Workspaces, possibly all on one workspace).
-    /// </summary>
-    public WorkspaceRuntime CreateWorkspace(Workspace workspace)
-    {
-        workspace.EnsureSharedServicesLoaded();
-        var ws = new WorkspaceRuntime(workspace);
-        BootstrapServices(ws);
-        _workspaces.Add(ws);
-        return ws;
-    }
-
-    /// <summary>
-    /// Builds a runtime for <paramref name="workspace"/> ahead of the launch that will use it: bootstrapped as
-    /// <see cref="CreateWorkspace"/> bootstraps one, but on standby (<see cref="WorkspaceRuntime.IsStandby"/>) — not live,
-    /// so nothing that asks which workspaces are open counts it, and with its models left unweighed until
-    /// <see cref="AdoptStandby"/>.
-    /// </summary>
-    internal WorkspaceRuntime CreateStandbyWorkspace(Workspace workspace)
-    {
-        workspace.EnsureSharedServicesLoaded();
-        var ws = new WorkspaceRuntime(workspace) { IsStandby = true };
-        BootstrapServices(ws);
-        return ws;
-    }
-
-    /// <summary>Makes a standby runtime live, as <see cref="CreateWorkspace"/> would have made it: listed among the open
-    /// workspaces, and its assigned models weighed for loading ahead.</summary>
-    internal void AdoptStandby(WorkspaceRuntime ws)
-    {
-        ws.IsStandby = false;
-        _workspaces.Add(ws);
-        if (ws.Providers is { } providers)
-            ProviderManager.Instance.Residency?.Preload(providers.Execution.Values);
-    }
-
-    /// <summary>
-    /// Switches <paramref name="ws"/> to a different <paramref name="target"/> workspace in place:
-    /// repoints the workspace and reconfigures the runtime (providers + AIService), closing the
-    /// Workspace's tabs. Other Workspaces (incl. ones still on the old workspace) are untouched.
-    /// </summary>
-    public void SwitchWorkspace(WorkspaceRuntime ws, Workspace target)
-    {
-        if (ReferenceEquals(ws.Workspace, target)) return;
-        ws.ShellServices?.CaptureLastSession();   // record the outgoing workspace's session before we leave it
-        target.EnsureSharedServicesLoaded();
-        ws.RepointWorkspace(target);
-        ReconfigureWorkspace(ws);
-    }
-
-    /// <summary>
-    /// Rebuilds <paramref name="ws"/>'s runtime for its CURRENT workspace: closes its tabs, evicts the
-    /// feature cache (so handlers drop the dead AIService), releases the old provider set and
-    /// acquires a fresh one from the workspace's configs (loading newly-needed providers and unloading
-    /// now-unused ones), and rebuilds the AIService. Reopens a default tab in the focused window.
-    /// Called by <see cref="SwitchWorkspace"/> and by the Manage-AI panel after a provider-config change.
-    /// </summary>
-    public void ReconfigureWorkspace(WorkspaceRuntime ws)
-    {
-        var workspace = ws.Workspace;
-
-        // 1. Close all tabs across every window (their page-VMs captured the old services).
-        ws.ShellServices?.CloseAllTabs();
-
-        // 2. Drop cached feature/handler instances that captured the old AIService/IShellServices.
-        FeatureManager.Instance.EvictWorkspace(ws);
-
-        // 3. Rebuild the AIService for the (possibly new) workspace. The old one's jobs stop: the models they run on are going.
-        BackgroundTasks?.StopJobsOf(ws);
-        var service = new AIService(ws, workspace.ConversationsDir, JobsOf(ws));
-        service.LoadAbilityConfig(workspace.AiConfig);
-        ws.AiService = service;
-
-        // 4. Re-acquire providers (pool reuses unchanged ones; weighs newly-assigned models for loading
-        //    ahead, cools now-unused ones — acquire before release so unchanged instances never drop to
-        //    zero refs) and register the execution instances into the new AIService.
-        AcquireAndRegister(ws);
-
-        // 5. Reopen the workspace's saved startup tabs so the windows aren't left empty.
-        ws.ShellServices?.OpenDefaultTabs(workspace.DefaultTabs);
-    }
-
-    /// <summary>
-    /// Called by <see cref="ShellServices.UnregisterWindow"/> when a window closes. When the
-    /// Workspace has no more windows, releases its providers, drops its feature cache, and removes it.
-    /// </summary>
-    public void NotifyWindowClosed(WorkspaceRuntime ws)
-    {
-        if (ws.ShellServices is { HasWindows: true }) return;
-
-        BackgroundTasks?.StopJobsOf(ws);
-        FeatureManager.Instance.EvictWorkspace(ws);
-        ProviderManager.Instance.ReleaseProviderSet(ws.Providers);   // cools any now-unused models
-        _ = ws.Locations.DisposeAsync();                             // unmounts, and closes every session
-        ws.Providers = null;
-        ws.AiService = null;
-        _workspaces.Remove(ws);
-
-        if (!ws.IsStandby && !AnyWindowsOpen) LastWindowClosed?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Rebuilds <paramref name="ws"/>'s provider set from disk (reloading the workspace's provider
-    /// configs so newly discovered providers appear) and re-registers the execution instances into its
-    /// AIService. Called when the AI options panel opens.
-    /// </summary>
-    public void RefreshProviders(WorkspaceRuntime ws)
-    {
-        ws.Workspace.ReloadProviderConfigs();
-        AcquireAndRegister(ws);
-    }
-
-    /// <summary>
-    /// Re-acquires <paramref name="ws"/>'s provider set for its current ability-grid columns (without
-    /// touching tabs) and re-registers the execution instances. Called after the ability grid is edited
-    /// so newly-assigned models get an execution instance (weighed for loading ahead) and dropped ones are cooled.
-    /// </summary>
-    public void SyncProviders(WorkspaceRuntime ws) => AcquireAndRegister(ws);
-
-    /// <summary>
     /// Makes <paramref name="model"/> <paramref name="workspace"/>'s <paramref name="slot"/> model — a download a choice waited on
-    /// has landed — saving it, and having every running window of the workspace take it up without closing its tabs.
+    /// has landed — and saves it. The workspace's runtime takes it up through the session (<see cref="WorkspaceRuntimes.Reacquire"/>).
     /// </summary>
     public void UseLocalModel(Workspace workspace, LocalSlot slot, ProviderModelPair model)
     {
-        workspace.EnsureSharedServicesLoaded();
+        workspace.EnsureSharedServicesLoaded(_providers);
         LocalColumns.Use(workspace.AiConfig, slot, model);
-        ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
-        foreach (var ws in _workspaces.Where(w => ReferenceEquals(w.Workspace, workspace)).ToList())
-            AcquireAndRegister(ws);
+        workspace.SaveAiConfig();
     }
 
     /// <summary>Adds a new workspace with a random icon/colour to <see cref="Workspaces"/>.</summary>
@@ -345,7 +216,7 @@ public sealed class WorkspaceManager
     {
         var (icon, color) = WorkspaceStyle.Random();
         var workspace = new Workspace { Name = name, Icon = icon, Color = color };
-        Workspaces.Add(workspace);
+        Keep(workspace);
         WorkspacesRefreshed?.Invoke(this, EventArgs.Empty);
         return workspace;
     }
@@ -358,17 +229,17 @@ public sealed class WorkspaceManager
     {
         var (icon, color) = WorkspaceStyle.Random();
         var workspace = new Workspace { Name = name, Icon = icon, Color = color };
-        var destDir = WorkspaceDir(name);
+        var destDir = WorkspaceDir(_configuration, name);
 
-        source.EnsureSharedServicesLoaded();
-        ConfigManager.Instance.SaveTo(destDir, source.AiConfig, source.AiConfig.ConfigName);
-        ConfigManager.Instance.SaveTo(destDir, source.Persona, source.Persona.ConfigName);
+        source.EnsureSharedServicesLoaded(_providers);
+        _configuration.SaveTo(destDir, source.AiConfig, source.AiConfig.ConfigName);
+        _configuration.SaveTo(destDir, source.Persona, source.Persona.ConfigName);
         foreach (var cfg in source.ProviderConfigs)
-            ConfigManager.Instance.SaveTo(destDir, cfg, cfg.ConfigName);
+            _configuration.SaveTo(destDir, cfg, cfg.ConfigName);
         foreach (var cfg in source.WorkspaceConfigs)
-            ConfigManager.Instance.SaveTo(destDir, cfg, cfg.ConfigName);
+            _configuration.SaveTo(destDir, cfg, cfg.ConfigName);
 
-        Workspaces.Add(workspace);
+        Keep(workspace);
         WorkspacesRefreshed?.Invoke(this, EventArgs.Empty);
         return workspace;
     }
@@ -396,16 +267,16 @@ public sealed class WorkspaceManager
     {
         if (!string.Equals(workspace.Name, newName, StringComparison.Ordinal))
         {
-            var oldDir = WorkspaceDir(workspace.Name);
-            var newDir = WorkspaceDir(newName);
+            var oldDir = WorkspaceDir(_configuration, workspace.Name);
+            var newDir = WorkspaceDir(_configuration, newName);
             // Skip the move on a case-only rename (same path on Windows) or when there's nothing to move.
             if (!string.Equals(oldDir, newDir, StringComparison.OrdinalIgnoreCase)
                 && Directory.Exists(oldDir) && !Directory.Exists(newDir))
         Directory.Move(oldDir, newDir);
 
                 // What it keeps on this machine alone goes with it.
-                var oldLocal = WorkspaceLocalDir(workspace.Name);
-                var newLocal = WorkspaceLocalDir(newName);
+                var oldLocal = WorkspaceLocalDir(_configuration, workspace.Name);
+                var newLocal = WorkspaceLocalDir(_configuration, newName);
                 if (!string.Equals(oldLocal, newLocal, StringComparison.OrdinalIgnoreCase)
                     && Directory.Exists(oldLocal) && !Directory.Exists(newLocal))
                     Directory.Move(oldLocal, newLocal);
@@ -431,14 +302,11 @@ public sealed class WorkspaceManager
     /// <summary>
     /// Permanently deletes <paramref name="workspace"/>: removes it from the list, deletes its on-disk
     /// data folder (config + every conversation), and persists the list. Refuses to delete the last
-    /// remaining workspace. By default also refuses one a live workspace is using; pass
-    /// <paramref name="force"/> when the caller has already (or is about to) tear down that workspace's
-    /// windows — used by the Configure panel's "Delete Workspace" action, which has no separate Save step.
-    /// Returns true when deleted.
+    /// remaining workspace. The caller ends its runtime first (<see cref="WorkspaceRuntimes.Close"/>) — used by the
+    /// Configure panel's "Delete Workspace" action, which has no separate Save step. Returns true when deleted.
     /// </summary>
-    public bool DeleteWorkspace(Workspace workspace, bool force = false)
+    public bool DeleteWorkspace(Workspace workspace)
     {
-        if (!force && IsWorkspaceInUse(workspace)) return false;
         if (!RemoveWorkspace(workspace)) return false;   // removes + deletes the folder
         SaveWorkspaces();
         return true;
@@ -446,48 +314,37 @@ public sealed class WorkspaceManager
 
     /// <summary>Deletes a workspace's data folder, swallowing IO failures (a locked file orphans the
     /// folder rather than crashing the delete).</summary>
-    private static void DeleteWorkspaceFolder(string name)
+    private void DeleteWorkspaceFolder(string name)
     {
         try
         {
-            var dir = WorkspaceDir(name);
+            var dir = WorkspaceDir(_configuration, name);
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
 
-            var local = WorkspaceLocalDir(name);
+            var local = WorkspaceLocalDir(_configuration, name);
             if (Directory.Exists(local)) Directory.Delete(local, recursive: true);
         }
         catch { /* leave an orphaned folder rather than fail the removal */ }
     }
 
-    /// <summary>True if any live workspace is currently running <paramref name="workspace"/>.</summary>
-    public bool IsWorkspaceInUse(Workspace workspace)
-        => _workspaces.Any(w => ReferenceEquals(w.Workspace, workspace));
-
-    /// <summary>The live workspace running <paramref name="workspace"/>, or null when none is open.</summary>
-    public WorkspaceRuntime? FindLiveWorkspace(Workspace workspace)
-        => _workspaces.FirstOrDefault(w => ReferenceEquals(w.Workspace, workspace));
-
     /// <summary>
-    /// Every path a tab names — those open in every live workspace, and those each workspace's default tabs and last session would
-    /// open again — for what the app clears (<see cref="DraftLocation.Sweep"/>) never to take a file a tab shows or will show.
-    /// Called on the UI thread, where the tabs are.
+    /// Every path a tab names — those <paramref name="open"/> in the live workspaces, and those each workspace's default tabs and
+    /// last session would open again — for what the app clears (<see cref="DraftLocation.Sweep"/>) never to take a file a tab shows
+    /// or will show. Called on the UI thread, where the tabs are.
     /// </summary>
-    internal IReadOnlyList<string> TabPaths()
+    internal IReadOnlyList<string> TabPaths(IEnumerable<Page> open)
     {
         var saved = Workspaces.SelectMany(workspace => workspace.DefaultTabs.Concat(workspace.LastSessionTabs ?? []))
                               .SelectMany(tab => DraftLocation.PathsIn(tab.PageParams));
-        var open = _workspaces.SelectMany(runtime => runtime.ShellServices?.GetOpenTabs() ?? [])
-                              .SelectMany(tab => DraftLocation.PathsIn(tab.PageParams));
-        return [.. saved.Concat(open).Distinct(StringComparer.OrdinalIgnoreCase)];
+        var showing = open.SelectMany(tab => DraftLocation.PathsIn(tab.PageParams));
+        return [.. saved.Concat(showing).Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
     /// <summary>
-    /// The workspace an item opened from outside the app (Explorer's "Open in Nexaflow") goes to: the one workspace with
-    /// windows open, or the first saved workspace when none or several are.
+    /// The workspace an item opened from outside the app (Explorer's "Open in Nexaflow") goes to: the one workspace of those
+    /// <paramref name="withWindows"/>, or the first saved workspace when none or several are.
     /// </summary>
-    public Workspace WorkspaceForOpenedPath()
-        => ChooseWorkspaceForOpenedPath(
-            Workspaces, _workspaces.Where(w => w.ShellServices is { HasWindows: true }).Select(w => w.Workspace));
+    public Workspace WorkspaceForOpenedPath(IEnumerable<Workspace> withWindows) => ChooseWorkspaceForOpenedPath(Workspaces, withWindows);
 
     /// <summary>
     /// The rule <see cref="WorkspaceForOpenedPath"/> applies to the <paramref name="saved"/> workspaces and those
@@ -499,84 +356,54 @@ public sealed class WorkspaceManager
         return open is [var only] ? only : saved[0];
     }
 
-    /// <summary>
-    /// Rebuilds <paramref name="old"/> as a brand-new workspace on the same workspace and swaps its
-    /// window: snapshots the focused window's tabs, creates a fresh workspace (fresh ShellServices /
-    /// AIService / providers / file-system registry that pick up the just-saved per-workspace config),
-    /// opens a replacement window where the old one was, reopens the tabs, then closes the old
-    /// workspace's windows (its last close disposes it). Used by the Configure panel after a
-    /// provider-config or workspace-scoped feature-config change — the theme-restart pattern, but
-    /// swapping the whole workspace. Falls back to <see cref="ReconfigureWorkspace"/> if no window
-    /// factory is wired (e.g. headless).
-    /// </summary>
-    internal void RestartWorkspace(WorkspaceRuntime old)
-    {
-        var acting = old.ShellServices?.FocusedWindow;
-        if (acting is null || WindowHostFactory is null) { ReconfigureWorkspace(old); return; }
-
-        // Snapshot the acting window's tabs grouped by pane (so a left/right split survives) and its placement.
-        var snapshot  = acting.CaptureTabLayout();
-        var placement = acting.IntendedPlacement;
-
-        // Fresh workspace on the same workspace — the shared Workspace already carries the saved edits.
-        var fresh = CreateWorkspace(old.Workspace);
-
-        // Replacement window, opened where the old one is meant to be, shown BEFORE the old closes so the
-        // workspace is never left window-less (which would dispose it / shut the app down).
-        var freshHost = WindowHostFactory(fresh);
-        if (placement is not null) freshHost.OpenAt(placement);
-        freshHost.Window.Show();
-
-        // Tear down the old workspace's windows (last close releases its providers + evicts caches).
-        old.ShellServices?.CloseAllWindows();
-
-        // Restore the captured pane layout (split + each pane's tabs + active tab) into the fresh window.
-        fresh.ShellServices!.RestoreTabLayout(snapshot);
-    }
-
-    /// <summary>Per-workspace data folder: <c>%AppData%\…\Contexts\&lt;name&gt;</c> (folder name kept for compat).</summary>
-    public static string WorkspaceDir(string name)
-        => Path.Combine(ConfigManager.Instance.BaseDir, "Contexts", name);
+    /// <summary>Per-workspace data folder under <paramref name="configuration"/>'s base: <c>%AppData%\…\Contexts\&lt;name&gt;</c>
+    /// (folder name kept for compat).</summary>
+    public static string WorkspaceDir(ConfigManager configuration, string name)
+        => Path.Combine(configuration.BaseDir, "Contexts", name);
 
     /// <summary>
     /// What a workspace keeps on this machine alone: <c>%LocalAppData%\…\Contexts\&lt;name&gt;</c> — caches too large to roam with
     /// its settings. Renamed, deleted and let go of with the workspace's own folder.
     /// </summary>
-    public static string WorkspaceLocalDir(string name)
-        => Path.Combine(ConfigManager.Instance.LocalDir, "Contexts", name);
+    public static string WorkspaceLocalDir(ConfigManager configuration, string name)
+        => Path.Combine(configuration.LocalDir, "Contexts", name);
 
     /// <summary>Persists the workspace list (names/colours/icons only).</summary>
     public void SaveWorkspaces()
     {
-        if (_savedConfig is null) return;
         _savedConfig.Contexts = [.. Workspaces];
-        ConfigManager.Instance.Save(_savedConfig, _savedConfig.ConfigName);
+        _configuration.Save(_savedConfig, _savedConfig.ConfigName);
     }
 
     /// <summary>Persists one workspace's AI ability config to its own folder.</summary>
-    public void SaveWorkspaceAiConfig(Workspace workspace)
-        => ConfigManager.Instance.SaveTo(WorkspaceDir(workspace.Name), workspace.AiConfig, workspace.AiConfig.ConfigName);
+    public void SaveWorkspaceAiConfig(Workspace workspace) => workspace.SaveAiConfig();
 
     /// <summary>Persists one workspace's assistant persona (name + system prompt) to its own folder.</summary>
     public void SaveWorkspacePersona(Workspace workspace)
-        => ConfigManager.Instance.SaveTo(WorkspaceDir(workspace.Name), workspace.Persona, workspace.Persona.ConfigName);
+        => _configuration.SaveTo(workspace.Dir, workspace.Persona, workspace.Persona.ConfigName);
 
     /// <summary>Persists one of a workspace's per-workspace feature configs to its own folder.</summary>
     public void SaveWorkspaceScopedConfig(Workspace workspace, IFeatureConfig config)
-        => ConfigManager.Instance.SaveTo(WorkspaceDir(workspace.Name), config, config.ConfigName);
+        => _configuration.SaveTo(workspace.Dir, config, config.ConfigName);
+
+    /// <summary>Persists one of a workspace's provider configs — the key or address a provider is reached with — to its own folder.</summary>
+    public void SaveWorkspaceProviderConfig(Workspace workspace, IProviderConfig config)
+        => _configuration.SaveTo(workspace.Dir, config, config.ConfigName);
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /// <summary>
     /// Folds a grid saved before the Local column's models on this machine into it, once, and turns the Local column on where this
-    /// machine runs a model; each job it is used for keeps a model the job offers here. Nothing is downloaded. Saved when it
-    /// changed — before the workspace runs, the setup wizard does it so it can offer what the column now needs.
+    /// machine runs a model; each job it is used for keeps a model the job offers here, read from <paramref name="assets"/>. Nothing
+    /// is downloaded. Saved when it changed — before the workspace runs, the setup wizard does it so it can offer what the column
+    /// now needs.
     /// </summary>
+    /// <param name="assets">The files local models need; null where the session keeps none, when only the column is gathered.</param>
     /// <returns>Whether the grid changed.</returns>
-    internal static bool FoldInLocalColumns(Workspace workspace, ProviderSet providers)
+    internal static bool FoldInLocalColumns(Workspace workspace, ProviderSet providers, IModelAssetStore? assets)
     {
         var folded = LocalColumns.Gather(workspace.AiConfig, providers.IsLocal);
-        if (ProviderManager.Instance.Assets is { } assets)
+        if (assets is not null)
         {
             var shelf = new LocalModelShelf(providers, assets);
             IReadOnlyList<(ProviderModelPair, bool, bool, bool)> Offered(LocalSlot slot)
@@ -584,56 +411,8 @@ public sealed class WorkspaceManager
             folded |= LocalColumns.Seed(workspace.AiConfig, Offered);
             folded |= LocalColumns.Settle(workspace.AiConfig, Offered);
         }
-        if (folded) ConfigManager.Instance.SaveTo(workspace.Dir, workspace.AiConfig, workspace.AiConfig.ConfigName);
+        if (folded) workspace.SaveAiConfig();
         return folded;
-    }
-
-    /// <summary>How long a runtime waits for the machine's first look for locations before mounting without it.</summary>
-    private static readonly TimeSpan DiscoveryPatience = TimeSpan.FromSeconds(2);
-
-    /// <summary>
-    /// Acquires a fresh provider set for <paramref name="ws"/>'s current configs and assigned grid
-    /// columns, swaps it in (acquire-before-release, so unchanged instances stay and dropped ones are
-    /// cooled), re-registers the execution instances into the AIService keyed by column id, and has the
-    /// residency weigh each for loading ahead.
-    /// </summary>
-    private static void AcquireAndRegister(WorkspaceRuntime ws)
-    {
-        var workspace = ws.Workspace;
-
-        var fresh = ProviderManager.Instance.AcquireProviderSet(
-            workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
-
-        StartupTimings.Mark("Workspace.ProvidersAcquired");
-        if (FoldInLocalColumns(workspace, fresh))
-        {
-            var again = ProviderManager.Instance.AcquireProviderSet(workspace.ProviderConfigs, AssignedColumns(workspace.AiConfig));
-            ProviderManager.Instance.ReleaseProviderSet(fresh);
-            fresh = again;
-        }
-        StartupTimings.Mark("Workspace.LocalColumnsFolded");
-        var old   = ws.Providers;
-        ws.Providers = fresh;
-        ProviderManager.Instance.ReleaseProviderSet(old);
-        // Nothing is loaded here: the residency weighs each assigned model for loading ahead once the window is up. A standby
-        // runtime's are weighed when a launch adopts it, so a window nobody has asked for yet loads nothing.
-        if (!ws.IsStandby) ProviderManager.Instance.Residency?.Preload(fresh.Execution.Values);
-
-        if (ws.AiService is { } svc)
-        {
-            svc.ClearProviders();
-            foreach (var (columnId, provider) in fresh.Execution)
-                svc.Register(columnId, provider);
-            ws.RaiseProvidersChanged();
-        }
-
-        // The workspace's connections, mounted on the runtime's file system from its own session pool, with what the
-        // backends find on this machine. The first look is let finish before mounting — a registry read for WSL — so the
-        // tabs reopened next find a saved distro's folder mounted; a look slower than DiscoveryPatience is mounted when it
-        // finishes instead, and every later look has already finished.
-        FeatureManager.Instance.EnsureLocationProviders();
-        DiscoveredLocations.Instance.StartAsync().Wait(DiscoveryPatience);
-        ws.Locations.Follow(workspace.Connections);
     }
 
     /// <summary>The grid columns actually assigned to an ability — the models in use (need an instance).</summary>
@@ -641,18 +420,5 @@ public sealed class WorkspaceManager
     {
         var assigned = cfg.AssignedColumnIds();
         return [.. cfg.Columns.Where(c => assigned.Contains(c.Id))];
-    }
-
-    private static void BootstrapServices(WorkspaceRuntime ws)
-    {
-        var workspace = ws.Workspace;
-
-        var service = new AIService(ws, workspace.ConversationsDir, Instance.JobsOf(ws));
-        service.LoadAbilityConfig(workspace.AiConfig);
-        ws.AiService = service;
-
-        AcquireAndRegister(ws);
-
-        ws.ShellServices ??= new ShellServices(ws, ProviderManager.Instance.ActivityManager);
     }
 }

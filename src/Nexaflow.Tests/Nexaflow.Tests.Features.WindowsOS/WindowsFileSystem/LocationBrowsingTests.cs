@@ -95,7 +95,7 @@ public sealed class LocationBrowsingTests
 
     private async Task<FileSystemViewModel> AtAsync(string folder)
     {
-        var vm = new FileSystemViewModel(folder, _shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), _vfs);
+        var vm = new FileBrowserRuntime(_shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), _vfs).Browse(folder);
         await vm.Browsing;
         await vm.EntriesLoaded;
         return vm;
@@ -250,7 +250,7 @@ public sealed class LocationBrowsingTests
         _shell.When(s => s.ShowPrompt(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action<string>>(), Arg.Any<Action>()))
               .Do(call => { shown = call.ArgAt<string>(2); confirm = call.ArgAt<Action<string>>(3); });
 
-        await new Nexaflow.Features.WindowsFileSystem.FileActions.RenameFile(_shell, _vfs).PerformActionAsync(Named($@"{Root}\docs", "a:b.txt"));
+        await new Nexaflow.Features.WindowsFileSystem.FileActions.RenameFile(_shell, _vfs, new Nexaflow.Features.WindowsFileSystem.Services.FileCompanions(_shell)).PerformActionAsync(Named($@"{Root}\docs", "a:b.txt"));
         Assert.AreEqual("a:b.txt", shown, "the name as Linux has it, not the segment that stands for it");
 
         var renamed = _shell.ReceivedCalls().Count();

@@ -26,6 +26,7 @@ internal sealed class StandbyWindow
     /// </summary>
     public static readonly TimeSpan AfterLastWindow = TimeSpan.FromSeconds(2);
 
+    private readonly WorkspaceRuntimes _runtimes;
     private readonly Func<Workspace?> _target;
     private readonly Func<WorkspaceRuntime, MainWindow> _build;
     private readonly DispatcherTimer _delay;
@@ -36,8 +37,9 @@ internal sealed class StandbyWindow
 
     /// <param name="target">The workspace to build a standby for now, or null while none should stand.</param>
     /// <param name="build">Builds a runtime's window, unshown, wired as every first window is.</param>
-    public StandbyWindow(Func<Workspace?> target, Func<WorkspaceRuntime, MainWindow> build)
+    public StandbyWindow(WorkspaceRuntimes runtimes, Func<Workspace?> target, Func<WorkspaceRuntime, MainWindow> build)
     {
+        _runtimes = runtimes;
         _target = target;
         _build  = build;
         _delay  = new DispatcherTimer(DispatcherPriority.ApplicationIdle);
@@ -72,7 +74,7 @@ internal sealed class StandbyWindow
         _window  = null;
         _runtime = null;
 
-        WorkspaceManager.Instance.AdoptStandby(runtime);
+        _runtimes.Adopt(runtime);
         Application.Current.MainWindow ??= window;
         window.ShowFromStandby(PlacementOf(workspace));
         return window;
@@ -92,7 +94,7 @@ internal sealed class StandbyWindow
     {
         if (_window is not null || _target() is not { } workspace) return;
 
-        var runtime = WorkspaceManager.Instance.CreateStandbyWorkspace(workspace);
+        var runtime = _runtimes.OpenStandby(workspace);
         var window  = _build(runtime);
         _window   = window;
         _runtime  = runtime;

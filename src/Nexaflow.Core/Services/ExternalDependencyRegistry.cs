@@ -1,4 +1,3 @@
-using System.Windows.Threading;
 using Nexaflow.Features.Common.Dependencies;
 using Nexaflow.Visuals.Common.Localization;
 
@@ -18,15 +17,17 @@ namespace Nexaflow.Core.Services;
 /// marshalled to the UI thread. Unlike that one this can be re-run on demand (About has a re-check
 /// button), since a user who installs a missing runtime should not have to restart to see it appear.
 /// </para>
+/// <para>
+/// The session makes one (<see cref="ShellHost"/>) and hands it to what reads it: every window, for the About page and the
+/// panel a page that could not be made is drawn with, and every runtime's <see cref="ShellServices"/>, for a feature's question.
+/// </para>
 /// </summary>
-public sealed class ExternalDependencyRegistry
+/// <param name="ui">The thread <see cref="Updated"/> is raised on.</param>
+/// <param name="catalog">The feature catalogue, which finds every declaration the features ship.</param>
+/// <param name="services">What a declaration may take in its constructor, matched by type — the AI host's reading of its runtime,
+/// which what Nexaflow's own models need is judged from. A declaration asking for what is not here declares nothing.</param>
+public sealed class ExternalDependencyRegistry(IUiThread ui, FeatureCatalog catalog, IReadOnlyList<object> services)
 {
-    public static ExternalDependencyRegistry Instance { get; } = new();
-    private ExternalDependencyRegistry() { }
-
-    /// <summary>The app UI dispatcher, captured when the singleton is built on the UI thread.</summary>
-    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
-
     private readonly object _gate = new();
     private IReadOnlyList<ExternalDependencyReport> _reports = [];
     private Task? _inFlight;
@@ -84,17 +85,19 @@ public sealed class ExternalDependencyRegistry
         lock (_gate) _reports = reports;
         IsReady = true;
 
-        Dispatch(() => Updated?.Invoke(this, EventArgs.Empty));
+        // A probe runs on the thread pool, never on the UI thread: the event is queued there.
+        ui.Post(() => Updated?.Invoke(this, EventArgs.Empty));
     }
 
-    private static List<ExternalDependencyReport> BuildReports() => BuildReports(Discover());
+    private List<ExternalDependencyReport> BuildReports() => BuildReports(Discover(), services);
 
     /// <summary>
     /// The merge, with the declaring types handed in rather than discovered — the dedup, the Required-wins
     /// precedence and the tolerance of a broken declaration are the parts worth testing, and they cannot be
-    /// exercised through a live <see cref="FeatureCatalog"/> scan.
+    /// exercised through a live <see cref="FeatureCatalog"/> scan. Each declaration is built with what
+    /// <paramref name="services"/> holds of its constructor's parameters.
     /// </summary>
-    internal static List<ExternalDependencyReport> BuildReports(IEnumerable<Type> types)
+    internal static List<ExternalDependencyReport> BuildReports(IEnumerable<Type> types, IReadOnlyList<object> services)
     {
         // Keyed on the component's id, not the declaring type: one runtime can be declared by several features,
         // and the user cares about it listed once, naming each.
@@ -105,7 +108,7 @@ public sealed class ExternalDependencyRegistry
             IExternalDependency decl;
             try
             {
-                if (Activator.CreateInstance(type) is not IExternalDependency d) continue;
+                if (Declare(type, services) is not IExternalDependency d) continue;
                 decl = d;
             }
             catch { continue; }   // a declaration that cannot be built simply declares nothing
@@ -131,9 +134,23 @@ public sealed class ExternalDependencyRegistry
             .ToList();
     }
 
-    private static IEnumerable<Type> Discover()
+    /// <summary>
+    /// <paramref name="type"/>'s declaration, built with the constructor whose every parameter <paramref name="services"/> holds
+    /// one of, the widest first — a feature's, which takes nothing, by its parameterless one; null where none can be built.
+    /// </summary>
+    private static object? Declare(Type type, IReadOnlyList<object> services)
     {
-        try { return FeatureCatalog.Instance.TypesImplementing<IExternalDependency>(); }
+        foreach (var ctor in type.GetConstructors().OrderByDescending(c => c.GetParameters().Length))
+        {
+            var args = ctor.GetParameters().Select(p => services.FirstOrDefault(p.ParameterType.IsInstanceOfType)).ToArray();
+            if (args.All(arg => arg is not null)) return ctor.Invoke(args);
+        }
+        return null;
+    }
+
+    private IEnumerable<Type> Discover()
+    {
+        try { return catalog.TypesImplementing<IExternalDependency>(); }
         catch { return []; }
     }
 
@@ -162,12 +179,6 @@ public sealed class ExternalDependencyRegistry
         if (name.StartsWith(prefix, StringComparison.Ordinal)) name = name[prefix.Length..];
         else if (name.StartsWith("Nexaflow.", StringComparison.Ordinal)) name = name["Nexaflow.".Length..];
         return name.Replace('.', ' ');
-    }
-
-    private void Dispatch(Action action)
-    {
-        if (_ui.CheckAccess()) action();
-        else _ui.BeginInvoke(action);
     }
 
     /// <summary>Collects the features declaring one component while its probe result is held once.</summary>

@@ -100,20 +100,36 @@ public sealed partial class Workspace : ObservableObject
     private readonly Dictionary<Type, IFeatureConfig> _scoped = new();
     private readonly object _scopedLock = new();
 
+    /// <summary>The configuration this workspace is listed in (<see cref="ListIn"/>); null while it is in no saved list.</summary>
+    private ConfigManager? _configuration;
+
+    /// <summary>
+    /// Lists this workspace in <paramref name="configuration"/>: its folders sit under that configuration's, and its own settings —
+    /// the ability grid, the persona, its provider and per-workspace feature configs, its connections — are read and written
+    /// through it. The saved list does this for every workspace it holds (<see cref="WorkspaceManager"/>), and every workspace the
+    /// session runs is in it.
+    /// </summary>
+    internal void ListIn(ConfigManager configuration) => _configuration = configuration;
+
+    /// <summary>The configuration this workspace is listed in. A workspace in no saved list has no folder, so nothing of its own
+    /// can be read or written.</summary>
+    private ConfigManager Configuration => _configuration
+        ?? throw new InvalidOperationException($"The workspace '{Name}' is in no saved list, so it has no folder.");
+
     /// <summary>The per-workspace feature config of the given concrete type, materializing (and loading from
-    /// disk) on first request. Null when <paramref name="t"/> isn't a scoped config type. The owning
-    /// assembly is already loaded by the time a feature ctor asks for its scoped config, so this never
-    /// forces a deferred feature to load.</summary>
-    public IFeatureConfig? FindWorkspaceConfig(Type t)
+    /// disk) on first request. Null when <paramref name="t"/> isn't a scoped config type, as <paramref name="features"/>
+    /// knows them. The owning assembly is already loaded by the time a feature ctor asks for its scoped config, so this
+    /// never forces a deferred feature to load.</summary>
+    public IFeatureConfig? FindWorkspaceConfig(Type t, FeatureManager features)
     {
         lock (_scopedLock)
         {
             if (_scoped.TryGetValue(t, out var existing)) return existing;
-            if (!FeatureManager.Instance.IsWorkspaceScopedConfig(t)) return null;
+            if (!features.IsWorkspaceScopedConfig(t)) return null;
             try
             {
                 var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
-                ConfigManager.Instance.LoadFrom(Dir, cfg, cfg.ConfigName);
+                Configuration.LoadFrom(Dir, cfg, cfg.ConfigName);
                 _scoped[t] = cfg;
                 return cfg;
             }
@@ -121,27 +137,19 @@ public sealed partial class Workspace : ObservableObject
         }
     }
 
-    /// <summary>Materializes scoped configs for already-loaded feature assemblies (no new loads). Called
-    /// before a feature's merged config view is built, so a loaded feature's scoped config is included.</summary>
-    internal void MaterializeLoadedScopedConfigs()
+    /// <summary>Materializes every scoped config <paramref name="features"/> knows, loading the owning assemblies. Used by the
+    /// Configure / Manage-AI panels and on reload, which need the full set.</summary>
+    internal void MaterializeAllScopedConfigs(FeatureManager features)
     {
-        foreach (var t in FeatureManager.Instance.LoadedWorkspaceScopedConfigTypes)
-            FindWorkspaceConfig(t);
+        foreach (var t in features.WorkspaceScopedConfigTypes)
+            FindWorkspaceConfig(t, features);
     }
 
-    /// <summary>Materializes every scoped config, loading the owning assemblies. Used by the Configure /
-    /// Manage-AI panels and on reload, which need the full set.</summary>
-    internal void MaterializeAllScopedConfigs()
-    {
-        foreach (var t in FeatureManager.Instance.WorkspaceScopedConfigTypes)
-            FindWorkspaceConfig(t);
-    }
-
-    [JsonIgnore] public string Dir => WorkspaceManager.WorkspaceDir(Name);
+    [JsonIgnore] public string Dir => WorkspaceManager.WorkspaceDir(Configuration, Name);
     [JsonIgnore] public string ConversationsDir => Path.Combine(Dir, "Conversations");
 
     /// <summary>What the workspace keeps on this machine alone (<see cref="WorkspaceManager.WorkspaceLocalDir"/>).</summary>
-    [JsonIgnore] public string LocalDir => WorkspaceManager.WorkspaceLocalDir(Name);
+    [JsonIgnore] public string LocalDir => WorkspaceManager.WorkspaceLocalDir(Configuration, Name);
 
     /// <summary>What whole-document work in this workspace has worked out and keeps — gists, summaries, translations.</summary>
     [JsonIgnore] public string DocumentNotesDir => Path.Combine(LocalDir, "DocumentNotes");
@@ -155,50 +163,48 @@ public sealed partial class Workspace : ObservableObject
     public void RaiseRibbonChanged() => RibbonChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
-    /// Idempotently loads this workspace's shared services from its folder. Called the first time a
-    /// Workspace is created for the workspace (and on switch). Safe to call repeatedly.
+    /// Idempotently loads this workspace's shared services from its folder, its provider configs those
+    /// <paramref name="providers"/> has loaded. Called the first time a Workspace is created for the workspace
+    /// (and on switch). Safe to call repeatedly.
     /// </summary>
-    internal void EnsureSharedServicesLoaded()
+    internal void EnsureSharedServicesLoaded(ProviderManager providers)
     {
         if (RibbonService is not null) return;
-        ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
+        Configuration.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
         if (AiConfig.BringUpToDate())
-            ConfigManager.Instance.SaveTo(Dir, AiConfig, AiConfig.ConfigName);
-        ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
+            SaveAiConfig();
+        Configuration.LoadFrom(Dir, Persona, Persona.ConfigName);
         RibbonService    = new RibbonLayoutService(Dir);
-        ProviderConfigs  = ProviderManager.Instance.LoadProviderConfigs(Dir);
-        Connections      = new WorkspaceConnections(Dir, CredentialManagerStore.Default);
+        ProviderConfigs  = providers.LoadProviderConfigs(Dir);
+        Connections      = new WorkspaceConnections(Dir, Configuration, CredentialManagerStore.Default);
         // Scoped feature configs are materialized lazily (see FindWorkspaceConfig) so a feature whose only
         // footprint here is a scoped config isn't force-loaded at startup.
     }
 
-    /// <summary>
-    /// Re-reads the provider configs from disk (picks up provider assemblies discovered after the
-    /// first load, e.g. when the Manage-AI panel runs <see cref="ProviderManager.DiscoverAll"/>).
-    /// </summary>
-    internal void ReloadProviderConfigs()
-        => ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
+    /// <summary>Persists the ability grid (<see cref="AiConfig"/>) to this workspace's folder.</summary>
+    internal void SaveAiConfig() => Configuration.SaveTo(Dir, AiConfig, AiConfig.ConfigName);
 
-    /// <summary>Re-reads the per-workspace feature configs from this workspace's folder.</summary>
-    internal void ReloadWorkspaceConfigs()
-    {
-        lock (_scopedLock) _scoped.Clear();
-        MaterializeAllScopedConfigs();
-    }
+    /// <summary>
+    /// Re-reads the provider configs from disk through <paramref name="providers"/> (picks up provider assemblies
+    /// discovered after the first load, e.g. when the Manage-AI panel runs <see cref="ProviderManager.DiscoverAll"/>).
+    /// </summary>
+    internal void ReloadProviderConfigs(ProviderManager providers)
+        => ProviderConfigs = providers.LoadProviderConfigs(Dir);
 
     /// <summary>
     /// Re-reads ALL shared config (ability grid, persona, provider + per-workspace feature configs)
-    /// from disk into the live instances. Called when the Configure panel closes after edits were
-    /// applied to disk, so a subsequent <see cref="WorkspaceManager.RestartWorkspace"/> rebuilds the
+    /// from disk into the live instances — the provider configs through <paramref name="providers"/>, the scoped ones those
+    /// <paramref name="features"/> knows. Called when the Configure panel closes after edits were
+    /// applied to disk, so a subsequent <see cref="WorkspaceRuntimes.Restart"/> rebuilds the
     /// workspace from the saved values (the panel deliberately leaves the live instances untouched
     /// while editing).
     /// </summary>
-    internal void ReloadSharedConfigs()
+    internal void ReloadSharedConfigs(FeatureManager features, ProviderManager providers)
     {
-        ConfigManager.Instance.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
-        ConfigManager.Instance.LoadFrom(Dir, Persona, Persona.ConfigName);
-        ProviderConfigs = ProviderManager.Instance.LoadProviderConfigs(Dir);
+        Configuration.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
+        Configuration.LoadFrom(Dir, Persona, Persona.ConfigName);
+        ProviderConfigs = providers.LoadProviderConfigs(Dir);
         lock (_scopedLock) _scoped.Clear();
-        MaterializeAllScopedConfigs();
+        MaterializeAllScopedConfigs(features);
     }
 }

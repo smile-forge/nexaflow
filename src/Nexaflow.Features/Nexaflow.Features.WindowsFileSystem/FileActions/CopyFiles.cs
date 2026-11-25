@@ -13,10 +13,13 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         private readonly IShellServices _shell;
         private readonly Services.ShellPath _paths;
 
-        public CopyFiles(IShellServices shell, IVirtualFileSystem files)
+        private readonly Services.FileCompanions _companions;
+
+        public CopyFiles(IShellServices shell, IVirtualFileSystem files, Services.FileCompanions companions)
         {
-            _shell = shell;
-            _paths = new Services.ShellPath(files);
+            _shell      = shell;
+            _paths      = new Services.ShellPath(files);
+            _companions = companions;
         }
         // ── IFileAction ───────────────────────────────────────────────────────
 
@@ -54,7 +57,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             if (paths.Length == 0) return false;
 
             // Companions ride along, so a paste anywhere — here or in Explorer — brings them too.
-            return _shell.Clipboard.Write(ComposedPayload.OfFiles(Services.FileCompanions.For(_shell).WithCompanions(paths), cut: false));
+            return _shell.Clipboard.Write(ComposedPayload.OfFiles(_companions.WithCompanions(paths), cut: false));
         }
     }
 }

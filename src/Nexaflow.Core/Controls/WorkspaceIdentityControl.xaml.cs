@@ -25,8 +25,18 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
     private Workspace? _target;
     private readonly Workspace _edit = new();
 
-    public WorkspaceIdentityControl()
+    /// <summary>The saved workspaces: a new name must not be another's, the last one is not deleted, and a rename is written back.</summary>
+    private readonly WorkspaceManager _savedWorkspaces;
+
+    /// <summary>The shell of the window the panel is in, whose folder picker lists its workspace's places; null without one.</summary>
+    private readonly IShellServices? _windowShell;
+
+    /// <param name="savedWorkspaces">The saved workspaces the edited one is among.</param>
+    /// <param name="windowShell">The shell of the window the panel is in, whose folder picker an export goes through.</param>
+    public WorkspaceIdentityControl(WorkspaceManager savedWorkspaces, IShellServices? windowShell)
     {
+        _savedWorkspaces = savedWorkspaces;
+        _windowShell     = windowShell;
         InitializeComponent();
         EditPanel.DataContext = _edit;            // fields/preview bind to the editing copy, not the live workspace
         _edit.PropertyChanged += OnEditChanged;
@@ -42,7 +52,7 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
         _edit.Icon  = p.Icon;
 
         // The last remaining workspace can't be deleted — disable the button rather than fail on click.
-        bool canDelete       = WorkspaceManager.Instance.Workspaces.Count > 1;
+        bool canDelete       = _savedWorkspaces.Workspaces.Count > 1;
         DeleteButton.IsEnabled = canDelete;
         DeleteButton.ToolTip   = canDelete ? null : Str.Get("Shell.Workspace.LastOne");
 
@@ -77,7 +87,7 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
     }
 
     private bool NameCollides(string name)
-        => WorkspaceManager.Instance.Workspaces.Any(
+        => _savedWorkspaces.Workspaces.Any(
                p => !ReferenceEquals(p, _target)
                  && string.Equals(p.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
 
@@ -90,7 +100,7 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
         _target.Icon  = _edit.Icon;
         // Renames the workspace and moves its data folder so the cloned/edited config follows; persists
         // the workspace list (incl. the colour/icon just set, even when the name is unchanged).
-        WorkspaceManager.Instance.RenameWorkspace(_target, _edit.Name.Trim());
+        _savedWorkspaces.RenameWorkspace(_target, _edit.Name.Trim());
 
         _edit.Name = _target.Name;   // resnapshot to the committed (trimmed) name → HasChanges back to false
         RaiseChanged();
@@ -102,13 +112,14 @@ public partial class WorkspaceIdentityControl : UserControl, IConfigChangeTracke
     }
 
     // ── Export conversations ──
-    private void OnExportClick(object sender, RoutedEventArgs e)
+    private async void OnExportClick(object sender, RoutedEventArgs e)
     {
         if (_target is null) return;
         var owner = Window.GetWindow(this);
         var shell = owner?.DataContext as ShellViewModel;
 
-        var dest = FolderBrowserWindow.Show(owner: owner);
+        // The window's own picker, which lists its workspace's places.
+        var dest = _windowShell is null ? FolderBrowserWindow.Show(owner: owner) : await _windowShell.PickFolderAsync();
         if (string.IsNullOrEmpty(dest)) return;   // cancelled
 
         try

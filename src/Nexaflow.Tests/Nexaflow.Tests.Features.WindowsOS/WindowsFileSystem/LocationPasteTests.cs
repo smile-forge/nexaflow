@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.Operations;
+using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Location.Memory;
@@ -79,7 +80,8 @@ public sealed class LocationPasteTests
     public async Task ACutPastedByItsWindowsFolder_MovesThroughTheLocation(string destination)
     {
         if (destination == "decoy") destination = Path.Combine(_decoy, "dest");
-        var queue = FileOperationQueue.For(Shell(), _vfs);
+        var shell = Shell();
+        var queue = new FileOperationQueue(shell, _vfs, new FileCompanions(shell));
 
         var op = queue.EnqueuePaste([Path.Combine(_decoy, "file.txt")], destination, isCut: true);
         await op!.Completion;

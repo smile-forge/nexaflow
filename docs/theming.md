@@ -32,7 +32,7 @@ that contains it):
 ```
 
 `ThemeManager.Apply` runs **more than once**, and the order matters if you are reasoning about when a key
-becomes resolvable. `App.xaml.cs` applies the theme early (step 1, before `FeatureManager.RegisterFeatures()`)
+becomes resolvable. `App.xaml.cs` applies the theme early (step 1, before the session makes its `FeatureManager`)
 with **no** contributions — features have not been discovered yet. Each feature assembly then contributes its
 dictionaries when it *activates*, which is lazy (first page, handler query, or the post-paint warm-up), and
 `FeatureManager` re-applies with the accumulated URIs — coalesced onto the dispatcher at

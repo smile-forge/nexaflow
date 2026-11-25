@@ -9,8 +9,6 @@ namespace Nexaflow.IO.Common.Locations;
 /// </summary>
 public sealed class DiscoveredLocations
 {
-    public static DiscoveredLocations Instance { get; } = new(LocationProviderRegistry.Instance);
-
     private readonly LocationProviderRegistry _providers;
     private readonly Lock _gate = new();
     private readonly Dictionary<ILocationDiscovery, ConnectionProfile[]> _byBackend = new(ReferenceEqualityComparer.Instance);

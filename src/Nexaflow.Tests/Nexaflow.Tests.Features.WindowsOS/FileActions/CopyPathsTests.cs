@@ -78,8 +78,8 @@ public class CopyPathsTests
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
 
-        var vm = FileSystemViewModel.CreateThisPc(
-            shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(
+            shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).ThisPc();
 
         CollectionAssert.Contains(
             Offered(vm, new FileSystemEntry { Name = "docs", FullPath = @"C:\docs", IsDirectory = true }),

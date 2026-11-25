@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Services;
@@ -31,13 +32,13 @@ namespace Nexaflow.Core;
 /// </summary>
 public sealed class ProviderManager
 {
-    public static ProviderManager Instance { get; } = new();
+    private readonly IBackgroundActivityManager? _activityManager;
+    private readonly IModelAssetStore?           _assets;
+    private readonly ModelResidency?             _residency;
+    private readonly IReadOnlyList<object>       _services;
+    private readonly ConfigManager               _config;
 
-    private IBackgroundActivityManager? _activityManager;
-    private IModelAssetStore?            _assets;
-
-    private ModelResidency? _residency;
-    private IReadOnlyList<object>       _services = [];
+    private readonly ILogger<ProviderManager> _log;
     private readonly HashSet<string>          _loadedAssemblies = [];
     private readonly List<AssemblyDescriptor> _descriptors      = [];
 
@@ -61,29 +62,36 @@ public sealed class ProviderManager
         IReadOnlyList<Type>                                ConfigTypes,
         IReadOnlyList<(Type Type, ConstructorInfo Ctor)>  Providers);
 
-    private ProviderManager() { }
-
-    /// <summary>Must be called once at startup before any Load method.</summary>
+    /// <summary>The session's provider pool, holding what a provider may take in its constructor.</summary>
+    /// <param name="config">The session's configuration, which a workspace's provider configs are read through.</param>
+    /// <param name="activityManager">The session's background tasks, which a provider reports its slow work to; null where none
+    /// is kept.</param>
+    /// <param name="assets">The files local models need; null where the session keeps none.</param>
+    /// <param name="residency">Which of the pool's models stay loaded; null where none is loaded ahead.</param>
     /// <param name="services">App-wide services a provider may take in its constructor, matched by type — the AI host,
     /// the machine's compute hardware.</param>
-    public void Initialize(IBackgroundActivityManager activityManager, IModelAssetStore assets, ModelResidency residency, params object[] services)
+    /// <param name="log">Where the pool says which configured provider assemblies are not installed.</param>
+    public ProviderManager(ConfigManager config, IBackgroundActivityManager? activityManager, IModelAssetStore? assets,
+                           ModelResidency? residency, IReadOnlyList<object> services, ILogger<ProviderManager> log)
     {
+        _config          = config;
         _activityManager = activityManager;
         _assets          = assets;
         _residency       = residency;
         _services        = services;
+        _log             = log;
     }
 
-    /// <summary>Which of the pool's models stay loaded — null until <see cref="Initialize"/>.</summary>
+    /// <summary>Which of the pool's models stay loaded; null where none is loaded ahead.</summary>
     public ModelResidency? Residency => _residency;
 
-    /// <summary>The files local models need, set by <see cref="Initialize"/>; null before startup.</summary>
+    /// <summary>The files local models need; null where the session keeps none.</summary>
     public IModelAssetStore? Assets => _assets;
 
-    /// <summary>The shared background-activity manager set by <see cref="Initialize"/>, or null before startup.</summary>
+    /// <summary>The session's background tasks; null where none is kept.</summary>
     public IBackgroundActivityManager? ActivityManager => _activityManager;
 
-    /// <summary>An app-wide service given to <see cref="Initialize"/>, or null.</summary>
+    /// <summary>An app-wide service the pool was made with, or null.</summary>
     public T? Service<T>() where T : class => _services.OfType<T>().FirstOrDefault();
 
     /// <summary>Every app-wide service of <typeparamref name="T"/> — each tool on this machine, say.</summary>
@@ -107,7 +115,7 @@ public sealed class ProviderManager
             if (File.Exists(path))
                 LoadAssembly(path);
             else
-                ShellSafetyLog.Instance.Step($"providers: {fileName} is configured but not installed; its columns have no provider");
+                _log.LogInformation("providers: {File} is configured but not installed; its columns have no provider", fileName);
         }
     }
 
@@ -137,7 +145,7 @@ public sealed class ProviderManager
             foreach (var ct in desc.ConfigTypes)
             {
                 var cfg = (IProviderConfig)Activator.CreateInstance(ct)!;
-                ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);
+                _config.LoadFrom(dir, cfg, cfg.ConfigName);
                 configs.Add(cfg);
             }
         return configs;
@@ -258,6 +266,8 @@ public sealed class ProviderManager
         var toRelease = new List<PoolEntry>();
         lock (_poolLock)
         {
+            if (set.Released) return;
+            set.Released = true;
             foreach (var key in set.PoolKeys)
             {
                 if (!_pool.TryGetValue(key, out var entry)) continue;

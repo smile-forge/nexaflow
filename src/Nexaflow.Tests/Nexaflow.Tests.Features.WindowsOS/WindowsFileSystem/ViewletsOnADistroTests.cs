@@ -87,7 +87,7 @@ public sealed class ViewletsOnADistroTests
         {
             var shell = Substitute.For<IShellServices>();
             shell.DiscoverImplementations<IFolderViewlet>().Returns([typeof(RepositoryViewlet), typeof(ProjectViewlet), typeof(WindowsToolViewlet)]);
-            var viewlets = FileSystemFeatureRegistry.For(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files);
+            var viewlets = new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files).Registry;
             var native   = files.TryResolveReal(folder) ?? throw new AssertFailedException("a distro's folder is shown by Windows");
 
             string[] Offered(string path) => FolderViewletRegistry.GetMatchingViewlets(path, viewlets).Select(v => v.DisplayName).ToArray();

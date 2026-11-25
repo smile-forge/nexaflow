@@ -45,7 +45,8 @@ public class PageViewsTests
     }
 
     private static PageViews Views(Type view)
-        => new(new ViewRegistry(model => model == typeof(Model) ? view : null), (page, error) => new FailureView(page, error));
+        => new(new ViewRegistry(model => model == typeof(Model) ? view : null), (page, error) => new FailureView(page, error),
+        TestRuntimes.LoggerFor<PageViews>());
 
     private static Page PageOf(Func<IPageViewModel> factory) => new() { Title = "Test", PageKind = "Test", ViewModelFactory = factory };
 
@@ -116,7 +117,7 @@ public class PageViewsTests
     public void AModelNoViewDraws_IsDrawnAsTheFailure_NamingIt() => UiThread.Run(() =>
     {
         var page  = PageOf(() => new Model());
-        var views = new PageViews(new ViewRegistry(_ => null), (p, error) => new FailureView(p, error));
+        var views = new PageViews(new ViewRegistry(_ => null), (p, error) => new FailureView(p, error), TestRuntimes.LoggerFor<PageViews>());
 
         var failure = (FailureView)views.ViewOf(page);
 

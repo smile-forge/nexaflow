@@ -54,12 +54,12 @@ internal sealed class ProvidedRootFixture : IDisposable
     }
 
     public FileSystemViewModel ThisPc()
-        => FileSystemViewModel.CreateThisPc(_shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        => new FileBrowserRuntime(_shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).ThisPc();
 
     /// <summary>A browser opened directly at a folder (the "rooted" mode), for the real-path journey.</summary>
     public async Task<FileSystemViewModel> AtAsync(string folder)
     {
-        var vm = new FileSystemViewModel(folder, _shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(_shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).Browse(folder);
         await vm.Browsing;
         return vm;
     }

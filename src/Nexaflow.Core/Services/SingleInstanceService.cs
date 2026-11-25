@@ -25,6 +25,9 @@ public sealed class SingleInstanceService : IDisposable
     private Mutex? _mutex;
     private bool   _isOwner;
 
+    /// <summary>Ends the listening: the session is ending.</summary>
+    private readonly CancellationTokenSource _listening = new();
+
     /// <summary>
     /// Attempts to become the single owner instance.
     /// Returns <c>true</c> if this process is the first instance; <c>false</c> otherwise.
@@ -57,18 +60,16 @@ public sealed class SingleInstanceService : IDisposable
         catch { /* first instance never started listening — swallow */ }
     }
 
-    /// <summary>
-    /// Starts a background pipe server. Each connection that forwards a launch invokes <paramref name="onLaunch"/> on the
-    /// UI dispatcher with what the second instance asked for. Must be called after the Application is running.
-    /// </summary>
-    public void StartListening(Action<LaunchRequest> onLaunch)
+    /// <summary>Listens for later launches, handing each to <paramref name="onLaunch"/> on <paramref name="ui"/> until
+    /// <see cref="Dispose"/>.</summary>
+    public void StartListening(IUiThread ui, Action<LaunchRequest> onLaunch)
     {
-        var ui = Dispatcher.CurrentDispatcher; // this method runs on the UI thread; marshal IPC requests back to it
+        var stopping = _listening.Token;
         Task.Run(ListenLoop);
 
         async Task ListenLoop()
         {
-            while (true)
+            while (!stopping.IsCancellationRequested)
             {
                 try
                 {
@@ -79,31 +80,36 @@ public sealed class SingleInstanceService : IDisposable
                         PipeTransmissionMode.Byte,
                         PipeOptions.Asynchronous);
 
-                    await server.WaitForConnectionAsync();
+                    await server.WaitForConnectionAsync(stopping);
 
                     using var reader = new StreamReader(server);
-                    var cmd = await reader.ReadLineAsync();
+                    var cmd = await reader.ReadLineAsync(stopping);
                     if (cmd == LaunchCommand)
                     {
-                        var workspaceName = await reader.ReadLineAsync();
-                        var openPath      = await reader.ReadLineAsync();
+                        var workspaceName = await reader.ReadLineAsync(stopping);
+                        var openPath      = await reader.ReadLineAsync(stopping);
                         var launch = new LaunchRequest(
                             string.IsNullOrEmpty(workspaceName) ? null : workspaceName,
                             string.IsNullOrEmpty(openPath) ? null : openPath);
-                        ui.Invoke(() => onLaunch(launch));
+                        ui.Run(() => onLaunch(launch));
                     }
                 }
+                catch (OperationCanceledException) when (stopping.IsCancellationRequested) { return; }
                 catch { /* swallow pipe errors, keep listening */ }
             }
         }
     }
 
+    /// <summary>Stops listening and lets the instance go, so a launch after this one owns it. Doing so again does nothing.</summary>
     public void Dispose()
     {
+        if (!_listening.IsCancellationRequested) _listening.Cancel();
         if (_isOwner)
         {
             try { _mutex?.ReleaseMutex(); } catch { }
+            _isOwner = false;
         }
         _mutex?.Dispose();
+        _mutex = null;
     }
 }

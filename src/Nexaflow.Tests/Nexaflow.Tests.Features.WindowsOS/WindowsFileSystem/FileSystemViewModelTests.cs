@@ -45,13 +45,13 @@ public class FileSystemViewModelTests
     private static FileSystemViewModel ThisPc()
     {
         var (shell, ai, configs) = Deps();
-        return FileSystemViewModel.CreateThisPc(shell, ai, configs, VirtualFileSystem.Instance);
+        return new FileBrowserRuntime(shell, ai, configs, VirtualFileSystem.Instance).ThisPc();
     }
 
     private static async Task<FileSystemViewModel> AtPathAsync(string path)
     {
         var (shell, ai, configs) = Deps();
-        var vm = new FileSystemViewModel(path, shell, ai, configs, VirtualFileSystem.Instance);
+        var vm = new FileBrowserRuntime(shell, ai, configs, VirtualFileSystem.Instance).Browse(path);
         await vm.Browsing;
         return vm;
     }

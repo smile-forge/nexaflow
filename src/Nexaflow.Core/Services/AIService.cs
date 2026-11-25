@@ -22,7 +22,7 @@ using Nexaflow.AiHost.Catalog;
 
 namespace Nexaflow.Core.Services;
 
-public sealed class AIService : IAIService
+public sealed class AIService : IAIService, IDisposable
 {
     // ── Provider registry ─────────────────────────────────────────────────
     // Keyed by ability-grid column id: each entry is a model-bound execution instance for that column.
@@ -46,6 +46,10 @@ public sealed class AIService : IAIService
         foreach (var provider in _providers.Values) provider.AvailabilityChanged -= OnProviderAvailabilityChanged;
         _providers.Clear();
     }
+
+    /// <summary>Lets go of the providers it listened to: they are pooled, and outlive this assistant, so a provider another
+    /// workspace still uses must not keep this one — and its runtime — alive.</summary>
+    public void Dispose() => ClearProviders();
 
     private void OnProviderAvailabilityChanged(object? sender, EventArgs e) => _workspace.RaiseProvidersChanged();
 
@@ -108,11 +112,11 @@ public sealed class AIService : IAIService
     public PictureChoices? EditsPictures => PictureChoicesOf(ImageEditor, AllowsAdultContent);
 
         /// <summary>Whether the app allows adult content: not while Enhanced AI Protection Mode is on, as it is by default
-        /// (<see cref="ProtectedAudience"/>). Read where it is offered, so a change applies to the next choice made.</summary>
-    private static bool AllowsAdultContent => !ProtectedAudience.IsOn;
+        /// (<see cref="ShellConfig.EnhancedAiProtection"/>). Read where it is offered, so a change applies to the next choice made.</summary>
+    private bool AllowsAdultContent => !_shell.EnhancedAiProtection;
 
         /// <summary>The check every picture made passes while Enhanced AI Protection Mode is on; null while it is off.</summary>
-        private static Generation.IPictureCheck? PictureCheck => ProtectedAudience.IsOn ? ProviderManager.Instance.Service<Tools.PictureChecking>() : null;
+        private Generation.IPictureCheck? PictureCheck => _shell.EnhancedAiProtection ? _pool.Service<Tools.PictureChecking>() : null;
 
     /// <summary>What <paramref name="model"/> lets a picture be asked for with, as <c>generate_image</c> names it.</summary>
     private static PictureChoices? PictureChoicesOf(IImageGenerationProvider? model, bool allowsAdultContent)
@@ -281,7 +285,7 @@ public sealed class AIService : IAIService
         if (GetProvider(AiAbility.Documents) is null || _workspace.ShellServices is not { } shell) return null;
 
         return new Documents.DocumentTools(new Documents.DocumentJob(DocumentModelAsync, _workspace.Workspace.DocumentNotesDir, scope, written,
-                                                                     Generation.GeneratedFiles.For(shell, scope), ProviderManager.Instance.ActivityManager,
+                                                                     Generation.GeneratedFiles.For(shell, scope), _pool.ActivityManager,
                                                                                                                                   _documentWork));
     }
 
@@ -297,9 +301,9 @@ public sealed class AIService : IAIService
         var info = await InfoOfAsync(provider, ct);
         string key = $"{column.ProviderName}/{column.Model}";
         return info?.Background is { } background
-            ? new Documents.WorkspaceDocumentModel(provider, key, background.ContextTokens, background.RepliesAtOnce, sharesContext: false)
+            ? new Documents.WorkspaceDocumentModel(provider, key, background.ContextTokens, _shell, background.RepliesAtOnce, sharesContext: false)
             : new Documents.WorkspaceDocumentModel(provider, key, info?.ContextWindowTokens is > 0 and var tokens ? tokens : OwnedFallbackContext,
-                                                   info?.RepliesAtOnce);
+                                                   _shell, info?.RepliesAtOnce);
     }
 
     /// <summary>
@@ -412,7 +416,7 @@ public sealed class AIService : IAIService
 
         // Fold in shell-level context + tools (local time, workspace, open windows/tabs, and the shell tools)
         // alongside the active page's.
-        var shellCtx = new ShellAi.ShellAiContext(_workspace);
+        var shellCtx = new ShellAi.ShellAiContext(_workspace, _features, _security);
         tools.AddRange(shellCtx.BuildTools(scope));
 
         // What the workspace can make — a picture, text read aloud, a clip — where it has a model for each now, or one of
@@ -430,13 +434,7 @@ public sealed class AIService : IAIService
 
         // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
         // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
-        // No language pack means no help to offer — which is the case in a unit test of this loop, and the
-        // same way BuildTools above yields nothing without a shell.
-        if (LanguageManager.TryInstance is not null)
-        {
-            tools.AddRange(new Help.HelpClientTools(Help.HelpLibrary.Shared).Tools);
-            tools.AddRange(new Help.MarkdownSyntaxTools(Help.HelpLibrary.Shared).Tools);
-        }
+        tools.AddRange(_helpTools);
 
         // The page first — it is what the request is about — then where it sits.
         return (pageContext + "\n\n" + shellCtx.BuildContext(), [.. tools.Select(Offered).OfType<IClientTool>()], scope);
@@ -543,13 +541,13 @@ public sealed class AIService : IAIService
     public bool UsesOwnModels => OwnedModelsInUse().Count > 0;
 
     public Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default)
-    => ProviderManager.Instance.Service<HostHolds>() is { } holds
+    => _pool.Service<HostHolds>() is { } holds
     ? LocalAiSetupReader.DescribeAsync(holds, OwnedModelsInUse(),
-                                               ModelPlacement.Expected(ProviderManager.Instance.Service<MachineCards>() ?? MachineCards.Probe()), ct)
+                                               ModelPlacement.Expected(_pool.Service<MachineCards>() ?? MachineCards.Probe()), ct)
             : Task.FromResult<LocalAiSetup?>(null);
 
     public Task<LocalAiCheck> CheckLocalAiAsync(IProgress<LocalAiCheckProgress> progress, CancellationToken ct = default)
-        => ProviderManager.Instance.Service<HostHolds>() is { } holds
+        => _pool.Service<HostHolds>() is { } holds
             ? new LocalAiChecker(holds, OwnedModelsInUse(), Path.Combine(LocalAiFolder.Root(), "reports")).RunAsync(progress, ct)
             : throw new InvalidOperationException("Nexaflow's own models are not set up in this session.");
 
@@ -561,6 +559,22 @@ public sealed class AIService : IAIService
     /// <summary>Where calls that run on in the background are set going; null where there is no list of them to show.</summary>
     private readonly BackgroundJobs? _jobs;
 
+    /// <summary>The tools that read the help the app ships, offered on every page.</summary>
+    private readonly IReadOnlyList<IClientTool> _helpTools;
+
+    /// <summary>The session's feature system: the query handlers it scores, and the pages a conversation reopens.</summary>
+    private readonly FeatureManager _features;
+
+    /// <summary>The session's provider pool: the app-wide services on this machine — the AI host, the picture check — and the
+    /// background tasks a document job reports to.</summary>
+    private readonly ProviderManager _pool;
+
+    /// <summary>The shell's settings: whether Enhanced AI Protection Mode frames every prompt and keeps adult content out.</summary>
+    private readonly ShellConfig _shell;
+
+    /// <summary>The security settings: whether the assistant may see the open windows.</summary>
+    private readonly SecurityConfig _security;
+
     /// <summary>Where each ability stands, and the offer of a download it waits on.</summary>
     private readonly AbilityReadiness _readiness;
 
@@ -568,15 +582,26 @@ public sealed class AIService : IAIService
 
     public ConversationRecord? ActiveConversation { get; }
 
-    /// <param name="workspace">The owning Workspace — used to resolve query handlers via FeatureManager.</param>
+    /// <param name="workspace">The runtime this assistant serves.</param>
+    /// <param name="features">The session's feature system, which builds the runtime's query handlers and reopens a conversation's pages.</param>
+    /// <param name="pool">The session's provider pool, whose app-wide services the assistant uses.</param>
+    /// <param name="shell">The shell's settings, whose Enhanced AI Protection Mode frames every prompt the assistant makes.</param>
+    /// <param name="security">The security settings, which say whether the assistant may see the open windows.</param>
     /// <param name="conversationsDir">Full path to the directory where this workspace's conversations are stored.</param>
+    /// <param name="helpTools">The tools that read the help the app ships — the session's, none where it ships no help.</param>
     /// <param name="jobs">Where slow tool calls run on in the background; without it, every call is waited for.</param>
-    public AIService(WorkspaceRuntime workspace, string conversationsDir, BackgroundJobs? jobs = null)
+    public AIService(WorkspaceRuntime workspace, FeatureManager features, ProviderManager pool, ShellConfig shell, SecurityConfig security,
+                     string conversationsDir, IReadOnlyList<IClientTool> helpTools, BackgroundJobs? jobs = null)
     {
         _workspace = workspace;
+        _features  = features;
+        _pool      = pool;
+        _shell     = shell;
+        _security  = security;
         _baseDir   = conversationsDir;
+        _helpTools = helpTools;
         _jobs      = jobs;
-        _readiness = new(() => _abilityConfig, id => _providers.GetValueOrDefault(id), () => workspace.Providers, () => workspace.ShellServices);
+        _readiness = new(() => _abilityConfig, id => _providers.GetValueOrDefault(id), () => workspace.Providers, pool, () => workspace.ShellServices);
     }
 
     public IReadOnlyList<Page> RestoreContextPages(ConversationRecord conversation)
@@ -585,7 +610,7 @@ public sealed class AIService : IAIService
         foreach (var ctx in conversation.Context)
         {
             if (string.IsNullOrEmpty(ctx.PageKind)) continue;
-            if (FeatureManager.Instance.CreateTab(ctx.PageKind, _workspace, ctx.PageParams) is { } page)
+            if (_features.CreateTab(ctx.PageKind, _workspace, ctx.PageParams) is { } page)
                 pages.Add(page);
         }
         return pages;
@@ -599,7 +624,7 @@ public sealed class AIService : IAIService
             {
                 PageKind        = p.PageKind!,
                 PageParams      = p.PageParams,
-                AssemblyVersion = FeatureManager.Instance.GetPageKindVersion(p.PageKind!),
+                AssemblyVersion = _features.GetPageKindVersion(p.PageKind!),
             })
             .ToList();
     }
@@ -674,7 +699,7 @@ public sealed class AIService : IAIService
             string EffectiveText,
             bool Prefixed)
         ScoreHandlers(string text, IPageViewModel? pageVm)
-        => RankHandlers(FeatureManager.Instance.GetQueryHandlers(_workspace).ToList(), text, pageVm);
+        => RankHandlers(_features.GetQueryHandlers(_workspace).ToList(), text, pageVm);
 
     /// <summary>
     /// <see cref="ScoreHandlers"/> over the handlers given. A leading symbol character routes to the handlers that own it,
@@ -792,7 +817,7 @@ public sealed class AIService : IAIService
 
         // Nobody is watching an analysis: on a GPU shared with a reply, it waits its turn behind each token.
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, ProtectedAudience.Framed(systemPrompt)), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
+            [new(LlmRole.System, Framed(systemPrompt)), new(LlmRole.User, userPrompt)], LlmUrgency.Background, ct);
         return response?.RawText;
     }
 
@@ -934,7 +959,7 @@ public sealed class AIService : IAIService
         }
 
         var response = await provider.CompleteAsync(
-            [new(LlmRole.System, ProtectedAudience.Framed(systemPrompt)), new(LlmRole.User, userPrompt)], ct);
+            [new(LlmRole.System, Framed(systemPrompt)), new(LlmRole.User, userPrompt)], ct);
         return response?.RawText;
     }
 
@@ -1458,7 +1483,7 @@ public sealed class AIService : IAIService
     /// Asks the image-recognition model to describe one image. Returns null if that model can't process
     /// images or the call fails (cancellation propagates).
     /// </summary>
-    private static async Task<string?> DescribeImageAsync(
+    private async Task<string?> DescribeImageAsync(
         ILlmProvider imageProvider, LlmAttachment image, CancellationToken ct)
     {
         if (!imageProvider.SupportsImages) return null;
@@ -1471,7 +1496,7 @@ public sealed class AIService : IAIService
         try
         {
             var resp = await imageProvider.CompleteAsync(
-                [new(LlmRole.System, ProtectedAudience.Framed(system)),
+                [new(LlmRole.System, Framed(system)),
                  new(LlmRole.User, "Describe this image.") { Attachments = [image] }],
                 ct);
             return resp?.RawText;
@@ -1524,6 +1549,10 @@ public sealed class AIService : IAIService
         // How to act — only for a model with no tool calling of its own; any other is offered its tools in it.
         if (acting is { Length: > 0 }) sb.Append(acting);
         // Enhanced AI Protection Mode, while on, frames all of it: ahead of the persona, which cannot set it aside.
-        return ProtectedAudience.Framed(sb.ToString().TrimEnd());
+        return Framed(sb.ToString().TrimEnd());
     }
+
+    /// <summary><paramref name="systemPrompt"/>, opening with the protected-audience policy while Enhanced AI Protection Mode is on
+    /// (<see cref="ProtectedAudience"/>), as the shell's settings say when it is made.</summary>
+    private string Framed(string systemPrompt) => ProtectedAudience.Framed(systemPrompt, _shell.EnhancedAiProtection);
 }

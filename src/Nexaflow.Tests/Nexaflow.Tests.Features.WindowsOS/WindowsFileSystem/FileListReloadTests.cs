@@ -105,7 +105,7 @@ public class FileListReloadTests
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
-        return new FileSystemViewModel(path, shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance);
+        return new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), VirtualFileSystem.Instance).Browse(path);
     }
 
     /// <summary>The page's file list as far as this concerns it: a recycling, virtualizing grid over the entries.</summary>

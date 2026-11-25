@@ -60,7 +60,7 @@ public sealed class WslAssistantDeleteTests
             shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
             shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
             shell.DiscoverImplementations<IFolderViewlet>().Returns(Array.Empty<Type>());
-            var vm = new FileSystemViewModel(folder, shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files);
+            var vm = new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files).Browse(folder);
             await vm.Browsing;
             await vm.EntriesLoaded;
             var tool = new DeleteTool(vm);

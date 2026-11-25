@@ -9,8 +9,8 @@ namespace Nexaflow.Tests.Features;
 /// <c>%APPDATA%\Smile\nexaflow</c>. A feature store that news itself up with its parameterless ctor
 /// (e.g. <c>PostItStore</c>, <c>ArchiveSignatureService</c>) resolves its root from
 /// <c>NEXAFLOW_CONFIG_DIR</c> exactly as the app does — so without this, a test that instantiates one
-/// writes real user data (post-its showed up in the production app). These suites can't reference Core,
-/// so unlike <c>Tests.Core</c>'s equivalent this isolates via the env var, not <c>ConfigManager.Initialize</c>.
+/// writes real user data (post-its showed up in the production app). <c>Tests.Core</c>'s equivalent sets the
+/// same variable, which the app's own folders (<c>AppDataFolders</c>) are read from; these suites cannot reference Core.
 /// <para>
 /// The logic lives here but the <c>[AssemblyInitialize]</c> that calls it cannot: MSTest only honours one
 /// declared in the assembly under test, so each suite keeps a small <c>TestConfigIsolation</c> shim. UI

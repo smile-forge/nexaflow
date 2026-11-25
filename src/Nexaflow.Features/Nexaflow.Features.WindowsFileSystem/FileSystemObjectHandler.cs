@@ -2,7 +2,6 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Localization;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -21,9 +20,8 @@ namespace Nexaflow.Features.WindowsFileSystem;
 /// </summary>
 public sealed class FileSystemObjectHandler(
     IShellServices shell,
-    IAIService ai,
-    IReadOnlyDictionary<Type, IFeatureConfig> configs,
-    IVirtualFileSystem vfs) : IGenericObjectHandler
+    IVirtualFileSystem vfs,
+    FileSystemFeatureRegistry registry) : IGenericObjectHandler
 {
     public bool CanHandleObject(object obj) => ToPath(obj is FileViewRequest view ? view.Path : obj) is not null;
 
@@ -62,8 +60,8 @@ public sealed class FileSystemObjectHandler(
                 return;
             }
 
-            // Same registry the file list uses (shared per shell), so the action set matches.
-            var opener = new DefaultFileOpener(FileSystemFeatureRegistry.For(shell, ai, configs, vfs));
+            // The registry the file list uses — the runtime's one — so the action set matches.
+            var opener = new DefaultFileOpener(registry);
             if (!onlyToView) await opener.OpenAsync(path);
             else if (!await opener.OpenInViewerAsync(path))
                 shell.ShowError(Str.Format("WindowsFileSystem.Open.NoViewerFormat", shown));

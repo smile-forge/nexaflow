@@ -127,10 +127,7 @@ public class RequestRoutingTests
     /// <summary>A service whose Conversation row is <paramref name="conversation"/>, in order, judged by <paramref name="judge"/>.</summary>
     private static AIService Service(Model[] conversation, Model? judge)
     {
-        var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, TestTemp.Root);
-        Set(nameof(WorkspaceRuntime.AiService), svc);
-        Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
+        var svc = TestRuntimes.Unstarted().AiService;
 
         var models = conversation.Concat(judge is null ? [] : [judge]).Distinct().ToList();
         var ids    = models.ToDictionary(m => m, m => "c" + models.IndexOf(m));
@@ -142,8 +139,6 @@ public class RequestRoutingTests
         svc.LoadAbilityConfig(config);
         return svc;
 
-        void Set(string property, object value) =>
-            typeof(WorkspaceRuntime).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(ws, [value]);
     }
 
     [TestMethod]

@@ -61,13 +61,13 @@ public class WorkspaceConfigScopingTests
         try
         {
             var saved = new ProjectsConfig { ProjectDirectory = @"X:\Custom\Projects" };
-            ConfigManager.Instance.SaveTo(dir, saved, saved.ConfigName);
+            TestRuntimes.Config.SaveTo(dir, saved, saved.ConfigName);
 
             // The file lands under <dir>\<ConfigName>\, mirroring Contexts\<workspace>\projects\.
             Assert.IsTrue(Directory.Exists(Path.Combine(dir, saved.ConfigName)));
 
             var loaded = new ProjectsConfig();
-            ConfigManager.Instance.LoadFrom(dir, loaded, loaded.ConfigName);
+            TestRuntimes.Config.LoadFrom(dir, loaded, loaded.ConfigName);
             Assert.AreEqual(@"X:\Custom\Projects", loaded.ProjectDirectory);
         }
         finally
@@ -87,12 +87,12 @@ public class WorkspaceConfigScopingTests
         {
             var saved = new ConsoleConfig();
             saved.BindFolder(@"C:\proj", "Command Prompt", StringComparison.OrdinalIgnoreCase);
-            ConfigManager.Instance.SaveTo(dir, saved, saved.ConfigName);
+            TestRuntimes.Config.SaveTo(dir, saved, saved.ConfigName);
 
             Assert.IsTrue(Directory.Exists(Path.Combine(dir, saved.ConfigName)));
 
             var loaded = new ConsoleConfig();
-            ConfigManager.Instance.LoadFrom(dir, loaded, loaded.ConfigName);
+            TestRuntimes.Config.LoadFrom(dir, loaded, loaded.ConfigName);
             Assert.AreEqual("Command Prompt", loaded.FindBoundEnvName(@"C:\proj", StringComparison.OrdinalIgnoreCase));
         }
         finally
@@ -106,7 +106,7 @@ public class WorkspaceConfigScopingTests
     {
         var dir = Path.Combine(TestTemp.Root, "nexaflow-test-" + Guid.NewGuid().ToString("N"));
         var cfg = new ProjectsConfig { ProjectDirectory = @"C:\Default" };
-        ConfigManager.Instance.LoadFrom(dir, cfg, cfg.ConfigName);   // no file — no-op
+        TestRuntimes.Config.LoadFrom(dir, cfg, cfg.ConfigName);   // no file — no-op
         Assert.AreEqual(@"C:\Default", cfg.ProjectDirectory);
     }
 
@@ -126,7 +126,7 @@ public class WorkspaceConfigScopingTests
     public void IsWorkspaceConfigured_NoAssignments_False()
     {
         var p = new Workspace();
-        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p));
+        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p, TestRuntimes.Providers));
     }
 
     [TestMethod]
@@ -137,7 +137,7 @@ public class WorkspaceConfigScopingTests
         p.AiConfig.Columns = new List<ProviderModelPair> { col };
         p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
 
-        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p));
+        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p, TestRuntimes.Providers));
     }
 
     [TestMethod]
@@ -149,7 +149,7 @@ public class WorkspaceConfigScopingTests
         p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
         SetProviderConfigs(p, new FakeProviderConfig { ApiKey = "sk-123" });
 
-        Assert.IsTrue(SetupWizardViewModel.IsWorkspaceConfigured(p));
+        Assert.IsTrue(SetupWizardViewModel.IsWorkspaceConfigured(p, TestRuntimes.Providers));
     }
 
     [TestMethod]
@@ -161,7 +161,7 @@ public class WorkspaceConfigScopingTests
         p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
         SetProviderConfigs(p, new FakeProviderConfig { ApiKey = "" });
 
-        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p));
+        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p, TestRuntimes.Providers));
     }
 
     // Workspace.ProviderConfigs is loaded from disk in production; set it directly here.

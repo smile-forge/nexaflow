@@ -87,7 +87,7 @@ public class ArchiveBrowsingTests
             var ai = Substitute.For<IAIService>();
             var vfs = new VirtualFileSystem();
             vfs.RegisterHandler(new ZipArchiveHandler());
-            Vm = new FileSystemViewModel(_dir, shell, ai, new Dictionary<Type, IFeatureConfig>(), vfs);
+            Vm = new FileBrowserRuntime(shell, ai, new Dictionary<Type, IFeatureConfig>(), vfs).Browse(_dir);
         }
 
         private static void Add(ZipArchive zip, string path, string body)

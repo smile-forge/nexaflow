@@ -73,10 +73,7 @@ internal static class OwnedModelHarness
     /// <summary>An AIService whose every language role is <paramref name="model"/>.</summary>
     public static AIService Service(ILlmProvider model)
     {
-        var ws  = new WorkspaceRuntime();
-        var svc = new AIService(ws, TestTemp.Root);
-        Set(nameof(WorkspaceRuntime.AiService), svc);
-        Set(nameof(WorkspaceRuntime.ShellServices), new ShellServices(ws));
+        var svc = TestRuntimes.Unstarted().AiService;
         svc.Register("c1", model);
         svc.LoadAbilityConfig(new AiConfig
         {
@@ -90,8 +87,6 @@ internal static class OwnedModelHarness
         });
         return svc;
 
-        void Set(string property, object value) =>
-            typeof(WorkspaceRuntime).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(ws, [value]);
     }
 
     private sealed class Activities : IBackgroundActivityManager

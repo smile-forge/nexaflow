@@ -9,6 +9,12 @@ public partial class NotificationItem : ObservableObject
     [ObservableProperty] private bool   _isRead;
     public DateTime Timestamp { get; set; } = DateTime.Now;
 
+    /// <summary>
+    /// The workspace that raised the message, or null for one of the whole app — an update, a fault. One person works across
+    /// several workspaces and reads one inbox, so every window shows every message; this says which context it is about.
+    /// </summary>
+    public Workspace? Workspace { get; set; }
+
     /// <summary>Severity — drives the toast/inbox icon and colour.</summary>
     public MessageSeverity Severity { get; init; } = MessageSeverity.Info;
 

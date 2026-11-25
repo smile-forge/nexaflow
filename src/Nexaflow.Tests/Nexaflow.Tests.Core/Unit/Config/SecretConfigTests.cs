@@ -35,7 +35,7 @@ public class SecretConfigTests
         try
         {
             var cfg = new FakeConfig { ApiKey = "sk-super-secret", BaseUrl = "https://x" };
-            ConfigManager.Instance.SaveTo(dir, cfg, "fake");
+            TestRuntimes.Config.SaveTo(dir, cfg, "fake");
 
             var file = Directory.GetFiles(Path.Combine(dir, "fake"), "config_*.json")[0];
             var raw  = File.ReadAllText(file);
@@ -44,7 +44,7 @@ public class SecretConfigTests
             StringAssert.Contains(raw, "https://x");   // non-secret fields stay readable
 
             var loaded = new FakeConfig();
-            ConfigManager.Instance.LoadFrom(dir, loaded, "fake");
+            TestRuntimes.Config.LoadFrom(dir, loaded, "fake");
             Assert.AreEqual("sk-super-secret", loaded.ApiKey);
             Assert.AreEqual("https://x", loaded.BaseUrl);
         }
@@ -64,7 +64,7 @@ public class SecretConfigTests
                 """{ "ApiKey": "legacy-plain", "BaseUrl": "https://y" }""");
 
             var loaded = new FakeConfig();
-            ConfigManager.Instance.LoadFrom(dir, loaded, "fake");
+            TestRuntimes.Config.LoadFrom(dir, loaded, "fake");
             Assert.AreEqual("legacy-plain", loaded.ApiKey);
         }
         finally { Directory.Delete(dir, recursive: true); }

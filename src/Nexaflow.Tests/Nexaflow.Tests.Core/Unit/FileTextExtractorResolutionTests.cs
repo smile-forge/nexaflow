@@ -14,8 +14,8 @@ namespace Nexaflow.Tests.Core.Unit;
 /// because every way this breaks is silent: a PDF simply stops being searchable, or — worse — is searched
 /// with settings nobody configured. Nothing throws, nothing logs.
 /// <para>
-/// Driven through <see cref="FeatureManager.RegisterFeatures"/> rather than a locally built catalog with a
-/// no-op activation callback. That shortcut looks equivalent and isn't: activation is <em>what registers a
+/// Driven through the suite's feature system (<see cref="TestRuntimes.Features"/>), made as the session makes it, rather than
+/// a locally built catalog with a no-op activation callback. That shortcut looks equivalent and isn't: activation is <em>what registers a
 /// feature's global config</em>, so a test that skips it can only ever prove an extractor resolves when its
 /// constructor takes nothing. Config writes are already redirected to a temp root by
 /// <see cref="TestConfigIsolation"/>.
@@ -29,10 +29,7 @@ public class FileTextExtractorResolutionTests
     private const string PdfConfigType = "Nexaflow.Features.Pdf.PdfConfig";
     private const string OfficeExtractor = "Nexaflow.Features.Office.Search.OfficeTextExtractor";
 
-    [ClassInitialize]
-    public static void Init(TestContext _) => FeatureManager.Instance.RegisterFeatures();
-
-    private static ShellServices NewShell() => new(new WorkspaceRuntime());
+    private static ShellServices NewShell() => TestRuntimes.Unstarted().ShellServices;
 
     [TestMethod]
     public void PdfPath_ResolvesToTheFeaturesExtractor()
@@ -99,7 +96,7 @@ public class FileTextExtractorResolutionTests
         // healthy while ignoring every setting the user changed, and no other test in the suite would notice.
         // Flipping the registered instance and watching behaviour change is the only proof that the object
         // the DI injected is the object the Options panel edits.
-        var config = FeatureManager.Instance.Configs
+        var config = TestRuntimes.Features.Configs
             .Single(kv => kv.Key.FullName == PdfConfigType).Value;
         var includeMetadata = config.GetType().GetProperty("IncludeMetadata")!;
 

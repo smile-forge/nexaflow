@@ -28,8 +28,8 @@
                        Margin="0,2,0,0" FontSize="12"
                        Foreground="{StaticResource TextMutedBrush}"/>
 
-            <!-- Updates: where this build stands against its newest release. The state is the app's own
-                 (App.Updates), so an update the startup check offered is still offered here after its toast is
+            <!-- Updates: where this build stands against its newest release. The state is the app's own,
+                 handed in by the view-model (AboutViewModel.Updates), so an update the startup check offered is still offered here after its toast is
                  dismissed. Update replaces Check for updates while a release is offered. -->
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                 <TextBlock x:Name="UpdateStatusText"

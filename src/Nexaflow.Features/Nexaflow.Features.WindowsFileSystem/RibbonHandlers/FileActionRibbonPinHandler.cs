@@ -21,9 +21,7 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
 {
     private readonly FileSystemFeatureRegistry _registry;
 
-    public FileActionRibbonPinHandler(IShellServices shell, IAIService ai, IReadOnlyDictionary<Type, IFeatureConfig> configs,
-                                      IVirtualFileSystem vfs)
-        => _registry = FileSystemFeatureRegistry.For(shell, ai, configs, vfs);
+    public FileActionRibbonPinHandler(FileSystemFeatureRegistry registry) => _registry = registry;
 
     public IReadOnlyList<string> AcceptedKinds { get; } = [FileSystemPageRegistration.FileActionKind];
 

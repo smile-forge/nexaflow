@@ -16,34 +16,25 @@ namespace Nexaflow.Features.WindowsFileSystem.Services;
 /// Owns discovery, construction and caching of the file-system feature
 /// contracts: <see cref="IFileAction"/>, <see cref="IFolderAction"/>,
 /// <see cref="IFileCreateAction"/>, <see cref="IFileCreateWithOptions"/> and <see cref="IFolderViewlet"/>.
+/// <para>
+/// One per workspace runtime (<see cref="FeatureServiceAttribute"/>): every file-browser tab, the object handler and the
+/// ribbon pins of that runtime take it by constructor, so they hold the same action instances. The actions it builds get
+/// the runtime's <see cref="FileOperationQueue"/> and <see cref="FileCompanions"/> the same way.
+/// </para>
 /// </summary>
+[FeatureService]
 public sealed class FileSystemFeatureRegistry
 {
-    // Weak-keyed so a registry is collected once its owning workspace's IShellServices is gone
-    // (a workspace rebuild creates a new shell and orphans the old entry — see WorkspaceManager.RestartWorkspace).
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IShellServices, FileSystemFeatureRegistry> _instances = new();
-    private static readonly object _instancesLock = new();
-
-    /// <summary>
-    /// Returns the canonical registry for <paramref name="shell"/>. Keyed by the
-    /// shell-services instance so every consumer in a given window/work-context
-    /// shares the same action instances.
-    /// </summary>
-    public static FileSystemFeatureRegistry For(
-        IShellServices shell, IAIService ai,
-        IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
-    {
-        lock (_instancesLock)
-        {
-            if (!_instances.TryGetValue(shell, out var r))
-                _instances.Add(shell, r = new FileSystemFeatureRegistry(shell, ai, configs, vfs));
-            return r;
-        }
-    }
-
     private readonly IShellServices _shell;
     private readonly IAIService _ai;
     private readonly IReadOnlyDictionary<Type, IFeatureConfig> _configs;
+
+    /// <summary>The runtime's copy, move and delete queue — handed to every action that asks for it, or for an
+    /// <see cref="IFileOperationHost"/> to show its long work in.</summary>
+    private readonly FileOperationQueue _operations;
+
+    /// <summary>The companion files the runtime's features declare — handed to every action that asks for them.</summary>
+    private readonly FileCompanions _companions;
 
     private readonly List<Type> _fileActionTypes       = [];
     private readonly List<Type> _folderActionTypes     = [];
@@ -65,14 +56,17 @@ public sealed class FileSystemFeatureRegistry
 
     private readonly IReadOnlyList<string> _allExperiences;
 
-    private FileSystemFeatureRegistry(
+    public FileSystemFeatureRegistry(
         IShellServices shell, IAIService ai,
-        IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs)
+        IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
+        FileOperationQueue operations, FileCompanions companions)
     {
         _shell = shell;
         _ai = ai;
         _configs = configs;
         Vfs = vfs;
+        _operations = operations;
+        _companions = companions;
 
         foreach (var t in shell.DiscoverImplementations<IFolderViewlet>())
             _folderViewletTypes.Add(t);
@@ -108,7 +102,7 @@ public sealed class FileSystemFeatureRegistry
             .ToList()!;
 
         // Mounts must exist before anything navigates: a restored session can hand NavigateTo a
-        // ::mount path, and this registry is built in the view model's constructor, ahead of it.
+        // ::mount path, and every browser takes this registry by constructor, so it is built ahead of it.
         foreach (var provider in ThisPcItemProviders) provider.Changed += SyncMounts;
         SyncMounts();
     }
@@ -215,10 +209,13 @@ public sealed class FileSystemFeatureRegistry
                 args[i] = Vfs;
             else if (pt == typeof(ILocationDirectory) && Vfs is ILocationDirectory locations)
                 args[i] = locations;   // the runtime's file system lists its locations; a bare one has none to list
-            else if (typeof(IFileOperationHost).IsAssignableFrom(pt))
+            else if (pt == typeof(FileOperationQueue) || pt == typeof(IFileOperationHost))
                 // The file browser is what shows a progress row, so it is what supplies one to the actions it
-                // builds. An action that asks for this outside a browser simply does not get one.
-                args[i] = FileOperationQueue.For(_shell, Vfs);
+                // builds — as the queue itself, or as the host. An action that asks for this outside a browser
+                // simply does not get one.
+                args[i] = _operations;
+            else if (pt == typeof(FileCompanions))
+                args[i] = _companions;
             else if (_configs.TryGetValue(pt, out var cfg))
                 args[i] = cfg;
             else if (parms[i].IsOptional)

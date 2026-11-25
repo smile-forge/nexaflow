@@ -1,37 +1,53 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
-[DoNotParallelize]   // shares the MessageCenter singleton; methods must not race each other
+
 [CoversNode("messages")]
 public class MessageCenterTests
 {
-    // MessageCenter is a singleton; in tests it captures the test thread's dispatcher, so its
-    // CheckAccess is true here and Post/Remove run inline. Clear the shared store before each test.
+    // Each test has an inbox of its own, on the test thread: its posts run inline.
+    private MessageCenter _center = null!;
+
     [TestInitialize]
-    public void Reset() => MessageCenter.Instance.Messages.Clear();
+    public void Reset() => _center = new MessageCenter(new WpfUiThread(System.Windows.Threading.Dispatcher.CurrentDispatcher));
 
     [TestMethod]
     public void Post_InsertsNewestFirst_AndRaisesEvent()
     {
         NotificationItem? raised = null;
         void Handler(object? s, NotificationItem m) => raised = m;
-        MessageCenter.Instance.MessagePosted += Handler;
+        _center.MessagePosted += Handler;
         try
         {
             var first  = new NotificationItem { Title = "first" };
             var second = new NotificationItem { Title = "second" };
-            MessageCenter.Instance.Post(first);
-            MessageCenter.Instance.Post(second);
+            _center.Post(first);
+            _center.Post(second);
 
-            Assert.AreEqual(2, MessageCenter.Instance.Messages.Count);
-            Assert.AreSame(second, MessageCenter.Instance.Messages[0]);   // newest first
+            Assert.AreEqual(2, _center.Messages.Count);
+            Assert.AreSame(second, _center.Messages[0]);   // newest first
             Assert.AreSame(second, raised);
         }
-        finally { MessageCenter.Instance.MessagePosted -= Handler; }
+        finally { _center.MessagePosted -= Handler; }
+    }
+
+    [TestMethod]
+    public void AMessageAWorkspaceRaises_SaysWhichWorkspace_AndOneOfTheWholeAppDoesNot()
+    {
+        // One person, one inbox: every window shows every message, and each says which context it is about.
+        var workspace = TestRuntimes.Saved(new Workspace { Name = "Community" });
+        IShellServices shell = TestRuntimes.FactoryWith(tasks: null, notify: _center.Post).CreateUnstarted(workspace).ShellServices;
+
+        shell.ShowError("the post did not go out");
+        Assert.AreSame(workspace, _center.Messages[0].Workspace);
+
+        _center.Post(new NotificationItem { Title = "An update is ready" });
+        Assert.IsNull(_center.Messages[0].Workspace);
     }
 
     [TestMethod]
@@ -41,11 +57,11 @@ public class MessageCenterTests
         var pending   = new NotificationItem { Title = "pending", ShowToast = true };
         var alreadyShown = new NotificationItem { Title = "shown", ShowToast = true, ShownAsToast = true };
 
-        MessageCenter.Instance.Post(inboxOnly);
-        MessageCenter.Instance.Post(pending);
-        MessageCenter.Instance.Post(alreadyShown);
+        _center.Post(inboxOnly);
+        _center.Post(pending);
+        _center.Post(alreadyShown);
 
-        var toasts = MessageCenter.Instance.PendingToasts.ToList();
+        var toasts = _center.PendingToasts.ToList();
 
         CollectionAssert.AreEquivalent(new[] { pending }, toasts);
     }
@@ -54,12 +70,12 @@ public class MessageCenterTests
     public void Remove_TakesMessageOutOfTheStore()
     {
         var m = new NotificationItem { Title = "x" };
-        MessageCenter.Instance.Post(m);
-        Assert.AreEqual(1, MessageCenter.Instance.Messages.Count);
+        _center.Post(m);
+        Assert.AreEqual(1, _center.Messages.Count);
 
-        MessageCenter.Instance.Remove(m);
+        _center.Remove(m);
 
-        Assert.AreEqual(0, MessageCenter.Instance.Messages.Count);
+        Assert.AreEqual(0, _center.Messages.Count);
     }
 
     [TestMethod]
@@ -67,17 +83,17 @@ public class MessageCenterTests
     {
         NotificationItem? raised = null;
         void Handler(object? s, NotificationItem m) => raised = m;
-        MessageCenter.Instance.MessagePosted += Handler;
+        _center.MessagePosted += Handler;
         try
         {
             // A transient offer (e.g. "Restore last session?") should toast but leave no dead entry in the
             // notifications list once it has passed.
             var transient = new NotificationItem { Title = "restore?", Transient = true };
-            MessageCenter.Instance.Post(transient);
+            _center.Post(transient);
 
             Assert.AreSame(transient, raised, "a transient message must still raise MessagePosted (to toast)");
-            Assert.AreEqual(0, MessageCenter.Instance.Messages.Count, "a transient message must not land in the inbox");
+            Assert.AreEqual(0, _center.Messages.Count, "a transient message must not land in the inbox");
         }
-        finally { MessageCenter.Instance.MessagePosted -= Handler; }
+        finally { _center.MessagePosted -= Handler; }
     }
 }

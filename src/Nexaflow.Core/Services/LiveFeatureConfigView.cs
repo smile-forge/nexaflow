@@ -20,6 +20,9 @@ internal sealed class LiveFeatureConfigView : IReadOnlyDictionary<Type, IFeature
     private readonly IReadOnlyDictionary<Type, IFeatureConfig> _global;   // FeatureManager._configs (live)
     private readonly WorkspaceRuntime? _workspace;
 
+    /// <param name="global">The session's global feature configs, live.</param>
+    /// <param name="workspace">The runtime whose workspace's scoped configs are overlaid — those its feature system knows; null for
+    /// the global configs alone.</param>
     public LiveFeatureConfigView(IReadOnlyDictionary<Type, IFeatureConfig> global, WorkspaceRuntime? workspace)
     {
         _global    = global;
@@ -30,7 +33,7 @@ internal sealed class LiveFeatureConfigView : IReadOnlyDictionary<Type, IFeature
     {
         // Global first (cheap concurrent lookup); only scoped configs miss here, then materialize on demand.
         if (_global.TryGetValue(key, out value!)) return true;
-        if (_workspace?.Workspace.FindWorkspaceConfig(key) is { } scoped) { value = scoped; return true; }
+        if (_workspace?.Workspace.FindWorkspaceConfig(key, _workspace.FeatureManager) is { } scoped) { value = scoped; return true; }
         value = null!;
         return false;
     }
