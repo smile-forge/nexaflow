@@ -581,7 +581,8 @@
                       PreviewMouseRightButtonUp="FileListView_PreviewMouseRightButtonUp"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
-                      Padding="4,4,4,4">
+                      Padding="4,4,4,4"
+                      beh:ListActivation.Command="{Binding OpenEntryCommand}">
                 <ListView.View>
                     <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
 
@@ -800,7 +801,8 @@
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
                       Padding="4,4,4,4"
-                      beh:ReaderPlace.IsHeld="True">
+                      beh:ReaderPlace.IsHeld="True"
+                      beh:ListActivation.Command="{Binding OpenEntryCommand}">
                 <ListView.View>
                     <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
 

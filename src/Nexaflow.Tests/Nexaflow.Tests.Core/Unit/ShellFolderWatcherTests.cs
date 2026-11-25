@@ -94,6 +94,23 @@ public class ShellFolderWatcherTests
         PumpUntil(() => first.Count > 0 && second.Count > 0);
     });
 
+    /// <summary>A watched folder taken away is itself the change: its view reads it again, and finds it gone.</summary>
+    [TestMethod]
+    public void TheWatchedFolderDeleted_IsToldWhole() => UiThread.Run(() =>
+    {
+        using var watcher = new ShellFolderWatcher(Dispatcher.CurrentDispatcher);
+        var told = new List<FolderChange>();
+        using var watch = watcher.Watch(_folder, told.Add);
+        Armed(told);
+        foreach (var file in Directory.GetFiles(_folder)) File.Delete(file);
+        PumpUntil(() => told.Count > 0);
+        PumpFor(TimeSpan.FromMilliseconds(500));
+        told.Clear();
+
+        Directory.Delete(_folder);
+        PumpUntil(() => told.Any(change => change.Whole));
+    });
+
     /// <summary>
     /// Waits until the shell is listening: its registration arms a moment after the call returns, and a change made before
     /// then goes unheard (the folder's own listing is what covers that moment in the app). Writes a marker until one is told,
