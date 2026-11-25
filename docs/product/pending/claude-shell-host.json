@@ -16,7 +16,16 @@
           "class": "ShellViewModel",
           "method": "MoveToWorkspace"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/WorkspaceLifetimesJourneyTests.cs",
+            "class": "WorkspaceLifetimesJourneyTests"
+          }
+        ]
+      }
     },
     "ws-reconfigure-in-place": {
       "links": [
@@ -132,6 +141,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/WorkspaceRuntimeLifetimeTests.cs",
             "class": "WorkspaceRuntimeLifetimeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Core/WorkspaceLifetimesJourneyTests.cs",
+            "class": "WorkspaceLifetimesJourneyTests"
           }
         ]
       }
@@ -502,7 +516,7 @@
     }
   },
   "is_empty": false,
-  "changed_sets": 23,
+  "changed_sets": 24,
   "touched_nodes": [
     "binding-error-log",
     "crash-log",

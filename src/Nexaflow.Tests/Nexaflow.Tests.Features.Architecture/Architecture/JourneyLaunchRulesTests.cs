@@ -34,9 +34,10 @@ public class JourneyLaunchRulesTests
 {
     /// <summary>
     /// The launches the shell's journeys make, which is the shell's frame, Options, drops, the first-run wizard (three, each needing
-    /// a first run of its own), and the two that need the app's own models. Adding a general journey is a decision made here, in view.
+    /// a first run of its own), the two that need the app's own models, and a window moving between workspaces — the lifetimes of
+    /// the workspaces it leaves and comes back to. Adding a general journey is a decision made here, in view.
     /// </summary>
-    private const int ShellJourneyLaunches = 8;
+    private const int ShellJourneyLaunches = 9;
 
     private static readonly string Root = RepoRoot.Locate();
 

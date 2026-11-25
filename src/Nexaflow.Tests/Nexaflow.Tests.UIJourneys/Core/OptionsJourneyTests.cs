@@ -415,8 +415,8 @@ public class OptionsJourneyTests : OptionsOverlayJourney
     /// right-click menu rather than the chrome's Options button: its identity, its startup tabs, the AI ability grid, and every
     /// <c>[WorkspaceScopedConfig]</c> editor such as Console and Projects.
     /// <para>
-    /// <b>Never pressed:</b> a workspace in the switcher (switching — even to this workspace — reconfigures the runtime
-    /// and closes every tab), the add-column panel's Add (it needs a configured provider and model), and the pickers'
+    /// <b>Never pressed:</b> a workspace in the switcher (switching moves the window to another workspace and closes its
+    /// tabs — <c>WorkspaceLifetimesJourneyTests</c> drives it), the add-column panel's Add (it needs a configured provider and model), and the pickers'
     /// OK (it needs something picked). The app runs against a throwaway config dir, so what the panel applies on the
     /// way out is discarded with it.
     /// </para>

@@ -325,14 +325,11 @@ public partial class FileSystemJourneyTests : UiJourneyTestBase
 
         optionsBtn!.AsButton().Invoke();
 
-        // Found by name: the Options sections are list entries, not controls carrying an automation id.
-        var section = WaitForName("Templated Create", 6);
-        Check("Options lists a Templated Create section", () => section is not null);
-        if (section is not null)
-        {
-            section.Click();
-            Wait.UntilInputIsProcessed();
-        }
+        // The section list virtualises and a feature's sections follow Core's, so the row is scrolled into view, not
+        // looked for among the rows on screen.
+        var sections = WaitForId("Options_SectionList", 6);
+        Check("Options lists its sections", () => sections is not null);
+        if (sections is not null) SelectSection(sections, "Templated Create", "TemplatedCreate_Add");
 
         var add = CheckPresent("Add-template button", "TemplatedCreate_Add", 5);
         if (add is not null)

@@ -540,6 +540,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         to.ShellServices.RegisterWindow(this);
         from.ShellServices.UnregisterWindow(this);
+
+        // Leaving closed the tabs; the panes that showed them go too, so the window starts over on one empty pane, as a new
+        // window does, for the workspace it joined to fill.
+        WireRootPane();
         AttachRuntime(from, to);
 
         to.ShellServices.SetFocused(this);
