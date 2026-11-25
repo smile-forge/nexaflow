@@ -31,14 +31,14 @@ namespace Nexaflow.Core.Services;
 public sealed class SubfeatureCatalog
 {
     private readonly FeatureCatalog _catalog;
-    private readonly FeatureManager _features;
+    private readonly FeatureInjector _features;
 
     /// <summary>
     /// Builds a resolver over a specific <see cref="FeatureCatalog"/>, whose plugins <paramref name="features"/> builds. The
     /// catalog is given rather than taken from the session so this is testable against a freshly-scanned index: the session's
     /// is the one its <see cref="FeatureManager"/> built, with the whole shell's activation side-effects behind it.
     /// </summary>
-    public SubfeatureCatalog(FeatureCatalog catalog, FeatureManager features)
+    public SubfeatureCatalog(FeatureCatalog catalog, FeatureInjector features)
     {
         _catalog  = catalog;
         _features = features;
@@ -87,7 +87,7 @@ public sealed class SubfeatureCatalog
     /// </summary>
     private sealed class SubfeatureHandle<T>(
         FeatureCatalog catalog,
-        FeatureManager features,
+        FeatureInjector features,
         string file,
         string typeName,
         FeatureCatalog.SubfeatureEntry meta,

@@ -951,7 +951,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         // Workspace-scoped configs are persisted per-workspace under Contexts\<name>\ (the same place the
         // Configure panel loads them from); global feature configs go in the shared config root. Routing
         // a scoped config through the global Save would write where nothing reads it back.
-        if (_features.IsWorkspaceScopedConfig(config.GetType()))
+        if (_features.Configs.IsWorkspaceScoped(config.GetType()))
             _savedWorkspaces.SaveWorkspaceScopedConfig(_workspace.Workspace, config);
         else
             _config.Save(config, config.ConfigName);
@@ -994,7 +994,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         {
             // Instances are cached per (type, workspace) and ctor-injected with this
             // workspace's shell/ai/configs — same path as feature tab creation.
-            if (_features.Instantiate(type, _workspace) is IGenericObjectHandler handler
+            if (_features.Injector.Instantiate(type, _workspace) is IGenericObjectHandler handler
                 && handler.CanHandleObject(obj))
             {
                 handler.Handle(obj);
@@ -1043,7 +1043,7 @@ public sealed class ShellServices : IShellServices, IDisposable
 
         foreach (var type in DiscoverImplementations<IFileTextExtractor>())
         {
-            if (_features.Instantiate(type, _workspace) is not IFileTextExtractor extractor)
+            if (_features.Injector.Instantiate(type, _workspace) is not IFileTextExtractor extractor)
                 continue;
             try { if (extractor.CanExtract(path)) return extractor; }
             catch { }

@@ -664,7 +664,7 @@ public partial class SetupWizardViewModel : ObservableObject
         // Materialize every workspace-scoped config so a [MandatorySetup] one (e.g. Projects) gets a wizard
         // step. WorkspaceConfigs otherwise returns only configs already lazily materialized, so on first run
         // the scoped Projects config is absent and its step silently never shows.
-        workspace.MaterializeAllScopedConfigs(features);
+        workspace.MaterializeAllScopedConfigs(features.Configs);
 
         var ctx = new WorkspaceSetupContext
         {

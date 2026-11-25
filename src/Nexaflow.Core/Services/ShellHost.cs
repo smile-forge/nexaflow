@@ -331,7 +331,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // runtime lets it finish, up to a point, before it mounts (WorkspaceRuntimeFactory.AwaitFirstDiscovery).
         _firstDiscovery = Task.Run(() =>
         {
-            Features.EnsureLocationProviders();
+            Features.Activation.EnsureLocationProviders();
             return Discovered.StartAsync();
         });
     }

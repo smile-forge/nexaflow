@@ -14,7 +14,7 @@ public class FeatureLoggerInjectionTests
     [TestMethod]
     public void ALoggerAskedFor_IsOneOfTheSessionsLogs()
     {
-        var built = (WantsALog)TestRuntimes.Features.Instantiate(typeof(WantsALog), TestRuntimes.Unstarted());
+        var built = (WantsALog)TestRuntimes.Features.Injector.Instantiate(typeof(WantsALog), TestRuntimes.Unstarted());
 
         Assert.IsTrue(built.Log.IsEnabled(LogLevel.Error), "a fault it logs reaches the crash log");
         Assert.IsTrue(built.Log.IsEnabled(LogLevel.Information), "a step it logs reaches the session's log");

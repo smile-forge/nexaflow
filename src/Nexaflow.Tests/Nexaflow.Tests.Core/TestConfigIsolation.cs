@@ -26,6 +26,9 @@ public static class TestConfigIsolation
     {
         Environment.SetEnvironmentVariable(AppDataFolders.IsolatedRootVariable, TestTemp.CreateSubdirectory("config-").FullName);
         Str.Source = new EnglishTable(EnglishStringTable.Load());
+        // WPF's pack:// scheme, registered as the app's Application registers it, so a feature's theme resources read here as they
+        // do in the app.
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(System.IO.Packaging.PackUriHelper).TypeHandle);
     }
 
     private sealed class EnglishTable(IReadOnlyDictionary<string, string> strings) : ILocalizedStringSource

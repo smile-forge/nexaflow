@@ -218,7 +218,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     private List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)
     {
         var list = new List<IFeatureConfig>();
-        foreach (var t in _features.WorkspaceScopedConfigTypes)
+        foreach (var t in _features.Configs.WorkspaceScopedTypes)
         {
             var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
             _config.LoadFrom(dir, cfg, cfg.ConfigName);
@@ -244,7 +244,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _dirty = false;
 
         // Pull the just-saved values into the live workspace, then rebuild the running workspace (if any).
-        _workspace.ReloadSharedConfigs(_features, _providers);
+        _workspace.ReloadSharedConfigs(_features.Configs, _providers);
         _runtimes.Restart(_workspace);
         return true;
     }

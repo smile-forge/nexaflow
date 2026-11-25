@@ -120,12 +120,12 @@ public sealed partial class Workspace : ObservableObject
     /// disk) on first request. Null when <paramref name="t"/> isn't a scoped config type, as <paramref name="features"/>
     /// knows them. The owning assembly is already loaded by the time a feature ctor asks for its scoped config, so this
     /// never forces a deferred feature to load.</summary>
-    public IFeatureConfig? FindWorkspaceConfig(Type t, FeatureManager features)
+    public IFeatureConfig? FindWorkspaceConfig(Type t, FeatureConfigs configs)
     {
         lock (_scopedLock)
         {
             if (_scoped.TryGetValue(t, out var existing)) return existing;
-            if (!features.IsWorkspaceScopedConfig(t)) return null;
+            if (!configs.IsWorkspaceScoped(t)) return null;
             try
             {
                 var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
@@ -139,10 +139,10 @@ public sealed partial class Workspace : ObservableObject
 
     /// <summary>Materializes every scoped config <paramref name="features"/> knows, loading the owning assemblies. Used by the
     /// Configure / Manage-AI panels and on reload, which need the full set.</summary>
-    internal void MaterializeAllScopedConfigs(FeatureManager features)
+    internal void MaterializeAllScopedConfigs(FeatureConfigs configs)
     {
-        foreach (var t in features.WorkspaceScopedConfigTypes)
-            FindWorkspaceConfig(t, features);
+        foreach (var t in configs.WorkspaceScopedTypes)
+            FindWorkspaceConfig(t, configs);
     }
 
     [JsonIgnore] public string Dir => WorkspaceManager.WorkspaceDir(Configuration, Name);
@@ -199,12 +199,12 @@ public sealed partial class Workspace : ObservableObject
     /// workspace from the saved values (the panel deliberately leaves the live instances untouched
     /// while editing).
     /// </summary>
-    internal void ReloadSharedConfigs(FeatureManager features, ProviderManager providers)
+    internal void ReloadSharedConfigs(FeatureConfigs configs, ProviderManager providers)
     {
         Configuration.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
         Configuration.LoadFrom(Dir, Persona, Persona.ConfigName);
         ProviderConfigs = providers.LoadProviderConfigs(Dir);
         lock (_scopedLock) _scoped.Clear();
-        MaterializeAllScopedConfigs(features);
+        MaterializeAllScopedConfigs(configs);
     }
 }

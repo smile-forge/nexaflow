@@ -32,7 +32,7 @@ public class FeatureDiFailureTests
     public void UnknownConstructorParameter_Throws_NamingTheTypeAndParameter()
     {
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => TestRuntimes.Features.Instantiate(typeof(NeedsSomethingUninjectable), TestRuntimes.Unstarted()));
+            () => TestRuntimes.Features.Injector.Instantiate(typeof(NeedsSomethingUninjectable), TestRuntimes.Unstarted()));
 
         // The message has to carry enough to act on: whoever hits this is looking at a feature that isn't
         // there, with no other clue as to why.
@@ -46,7 +46,7 @@ public class FeatureDiFailureTests
         // The exact shape that let PdfTextExtractor look healthy while resolving to nothing: a config type
         // that is never registered because no assembly activation ever produced it.
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => TestRuntimes.Features.Instantiate(typeof(NeedsAnUnregisteredConfig), TestRuntimes.Unstarted()));
+            () => TestRuntimes.Features.Injector.Instantiate(typeof(NeedsAnUnregisteredConfig), TestRuntimes.Unstarted()));
 
         StringAssert.Contains(ex.Message, nameof(UnregisteredConfig));
         StringAssert.Contains(ex.Message, "not registered");
@@ -56,7 +56,7 @@ public class FeatureDiFailureTests
     public void NoPublicConstructor_Throws()
     {
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => TestRuntimes.Features.Instantiate(typeof(NoPublicCtor), TestRuntimes.Unstarted()));
+            () => TestRuntimes.Features.Injector.Instantiate(typeof(NoPublicCtor), TestRuntimes.Unstarted()));
 
         StringAssert.Contains(ex.Message, "no public constructor");
     }
@@ -67,7 +67,7 @@ public class FeatureDiFailureTests
         // Not wrapped in TargetInvocationException, and not swallowed: the feature author needs their own
         // exception and their own stack, not "your feature doesn't exist".
         var ex = Assert.ThrowsExactly<NotSupportedException>(
-            () => TestRuntimes.Features.Instantiate(typeof(ExplodingCtor), TestRuntimes.Unstarted()));
+            () => TestRuntimes.Features.Injector.Instantiate(typeof(ExplodingCtor), TestRuntimes.Unstarted()));
 
         Assert.AreEqual("deliberate", ex.Message);
     }
@@ -81,7 +81,7 @@ public class FeatureDiFailureTests
         await ws.DisposeAsync();
 
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => TestRuntimes.Features.Instantiate(typeof(NeedsAiService), ws));
+            () => TestRuntimes.Features.Injector.Instantiate(typeof(NeedsAiService), ws));
 
         StringAssert.Contains(ex.Message, "after it ended");
     }
@@ -90,7 +90,7 @@ public class FeatureDiFailureTests
     public void ViableConstructor_IsPreferredOverAnUnsatisfiableOne()
     {
         // One broken overload must not sentence a type that is perfectly buildable another way.
-        var built = TestRuntimes.Features.Instantiate(typeof(TwoCtorsOneViable), WiredRuntime());
+        var built = TestRuntimes.Features.Injector.Instantiate(typeof(TwoCtorsOneViable), WiredRuntime());
 
         Assert.IsInstanceOfType<TwoCtorsOneViable>(built);
     }
@@ -98,7 +98,7 @@ public class FeatureDiFailureTests
     [TestMethod]
     public void SuccessfulBuild_NeverReturnsNull()
     {
-        Assert.IsNotNull(TestRuntimes.Features.Instantiate(typeof(NeedsAiService), WiredRuntime()));
+        Assert.IsNotNull(TestRuntimes.Features.Injector.Instantiate(typeof(NeedsAiService), WiredRuntime()));
     }
 
     [TestMethod]
@@ -107,7 +107,7 @@ public class FeatureDiFailureTests
         // The shared VirtualFileSystem.Instance cannot see the locations a runtime connected; a feature handed it
         // would find every remote path missing.
         var ws    = WiredRuntime();
-        var built = (NeedsFileSystem)TestRuntimes.Features.Instantiate(typeof(NeedsFileSystem), ws);
+        var built = (NeedsFileSystem)TestRuntimes.Features.Injector.Instantiate(typeof(NeedsFileSystem), ws);
 
         Assert.AreSame(ws.Vfs, built.Vfs);
     }
@@ -120,9 +120,9 @@ public class FeatureDiFailureTests
         // Two page kinds of one feature share what one runtime holds — the Images viewer's and Artist's recipe store — so
         // both must be handed the same instance, and another runtime its own.
         var ws = WiredRuntime();
-        var first  = (NeedsTheService)TestRuntimes.Features.Instantiate(typeof(NeedsTheService), ws);
-        var second = (AlsoNeedsTheService)TestRuntimes.Features.Instantiate(typeof(AlsoNeedsTheService), ws);
-        var elsewhere = (NeedsTheService)TestRuntimes.Features.Instantiate(typeof(NeedsTheService), WiredRuntime());
+        var first  = (NeedsTheService)TestRuntimes.Features.Injector.Instantiate(typeof(NeedsTheService), ws);
+        var second = (AlsoNeedsTheService)TestRuntimes.Features.Injector.Instantiate(typeof(AlsoNeedsTheService), ws);
+        var elsewhere = (NeedsTheService)TestRuntimes.Features.Injector.Instantiate(typeof(NeedsTheService), WiredRuntime());
 
         Assert.AreSame(first.Service, second.Service);
         Assert.AreNotSame(first.Service, elsewhere.Service);
@@ -133,12 +133,12 @@ public class FeatureDiFailureTests
     public void AFeatureService_IsDisposed_WhenItsRuntimeRenewsItsServices()
     {
         var ws = WiredRuntime();
-        var service = ((NeedsTheService)TestRuntimes.Features.Instantiate(typeof(NeedsTheService), ws)).Service;
+        var service = ((NeedsTheService)TestRuntimes.Features.Injector.Instantiate(typeof(NeedsTheService), ws)).Service;
 
         ws.Features.Reset();
 
         Assert.IsTrue(service.Disposed);
-        var rebuilt = ((NeedsTheService)TestRuntimes.Features.Instantiate(typeof(NeedsTheService), ws)).Service;
+        var rebuilt = ((NeedsTheService)TestRuntimes.Features.Injector.Instantiate(typeof(NeedsTheService), ws)).Service;
         Assert.AreNotSame(service, rebuilt, "the runtime renewed gets a service built against its new services");
     }
 
@@ -146,7 +146,7 @@ public class FeatureDiFailureTests
     public async Task AFeatureService_IsDisposed_WhenItsRuntimeEnds()
     {
         var ws = WiredRuntime();
-        var service = ((NeedsTheService)TestRuntimes.Features.Instantiate(typeof(NeedsTheService), ws)).Service;
+        var service = ((NeedsTheService)TestRuntimes.Features.Injector.Instantiate(typeof(NeedsTheService), ws)).Service;
 
         await ws.DisposeAsync();
 
@@ -157,7 +157,7 @@ public class FeatureDiFailureTests
     public void AFeatureServiceNeedingItself_Throws_RatherThanRecursing()
     {
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => TestRuntimes.Features.Instantiate(typeof(NeedsTheCircle), WiredRuntime()));
+            () => TestRuntimes.Features.Injector.Instantiate(typeof(NeedsTheCircle), WiredRuntime()));
 
         StringAssert.Contains(ex.Message, nameof(CircularService));
     }
@@ -167,7 +167,7 @@ public class FeatureDiFailureTests
     {
         // Only what a feature marks is built for it: anything else is the defect it always was.
         var ex = Assert.ThrowsExactly<InvalidOperationException>(
-            () => TestRuntimes.Features.Instantiate(typeof(NeedsAnUnmarkedClass), WiredRuntime()));
+            () => TestRuntimes.Features.Injector.Instantiate(typeof(NeedsAnUnmarkedClass), WiredRuntime()));
 
         StringAssert.Contains(ex.Message, nameof(UnmarkedClass));
     }
@@ -185,7 +185,7 @@ public class FeatureDiFailureTests
 
         foreach (var type in Contracts().SelectMany(TestRuntimes.Features.Catalog.TypesImplementing))
         {
-            try { TestRuntimes.Features.Instantiate(type, workspace); }
+            try { TestRuntimes.Features.Injector.Instantiate(type, workspace); }
             catch (Exception ex) { defects.Add($"{type.FullName}: {ex.Message}"); }
         }
 

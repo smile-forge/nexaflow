@@ -493,7 +493,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             var shell = _session.Shell;
             if (shell.Theme == ThemeManager.Current && _session.Language.IsCurrent(shell.Language)) return;
             if (shell.Theme != ThemeManager.Current)
-                ThemeManager.Apply(shell.Theme, _session.Features.ThemeContributionUris);
+                ThemeManager.Apply(shell.Theme, _session.Features.Activation.ThemeContributionUris);
             _session.Language.Select(shell.Language);
             _shellServices.ReplaceWindow(this);
         };

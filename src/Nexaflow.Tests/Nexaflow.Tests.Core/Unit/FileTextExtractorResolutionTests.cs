@@ -96,7 +96,7 @@ public class FileTextExtractorResolutionTests
         // healthy while ignoring every setting the user changed, and no other test in the suite would notice.
         // Flipping the registered instance and watching behaviour change is the only proof that the object
         // the DI injected is the object the Options panel edits.
-        var config = TestRuntimes.Features.Configs
+        var config = TestRuntimes.Features.Configs.Global
             .Single(kv => kv.Key.FullName == PdfConfigType).Value;
         var includeMetadata = config.GetType().GetProperty("IncludeMetadata")!;
 

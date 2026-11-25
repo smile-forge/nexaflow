@@ -33,7 +33,7 @@ internal sealed class LiveFeatureConfigView : IReadOnlyDictionary<Type, IFeature
     {
         // Global first (cheap concurrent lookup); only scoped configs miss here, then materialize on demand.
         if (_global.TryGetValue(key, out value!)) return true;
-        if (_workspace?.Workspace.FindWorkspaceConfig(key, _workspace.FeatureManager) is { } scoped) { value = scoped; return true; }
+        if (_workspace?.Workspace.FindWorkspaceConfig(key, _workspace.FeatureManager.Configs) is { } scoped) { value = scoped; return true; }
         value = null!;
         return false;
     }
