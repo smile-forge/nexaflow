@@ -33,6 +33,6 @@ public class ProtectedAudienceTests
     [TestMethod]
     public void TheModeIsOn_WhereNothingSaysOtherwise()
     {
-        Assert.IsTrue(new Nexaflow.Core.ShellConfig().EnhancedAiProtection, "a new install starts protected");
+        Assert.IsTrue(new Nexaflow.Session.ShellConfig().EnhancedAiProtection, "a new install starts protected");
     }
 }

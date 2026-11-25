@@ -3,7 +3,7 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.FileActions;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.Web;
 

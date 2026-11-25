@@ -7,7 +7,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Icons;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;

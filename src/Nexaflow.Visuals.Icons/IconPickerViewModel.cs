@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Icons;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Visuals.Icons;
 

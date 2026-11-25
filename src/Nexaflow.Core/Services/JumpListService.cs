@@ -2,7 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Shell;
 using System.Windows.Threading;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -13,10 +13,6 @@ namespace Nexaflow.Core.Services;
 /// </summary>
 public static class JumpListService
 {
-    /// <summary>Command-line switch a JumpTask passes to request a specific Workspace
-    /// (the "--context" literal is a frozen CLI/IPC compat string).</summary>
-    public const string ContextSwitch = "--context";
-
     private const string CategoryName = "Workspaces";
 
     /// <summary>
@@ -32,7 +28,7 @@ public static class JumpListService
     }
 
     /// <summary>Rebuilds the JumpList from the saved <paramref name="workspaces"/>.</summary>
-    public static void Refresh(IEnumerable<Models.Workspace> workspaces)
+    public static void Refresh(IEnumerable<Workspace> workspaces)
     {
         if (Application.Current is null) return;
 
@@ -49,7 +45,7 @@ public static class JumpListService
                 CustomCategory   = CategoryName,
                 ApplicationPath  = exePath,
                 IconResourcePath = exePath,
-                Arguments        = $"{ContextSwitch} \"{cfg.Name}\"",
+                Arguments        = $"{LaunchRequest.ContextSwitch} \"{cfg.Name}\"",
             });
 
         try

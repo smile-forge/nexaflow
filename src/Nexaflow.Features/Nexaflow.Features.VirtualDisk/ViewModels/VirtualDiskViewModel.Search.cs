@@ -9,8 +9,8 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.VirtualDisk.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.Search;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.ViewModels;
 

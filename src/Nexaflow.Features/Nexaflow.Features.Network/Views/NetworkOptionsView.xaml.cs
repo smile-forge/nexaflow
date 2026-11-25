@@ -2,6 +2,7 @@ using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Network.ViewModels;
 using Nexaflow.IO.Network.Adapters;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Network.Views;
 
@@ -13,6 +14,7 @@ namespace Nexaflow.Features.Network.Views;
 /// The Options panel creates this with no DI and sets the <i>live</i> config as its DataContext, so the
 /// editing happens on a <see cref="NetworkOptionsModel"/> of its own and reaches the config only on Save.
 /// </remarks>
+[ViewFor(typeof(Nexaflow.Features.Network.NetworkConfig))]
 public partial class NetworkOptionsView : UserControl, ICustomConfigApply, IConfigChangeTracker, IConfigValidation
 {
     private NetworkConfig? _config;
@@ -24,6 +26,9 @@ public partial class NetworkOptionsView : UserControl, ICustomConfigApply, IConf
         DataContextChanged += (_, _) => Load();
         Loaded += (_, _) => Load();
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public NetworkOptionsView(Nexaflow.Features.Network.NetworkConfig config) : this() => DataContext = config;
 
     public bool HasChanges => _model?.HasChanges ?? false;
     public bool IsValid => _model?.IsValid ?? true;

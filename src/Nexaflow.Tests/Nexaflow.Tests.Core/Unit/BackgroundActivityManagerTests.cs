@@ -1,7 +1,7 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Tests.Fixtures;
-using TaskStatus = Nexaflow.Core.Models.TaskStatus;
+using TaskStatus = Nexaflow.Session.Models.TaskStatus;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -18,7 +18,7 @@ public class BackgroundActivityManagerTests
     [TestMethod]
     public void Constructor_InsertsIdlePlaceholder()
     {
-        var mgr = new BackgroundActivityManager();
+        var mgr = new BackgroundActivityManager(TestRuntimes.CurrentUi());
 
         Assert.AreEqual(1, mgr.Tasks.Count);
         Assert.IsTrue(IsIdle(mgr.Tasks[0]), $"the first task reads '{mgr.Tasks[0].Description}', {mgr.Tasks[0].Status}");
@@ -28,7 +28,7 @@ public class BackgroundActivityManagerTests
     [TestMethod]
     public void StartActivity_RemovesIdleAndAddsTask()
     {
-        var mgr = new BackgroundActivityManager();
+        var mgr = new BackgroundActivityManager(TestRuntimes.CurrentUi());
 
         mgr.StartActivity("Syncing");
 
@@ -40,7 +40,7 @@ public class BackgroundActivityManagerTests
     [TestMethod]
     public void Complete_SetsStatusCompleted()
     {
-        var mgr = new BackgroundActivityManager();
+        var mgr = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var handle = mgr.StartActivity("Work");
         var task = mgr.Tasks[0];
 
@@ -52,7 +52,7 @@ public class BackgroundActivityManagerTests
     [TestMethod]
     public void Fail_SetsStatusFailedAndAppendsReason()
     {
-        var mgr = new BackgroundActivityManager();
+        var mgr = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var handle = mgr.StartActivity("Work");
         var task = mgr.Tasks[0];
 
@@ -65,7 +65,7 @@ public class BackgroundActivityManagerTests
     [TestMethod]
     public void Fail_NullReason_DoesNotAppendSeparator()
     {
-        var mgr = new BackgroundActivityManager();
+        var mgr = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var handle = mgr.StartActivity("Work");
         var task = mgr.Tasks[0];
 
@@ -78,7 +78,7 @@ public class BackgroundActivityManagerTests
     [TestMethod]
     public void LastComplete_RestoresIdlePlaceholderAndClearsIsActive()
     {
-        var mgr = new BackgroundActivityManager();
+        var mgr = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var handle = mgr.StartActivity("Work");
 
         handle.Complete();
@@ -92,7 +92,7 @@ public class BackgroundActivityManagerTests
     [TestMethod]
     public void IsActiveChanged_FiresOnStartAndOnLastComplete()
     {
-        var mgr = new BackgroundActivityManager();
+        var mgr = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var events = new List<bool>();
         mgr.IsActiveChanged += (_, v) => events.Add(v);
 
@@ -105,7 +105,7 @@ public class BackgroundActivityManagerTests
     [TestMethod]
     public void MultipleActivities_IdleAbsentUntilBothComplete()
     {
-        var mgr = new BackgroundActivityManager();
+        var mgr = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var h1 = mgr.StartActivity("A");
         var h2 = mgr.StartActivity("B");
 

@@ -1,4 +1,5 @@
 using System.Windows.Markup;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Visuals.Common.Localization;
 

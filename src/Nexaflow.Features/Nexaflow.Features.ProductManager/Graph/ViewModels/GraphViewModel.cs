@@ -15,7 +15,7 @@ using Nexaflow.Features.ProductManager.Graph.Converters;
 using Nexaflow.Features.ProductManager.Graph.Layout;
 using Nexaflow.Features.ProductManager.Graph.Loaders;
 using Nexaflow.Services.Initiatives.Graph.Model;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.ProductManager.Graph.ViewModels;
 

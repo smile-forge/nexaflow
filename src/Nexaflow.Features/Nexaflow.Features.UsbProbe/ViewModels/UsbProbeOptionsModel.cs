@@ -2,7 +2,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.IO.Usb.Naming;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.UsbProbe.ViewModels;
 

@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.IO.Network.Adapters;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Network.ViewModels;
 

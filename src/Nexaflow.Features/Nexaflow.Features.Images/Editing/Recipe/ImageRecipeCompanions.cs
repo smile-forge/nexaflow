@@ -1,5 +1,5 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.Images.Editing.Recipe;

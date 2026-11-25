@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Solver.Solving;
 

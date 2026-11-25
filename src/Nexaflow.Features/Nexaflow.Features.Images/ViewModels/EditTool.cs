@@ -6,7 +6,7 @@ using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Theming;
 using SkiaSharp;
 using System;

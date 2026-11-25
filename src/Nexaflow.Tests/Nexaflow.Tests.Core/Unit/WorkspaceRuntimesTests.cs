@@ -74,7 +74,7 @@ public class WorkspaceRuntimesTests
     [TestMethod]
     public async Task AWorkspaceWhoseWorkStillRuns_StaysActive_UntilTheWorkIsDone()
     {
-        var tasks     = new BackgroundActivityManager();
+        var tasks     = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var runtimes  = Runtimes(TestRuntimes.FactoryWith(tasks, _ => { }));
         var workspace = TestRuntimes.Saved(new Workspace { Name = "Home" });
         var runtime   = runtimes.Open(workspace);
@@ -85,7 +85,7 @@ public class WorkspaceRuntimesTests
         runtime.ShellServices.UnregisterWindow(window);
         Assert.AreEqual(WorkspaceRuntimeState.Active, runtime.State, "the work is the person's, and needs the workspace's models");
 
-        tasks.EndJob(job, Nexaflow.Core.Models.TaskStatus.Completed, null);
+        tasks.EndJob(job, Nexaflow.Session.Models.TaskStatus.Completed, null);
         Assert.AreEqual(WorkspaceRuntimeState.Dormant, runtime.State);
         await runtime.DisposeAsync();
     }

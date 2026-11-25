@@ -38,7 +38,7 @@ using Nexaflow.Syntax;
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Rtf;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Treemap;
 using Nexaflow.Visuals.Text.Markdown.Treemap;

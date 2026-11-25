@@ -2,7 +2,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -13,6 +14,7 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.WindowsFileSystem.Controls;
 
+[ViewFor(typeof(Nexaflow.Features.WindowsFileSystem.FileActions.FileMapConfig))]
 public partial class FileMapEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker, IConfigValidation
 {
     // ── Dependency properties ────────────────────────────────────────────────
@@ -126,6 +128,9 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
         CriteriaItems.ItemsSource = _criteria;
         Loaded += OnLoaded;
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public FileMapEditorControl(Nexaflow.Features.WindowsFileSystem.FileActions.FileMapConfig config) : this() => DataContext = config;
 
     // ── IConfigValidation ──────────────────────────────────────────────────────
 

@@ -1,14 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.LocalAi;
-using Nexaflow.Core.Services.Tools;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 
@@ -71,6 +70,9 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
     private readonly Nexaflow.Features.Common.IShellServices? _shell;
 
+    /// <summary>The page each section is edited on where it has one of its own.</summary>
+    private readonly ConfigPageModels _pages;
+
     /// <summary>The session's feature system, which knows the workspace-scoped configs the panel edits.</summary>
     private readonly FeatureManager _features;
 
@@ -91,9 +93,10 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// <param name="session">What the window has of the session: the configuration the workspace's settings are read and saved
     /// through, the feature system that knows the workspace-scoped configs, the provider pool, the saved workspaces and the live
     /// runtimes.</param>
+    /// <param name="pages">The page each section is edited on where it has one of its own.</param>
     /// <param name="shell">The shell of the window the panel is in: an <see cref="Nexaflow.Features.Common.IShellAware"/> page is
     /// handed it, and a path is browsed for with its pickers.</param>
-    public WorkspaceConfigViewModel(Workspace workspace, WindowServices session, Nexaflow.Features.Common.IShellServices? shell = null)
+    public WorkspaceConfigViewModel(Workspace workspace, WindowServices session, ConfigPageModels pages, Nexaflow.Features.Common.IShellServices? shell = null)
     {
         _workspace       = workspace;
         _features        = session.Features;
@@ -102,6 +105,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _runtimes        = session.Workspaces;
         _config          = session.Config;
         _shell   = shell;
+        _pages   = pages;
         _title   = Str.Format("Shell.Workspace.Configure.TitleFormat", workspace.Name);
 
         // Discover provider plugins, then make sure the workspace's folder + scoped-type list exist.
@@ -151,7 +155,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _defaultTabsSection = ConfigEditViewModel.ForCustomControl(defaultTabsControl, "workspace-default-tabs", Str.Get("Shell.Config.WorkspaceDefaultTabs"));
         Sections.Add(_defaultTabsSection);
 
-        Sections.Add(GridSection(new AiAbilityGridControl { DataContext = _grid }, _aiConfig.ConfigName, _aiConfig.FriendlyName));
+        Sections.Add(GridSection(new AiAbilityGridControl(_grid), _aiConfig.ConfigName, _aiConfig.FriendlyName));
 
         // The models on this machine: a page choosing one for each job, and one of what is on disk.
         if (_shelf is not null && _downloads is not null)
@@ -163,12 +167,12 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids, tools)),
                                                               "downloaded-models", Str.Get("Shell.Config.Downloaded.Title")));
         }
-        Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName, _config, _shell));
+        Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName, _config, _pages, _shell));
         foreach (var config in _providerConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _config, _shell));
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _config, _pages, _shell));
 
         foreach (var config in _workspaceConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _config, _shell));
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _config, _pages, _shell));
     }
 
     private ConfigEditViewModel GridSection(System.Windows.FrameworkElement control, string configName, string title)
@@ -213,7 +217,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     private List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)
     {
         var list = new List<IFeatureConfig>();
-        foreach (var t in _features.WorkspaceScopedConfigTypes)
+        foreach (var t in _features.Configs.WorkspaceScopedTypes)
         {
             var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
             _config.LoadFrom(dir, cfg, cfg.ConfigName);
@@ -239,7 +243,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _dirty = false;
 
         // Pull the just-saved values into the live workspace, then rebuild the running workspace (if any).
-        _workspace.ReloadSharedConfigs(_features, _providers);
+        _workspace.ReloadSharedConfigs(_features.Configs, _providers);
         _runtimes.Restart(_workspace);
         return true;
     }

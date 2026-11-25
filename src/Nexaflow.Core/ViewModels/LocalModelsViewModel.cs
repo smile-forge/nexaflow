@@ -3,15 +3,14 @@ using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Models;
-using Nexaflow.Core.Services.LocalAi;
-using Nexaflow.Core.Services.Tools;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Local;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.ViewModels;
 

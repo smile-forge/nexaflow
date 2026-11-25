@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System;
 
 namespace Nexaflow.Visuals.Common.Dialogs;

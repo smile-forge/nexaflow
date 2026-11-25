@@ -3,12 +3,12 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Hex.Buffer;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using Nexaflow.Visuals.Common.Theming;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Hex.ViewModels;

@@ -10,7 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Tabular.Views;

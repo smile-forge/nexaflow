@@ -8,7 +8,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Visuals.Common.Controls;
 using System.Windows.Controls.Primitives;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.ProductManager.Views;

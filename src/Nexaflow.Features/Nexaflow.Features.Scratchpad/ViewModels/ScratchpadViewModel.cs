@@ -5,7 +5,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Scratchpad.ClientTools;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;

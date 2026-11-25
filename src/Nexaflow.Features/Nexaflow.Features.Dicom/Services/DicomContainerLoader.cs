@@ -3,7 +3,7 @@ using System.Threading;
 using FellowOakDicom;
 using FellowOakDicom.Media;
 using Nexaflow.Features.Dicom.Models;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Dicom.Services;
 

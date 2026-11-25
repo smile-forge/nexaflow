@@ -18,7 +18,7 @@ public sealed class LocationBackendDiscoveryTests
     [TestMethod]
     public void TheCatalogFindsALocationBackendBesideTheFeatures()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });
 
         CollectionAssert.Contains(catalog.TypesImplementing<ILocationProvider>().ToList(), typeof(MemoryLocationProvider));
@@ -27,7 +27,7 @@ public sealed class LocationBackendDiscoveryTests
     [TestMethod]
     public void TheCatalogsStampCoversTheLocationBackends()
     {
-        var stamp = FeatureCatalogStamp.Capture(AppContext.BaseDirectory, "Nexaflow.Core.dll", TestRuntimes.LoggerFor<FeatureCatalog>());
+        var stamp = FeatureCatalogStamp.Capture(AppContext.BaseDirectory, ["Nexaflow.dll"], TestRuntimes.LoggerFor<FeatureCatalog>());
 
         Assert.IsTrue(stamp.Any(s => string.Equals(s.Name, "Nexaflow.IO.Location.Memory.dll", StringComparison.OrdinalIgnoreCase)),
                       "a backend rebuilt or dropped in must invalidate the cached index");

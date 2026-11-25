@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Icons;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 

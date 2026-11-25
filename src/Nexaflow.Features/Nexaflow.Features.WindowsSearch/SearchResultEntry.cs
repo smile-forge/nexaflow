@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 
 namespace Nexaflow.Features.WindowsSearch;
 

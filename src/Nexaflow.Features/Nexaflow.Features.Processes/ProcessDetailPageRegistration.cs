@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Processes;
 

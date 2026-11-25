@@ -9,7 +9,7 @@ using Nexaflow.IO.Usb.Descriptors;
 using Nexaflow.IO.Usb.Hid;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Tools;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Icons;
 using System.Text.Json.Nodes;

@@ -1,17 +1,17 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Controls;
 using Nexaflow.Features.Projects.Model;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Projects;
 
 /// <summary>
 /// Per-workspace Projects settings: whether the feature is on, the three project-folder locations
 /// (active / shelf / archive), and the configurable backlog workflow states. Edited through
-/// <see cref="ProjectsConfigEditorControl"/> (a <see cref="CustomControlAttribute"/> replaces the default
+/// <see cref="ProjectsConfigEditorControl"/> (a page of its own replaces the default
 /// property grid so the status list can be added/relabelled/recoloured/reordered).
 /// </summary>
-[CustomControl(typeof(ProjectsConfigEditorControl))]
+
 [WorkspaceScopedConfig]
 [MandatorySetup]
 public sealed class ProjectsConfig : IFeatureConfig

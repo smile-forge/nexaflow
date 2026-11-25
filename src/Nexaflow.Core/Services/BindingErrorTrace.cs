@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using Microsoft.Extensions.Logging;
-using Nexaflow.Core.Services.Logging;
 
 namespace Nexaflow.Core.Services;
 

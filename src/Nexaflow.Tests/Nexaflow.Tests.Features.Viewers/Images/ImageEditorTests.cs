@@ -15,7 +15,7 @@ using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
 using System.Collections.Immutable;
 using Nexaflow.Features.Images.Editing.Layers;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.Images;
 

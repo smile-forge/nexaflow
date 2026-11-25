@@ -1,0 +1,25 @@
+using Nexaflow.AiHost.Provisioning;
+using Nexaflow.Features.Common;
+using Nexaflow.Providers.Common;
+
+namespace Nexaflow.Session.Services.Tools;
+
+/// <summary>
+/// A tool Nexaflow runs on this machine with models of its own, as the Local page offers it for download and the
+/// Downloaded page lists it for removal — the same for every tool, whatever it does.
+/// </summary>
+public interface ILocalTool : IToolModels
+{
+    /// <summary>What it is called where a person sees it.</summary>
+    string Name { get; }
+
+    /// <summary>What it does, in a sentence.</summary>
+    string About { get; }
+
+    /// <summary>Its own files: what removing it takes away. A runtime it shares with the models stays.</summary>
+    IReadOnlyList<ModelAsset> OwnFiles { get; }
+
+    /// <summary>Its own files are all here: what it still lacks, if anything, is the runtime it shares with the models — fetched
+    /// once for all of them, not as this tool's download.</summary>
+    bool OwnFilesHere { get; }
+}

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The composition root, WPF-free: ShellHost builds the session in order, hands each runtime its assistant's factory, and ends
+    it all in reverse. A UI app references this alone and fills ShellPlatform — what only its toolkit can do — so a second app
+    over another toolkit repeats none of the wiring.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Session\Nexaflow.Session.csproj" />
+    <ProjectReference Include="..\Nexaflow.Assistant\Nexaflow.Assistant.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+  </ItemGroup>
+
+</Project>

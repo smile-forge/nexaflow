@@ -1,5 +1,5 @@
 using Nexaflow.Features.Tabular.Detection;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Tabular.ViewModels;
 

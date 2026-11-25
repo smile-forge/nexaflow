@@ -85,17 +85,6 @@ public sealed class ListSourceAttribute(Type sourceType, string methodName) : At
 public sealed record ConfigListOption(string Value, string Display);
 
 /// <summary>
-/// Applied to an <see cref="IFeatureConfig"/> class to replace the default property-grid
-/// editor in Options with a custom WPF UserControl.
-/// The control's DataContext is set to the config instance before display.
-/// </summary>
-[AttributeUsage(AttributeTargets.Class)]
-public sealed class CustomControlAttribute(Type controlType) : Attribute
-{
-    public Type ControlType { get; } = controlType;
-}
-
-/// <summary>
 /// Applied to an <see cref="IFeatureConfig"/> class to mark it as <b>per-workspace</b> rather than
 /// global. A scoped config is never registered with the global <c>ConfigManager</c>; instead one
 /// instance is created per workspace and stored under <c>Contexts\&lt;name&gt;\&lt;ConfigName&gt;</c>

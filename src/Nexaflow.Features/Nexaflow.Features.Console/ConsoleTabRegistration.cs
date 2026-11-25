@@ -2,10 +2,9 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Terminal;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.Shells;
-
 
 namespace Nexaflow.Features.Console;
 

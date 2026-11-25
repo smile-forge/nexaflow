@@ -6,7 +6,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Hdf5;
 using Nexaflow.IO.Hdf5.Projection;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Hdf5.ViewModels;
 

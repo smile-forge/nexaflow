@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 
 namespace Nexaflow.Features.VirtualDisk.ViewModels;
 

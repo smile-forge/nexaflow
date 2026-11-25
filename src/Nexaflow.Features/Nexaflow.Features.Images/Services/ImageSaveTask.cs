@@ -3,7 +3,7 @@ using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Codecs;
 using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;

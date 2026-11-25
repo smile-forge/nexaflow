@@ -5,7 +5,8 @@ using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -63,13 +64,13 @@ public partial class ConfigLabelGuardTests
         }
     }
 
-    /// <summary>Nothing found is not nothing wrong: the scan reaches Core's, the features' and the providers' configs.</summary>
+    /// <summary>Nothing found is not nothing wrong: the scan reaches the session's, the features' and the providers' configs.</summary>
     [TestMethod]
     public void TheScan_ReachesCoreFeatureAndProviderConfigs()
     {
         var types = ConfigTypes().ToList();
 
-        Assert.IsTrue(types.Any(t => t.Assembly == typeof(Nexaflow.Core.SecurityConfig).Assembly), "no Core config found");
+        Assert.IsTrue(types.Any(t => t.Assembly == typeof(Nexaflow.Session.SecurityConfig).Assembly), "no session config found");
         Assert.IsTrue(types.Any(t => t.Assembly.GetName().Name!.StartsWith("Nexaflow.Features.", StringComparison.Ordinal)),
                       "no feature config found");
         Assert.IsTrue(types.Any(IsProvider), "no provider config found");
@@ -85,13 +86,32 @@ public partial class ConfigLabelGuardTests
 
     /// <summary>Every concrete config type the app ships: Core's, and every feature's and provider's beside it.</summary>
     internal static IEnumerable<Type> ConfigTypes()
-        => Directory.GetFiles(AppContext.BaseDirectory, "Nexaflow.*.dll")
-            .Where(f => !Path.GetFileName(f).StartsWith("Nexaflow.Tests.", StringComparison.Ordinal) && IsManaged(f))
-            .Select(Assembly.LoadFrom)
-            .Append(typeof(Nexaflow.Core.SecurityConfig).Assembly)   // Core ships as Nexaflow.dll, outside the pattern
+        => ShippedAssemblies()
             .SelectMany(LoadableTypes)
             .Where(t => t is { IsClass: true, IsAbstract: false }
                         && (typeof(IFeatureConfig).IsAssignableFrom(t) || typeof(IProviderConfig).IsAssignableFrom(t)))
+            .Distinct();
+
+    /// <summary>
+    /// The page a config of <paramref name="config"/> is edited on — the view marked as drawing its page's model — or null where
+    /// its settings show as rows.
+    /// </summary>
+    internal static Type? PageOf(Type config) => PagesByModel.Value.GetValueOrDefault(ConfigPageModels.ModelTypeOf(config));
+
+    /// <summary>Each model a shipped view is marked as drawing, with that view.</summary>
+    private static readonly Lazy<Dictionary<Type, Type>> PagesByModel = new(() =>
+        ShippedAssemblies()
+            .SelectMany(LoadableTypes)
+            .SelectMany(view => view.GetCustomAttributes<ViewForAttribute>().Select(marker => (marker.ModelType, View: view)))
+            .GroupBy(drawn => drawn.ModelType)
+            .ToDictionary(drawn => drawn.Key, drawn => drawn.First().View));
+
+    /// <summary>Core, and every assembly of the app's beside it — the session's, the features', the providers'.</summary>
+    private static IEnumerable<Assembly> ShippedAssemblies()
+        => Directory.GetFiles(AppContext.BaseDirectory, "Nexaflow.*.dll")
+            .Where(f => !Path.GetFileName(f).StartsWith("Nexaflow.Tests.", StringComparison.Ordinal) && IsManaged(f))
+            .Select(Assembly.LoadFrom)
+            .Append(typeof(Nexaflow.Core.Controls.AboutControl).Assembly)   // Core ships as Nexaflow.dll, outside the pattern
             .Distinct();
 
     private static bool IsManaged(string file)
@@ -106,10 +126,8 @@ public partial class ConfigLabelGuardTests
         catch (ReflectionTypeLoadException e) { return e.Types.OfType<Type>(); }
     }
 
-    /// <summary>A section with a custom control shows that control, not a grid; its words are its XAML's.</summary>
-    private static bool ShowsAGrid(Type type)
-        => type.GetCustomAttribute<Nexaflow.Features.Common.CustomControlAttribute>() is null
-           && type.GetCustomAttribute<Nexaflow.Providers.Common.CustomControlAttribute>() is null;
+    /// <summary>A section with a page of its own shows that page, not a grid; its words are its XAML's.</summary>
+    private static bool ShowsAGrid(Type type) => PageOf(type) is null;
 
     private static bool IsProvider(Type type)
         => type.Assembly.GetName().Name!.StartsWith("Nexaflow.Providers.", StringComparison.Ordinal);

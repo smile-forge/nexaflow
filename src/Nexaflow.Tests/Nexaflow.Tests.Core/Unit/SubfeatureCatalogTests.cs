@@ -78,7 +78,7 @@ public class SubfeatureCatalogTests
     [TestMethod]
     public void Discovers_the_shipped_probe_plugin_from_the_index()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });   // no-op activation: isolate discovery from side-effects
 
         var found = catalog.Subfeatures(typeof(INetworkProbe));
@@ -91,7 +91,7 @@ public class SubfeatureCatalogTests
     [TestMethod]
     public void Carries_the_metadata_needed_to_render_a_plugin_list_without_loading_anything()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });
 
         var arp = catalog.Subfeatures(typeof(INetworkProbe)).Single(f => f.Meta.Id == "arp");
@@ -106,7 +106,7 @@ public class SubfeatureCatalogTests
     [TestMethod]
     public void Ordering_is_total_and_stable_rather_than_falling_out_of_directory_enumeration()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });
 
         var first = catalog.Subfeatures(typeof(INetworkProbe)).Select(f => $"{f.Meta.Order}:{f.Meta.Id}").ToList();
@@ -122,7 +122,7 @@ public class SubfeatureCatalogTests
     public void A_contract_no_plugin_implements_yields_an_empty_set_rather_than_an_error()
     {
         // "No plugins installed" is a legitimate state, not a defect.
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });
 
         Assert.AreEqual(0, catalog.Subfeatures(typeof(IDisposable)).Count);
@@ -139,10 +139,10 @@ public class SubfeatureCatalogTests
         // Note this asserts handle-level laziness, not assembly-level: a Debug build's FeatureCatalog scan
         // deliberately loads every assembly so a broken feature fails at launch rather than on first use,
         // which would make an assembly-load assertion pass vacuously in Release and fail in Debug.
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });
 
-        var handles = new SubfeatureCatalog(catalog, TestRuntimes.Features).Handles(typeof(INetworkProbe), workspace: null!);
+        var handles = new SubfeatureCatalog(catalog, TestRuntimes.Features.Injector).Handles(typeof(INetworkProbe), workspace: null!);
 
         Assert.IsTrue(handles.Count > 0);
         foreach (ISubfeatureHandle<INetworkProbe> h in handles)
@@ -155,10 +155,10 @@ public class SubfeatureCatalogTests
     [TestMethod]
     public void The_handle_list_is_typed_so_it_can_be_injected_directly()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });
 
-        IList handles = new SubfeatureCatalog(catalog, TestRuntimes.Features).Handles(typeof(INetworkProbe), workspace: null!);
+        IList handles = new SubfeatureCatalog(catalog, TestRuntimes.Features.Injector).Handles(typeof(INetworkProbe), workspace: null!);
 
         Assert.IsInstanceOfType<IReadOnlyList<ISubfeatureHandle<INetworkProbe>>>(handles,
             "the DI assigns this straight into an IReadOnlyList<ISubfeatureHandle<T>> constructor parameter");

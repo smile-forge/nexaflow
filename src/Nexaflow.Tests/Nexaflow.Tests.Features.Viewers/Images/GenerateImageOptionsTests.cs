@@ -3,7 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.FileActions;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Viewers.Images;

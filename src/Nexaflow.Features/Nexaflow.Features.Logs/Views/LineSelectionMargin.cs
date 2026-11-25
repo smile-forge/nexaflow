@@ -1,6 +1,6 @@
 using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;

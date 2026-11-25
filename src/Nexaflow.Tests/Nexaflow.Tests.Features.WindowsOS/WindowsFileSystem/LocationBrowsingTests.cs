@@ -7,7 +7,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Location.Memory;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

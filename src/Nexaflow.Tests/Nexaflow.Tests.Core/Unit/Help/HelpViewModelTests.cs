@@ -18,7 +18,7 @@ public class HelpViewModelTests
     private static HelpViewModel Open(HelpFixture help, string? topic, out Page page)
     {
         page = new Page { PageKind = "Help", PageParams = topic is null ? [] : new() { ["topic"] = topic } };
-        return new HelpViewModel(help.Library, Substitute.For<IShellServices>(), page);
+        return new HelpViewModel(help.Library, new HelpPictures(help.Library, help.Language), Substitute.For<IShellServices>(), page);
     }
 
     [TestMethod]

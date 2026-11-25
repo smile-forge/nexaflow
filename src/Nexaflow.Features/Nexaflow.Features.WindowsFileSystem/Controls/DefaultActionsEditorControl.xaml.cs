@@ -1,7 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -17,6 +18,7 @@ namespace Nexaflow.Features.WindowsFileSystem.Controls;
 /// verbs) and lets the user confirm one. Edits accumulate in memory and are committed together on the
 /// Options Save (<see cref="Apply"/> → <see cref="DefaultActionsConfig"/> + <see cref="DefaultActionRegistry"/>).
 /// </summary>
+[ViewFor(typeof(Nexaflow.Features.WindowsFileSystem.FileActions.DefaultActionsConfig))]
 public partial class DefaultActionsEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     /// <summary>One selectable row in the candidate list; <see cref="Kind"/> null = "Automatic".</summary>
@@ -80,6 +82,9 @@ public partial class DefaultActionsEditorControl : UserControl, ICustomConfigApp
         CandidateList.ItemsSource = _candidates;
         SummaryList.ItemsSource    = _overrides;
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public DefaultActionsEditorControl(Nexaflow.Features.WindowsFileSystem.FileActions.DefaultActionsConfig config) : this() => DataContext = config;
 
     // ── Load ─────────────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Dependencies;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Controls;
 

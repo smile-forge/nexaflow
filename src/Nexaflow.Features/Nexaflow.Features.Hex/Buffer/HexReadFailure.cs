@@ -1,6 +1,6 @@
 using System.IO;
 using Nexaflow.IO.Common.Locations;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Hex.Buffer;
 

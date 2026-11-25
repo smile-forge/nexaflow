@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 using System.Collections.Generic;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;

@@ -1,0 +1,120 @@
+using Nexaflow.AiHost.Provisioning;
+using Nexaflow.Providers.Common;
+using Nexaflow.Providers.Local;
+
+namespace Nexaflow.Session.Services.LocalAi;
+
+/// <summary>
+/// One model the Local column can hold for a job: whose it is, which, the runtime it shares with others, and — when this
+/// machine cannot run it — why.
+/// </summary>
+public sealed record LocalModelOption(string ProviderName, string AssemblyFileName, ModelKind Kind, CatalogModel Model,
+                                      LocalRuntime? Runtime, UnrunnableReason? Unrunnable)
+{
+    public string Id => Model.Id;
+
+    public bool Runs => Unrunnable is null;
+
+    /// <summary>Its files and its runtime's — everything it needs here.</summary>
+    public IEnumerable<ModelAsset> Needs => Runtime is null ? Model.Files : Model.Files.Concat(Runtime.Files);
+
+    /// <summary>Whether <paramref name="column"/> holds this model.</summary>
+    public bool IsIn(ProviderModelPair? column)
+        => column is not null && column.Model == Id && string.Equals(column.ProviderName, ProviderName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A column holding it.</summary>
+    public ProviderModelPair Column() => new() { ProviderName = ProviderName, Model = Id, Kind = Kind, AssemblyFileName = AssemblyFileName };
+}
+
+/// <summary>
+/// The models that run on this machine, as the Local column, the Local page and the downloaded-models page see them: for
+/// each job, the models of every provider that is Nexaflow's own harness — those this machine runs, and those it cannot,
+/// with why; whether each is here; fetching one with the runtime it shares; and removing what is here.
+/// </summary>
+public sealed class LocalModelShelf(ProviderSet providers, IModelAssetStore store)
+{
+    public IModelAssetStore Store => store;
+
+    /// <summary>
+    /// The models <paramref name="slot"/> can hold: those this machine runs first, in their catalogs' order — each a model that
+    /// serves every row of the job (<see cref="AiAbilityNames.Serves"/>), so picture editing offers only models that work from
+    /// pictures.
+    /// </summary>
+    public IReadOnlyList<LocalModelOption> OptionsFor(LocalSlot slot)
+    {
+        var kind    = LocalColumns.KindOf(slot);
+        var options = Catalogued(kind).Where(o => LocalColumns.AbilitiesOf(slot).All(a => AiAbilityNames.Serves(a, providers.Find(o.ProviderName, kind), o.Model.Id))).ToList();
+        var tier    = LocalColumns.TierOf(slot);
+        return [.. options.OrderBy(o => o.Runs ? 0 : 1).ThenBy(o => o.Model.Tier == tier ? 0 : 1)];
+    }
+
+    /// <summary>Every model of <paramref name="kind"/> in the catalogs of the providers that are Nexaflow's own harness.</summary>
+    private List<LocalModelOption> Catalogued(ModelKind kind)
+    {
+        var options = new List<LocalModelOption>();
+        foreach (var provider in providers.Providers)
+        {
+            if (provider.Harness != ModelHarness.Owned || !provider.Serves(kind) || provider is not ILocalModelCatalog catalog) continue;
+            var assembly = providers.GetAssemblyFileName(provider.Name);
+            foreach (var model in catalog.Catalog)
+                options.Add(new(provider.Name, assembly, kind, model, catalog.RuntimeOf(model.Id), null));
+            foreach (var model in catalog.Unrunnable)
+                options.Add(new(provider.Name, assembly, kind, model.Model, null, model.Why));
+        }
+        return options;
+    }
+
+    /// <summary>Every model in the catalogs, once each — those no job offers here too, so what is on disk can always be seen.</summary>
+    public IReadOnlyList<LocalModelOption> All
+        => [.. Enum.GetValues<LocalSlot>().Select(LocalColumns.KindOf).Distinct().SelectMany(Catalogued).DistinctBy(o => (o.ProviderName.ToLowerInvariant(), o.Id))];
+
+    /// <summary>Whether this machine runs any model for <paramref name="slot"/>.</summary>
+    public bool Runs(LocalSlot slot) => OptionsFor(slot).Any(o => o.Runs);
+
+    /// <summary>
+    /// Why no model for <paramref name="slot"/> runs here: none has a build for this machine — it has no GPU they run on, or a
+    /// driver too old for them — or the ones that do are too large for it. Null where one runs, or none is offered.
+    /// </summary>
+    public UnrunnableReason? WhyNoneRuns(LocalSlot slot)
+    {
+        var options = OptionsFor(slot);
+        if (options.Count == 0 || options.Any(o => o.Runs)) return null;
+        return options.All(o => o.Unrunnable == UnrunnableReason.NoBuildForThisMachine)
+            ? UnrunnableReason.NoBuildForThisMachine
+            : UnrunnableReason.TooLargeForThisMachine;
+    }
+
+    /// <summary>Whether everything <paramref name="option"/> needs is here.</summary>
+    public bool IsReady(LocalModelOption option) => option.Needs.All(f => store.Has(f));
+
+    /// <summary>Whether the model's own files are here, whatever of its runtime is.</summary>
+    public bool IsHere(LocalModelOption option) => option.Model.Files.All(f => store.Has(f));
+
+    /// <summary>What fetching <paramref name="option"/> would download.</summary>
+    public long MissingBytes(LocalModelOption option) => option.Needs.Where(f => !store.Has(f)).Sum(f => f.Size);
+
+    /// <summary>Fetches what <paramref name="option"/> still needs.</summary>
+    /// <exception cref="InvalidDataException">What arrived is not what the catalog describes.</exception>
+    public Task FetchAsync(LocalModelOption option, IProgress<AssetProgress>? progress, CancellationToken ct)
+        => store.EnsureAllAsync([.. option.Needs], progress, ct);
+
+    /// <summary>Every runtime the models share.</summary>
+    public IReadOnlyList<LocalRuntime> Runtimes => [.. All.Select(o => o.Runtime).OfType<LocalRuntime>().DistinctBy(r => r.Id)];
+
+    public bool IsHere(LocalRuntime runtime) => runtime.Files.All(f => store.Has(f));
+
+    /// <summary>
+    /// Removes the files of <paramref name="files"/> that are here, but those another model here lists too: two builds of
+    /// one model can share every part but one, and removing one leaves the other whole. A model counts as here when a file
+    /// of its own outside <paramref name="files"/> is.
+    /// </summary>
+    public async Task RemoveAsync(IReadOnlyList<ModelAsset> files, CancellationToken ct = default)
+    {
+        var removing = files.Select(f => f.RelativePath).ToHashSet(StringComparer.Ordinal);
+        var kept = All.Select(o => o.Model.Files)
+                      .Where(own => own.Any(f => !removing.Contains(f.RelativePath) && store.Has(f)))
+                      .SelectMany(own => own.Select(f => f.RelativePath))
+                      .ToHashSet(StringComparer.Ordinal);
+        foreach (var file in files.Where(f => !kept.Contains(f.RelativePath))) await store.RemoveAsync(file, ct);
+    }
+}

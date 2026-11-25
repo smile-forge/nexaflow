@@ -1,7 +1,7 @@
 using System.Linq;
 using Nexaflow.Features.Code;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 

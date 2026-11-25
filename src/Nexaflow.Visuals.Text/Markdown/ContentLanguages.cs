@@ -131,6 +131,19 @@ public static class ContentLanguages
         return table.Answered.GetOrAdd(language, static (word, known) => known.FirstOrDefault(each => each.Reads(word)), table.Known);
     }
 
+    /// <summary>Fences no language is registered for that the renderer still draws as something other than their text: the maths
+    /// it typesets.</summary>
+    private static readonly HashSet<string> TypesetFences = new(StringComparer.OrdinalIgnoreCase) { "math", "latex", "tex" };
+
+    /// <summary>
+    /// Whether a fenced block whose info string is <paramref name="info"/> is drawn as something other than its text — a chart, a
+    /// formula, a score — rather than shown as written, as code is: what a reader sees, and so what a search of a page can find.
+    /// </summary>
+    public static bool Draws(string? info)
+        => !string.IsNullOrWhiteSpace(info)
+           && (For(info) is { } language && !language.Editing.ShowsWhatWasWritten
+               || TypesetFences.Contains(info.Trim().Split(' ')[0]));
+
     /// <summary>
     /// Every language a block can be started in (<see cref="ContentLanguage.DefaultBlock"/>), in the table's order, each once: where a
     /// host has put one in place of one that ships, only the host's.

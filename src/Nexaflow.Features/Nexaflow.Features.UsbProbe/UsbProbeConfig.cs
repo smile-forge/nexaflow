@@ -1,13 +1,13 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.UsbProbe.Views;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.UsbProbe;
 
 /// <summary>
 /// Options → USB: how device names are kept current. Global, because the usb.ids copy it governs is one per user.
 /// </summary>
-[CustomControl(typeof(UsbProbeOptionsView))]
+
 public sealed class UsbProbeConfig : IFeatureConfig
 {
     public string ConfigName => "usbprobe";

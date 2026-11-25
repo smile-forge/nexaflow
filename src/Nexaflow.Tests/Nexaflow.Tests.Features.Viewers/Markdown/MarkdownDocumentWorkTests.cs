@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.IO.Documents;
 
 namespace Nexaflow.Tests.Features.Markdown;
 

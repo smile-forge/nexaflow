@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 
 namespace Nexaflow.Features.WindowsApps.Models;
 

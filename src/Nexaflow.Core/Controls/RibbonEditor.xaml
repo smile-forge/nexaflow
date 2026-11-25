@@ -7,7 +7,7 @@
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
              xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
-             xmlns:m="clr-namespace:Nexaflow.Core.Models"
+             xmlns:m="clr-namespace:Nexaflow.Session.Models;assembly=Nexaflow.Session"
              xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels"
              x:Name="EditorRoot">
 

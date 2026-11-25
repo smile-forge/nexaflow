@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System;
 using System.IO;
 using System.Linq;

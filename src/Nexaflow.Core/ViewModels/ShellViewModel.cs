@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels.Overlays;
@@ -13,9 +13,9 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using Nexaflow.Core.Localization;
+
 using Nexaflow.Core.Help;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Interaction;
 using Nexaflow.AiHost.Client;
 
@@ -33,6 +33,41 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     WindowPlacement? IWindowHost.IntendedPlacement => Placement.Intended;
 
     void IWindowHost.OpenAt(WindowPlacement placement) => Placement.OpenAt(placement);
+
+    string IWindowHost.Title => Window.Title;
+
+    void IWindowHost.Show() => Window.Show();
+
+    void IWindowHost.Close() => Window.Close();
+
+    void IWindowHost.Activate()
+    {
+        try { Window.Activate(); } catch (InvalidOperationException) { /* closing, or not yet realised */ }
+    }
+
+    void IWindowHost.Restore()
+    {
+        if (Window.WindowState == WindowState.Minimized) SystemCommands.RestoreWindow(Window);
+    }
+
+    void IWindowHost.ShowAtPointer()
+    {
+        // The new window's tab strip lands under the pointer, kept inside the monitor's work area.
+        const double TopBarHeight           = 72;
+        const double TabBarHeight           = 38;
+        const double TabStripColumnFraction = 0.45;
+        const double TabStripInternalMargin = 8;
+        const double DefaultWindowWidth     = 1280;
+        const double DefaultWindowHeight    = 780;
+
+        var (dropX, dropY, _, _, work) = WindowManager.GetCursorInfo();
+        double tabOffsetX = DefaultWindowWidth  * TabStripColumnFraction + TabStripInternalMargin;
+        double tabOffsetY = TopBarHeight + TabBarHeight / 2.0;
+
+        Window.Left = Math.Max(work.Left, Math.Min(dropX - tabOffsetX, work.Right  - DefaultWindowWidth));
+        Window.Top  = Math.Max(work.Top,  Math.Min(dropY - tabOffsetY, work.Bottom - DefaultWindowHeight));
+        Window.Show();
+    }
 
     bool IWindowHost.IsFocused
     {
@@ -167,11 +202,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     }
 
     /// <summary>The focused pane's page view, when it has been shown: what a view itself offers (keys, a selection).</summary>
-    internal FrameworkElement? ActivePageView => ActiveTab is { } tab ? _session.Views.Shown(tab) : null;
+    internal FrameworkElement? ActivePageView => ActiveTab is { } tab ? _views.Shown(tab) : null;
 
     private void WireRootPane()
     {
-        var first    = new Pane(_session.Views);
+        var first    = new Pane(_views);
         FocusedPane  = first;
         RootPaneNode = first;     // fires OnRootPaneNodeChanged → subscribes the leaf pane(s)
     }
@@ -447,7 +482,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     // Builds the Options panel VM on open and re-homes the wiring that used to live in MainWindow code-behind.
     private OptionsViewModel BuildOptionsPanel()
     {
-        var vm = new OptionsViewModel(_session.Config, new ConfigPageModels(_session), _session.Features, _runtimes, _shellServices);
+        var vm = new OptionsViewModel(_session.Config, ConfigPageModels.Drawn(_views.Registry, _session), _session.Features, _runtimes, _shellServices);
         vm.SaveError           += ShowErrorToast;
         vm.TabRefreshRequested += RefreshTabs;
         vm.SaveCompleted       += () =>
@@ -456,8 +491,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             // Neither a theme nor a language live-reflows (StaticResource, and strings resolved once as the XAML
             // loads — both by design); restart this window in place, reopening the same pane layout.
             var shell = _session.Shell;
-            if (shell.Theme != ThemeManager.Current || !_session.Language.IsCurrent(shell.Language))
-                _shellServices.RestartWindowForAppearance(this, shell.Theme, shell.Language);
+            if (shell.Theme == ThemeManager.Current && _session.Language.IsCurrent(shell.Language)) return;
+            if (shell.Theme != ThemeManager.Current)
+                ThemeManager.Apply(shell.Theme, _session.Features.Activation.ThemeContributionUris);
+            _session.Language.Select(shell.Language);
+            _shellServices.ReplaceWindow(this);
         };
         if (RequestedOptionsSection is { } section)
         {
@@ -470,7 +508,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private WorkspaceConfigViewModel BuildWorkspaceConfigPanel()
     {
         var workspace = ConfigureTargetWorkspace ?? CurrentRuntime.Workspace;
-        var vm = new WorkspaceConfigViewModel(workspace, _session, _shellServices);
+        var vm = new WorkspaceConfigViewModel(workspace, _session, ConfigPageModels.Drawn(_views.Registry, _session), _shellServices);
         vm.ApplyError += ShowErrorToast;
         if (RequestedConfigureSection is { } section)
         {
@@ -662,6 +700,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         /// <summary>What this window is given of the session: its page views, language and components among them.</summary>
         private readonly WindowServices _session;
 
+        /// <summary>The view each open page is drawn with, which this window's panes show.</summary>
+        private readonly PageViews _views;
+
     /// <summary>
     /// Set by MainWindow after the RibbonControl is initialised so the shell can
     /// remove ribbon items from handler execution (e.g. "files no longer exist").
@@ -716,13 +757,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _pageCoveredByOverlay = covered;
 
         foreach (var page in LeafPanes.SelectMany(p => p.Pages))
-            if ((_session.Views.Shown(page) as IAirspaceContent ?? page.ViewModel as IAirspaceContent) is { } airspace)
+            if ((_views.Shown(page) as IAirspaceContent ?? page.ViewModel as IAirspaceContent) is { } airspace)
                 airspace.SetCoveredByOverlay(covered);
     }
 
-    public ShellViewModel(WindowServices session, WorkspaceRuntime workspace)
+    public ShellViewModel(WindowServices session, PageViews views, WorkspaceRuntime workspace)
     {
         _session = session;
+        _views   = views;
         var activityManager = session.Activities;
         _activityManager = activityManager;
         _inbox           = session.Inbox;
@@ -806,7 +848,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
                 ToggleVoiceCommand.NotifyCanExecuteChanged();
             }
             else if (e.PropertyName == nameof(VoiceConversationViewModel.State))
-                AiIsListening = Voice.State == Services.Voice.VoiceState.Listening;
+                AiIsListening = Voice.State == VoiceState.Listening;
         };
 
         RecomputeVoiceAvailable();
@@ -975,7 +1017,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         var left = OwningPane(tab) ?? SoleLeaf;
         left.Remove(tab);
-        var right = new Pane(_session.Views);
+        var right = new Pane(_views);
         right.Add(tab);
         Split(left, right);
     }
@@ -985,7 +1027,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     /// <summary>Splits the tab area, adding an empty right-hand pane.</summary>
     [RelayCommand(CanExecute = nameof(CanSplitEmpty))]
-    private void SplitEmpty() => Split(SoleLeaf, new Pane(_session.Views));
+    private void SplitEmpty() => Split(SoleLeaf, new Pane(_views));
 
     private bool CanSplitEmpty() => !IsSplit;
 
@@ -1095,7 +1137,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
             // If the action didn't open a tab, the new window serves no purpose.
             if (newHost.Tabs.Count == 0)
-                newHost.Window.Close();
+                newHost.Close();
             return;
         }
 
@@ -1172,7 +1214,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (RootPaneNode is SplitPaneNode split)
             return ReferenceEquals(split.First, subject) ? split.Second : split.First;
-        var beside = new Pane(_session.Views);
+        var beside = new Pane(_views);
         Split(subject, beside);
         return beside;
     }

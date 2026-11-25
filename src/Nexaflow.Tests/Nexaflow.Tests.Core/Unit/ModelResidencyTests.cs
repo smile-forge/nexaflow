@@ -1,6 +1,6 @@
 using System.IO;
 using Nexaflow.Core;
-using Nexaflow.Core.Services.LocalAi;
+
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
 

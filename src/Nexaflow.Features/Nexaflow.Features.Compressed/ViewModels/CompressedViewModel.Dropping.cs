@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Nexaflow.Interaction;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Compressed.ViewModels;
 

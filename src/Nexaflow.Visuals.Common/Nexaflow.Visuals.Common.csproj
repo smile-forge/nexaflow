@@ -20,6 +20,8 @@
     <ProjectReference Include="..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
     <!-- What a drag carries and what takes a drop: Dropping/ routes Windows' drags to those, for any window. -->
     <ProjectReference Include="..\Nexaflow.Interaction\Nexaflow.Interaction.csproj" />
+    <!-- Str and the formatters: words in the user's language, which every visual shows and {loc:Str} reads. -->
+    <ProjectReference Include="..\Nexaflow.Localization\Nexaflow.Localization.csproj" />
   </ItemGroup>
 
   <ItemGroup>

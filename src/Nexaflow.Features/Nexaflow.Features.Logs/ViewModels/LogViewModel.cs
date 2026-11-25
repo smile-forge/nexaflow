@@ -5,13 +5,13 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Logs.Parsing;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using Nexaflow.Visuals.Common.Controls;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Interaction;
 

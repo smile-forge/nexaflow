@@ -224,7 +224,7 @@ attributes (all in `ConfigAttributes.cs`). Its words are string-table keys, so t
 | `[FolderPath]` / `[FilePath(".ext"…)]` | TextBox + browse button + existence validation |
 | `[ListSource(type, method)]` | ComboBox from a static method: `IEnumerable<string>` for data, `IEnumerable<ConfigListOption>` for words (stored value + translated display) |
 | `[DisabledIfSet]` / `[DisabledIfNotSet]` | Grey out an editor based on a sibling property's value |
-| `[CustomControl(type)]` | Replace the section with a custom `UserControl` (+ `ICustomConfigApply` to save) |
+| `[ViewFor(typeof(TheConfig))]` on a control | Replace the section with that `UserControl`, made through its constructor taking the config (+ `ICustomConfigApply` to save) |
 
 Configs are **global** by default; add `[WorkspaceScopedConfig]` for a per-workspace one, `[MandatorySetup]` to
 add it to the first-run wizard. Implement `IConfigMigration` to fix shape changes across a version bump.

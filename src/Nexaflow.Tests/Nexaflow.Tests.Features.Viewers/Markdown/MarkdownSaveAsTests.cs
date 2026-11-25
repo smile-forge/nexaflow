@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using NSubstitute;
 using System.IO;
 using System.IO.Compression;
+using Nexaflow.IO.Documents;
 
 namespace Nexaflow.Tests.Features.Markdown;
 

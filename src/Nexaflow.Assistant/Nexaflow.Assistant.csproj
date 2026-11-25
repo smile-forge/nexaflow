@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The assistant, WPF-free: each workspace runtime's AIService, the agent loop and its tools, whole-document work, generation,
+    and the voice reply. It consumes the session (Nexaflow.Session) the way a feature consumes its contracts; the session never
+    references it, and holds a runtime's assistant only as the IWorkspaceAssistant port, made by WorkspaceAssistants here.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Session\Nexaflow.Session.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Host" />
+    <InternalsVisibleTo Include="Nexaflow" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+  </ItemGroup>
+
+</Project>

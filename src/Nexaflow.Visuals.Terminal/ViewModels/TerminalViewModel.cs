@@ -7,7 +7,7 @@ using Nexaflow.IO.Common.Locations;
 using Nexaflow.Interaction;
 using Nexaflow.IO.Common.Terminal;
 using Nexaflow.IO.Terminal;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.Shells;
 using System.Collections.ObjectModel;

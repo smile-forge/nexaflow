@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;

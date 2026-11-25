@@ -39,6 +39,8 @@
     <Resource Include="Assets\ThirdPartyNotices.md" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The session, the assistant and the composition root over them: what this WPF app adapts. -->
+    <ProjectReference Include="..\Nexaflow.Host\Nexaflow.Host.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Code\Nexaflow.Features.Code.csproj" />
@@ -106,9 +108,9 @@
 	  <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.XAI\Nexaflow.Providers.XAI.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Icons\Nexaflow.Visuals.Icons.csproj" />
-    <ProjectReference Include="..\Nexaflow.Visuals.Terminal\Nexaflow.Visuals.Terminal.csproj" />
+
     <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
-    <ProjectReference Include="..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
+
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Media\Nexaflow.Media.csproj" />
     <!-- Location backends: found by the catalog's sweep of Nexaflow.IO.Location.*.dll beside the features, so referenced

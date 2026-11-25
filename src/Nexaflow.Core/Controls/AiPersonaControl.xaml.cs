@@ -1,10 +1,12 @@
-using Nexaflow.Core.AI;
+
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Windows;
 using System.Windows.Controls;
 
 namespace Nexaflow.Core.Controls;
 
+[ViewFor(typeof(AiPersonaConfig))]
 public partial class AiPersonaControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     private AiPersonaConfig? _config;
@@ -17,6 +19,9 @@ public partial class AiPersonaControl : UserControl, ICustomConfigApply, IConfig
         InitializeComponent();
         Loaded += OnLoaded;
     }
+
+    /// <summary>The persona page, editing <paramref name="config"/>.</summary>
+    public AiPersonaControl(AiPersonaConfig config) : this() => DataContext = config;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {

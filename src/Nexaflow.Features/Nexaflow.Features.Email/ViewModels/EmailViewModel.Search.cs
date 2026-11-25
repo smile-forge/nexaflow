@@ -4,7 +4,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Email.Model;
 using Nexaflow.Markdown.Rtf;
 using Nexaflow.Search;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Generic;
 using System.Globalization;

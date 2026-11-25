@@ -8,7 +8,7 @@ using Nexaflow.Features.Solver.Palette;
 using Nexaflow.Features.Solver.Solving;
 using Nexaflow.Interaction;
 using Nexaflow.Markdown.Editing;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Solver.ViewModels;
 

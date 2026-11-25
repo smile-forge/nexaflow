@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Operations;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading;

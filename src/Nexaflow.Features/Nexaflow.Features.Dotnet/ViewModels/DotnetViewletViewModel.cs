@@ -16,7 +16,7 @@ using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.Features.Dotnet.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Dotnet.ViewModels;
 

@@ -7,7 +7,7 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Font.ViewModels;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Interaction;
 
 namespace Nexaflow.Tests.Features.Font;

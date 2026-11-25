@@ -6,7 +6,7 @@ using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.ProductManager.Views;

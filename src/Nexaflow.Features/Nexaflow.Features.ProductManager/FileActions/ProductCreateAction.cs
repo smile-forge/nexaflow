@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Icons;
 using Nexaflow.Services.Initiatives.Product.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.ProductManager.FileActions;
 

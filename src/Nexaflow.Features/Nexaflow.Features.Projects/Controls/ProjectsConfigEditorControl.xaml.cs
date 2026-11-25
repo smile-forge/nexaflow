@@ -1,7 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Model;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Visuals.Common.Viewing;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -12,13 +13,14 @@ using System.Windows.Controls;
 namespace Nexaflow.Features.Projects.Controls;
 
 /// <summary>
-/// The Projects config editor (a <see cref="CustomControlAttribute"/> target, so it replaces the default
+/// The Projects config editor (marked as drawing <see cref="ProjectsConfig"/>, so it replaces the default
 /// property grid). Renders the enable toggle, the three project-folder locations (with themed folder
 /// browse), and a reorderable list of backlog statuses — each row edits its label, colour (from the
 /// shared <see cref="SwatchPalette"/>) and whether it is the terminal "cancelled" state. The list ORDER
 /// is the forward-progression order. Working copies are held here and committed to the config only in
 /// <see cref="Apply"/> (so cancelling Options discards edits).
 /// </summary>
+[ViewFor(typeof(Nexaflow.Features.Projects.ProjectsConfig))]
 public partial class ProjectsConfigEditorControl
     : UserControl, ICustomConfigApply, IConfigChangeTracker, IConfigValidation, IShellAware
 {
@@ -37,6 +39,9 @@ public partial class ProjectsConfigEditorControl
         InitializeComponent();
         Loaded += OnLoaded;
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public ProjectsConfigEditorControl(Nexaflow.Features.Projects.ProjectsConfig config) : this() => DataContext = config;
 
     // The Configure/wizard host injects the shell so the browse buttons use the themed folder picker.
     public void AttachShell(IShellServices shell) => _shell = shell;

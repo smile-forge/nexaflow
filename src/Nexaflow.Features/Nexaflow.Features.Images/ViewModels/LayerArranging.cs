@@ -4,7 +4,7 @@ using Nexaflow.Features.Images.Editing;
 using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Selection;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.ViewModels;

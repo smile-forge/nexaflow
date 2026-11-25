@@ -2,7 +2,8 @@ using Microsoft.Win32;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -16,6 +17,7 @@ using System.Windows.Controls;
 
 namespace Nexaflow.Features.WindowsFileSystem.Controls;
 
+[ViewFor(typeof(Nexaflow.Features.WindowsFileSystem.FileActions.TemplatedCreateConfig))]
 public partial class TemplatedCreateEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     // ── Dependency properties ────────────────────────────────────────────────
@@ -112,6 +114,9 @@ public partial class TemplatedCreateEditorControl : UserControl, ICustomConfigAp
         Loaded += OnLoaded;
         _rows.CollectionChanged += OnRowsChanged;
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public TemplatedCreateEditorControl(Nexaflow.Features.WindowsFileSystem.FileActions.TemplatedCreateConfig config) : this() => DataContext = config;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {

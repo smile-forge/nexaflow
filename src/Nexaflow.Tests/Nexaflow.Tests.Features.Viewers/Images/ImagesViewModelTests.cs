@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;            // IShellServices
 using Nexaflow.Features.Images.ViewModels;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing;
 using Nexaflow.IO.Common;

@@ -8,7 +8,7 @@ using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.ViewModels;

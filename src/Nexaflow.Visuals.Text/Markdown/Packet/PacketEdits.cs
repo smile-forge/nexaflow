@@ -11,7 +11,7 @@ using Nexaflow.Markdown.Layout.Mermaid;
 using Nexaflow.Markdown.Layout.Packet;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Packet;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 

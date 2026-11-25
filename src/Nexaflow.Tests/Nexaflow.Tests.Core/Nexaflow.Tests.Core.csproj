@@ -43,6 +43,24 @@
 
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <!-- The session, the assistant and the composition root the app adapts, which these tests build. -->
+    <Using Include="Nexaflow.Session" />
+    <Using Include="Nexaflow.Session.AI" />
+    <Using Include="Nexaflow.Session.Help" />
+    <Using Include="Nexaflow.Session.Localization" />
+    <Using Include="Nexaflow.Session.Models" />
+    <Using Include="Nexaflow.Session.Services" />
+    <Using Include="Nexaflow.Session.Services.Elevation" />
+    <Using Include="Nexaflow.Session.Services.LocalAi" />
+    <Using Include="Nexaflow.Session.Services.Logging" />
+    <Using Include="Nexaflow.Session.Services.Tools" />
+    <Using Include="Nexaflow.Assistant" />
+    <Using Include="Nexaflow.Assistant.Agent" />
+    <Using Include="Nexaflow.Assistant.Documents" />
+    <Using Include="Nexaflow.Assistant.Generation" />
+    <Using Include="Nexaflow.Assistant.ShellAi" />
+    <Using Include="Nexaflow.Assistant.Voice" />
+    <Using Include="Nexaflow.Host" />
   </ItemGroup>
 
   <!-- The same Languages\ folder the app gets, so the localization tests read the packs that actually ship. -->

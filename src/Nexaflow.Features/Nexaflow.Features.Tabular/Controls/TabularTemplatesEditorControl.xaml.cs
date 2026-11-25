@@ -7,7 +7,8 @@ using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Tabular.Templates;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Tabular.Controls;
 
@@ -15,6 +16,7 @@ namespace Nexaflow.Features.Tabular.Controls;
 /// Options-panel editor for <see cref="TabularTemplatesConfig"/>: a list of saved templates with
 /// inline rename and per-row delete. Edits the live config on <see cref="Apply"/> (Options Save).
 /// </summary>
+[ViewFor(typeof(Nexaflow.Features.Tabular.Templates.TabularTemplatesConfig))]
 public partial class TabularTemplatesEditorControl : UserControl, ICustomConfigApply, IConfigChangeTracker
 {
     public sealed class Row : INotifyPropertyChanged
@@ -70,6 +72,9 @@ public partial class TabularTemplatesEditorControl : UserControl, ICustomConfigA
         InitializeComponent();
         Loaded += OnLoaded;
     }
+
+    /// <summary>The Options page editing <paramref name="config"/>.</summary>
+    public TabularTemplatesEditorControl(Nexaflow.Features.Tabular.Templates.TabularTemplatesConfig config) : this() => DataContext = config;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {

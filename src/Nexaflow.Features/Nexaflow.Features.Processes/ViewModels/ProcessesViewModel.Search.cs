@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Processes.ViewModels;
 

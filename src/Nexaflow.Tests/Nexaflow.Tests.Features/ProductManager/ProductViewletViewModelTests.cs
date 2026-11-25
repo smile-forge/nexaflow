@@ -2,7 +2,7 @@ using System.IO;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 

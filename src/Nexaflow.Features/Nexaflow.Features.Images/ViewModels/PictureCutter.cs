@@ -7,8 +7,8 @@ using Nexaflow.Features.Images.Editing.CuttingOut;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.IO.Common.Imaging;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.ViewModels;

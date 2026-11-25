@@ -16,7 +16,7 @@ using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.OpenRaster;
 using Nexaflow.Visuals.Common.Drafts;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;

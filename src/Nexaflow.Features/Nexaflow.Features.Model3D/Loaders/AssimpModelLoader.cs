@@ -4,7 +4,7 @@ using System.Windows.Media.Media3D;
 using SharpAssimp;
 using AssimpMaterial = SharpAssimp.Material;
 using WpfMaterial = System.Windows.Media.Media3D.Material;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Model3D.Loaders;
 

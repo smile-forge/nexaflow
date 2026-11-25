@@ -5,23 +5,22 @@ using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Windows.Threading;
 using Nexaflow.Core;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.LocalAi;
+
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
-using Str = Nexaflow.Visuals.Common.Localization.Str;
-using Nexaflow.Core.Services.Tools;
+using Str = Nexaflow.Localization.Str;
+
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Local;
 using Nexaflow.AiHost.Catalog;
-
 
 namespace Nexaflow.Tests.Core.Unit;
 

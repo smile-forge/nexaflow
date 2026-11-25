@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Video.ViewModels;
 using Nexaflow.Icons;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Video.FileActions;
 

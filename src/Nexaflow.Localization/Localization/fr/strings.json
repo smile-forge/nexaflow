@@ -1,0 +1,18 @@
+{
+  "Localization.Duration.DaysHoursMinutes": "{0} j {1} h {2} min",
+  "Localization.Duration.HoursMinutes": "{0} h {1} min",
+  "Localization.Duration.Minutes": "{0} min",
+
+  "Localization.Eta.UnderAMinute": "moins d'une minute",
+  "Localization.Eta.AboutAMinute": "environ une minute",
+  "Localization.Eta.AboutMinutes": "environ {0} minutes",
+  "Localization.Eta.AboutAnHour": "environ une heure",
+  "Localization.Eta.AboutHours": "environ {0} heures",
+  "Localization.Eta.OverADay": "plus d'un jour",
+
+  "Localization.Time.JustNow": "à l'instant",
+  "Localization.Time.MinuteAgo": "il y a {0} minute",
+  "Localization.Time.MinutesAgo": "il y a {0} minutes",
+  "Localization.Time.HourAgo": "il y a {0} heure",
+  "Localization.Time.HoursAgo": "il y a {0} heures"
+}

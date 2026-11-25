@@ -4,7 +4,7 @@ using System.IO;
 using Microsoft.Win32;
 using Nexaflow.Features.WindowsApps.Models;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsApps.Services;
 

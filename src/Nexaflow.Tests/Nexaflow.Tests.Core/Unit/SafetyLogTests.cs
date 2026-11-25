@@ -5,7 +5,7 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Nexaflow.AiHost.Client;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.Logging;
+
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;

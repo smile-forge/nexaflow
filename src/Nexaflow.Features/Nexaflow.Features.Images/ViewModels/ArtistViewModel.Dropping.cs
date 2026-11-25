@@ -1,5 +1,5 @@
 using Nexaflow.Interaction;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;

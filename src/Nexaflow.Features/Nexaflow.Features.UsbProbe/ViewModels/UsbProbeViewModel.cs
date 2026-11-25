@@ -9,7 +9,7 @@ using Nexaflow.IO.Usb.Browsing;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
 using Nexaflow.Visuals.Common.Collections;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.UsbProbe.ViewModels;

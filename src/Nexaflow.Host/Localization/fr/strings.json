@@ -1,0 +1,5 @@
+{
+  "Shell.Notifications.UnreadableTitle": "Certains paramètres n'ont pas pu être lus",
+  "Shell.Notifications.UnreadableFormat": "Lecture impossible : {0}. Ces paramètres sont revenus à leurs valeurs par défaut — les fichiers endommagés sont conservés à côté, et les détails figurent dans le journal {1}.",
+  "Shell.Notifications.RecoveredFormat": "{0} espace(s) de travail récupéré(s) depuis leurs dossiers de données, conversations et paramètres intacts : {1}."
+}

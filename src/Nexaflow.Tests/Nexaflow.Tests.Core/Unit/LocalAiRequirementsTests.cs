@@ -5,13 +5,13 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.LocalAi;
+
 using Nexaflow.Features.Common.Dependencies;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -232,7 +232,7 @@ public class LocalAiRequirementsTests
     [TestMethod]
     public void TheRequirements_AreListedOnTheAboutPage_EachAnsweringRatherThanThrowing()
     {
-        var catalog = new FeatureCatalog(TestRuntimes.Config.BaseDir, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var catalog = TestRuntimes.NewCatalog();
         catalog.Initialize((_, _) => { });
         var discovered = catalog.TypesImplementing<IExternalDependency>();
         foreach (var type in Declarations)

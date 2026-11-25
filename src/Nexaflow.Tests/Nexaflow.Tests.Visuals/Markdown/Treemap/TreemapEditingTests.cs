@@ -9,7 +9,7 @@ using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Treemap;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Painting;

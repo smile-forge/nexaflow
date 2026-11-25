@@ -25,7 +25,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using Nexaflow.Features.WindowsFileSystem.Operations;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Shell;
 using Nexaflow.IO.Common.Cloud;
 using Nexaflow.IO.Common.Listing;

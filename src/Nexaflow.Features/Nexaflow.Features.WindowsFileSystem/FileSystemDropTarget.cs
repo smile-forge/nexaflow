@@ -4,7 +4,7 @@ using System;
 using System.IO;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using System.Linq;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem;
 

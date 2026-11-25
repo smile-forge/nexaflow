@@ -3,7 +3,7 @@ using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Visuals.Common.Behaviors;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Editing.Paged;
 using System;

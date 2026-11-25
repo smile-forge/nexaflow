@@ -10,7 +10,7 @@ using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.Editing.Kept;
 

@@ -74,18 +74,21 @@ public class HelpLibraryTests
 
     [TestMethod]
     [TestCategory("UI")]
-    public void ResolveImage_ReadsThePictureBesideThePage_FrozenAndKept() => UiThread.Run(() =>
+    public void APicture_IsReadBesideItsPage_DecodedFrozenAndKept() => UiThread.Run(() =>
     {
         using var help = new HelpFixture();
-        var page = help.Library.Find("Text")!;
+        var page     = help.Library.Find("Text")!;
+        var pictures = new HelpPictures(help.Library, help.Language);
 
-        var first = help.Library.ResolveImage(page, "images/shot.png");
+        var first = pictures.Resolve(page, "images/shot.png");
 
         Assert.IsInstanceOfType(first, typeof(BitmapImage));
         Assert.IsTrue(first!.IsFrozen, "any window's UI thread may draw it");
-        Assert.AreSame(first, help.Library.ResolveImage(page, "./images/shot.png"), "decoded once, then kept");
-        Assert.IsNull(help.Library.ResolveImage(page, "images/missing.png"));
-        Assert.IsNull(help.Library.ResolveImage(page, "https://example.com/shot.png"), "never fetched");
+        Assert.AreSame(first, pictures.Resolve(page, "./images/shot.png"), "decoded once, then kept");
+        Assert.IsNull(pictures.Resolve(page, "images/missing.png"));
+        Assert.IsNull(pictures.Resolve(page, "https://example.com/shot.png"), "never fetched");
+        CollectionAssert.AreEqual(HelpFixture.Png, help.Library.ReadPicture(help.Library.PictureName(page, "images/shot.png")!),
+                                  "the library hands over the picture's bytes as the pack holds them");
     });
 
     [TestMethod]

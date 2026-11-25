@@ -1,7 +1,7 @@
 using System.IO;
 using System.Threading;
 using LibGit2Sharp;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Git.Services;

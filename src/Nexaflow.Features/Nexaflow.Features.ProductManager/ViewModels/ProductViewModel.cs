@@ -16,7 +16,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 

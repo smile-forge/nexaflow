@@ -3,8 +3,8 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common.Cloud;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Shell;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;

@@ -12,8 +12,8 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.AIChat.ViewModels.Timeline;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.AIChat.ViewModels;

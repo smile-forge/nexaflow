@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The shell session, WPF-free: one per process, built by the composition root in Nexaflow.Host. It owns what the workspaces
+    share — configuration, the provider pool and the models held, the feature catalogue and system, the inbox, the file watches,
+    the logs, the help pages — and the workspaces' lifetimes: each live workspace's runtime and its shell services. It names no UI
+    toolkit; what only a toolkit can do (the UI thread, the clipboard, the folder watcher's window, pickers, the theme, page
+    views, the windows themselves) it reaches through ports the app fills. The assistant is not here: a runtime holds its
+    assistant through a port (IWorkspaceAssistant) that Nexaflow.Assistant fills.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.15" />
+    <PackageReference Include="StageKit.Updatum" Version="0.4.1" />
+    <!-- The configuration's secrets, sealed to this user with DPAPI. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Local\Nexaflow.Providers.Local.csproj" />
+    <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.AiHost\Nexaflow.Providers.AiHost.csproj" />
+    <ProjectReference Include="..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.IO.Documents\Nexaflow.IO.Documents.csproj" />
+    <ProjectReference Include="..\Nexaflow.Markdown\Nexaflow.Markdown.csproj" />
+    <ProjectReference Include="..\Nexaflow.Localization\Nexaflow.Localization.csproj" />
+    <ProjectReference Include="..\Nexaflow.Media\Nexaflow.Media.csproj" />
+    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+    <ProjectReference Include="..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The composition root and the assistant build on the session's own wiring; the WPF app adapts it; Core's tests build it. -->
+    <InternalsVisibleTo Include="Nexaflow.Host" />
+    <InternalsVisibleTo Include="Nexaflow.Assistant" />
+    <InternalsVisibleTo Include="Nexaflow" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+  </ItemGroup>
+
+</Project>

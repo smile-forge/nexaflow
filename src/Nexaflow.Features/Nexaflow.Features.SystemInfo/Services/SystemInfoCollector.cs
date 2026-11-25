@@ -4,8 +4,8 @@ using Microsoft.Win32;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.IO.Common.Hardware;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.SystemInfo.Services;
 

@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Locate;
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Markdown.Stages;

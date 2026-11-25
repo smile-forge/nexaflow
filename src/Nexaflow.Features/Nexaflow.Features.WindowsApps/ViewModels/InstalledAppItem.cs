@@ -2,7 +2,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.WindowsApps.Models;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 
 namespace Nexaflow.Features.WindowsApps.ViewModels;
 

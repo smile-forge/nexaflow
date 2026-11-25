@@ -17,7 +17,7 @@
 
 ## Solution Layout
 
-52 projects in `Nexaflow.slnx`, organised in tiers. **The per-feature inventory is deliberately not
+The projects in `Nexaflow.slnx` are organised in tiers. **The per-feature inventory is deliberately not
 enumerated here** — a hand-copied list rots. The authoritative inventory and per-component status is
 the **product tree** (`.product/tree.json`, queried via the product-folder skill; per-release export in
 [product/PRODUCT.md](product/PRODUCT.md)); the annotated directory skeleton every session loads is in
@@ -25,7 +25,9 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 
 | Tier | Projects | Role |
 |------|----------|------|
-| Shell | `Nexaflow.Core` | WinExe entry point; window chrome, tab strip, ribbon, breadcrumbs, AI input bar; `FeatureManager`/`FeatureCatalog`, `WorkspaceManager`, `ProviderManager`, `ConfigManager` |
+| Shell | `Nexaflow.Core` | WinExe entry point and the WPF app: window chrome, tab strip, ribbon, breadcrumbs, AI input bar, the views and view-models; fills `ShellPlatform` |
+| Session | `Nexaflow.Session`, `Nexaflow.Assistant`, `Nexaflow.Host` | WPF-free. `Session`: the shell session and the workspaces' lifetimes — configuration, the feature system (`FeatureManager`/`FeatureCatalog`), `WorkspaceManager`, `ProviderManager`, the inbox, the logs, help. `Assistant`: each runtime's `AIService` and its tools; it consumes the session, which never references it. `Host`: `ShellHost`, the composition root wiring both, which a UI app references alone |
+| Words | `Nexaflow.Localization` | WPF-free leaf: `Str`, which looks a UI string up in the active language, and the size / duration / time formatters — under everything that shows a person text, headless or drawn |
 | Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here. Names no UI toolkit (no WPF): what a contract hands out to be shown is a model, drawn by a `[ViewFor]` view; `ArchitectureRulesTests` keeps it so |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
 | Input vocabulary | `Nexaflow.Interaction` | WPF-free `net10.0` leaf the contracts speak: `KeyModifiers`, `IDragPayload` + `DragKinds`, `IDropTarget`. Beneath `Features.Common` rather than in it, so a shared control can take a drop without seeing `IShellServices` |
@@ -54,6 +56,9 @@ and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red b
 - `Nexaflow.Core` depends on all features and providers (so they ship) but never instantiates feature
   view/view-model types — all tab/viewlet creation goes through `FeatureManager`, all provider
   instances through `ProviderManager`'s pool. Features talk back only via `IShellServices`.
+- The session (`Nexaflow.Session`), the assistant (`Nexaflow.Assistant`) and the composition root (`Nexaflow.Host`) name no
+  UI toolkit, and reach none through anything they reference; the assistant references the session, the host both, and the
+  session neither (`SessionAssemblyRulesTests`).
 - Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Media` / `Nexaflow.Syntax`,
   not `Features.Common`; `Elevation.Contracts` is the fifth shared leaf (referenced by `Features.Common`
   for the `IShellServices.RunElevatedAsync` signature). `Nexaflow.Media` holds media codecs Nexaflow carries as its
@@ -65,7 +70,7 @@ and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red b
 
 There are nesting scopes. **Getting a thing's scope wrong is the easiest way to introduce a bug**, so this is the canonical reference for what is central to the process vs tied to a `Workspace` (saved config) vs a `WorkspaceRuntime` (runtime) vs per-feature vs per-window/tab.
 
-The model has three lifetimes, nested. The **session** (`ShellHost`, `Services/ShellHost.cs`) is the process — from sign-in when Nexaflow starts with Windows, otherwise from the first window to the last — and owns everything every workspace shares: one person works across several contexts, so the file system, its watches, the AI host and the inbox are the session's. A **`Workspace`** (`Models/Workspace.cs`) is the saved, shared configuration shown in the dropdown — name/colour/icon, default + last-session tabsets, AI ability grid, persona, ribbon layout, provider configs, conversations. A **`WorkspaceRuntime`** (`Models/WorkspaceRuntime.cs`) is that workspace live: **at most one per `Workspace`** (`WorkspaceRuntimes`), shared by every window that shows it.
+The model has three lifetimes, nested. The **session** (`ShellHost`, in `Nexaflow.Host`) is the process — from sign-in when Nexaflow starts with Windows, otherwise from the first window to the last — and owns everything every workspace shares: one person works across several contexts, so the file system, its watches, the AI host and the inbox are the session's. A **`Workspace`** (`Models/Workspace.cs`) is the saved, shared configuration shown in the dropdown — name/colour/icon, default + last-session tabsets, AI ability grid, persona, ribbon layout, provider configs, conversations. A **`WorkspaceRuntime`** (`Models/WorkspaceRuntime.cs`) is that workspace live: **at most one per `Workspace`** (`WorkspaceRuntimes`), shared by every window that shows it.
 
 A launch of a workspace already live opens a window on its runtime; tear-off and "open in new window" join it too. Switching a window's dropdown moves *that window* to the other workspace's runtime and leaves its old workspace's other windows as they are. A runtime whose last window goes turns **dormant** — its providers back in the pool, so local models nothing else uses unload, while its configuration, assistant and feature instances stay — and the next window to come back resumes it at once, its tabs as they were. It ends after `ShellConfig.DormantWorkspaceMinutes` (five by default), or at once when its workspace is deleted. One whose background jobs still run stays active until they finish: the work is the person's, and needs the workspace's models.
 
@@ -75,7 +80,7 @@ A launch of a workspace already live opens a window on its runtime; tear-off and
 
 ### Central — the session (one per process)
 
-`ShellHost` builds the session in three stages — what the first window needs (its constructor), what follows the first frame (`FirstWindowDrawn`), what runs in the background meanwhile (`StartBackground`) — and ends it in reverse (`DisposeAsync`): every workspace runtime, the watches, the models held ahead, the AI host. It names no UI toolkit: the UI thread (`IUiThread`), the clipboard and the folder watcher's window come from the app in a `ShellPlatform`, and `SessionLayerWpfTests` keeps the session layer so. What it has not yet handed over is still reached as a `*.Instance` singleton; `CoreSingletonRatchetTests` counts those left.
+`ShellHost` builds the session in three stages — what the first window needs (its constructor), what follows the first frame (`FirstWindowDrawn`), what runs in the background meanwhile (`StartBackground`) — and ends it in reverse (`DisposeAsync`): every workspace runtime, the watches, the models held ahead, the AI host. It names no UI toolkit, nor does anything it is built from: what only a toolkit can do comes from the app in a `ShellPlatform` — the UI thread (`IUiThread`), the clipboard, the file and folder pickers (`IFilePickers`), the folder watcher (`IFolderWatcher`), the theme the features' resources fold into (`IThemeHost`), the attribute its views are marked with (WPF's `[ViewFor]`), which fenced markdown blocks its renderer draws as pictures, fitting a picture to a video's first frame (`IPictureFitting`), and the views pages are drawn with (`IPageViews`). Each runtime's assistant comes from the assistant's own factory (`WorkspaceAssistants`), held by the runtime as `IWorkspaceAssistant`; a window is reached as an `IWindowHost`. `SessionAssemblyRulesTests` keeps all of it so. What it has not yet handed over is still reached as a `*.Instance` singleton; `CoreSingletonRatchetTests` counts those left.
 
 | Singleton | Owns | NOT responsible for |
 |-----------|------|---------------------|
@@ -88,12 +93,12 @@ A launch of a workspace already live opens a window on its runtime; tear-off and
 | `WorkspaceRuntimes` | The live workspaces: one runtime per `Workspace`, opened, resumed, made dormant and ended | Building a runtime (`WorkspaceRuntimeFactory`) |
 | `WorkspaceRuntimeFactory` | Builds every runtime from the session's services (`RuntimeSessionServices`), and ends those still running when the session ends | — |
 | `FolderActivity` | The session's file and folder watches — one per path, however many workspaces follow it — and its busy folders, so a folder being changed shows its wait in every workspace | — |
-| `FeatureManager` | The feature system, made by the session over its `FeatureCatalog`, whose index it builds as it is made: holds the features' global configs and the app-wide tools they are given (`ProvideTool`), and builds feature instances on demand, kept in each runtime's `FeatureScope`. Handed to every window (`WindowServices`) and runtime (`RuntimeSessionServices`; the runtime carries it as `WorkspaceRuntime.FeatureManager`), and through them to what opens pages, offers handlers or lists configs — an Options page by its view-model (`ConfigPageModels`) | File-system contracts (those go to `FileSystemFeatureRegistry`) |
+| `FeatureManager` | The feature system, made by the session over its `FeatureCatalog`, whose index it builds as it is made: each feature assembly taken in as it loads (`FeatureActivation`, an `ActivatedFeature` apiece recording what it put into the session), the features' global configs (`FeatureConfigs`), what a feature's constructor can be given — the runtime's services, the app-wide tools (`ProvideTool`), configs, feature services, subfeature sets — in one typed registry (`FeatureInjectables`), and feature instances built from it on demand (`FeatureInjector`), kept in each runtime's `FeatureScope`. Handed to every window (`WindowServices`) and runtime (`RuntimeSessionServices`; the runtime carries it as `WorkspaceRuntime.FeatureManager`), and through them to what opens pages, offers handlers or lists configs — an Options page by its view-model (`ConfigPageModels`) | File-system contracts (those go to `FileSystemFeatureRegistry`) |
 | `FeatureCatalog` | The discovery engine, one per session (`ShellHost.Catalog`): a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
 | `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. The session makes it, points `Str` at it, and hands it to every window (`WindowServices`) and runtime (`RuntimeSessionServices`). A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
-| `HelpLibrary` | The help pages, read through the `LanguageManager`. The Help page's registration is given it by the feature injection (an app-wide tool, `FeatureManager.ProvideTool`); every runtime's assistant gets the tools that read it (`RuntimeSessionServices.HelpTools`) | — |
+| `HelpLibrary` | The help pages, read through the `LanguageManager`. The Help page's registration is given it by the feature injection (an app-wide tool, `FeatureManager.ProvideTool`); every runtime's assistant gets the tools that read it (`WorkspaceAssistants`); the pictures a page shows are the app's to decode (`HelpPictures`) | — |
 | `ExternalDependencyRegistry` | The third-party components features declare (`IExternalDependency`), probed off the UI thread and cached; each finished probe announced on the session's `IUiThread`. A declaration of the session's own takes what it is judged from in its constructor — what Nexaflow's own models need, the AI host's reading of its runtime (`AiHostReading`) — and the registry builds it with the services the session made it with. Handed to every window — for About and the panel a page that could not be made is drawn with — and every runtime's `ShellServices`, which answers a feature's `GetDependencyStatus` | Installing a component |
-| `PageViews` | The view each open page is drawn with, made on first show and kept until its tab closes, so a tab moved between panes or windows keeps it. Made by the app (`ShellPlatform.Views` — only the app knows the views): every window's panes draw with it, every runtime's `ShellServices` lets a closed page's go | The page's view-model (the `Page` holds it) |
+| `PageViews` | The view each open page is drawn with, made on first show and kept until its tab closes, so a tab moved between panes or windows keeps it. Made by the app (`ShellPlatform.Views` — only the app knows the views): every window's panes draw with it, every runtime's `ShellServices` lets a closed page's go, holding it only as `IPageViews` | The page's view-model (the `Page` holds it) |
 | `FileMapManager`, `ExternalAppRegistry`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 | `ProviderManager` (with its `ModelAssetStore`) | Provider plugins and their pooled instances; the files local models need, under `%LOCALAPPDATA%\Smile\nexaflow\ai` (`LocalAiFolder`; `NEXAFLOW_AI_DIR` moves it), verified against each provider's catalog and downloaded with resume by the AI host SDK's store | — |
 
@@ -168,40 +173,71 @@ turning dormant. There is always at least one workspace.
 
 ### Nexaflow.Core
 
-The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, and the AI input row. Nothing in Core knows how to _render_ any individual page — it only knows how to _host_ them.
+The WPF app: the window chrome, tab strip, ribbon bar, breadcrumb bar and the AI input row, the views and view-models they
+are drawn with, and the WPF side of every port the session declares. Nothing in Core knows how to _render_ any individual
+page — it only knows how to _host_ them — and nothing of the session's lives here: Core adapts `Nexaflow.Host`.
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`), applies the appearance settings, builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), the launch arguments (`LaunchRequest`: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow"), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
-| `Services/ShellHost.cs` | The session's composition root: builds, in stages, and owns everything every workspace shares, and ends it in reverse |
-| `Services/WorkspaceRuntimes.cs` | The live workspaces: one runtime per `Workspace`, opened, resumed, made dormant and ended; a window's switch moves it between them |
-| `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
-| `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`/`Vfs`) |
-| `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue |
-| `Services/Agent/ClientBlockParser.cs`, `ParsedAssistantTurn.cs` | The assistant wire-protocol parser the agent loop reads fenced `client_tool` blocks with. Core-only, so it lives in Core — not a feature contract |
-| `Services/WorkspaceManager.cs` | One per session, made by `ShellHost`: the saved `Workspaces` list; `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
-| `ProviderManager.cs` | One per session, made by `ShellHost`: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); an execution instance is followed by `ModelResidency`, which loads its model ahead or lets it go idle, and cools with its pool lifetime |
-| `ProviderSet.cs` | A runtime's acquired provider **instances** + the workspace's configs + assembly map + pool keys |
-| `Services/AIService.cs` | `IAIService` impl — **per-`WorkspaceRuntime`**: provider registry, ability→model resolution, the agent loop, conversation history |
-| `AI/AiConfig.cs` | Per-workspace AI ability config (`Columns` + each ability's `AbilityChain` of columns in `Assignments`); rendered by `AiAbilityGridControl` |
+| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`: `WpfUiThread`, `ShellClipboard`, `WpfFilePickers`, `ShellFolderWatcher`, `WpfThemeHost`, `[ViewFor]` as the view marker, `ContentLanguages.Draws`, `WpfPictureFitting`, `PageViews`), hands it the app's version, applies the appearance settings, builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks |
-| `ViewModels/ShellViewModel.cs` | Per-window VM: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open) |
-| `Services/ShellServices.cs` | `IShellServices` impl — **per-`WorkspaceRuntime`** (not an app-level singleton). Owns that runtime's window + tab registry, tearoff/cross-window moves, file watching, session capture/restore, window positioning |
-| `FeatureManager.cs` | One per session, made by `ShellHost`. Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `WorkspaceRuntime` with scoped `IShellServices` + `IAIService`, kept in the runtime's `FeatureScope` until it ends. File-system contracts are **not** here (see below) |
-| `Services/FeatureCatalog.cs` | The discovery engine behind `FeatureManager`. Persists the per-assembly type index to `…\Smile\nexaflow\discovery\catalog.json`, stamped with the app version **and** the feature-DLL set it was built from (`FeatureCatalogStamp`: name + length + write time per `Nexaflow.Features.*.dll` plus Core). Both must still match for the index to be trusted, and validating costs one directory enumeration with no assembly loads — so a same-version rebuild forces a rescan instead of silently serving an index that no longer describes the DLLs on disk (a stale index would render every newer page kind as an empty tab). Resolving a type loads + **activates** its assembly on demand (registering that assembly's global configs / archive handlers / theme contributions). A post-paint background warm-up activates the rest |
-| `Services/StartupTimings.cs` | Opt-in startup profiler (`--timing` flag / `NEXAFLOW_STARTUP_TIMING=1`): a destination of the process's logs (`ShellLogging`) that times each startup milestone the shell logs (`StartupMilestones.StartupMilestone`); writes a milestone breakdown + `FIRST_WINDOW_MS` / `WINDOW_ON_DEMAND_MS` to stderr. Not made when off — the milestones then reach only the session's log |
-| `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFileCreateWithOptions`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
-| `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-workspace** (constructed with the workspace's own folder, shared by its runtimes), not a single global `ribbon.json`. Bundled defaults live in `Ribbon/default-ribbon.json` (`LoadDefaults`) |
+| `ViewModels/ShellViewModel.cs` | Per-window VM and the session's `IWindowHost`: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open); showing, closing and placing its window, its pickers' owner |
+| `ViewModels/ConfigPageModels.cs` | The page a config is edited on where it has one of its own: the view marked `[ViewFor]` its model — its config, or the view-model a Core page that shows the session draws |
+| `Services/PageViews.cs` | The view each open page is drawn with (`IPageViews` to the session) |
 | `Services/WindowManager.cs` | Static DPI/monitor/cursor maths only — tab/window lifecycle is `ShellServices` |
-| `FileActions/` | Core-owned file actions: copy, delete, rename, and other system-level operations |
 | `ViewModels/RibbonEditorViewModel.cs` | Ribbon customization on a deep-cloned draft, committed and saved once on Done; its view (`Controls/RibbonEditor.xaml`) exists only while it is open |
+| `Models/RibbonItem.cs` | A ribbon item as the window draws and edits it, made from and saved as the session's `RibbonEntry` |
 | `Controls/RibbonItemButton.cs` | The one ribbon button visual — bar, editor strip and shape gallery — in any shape and colours |
 | `Controls/TabStrip.xaml.cs` | Renders tabs; emits tearoff drag events |
 | `Controls/BreadcrumbBar.xaml.cs` | Renders segments; dispatches `TargetPageKind` clicks back to shell |
-| `Models/RibbonItem.cs` | Ribbon item state + `TabFactory` delegate + serialization metadata |
-| `Models/PageKinds.cs` | String constants for Core-owned page kinds (`FileSystem`, `Placeholder`) |
-| `Help/` | Core's own page kind, `Help`, discovered like any feature's: the ? above Options / F1 (`HelpPaneController`) opens the help for the page in use in the pane beside it — splitting if need be — follows that pane's page until the reader moves within help, and closes when pressed while showing it. `HelpLibrary` reads `help/<PageKind>.md` out of the language packs; `HelpSearchIndex` searches the page shown first, then every help page, with the same matcher the page highlights with. A `locate:` link in a page points at the screen rather than navigating: `LocateTour` lassoes each control it names, found in-process by its AutomationId |
+| `Help/` | Core's own page kind, `Help`, discovered like any feature's: the ? above Options / F1 (`HelpPaneController`) opens the help for the page in use in the pane beside it — splitting if need be — follows that pane's page until the reader moves within help, and closes when pressed while showing it. The pages are the session's `HelpLibrary`; `HelpPictures` decodes the pictures they show, once for every window. A `locate:` link in a page points at the screen rather than navigating: `LocateTour` lassoes each control it names, found in-process by its AutomationId |
+
+### Nexaflow.Session
+
+The shell session and the workspaces' lifetimes, WPF-free: everything every workspace shares, and each live workspace's
+runtime. It names no UI toolkit, nor does anything it references (`SessionAssemblyRulesTests`); it never references the
+assistant or the host.
+
+| File | Responsibility |
+|------|----------------|
+| `Services/WorkspaceRuntimes.cs` | The live workspaces: one runtime per `Workspace`, opened, resumed, made dormant and ended; a window's switch moves it between them |
+| `Services/WorkspaceRuntimeFactory.cs` | Builds every runtime from the session's services (`RuntimeSessionServices`), its assistant from the factory it is handed |
+| `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
+| `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`Assistant`/`ShellServices`/`Vfs`) |
+| `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links) |
+| `Services/WorkspaceManager.cs` | The saved `Workspaces` list; `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
+| `ProviderManager.cs` | Loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); an execution instance is followed by `ModelResidency`, which loads its model ahead or lets it go idle, and cools with its pool lifetime |
+| `ProviderSet.cs` | A runtime's acquired provider **instances** + the workspace's configs + assembly map + pool keys |
+| `AI/AiConfig.cs` | Per-workspace AI ability config (`Columns` + each ability's `AbilityChain` of columns in `Assignments`); drawn by Core's `AiAbilityGridControl` |
+| `Services/ShellServices.cs` | `IShellServices` impl — **per-`WorkspaceRuntime`**. Owns that runtime's window + tab registry, tearoff/cross-window moves, file watching, session capture/restore; reaches each window through `IWindowHost` |
+| `FeatureManager.cs` | The feature system, in parts: `FeatureCatalog` (which type implements what), `FeatureActivation` (each assembly taken in as it loads, as an `ActivatedFeature` recording what it put into the session), `FeatureConfigs` (the global configs, and which are a workspace's own) and `FeatureInjector` (a feature's types built per runtime from what `FeatureInjectables` supplies, kept in the runtime's `FeatureScope`). What is left on `FeatureManager` is what the shell asks of the features as a whole: a tab of a page kind, the pages there are, the handlers its chat bar, ribbon and file views offer. File-system contracts are **not** here (see below) |
+| `Services/FeatureCatalog.cs` | The discovery engine behind `FeatureManager`. Persists the per-assembly type index to `…\Smile\nexaflow\discovery\catalog.json`, stamped with the app's version (handed in by the app) **and** the feature-DLL set it was built from (`FeatureCatalogStamp`: name + length + write time per `Nexaflow.Features.*.dll` plus the shell's own assemblies — the app's, Session's and Assistant's, which carry page kinds, handlers, configs and views and are indexed beside the features). Both must still match for the index to be trusted, and validating costs one directory enumeration with no assembly loads — so a same-version rebuild forces a rescan instead of silently serving an index that no longer describes the DLLs on disk (a stale index would render every newer page kind as an empty tab). Which views draw which model it records by the marker the toolkit's views carry, which the app names. Resolving a type loads + **activates** its assembly on demand. A post-paint background warm-up activates the rest |
+| `Services/StartupTimings.cs` | Opt-in startup profiler (`--timing` flag / `NEXAFLOW_STARTUP_TIMING=1`): a destination of the process's logs (`ShellLogging`) that times each startup milestone the shell logs (`StartupMilestones.StartupMilestone`); writes a milestone breakdown + `FIRST_WINDOW_MS` / `WINDOW_ON_DEMAND_MS` to stderr. Not made when off — the milestones then reach only the session's log |
+| `Services/RibbonLayoutService.cs` | The ribbon's saved `RibbonEntry` records — **per-workspace** (constructed with the workspace's own folder, shared by its runtimes), not a single global `ribbon.json`; each colour kept as its saved text. Bundled defaults live in `Ribbon/default-ribbon.json` (`LoadDefaults`) |
+| `Services/LaunchRequest.cs` | The launch arguments: `--context "Name"`, and `--open "path"` from Explorer's "Open in Nexaflow" |
+| `Help/` | `HelpLibrary` reads `help/<PageKind>.md` out of the language packs, and a picture's bytes; `HelpSearchIndex` searches the page shown first, then every help page, over the text a reader sees — what the toolkit's renderer draws as a picture left out |
 | `Localization/` | `LanguageManager` + `AssemblyLanguagePack` — the language packs; see [localization.md](localization.md) |
+
+### Nexaflow.Assistant
+
+Each workspace runtime's assistant, WPF-free. It consumes the session; the session holds it only as `IWorkspaceAssistant`
+(the `IAIService` features see, plus the providers it is handed and takes back), made by `WorkspaceAssistants`.
+
+| File | Responsibility |
+|------|----------------|
+| `AIService.cs` | `IAIService` impl — **per-`WorkspaceRuntime`**: provider registry, ability→model resolution, the agent loop, conversation history |
+| `WorkspaceAssistants.cs` | Makes each runtime's assistant from the session's services; `runtime.AiService` is the assistant it made |
+| `Agent/ClientBlockParser.cs`, `ParsedAssistantTurn.cs` | The assistant wire-protocol parser the agent loop reads fenced `client_tool` blocks with — not a feature contract |
+| `ShellAi/` | The shell's own AI tools: openable pages, ribbon buttons, open windows, opening a page |
+
+### Nexaflow.Host
+
+`ShellHost`, the composition root: it builds the session in stages, hands each runtime the assistant's factory, and ends it
+all in reverse. A UI app references Host alone and fills `ShellPlatform`.
+
+`FileSystemFeatureRegistry` (in the WindowsFileSystem feature) handles discovery and matching for
+`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFileCreateWithOptions`/`IFolderViewlet`, deliberately split out of
+`FeatureManager`.
 
 ### Nexaflow.Features.Common
 
@@ -224,7 +260,7 @@ The contract layer. Every feature depends on this; nothing else does.
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
 | `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by ViewModels via `IPageViewModel.GetContextObject()` |
 | `ClientTools/*.cs` | Agent-loop contracts: `IClientTool`/`ClientToolBase`/`DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolCall`, `ToolResult`, `ClientPlan`, `IToolApprovalCoordinator`, the shared `ToolArgs` argument reader. Contracts only — the Core-only wire-protocol parser (`ClientBlockParser`, `ParsedAssistantTurn`) lives in `Core/Services/Agent/` |
-| `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[FilePath]`, `[ListSource]`, `[CustomControl]` / `ICustomConfigApply` / `IConfigChangeTracker` |
+| `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[FilePath]`, `[ListSource]`; an Options page of its own implements `ICustomConfigApply` / `IConfigChangeTracker` |
 | `AiResponse.cs` | `AiResponse` record returned by `IAIService.RunAgentAsync` |
 | `ConversationRecord.cs` | Chat conversation + message list + attachments |
 | `Services/IQueryHandler.cs` | Intercepts the AI input bar; registered globally or inferred from the active page's ViewModel |
@@ -592,10 +628,11 @@ public sealed class MyConfig : IFeatureConfig
 
 The title and each label are string-table keys, so the section reads in the active language — [localization.md → Options](localization.md#options).
 
-For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]` to the config class and implement `ICustomConfigApply` on the control.
-The control is made by its parameterless constructor and bound to the config. It reaches no service itself: a Core page that
-shows the session — About, Shell, Workspaces — is bound instead to a view-model `ConfigPageModels` makes from the session's services,
-which the window hands its Options and the app its setup wizard.
+For a fully custom options UI, mark the control as the view of the config — `[ViewFor(typeof(MyConfig))]`, with a constructor
+taking it — and implement `ICustomConfigApply` on the control. The config names no control, so it stays free of any UI toolkit,
+as a page's view-model does. The page is made through that constructor and reaches no service itself: a Core page that shows the
+session — About, Shell, Workspaces — draws instead a view-model `ConfigPageModels` makes from the session's services, which the
+window hands its Options and Configure panels and the app its setup wizard.
 
 ---
 

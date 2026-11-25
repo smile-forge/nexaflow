@@ -4,14 +4,16 @@ using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Nexaflow.Core;
 using Nexaflow.Core.Help;
-using Nexaflow.Core.Localization;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.Elevation;
-using Nexaflow.Core.Services.LocalAi;
-using Nexaflow.Core.Services.Logging;
+
+
+using Nexaflow.Core.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Visuals.Common.Viewing;
+using Nexaflow.Visuals.Text.Markdown;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Core;
@@ -46,10 +48,20 @@ internal static class TestRuntimes
     public static ShellLogging Logging => _logging.Value;
 
     private static readonly Lazy<ShellLogging> _logging =
-        new(() => ShellLogging.Open(AppDataFolders.ForThisProcess(), uiTest: false, profileStartup: false));
+        new(() => ShellLogging.Open(AppDataFolders.ForThisProcess(), SetupWizardViewModel.CurrentVersion(), uiTest: false, profileStartup: false));
 
     /// <summary>A logger in the suite's logs (<see cref="Logging"/>), for what a test builds that takes one.</summary>
     public static ILogger<T> LoggerFor<T>() => Logging.Factory.CreateLogger<T>();
+
+    /// <summary>The calling thread as the session's UI thread: what a test that builds session services on its own thread hands them.</summary>
+    public static IUiThread CurrentUi() => new WpfUiThread(Dispatcher.CurrentDispatcher);
+
+    /// <summary>A catalogue of the features beside the tests, indexing WPF's views as the app's does.</summary>
+    public static FeatureCatalog NewCatalog() => new(Config.BaseDir, SetupWizardViewModel.CurrentVersion(), typeof(ViewForAttribute),
+        [typeof(SetupWizardViewModel).Assembly, typeof(FeatureCatalog).Assembly, typeof(AIService).Assembly], LoggerFor<FeatureCatalog>());
+
+    /// <summary>Pages for no config: every section a test builds shows its settings as rows.</summary>
+    public static ConfigPageModels RowsOnly { get; } = new(_ => null, session: null);
 
     /// <summary>A configuration of its own under <paramref name="baseDir"/>, what stays on this machine alone kept beside it as
     /// <c>local</c> — for a test that reads what it registers or saves — its faults on record in <paramref name="faultLog"/>, or
@@ -67,13 +79,15 @@ internal static class TestRuntimes
         var ui        = new WpfUiThread(Dispatcher.CurrentDispatcher);
         var locations = new LocationProviderRegistry();
         var dependencies = new ExternalDependencyRegistry(ui, Features.Catalog, [new AiHostReading(holds: null)]);
+        var shell     = new ShellConfig();
+        var security  = new SecurityConfig();
         return new WorkspaceRuntimeFactory(new RuntimeSessionServices(
-            Config, new ShellConfig(), new SecurityConfig(),
+            Config, shell, security,
             Providers, savedWorkspaces ?? SavedListOf(), Features, tasks, notify, VirtualFileSystem.Instance, locations,
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
-            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(),
+            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(), new WpfFilePickers(),
             dependencies, new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load, LoggerFor<LanguageManager>()),
-            PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), HelpTools: [], Logs: Logging.Factory));
+            PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), NewAssistant: new WorkspaceAssistants(Features, Providers, shell, security, [], new WpfPictureFitting(), tasks, notify).Create, Logs: Logging.Factory));
     }
 
     /// <summary>
@@ -111,10 +125,14 @@ internal static class TestRuntimes
 
     private static readonly Lazy<FeatureManager> _features = new(() =>
     {
-        var features = new FeatureManager(new FeatureCatalog(Config.BaseDir, LoggerFor<FeatureCatalog>()), Config,
-                                          new WpfUiThread(Dispatcher.CurrentDispatcher), new LocationProviderRegistry(), Logging.Factory);
-        features.ProvideTool(new HelpLibrary(new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load,
-                                                                 LoggerFor<LanguageManager>())));
+        var features = new FeatureManager(NewCatalog(), Config,
+                                          new WpfUiThread(Dispatcher.CurrentDispatcher), new WpfThemeHost(), new LocationProviderRegistry(), Logging.Factory);
+        // As the app does: the session's help pages, and the window side's pictures of them.
+        var language = new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load,
+                                           LoggerFor<LanguageManager>());
+        var help     = new HelpLibrary(language, ContentLanguages.Draws);
+        features.ProvideTool(help);
+        features.ProvideTool(new HelpPictures(help, language));
         return features;
     });
 

@@ -4,6 +4,7 @@ using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.IO.Documents;
 
 namespace Nexaflow.Tests.Features.Markdown;
 

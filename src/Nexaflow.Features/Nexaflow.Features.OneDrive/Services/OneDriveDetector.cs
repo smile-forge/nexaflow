@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 using Nexaflow.Features.OneDrive.Models;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.OneDrive.Services;
 

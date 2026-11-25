@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Windows;
 
 namespace Nexaflow.Features.Projects.Viewlets;

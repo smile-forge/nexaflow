@@ -7,7 +7,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vm="clr-namespace:Nexaflow.Core.ViewModels">
     <!--
-      Renders a single ConfigEditViewModel (its [CustomControl] or a reflected property grid). The
+      Renders a single ConfigEditViewModel (the config's own page or a reflected property grid). The
       same editor surface the Options / Configure panels show, extracted so the setup wizard reuses it.
       DataContext = a ConfigEditViewModel.
     -->

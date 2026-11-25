@@ -4,7 +4,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Tabular.Streaming;
 using Nexaflow.Search;
 using Nexaflow.Visuals.Common.Collections;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Globalization;
 
 namespace Nexaflow.Features.Tabular.ViewModels;

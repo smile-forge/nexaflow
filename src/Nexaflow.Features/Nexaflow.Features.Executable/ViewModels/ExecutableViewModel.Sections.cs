@@ -6,7 +6,7 @@ using System.Windows.Media.Imaging;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.IO.Pe;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 

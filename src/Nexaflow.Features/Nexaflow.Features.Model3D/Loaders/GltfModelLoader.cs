@@ -4,7 +4,7 @@ using System.Windows.Media.Media3D;
 using SharpGLTF.Geometry;
 using SharpGLTF.Schema2;
 using GltfMaterial = SharpGLTF.Schema2.Material;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Model3D.Loaders;
 

@@ -6,7 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Icons;
 
 namespace Nexaflow.Features.Compressed.FileActions;

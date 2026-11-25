@@ -1,5 +1,5 @@
 using System.Globalization;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Dicom.Services;
 

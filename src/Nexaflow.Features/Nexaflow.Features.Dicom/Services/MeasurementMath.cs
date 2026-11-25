@@ -1,6 +1,6 @@
 using System.Windows;
 using Nexaflow.Features.Dicom.Models;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Dicom.Services;
 

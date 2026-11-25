@@ -6,7 +6,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Product.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 

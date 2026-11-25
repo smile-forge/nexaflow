@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Controls;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -33,7 +33,7 @@ public sealed class TemplateDefinition
 /// <see cref="TemplatedCreateEditorControl"/>; template files live alongside the config
 /// JSON under <c>{base}\templatedcreate\templates</c>.
 /// </summary>
-[CustomControl(typeof(TemplatedCreateEditorControl))]
+
 public sealed class TemplatedCreateConfig : IFeatureConfig
 {
     public string ConfigName   => "templatedcreate";

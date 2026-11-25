@@ -6,7 +6,7 @@ using System.Windows.Controls.Primitives;
 using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Page = Nexaflow.Features.Common.Page;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.AIChat.Views;

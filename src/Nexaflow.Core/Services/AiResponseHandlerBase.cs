@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -263,7 +263,7 @@ public abstract partial class AiResponseHandlerBase : ObservableObject, IAIRespo
     /// picture?"; a tool that does not say how it is announced is named by its name.</summary>
     private static string BuildBatchSummary(IReadOnlyList<ToolCall> batch)
     {
-        var calls = Voice.AnnouncedActions.Of(batch).Calls;
+        var calls = AnnouncedActions.Of(batch).Calls;
         var asked = string.Join(Str.Get("Shell.Voice.And"), calls.Select(c => $"{c.Action} {c.Target}"));
         return Str.Format("Shell.AiResponse.ApproveFormat", asked.Length == 0 ? asked : char.ToUpper(asked[0], CultureInfo.CurrentCulture) + asked[1..]);
     }

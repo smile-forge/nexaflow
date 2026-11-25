@@ -7,7 +7,7 @@ using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;

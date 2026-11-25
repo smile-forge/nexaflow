@@ -1,5 +1,5 @@
 using Nexaflow.Features.Tabular.Templates;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Tabular.ViewModels;
 

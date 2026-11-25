@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Icons;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;

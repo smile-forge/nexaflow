@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

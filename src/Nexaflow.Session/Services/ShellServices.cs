@@ -1,0 +1,1052 @@
+using CommunityToolkit.Mvvm.Input;
+
+
+using Nexaflow.Elevation.Contracts;
+using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.Search;
+using Nexaflow.IO.Common;
+using Nexaflow.Providers.Common;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Nexaflow.Localization;
+using Nexaflow.IO.Common.Locations;
+using Nexaflow.Interaction;
+
+namespace Nexaflow.Session.Services;
+
+/// <summary>
+/// Per-Workspace shell service that owns that workspace's tab + window registry.
+/// One instance per <see cref="WorkspaceRuntime"/> (created with it by <see cref="WorkspaceRuntimeFactory"/>,
+/// before any window); each <see cref="MainWindow"/> showing this
+/// workspace registers its <see cref="IWindowHost"/> on activation and unregisters on close.
+/// </summary>
+public sealed class ShellServices : IShellServices, IDisposable
+{
+    private readonly WorkspaceRuntime _workspace;
+    private readonly IBackgroundActivityManager? _activity;
+    private readonly Elevation.ElevatedBridgeLauncher _elevation;
+
+    /// <summary>The thread the windows run on.</summary>
+    private readonly IUiThread _ui;
+
+    /// <summary>The session's watches, and its folders with an in-flight mutation — browsers show "please wait" for these until
+    /// they clear, in every workspace.</summary>
+    private readonly FolderActivity _folders;
+
+    /// <summary>Posts a message to the session's inbox.</summary>
+    private readonly Action<NotificationItem> _notify;
+
+    /// <summary>The third-party components the features declare, which a feature asks about before it uses one.</summary>
+    private readonly ExternalDependencyRegistry _dependencies;
+
+    /// <summary>The shell's file and folder pickers, shown over the window asking.</summary>
+    private readonly IFilePickers _pickers;
+
+    /// <summary>The view each open page is drawn with, let go when its tab closes.</summary>
+    private readonly IPageViews _views;
+
+    /// <summary>The session's feature system: the pages this runtime opens, and the features it builds for them.</summary>
+    private readonly FeatureManager _features;
+
+    /// <summary>The saved workspaces, written back when this runtime's workspace records its last session or lets one go, or a
+    /// feature saves its per-workspace config.</summary>
+    private readonly WorkspaceManager _savedWorkspaces;
+
+    /// <summary>The session's configuration, which a feature's global config is saved through.</summary>
+    private readonly ConfigManager _config;
+
+    internal ShellServices(WorkspaceRuntime workspace, RuntimeSessionServices session)
+    {
+        _workspace    = workspace;
+        _activity     = session.Tasks;
+        _elevation    = session.Elevation;
+        _ui           = session.Ui;
+        _folders      = session.Folders;
+        _notify       = session.Notify;
+        _dependencies = session.Dependencies;
+        _pickers      = session.Pickers;
+        _views        = session.Views;
+        _features     = session.Features;
+        _savedWorkspaces = session.SavedWorkspaces;
+        _config       = session.Config;
+        Clipboard     = session.Clipboard;
+        _folders.Busy.Changed += OnBusyFoldersChanged;
+    }
+
+    private void OnBusyFoldersChanged() => _ui.Post(() => FolderBusyChanged?.Invoke());
+
+    /// <summary>Closes every file and folder watch the runtime's pages left open, and stops hearing of busy folders: the runtime
+    /// has ended. On the UI thread, where the folder watcher's window is.</summary>
+    public void Dispose()
+    {
+        _folders.Busy.Changed -= OnBusyFoldersChanged;
+        _folders.Release(this);
+    }
+
+    /// <summary>
+    /// Runs an admin-only request out-of-process via the elevated privilege bridge (one UAC prompt per
+    /// call). The host stays non-elevated. Never throws for expected outcomes — see <see cref="ElevatedResult"/>.
+    /// </summary>
+    public Task<ElevatedResult> RunElevatedAsync(ElevatedRequest request, CancellationToken ct = default)
+        => _elevation.RunAsync(request, ct);
+
+    public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null,
+                                    CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+
+        var handle = _activity?.StartActivity(task.Description);
+        _ = Task.Run(async () =>
+        {
+            var ok = false;
+            var cancelled = false;
+            try
+            {
+                await task.RunAsync(ct);
+                handle?.Complete();
+                ok = true;
+            }
+            catch (OperationCanceledException)
+            {
+                // Caller aborted (e.g. navigated away) — finish quietly, no failure reported.
+                cancelled = true;
+                handle?.Complete();
+            }
+            catch (Exception ex)
+            {
+                handle?.Fail(ex.Message);
+            }
+            finally
+            {
+                if (onComplete is not null && !cancelled)
+                    _ui.Run(() => onComplete(ok));
+            }
+        });
+    }
+
+    // ── User-mediated background tasks (chrome controls shown beside the activity ticker) ──
+
+    /// <summary>
+    /// Controls registered by pages via <see cref="RegisterMediatedTask"/>. Shared across this workspace's
+    /// windows — every <see cref="MainWindow"/> binds this one collection, mirroring the activity ticker — so a
+    /// torn-off window shows the control with no replay logic and a workspace switch clears it as tabs dispose.
+    /// </summary>
+    internal ObservableCollection<MediatedTaskRegistration> MediatedTasks { get; } = [];
+
+    public IDisposable RegisterMediatedTask(MediatedTaskRegistration registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        _ = RunOnUiAsync(() => MediatedTasks.Add(registration));
+        return new MediatedTaskHandle(this, registration);
+    }
+
+    /// <summary>Removes a registered mediated-task control from the chrome; idempotent.</summary>
+    private sealed class MediatedTaskHandle(ShellServices owner, MediatedTaskRegistration registration) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _ = owner.RunOnUiAsync(() => owner.MediatedTasks.Remove(registration));
+        }
+    }
+
+    // ── Window registry ───────────────────────────────────────────────────
+
+    private readonly List<IWindowHost> _windows = [];
+    private IWindowHost? _focused;
+
+    /// <summary>
+    /// Factory invoked by <see cref="TearOffTab"/> to spawn a new shell window.
+    /// The factory should create the window, call <see cref="RegisterWindow"/>, and
+    /// return the host.  Set by <see cref="App"/> after initial window creation.
+    /// </summary>
+    internal Func<IWindowHost>? CreateWindowFactory { get; set; }
+
+    internal bool HasWindows => _windows.Count > 0;
+
+    /// <summary>The focused window, or the first open one (null when window-less).</summary>
+    internal IWindowHost? FocusedWindow => _focused ?? _windows.FirstOrDefault();
+
+    /// <summary>Raised when a window attaches to this runtime or leaves it.</summary>
+    internal event EventHandler? WindowsChanged;
+
+    internal void RegisterWindow(IWindowHost host)
+    {
+        _windows.Add(host);
+        WindowsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void UnregisterWindow(IWindowHost host)
+    {
+        // The workspace's last window closing on a genuine user close (programmatic teardown goes through
+        // CloseAllWindows, which suppresses this): record the visible tabs as the restorable last session.
+        if (!_suppressSessionCapture && _windows.Count == 1 && ReferenceEquals(_windows[0], host))
+            CaptureLastSession(host);
+
+        CloseWindowTabs(host);
+
+        _windows.Remove(host);
+
+        if (_focused == host)
+            _focused = _windows.FirstOrDefault();
+
+        // The session's registry hears of it: a runtime with no window left turns dormant, and the app with none open anywhere
+        // may end.
+        WindowsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Raises <see cref="Page.Closed"/> for every tab of a closing window so each page's view-model
+    /// disposes (terminal PTY shells, WebView2, …). This is the one teardown path that would otherwise
+    /// drop tabs from the registry without firing Closed, orphaning their child processes. Tab tear-off
+    /// and move re-key <c>_tabToWindow</c> and never pass through here, so a closing window only owns
+    /// tabs that are genuinely going away; RaiseClosed is safe to double-fire (view-model Dispose is
+    /// idempotent) should a tab also have been closed explicitly. Separated from
+    /// <see cref="UnregisterWindow"/> so it can be unit-tested without that method's shutdown side-effects.
+    /// </summary>
+    internal void CloseWindowTabs(IWindowHost host)
+    {
+        foreach (var tab in host.Tabs.ToList())
+        {
+            tab.RaiseClosed();
+            _tabToWindow.Remove(tab);
+            DisposePage(tab);
+        }
+    }
+
+    internal void SetFocused(IWindowHost host)
+    {
+        _focused = host;
+        foreach (var w in _windows)
+            w.IsFocused = w == host;
+    }
+
+    /// <summary>
+    /// Replaces <paramref name="current"/> with a fresh window where it is meant to be, holding the same tabs in the same panes: how a
+    /// theme or a language, which no window re-reads once drawn, reaches a window already open. The caller has applied them.
+    /// </summary>
+    internal void ReplaceWindow(IWindowHost current)
+    {
+        if (CreateWindowFactory is null) return;
+
+        var layout = current.CaptureTabLayout();
+
+        // Fresh window, opened where the old one is meant to be, then close the old one.
+        var fresh = CreateWindowFactory();
+        if (current.IntendedPlacement is { } placement) fresh.OpenAt(placement);
+        fresh.Show();
+
+        current.Close();   // synchronously unregisters its tabs from _tabToWindow
+
+        // The restore opens into the focused window — make certain that is the new one, then rebuild both panes
+        // (a split with the help pane beside a page survives a theme or language change).
+        SetFocused(fresh);
+        RestoreTabLayout(layout);
+    }
+
+    internal void ClearFocused(IWindowHost host)
+    {
+        if (_focused == host)
+            _focused = _windows.FirstOrDefault(w => w != host);
+    }
+
+    // ── Tab registry ──────────────────────────────────────────────────────
+
+    private readonly Dictionary<Page, IWindowHost> _tabToWindow = [];
+
+    // ── IShellServices ────────────────────────────────────────────────────
+
+    public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null,
+                        Page? caller = null, bool inRightPane = false)
+    {
+        _ui.Run(() => OpenTabCore(pageKind, pageParams, caller, inRightPane));
+    }
+
+    /// <summary>Resolves the window a tab open should target: the one showing <paramref name="caller"/>,
+    /// else the focused window, else the first.</summary>
+    private IWindowHost? ResolveTargetWindow(Page? caller)
+    {
+        IWindowHost? targetWindow = null;
+        if (caller is not null) _tabToWindow.TryGetValue(caller, out targetWindow);
+        return targetWindow ?? _focused ?? _windows.FirstOrDefault();
+    }
+
+    private void OpenTabCore(string pageKind, Dictionary<string, string>? pageParams,
+                             Page? caller, bool inRightPane)
+    {
+        // A draft opened is a draft in use: kept from the app's clearing of drafts (DraftLocation.Sweep).
+        foreach (var path in DraftLocation.PathsIn(pageParams)) DraftLocation.Touch(path);
+
+        // 1. Resolve target window from caller page or focused window
+        var targetWindow = ResolveTargetWindow(caller);
+        if (targetWindow is null) return;
+
+        // Right-pane open: split off (or focus the existing) right pane and always create a fresh
+        // tab there — skip the global find-and-move so the same location can sit in both panes.
+        if (inRightPane)
+        {
+            targetWindow.FocusSecondPane();
+            AddFreshTab(targetWindow, pageKind, pageParams);
+            return;
+        }
+
+        // 2. Search globally for a matching tab
+        var existing = FindTabCore(pageKind, pageParams);
+
+        if (existing is not null)
+        {
+            if (_tabToWindow.TryGetValue(existing, out var ownerWindow) && ownerWindow != targetWindow)
+                MoveTabCore(existing, ownerWindow, targetWindow);
+
+            UpdateLocationParams(existing, pageParams);
+            existing.Reinitialize(pageParams ?? []);
+
+            targetWindow.BringToFront(existing);
+            targetWindow.SetActiveTab(existing);
+            return;
+        }
+
+        // 3. Create new tab and register it
+        var tab = CreateTab(pageKind, pageParams);
+        if (tab is null) return;
+
+        _tabToWindow[tab] = targetWindow;
+        targetWindow.AddTab(tab);
+    }
+
+    /// <summary>Creates a fresh <paramref name="pageKind"/> tab and adds it to <paramref name="target"/>'s focused pane —
+    /// no search for an existing tab to reuse. Backs "open in the right pane" and the Help pane.</summary>
+    internal Page? AddFreshTab(IWindowHost target, string pageKind, Dictionary<string, string>? pageParams)
+    {
+        var fresh = CreateTab(pageKind, pageParams);
+        if (fresh is null) return null;
+        _tabToWindow[fresh] = target;
+        target.AddTab(fresh);
+        return fresh;
+    }
+
+    // ── Default-tab restore (debounced) ───────────────────────────────────
+    // Startup and reconfigure open the workspace's saved tabset. Deferred a beat at Background priority — a
+    // small interval that (being below Render) still lets the window frame paint before the tabs load, so
+    // it stays snappy — and debounced so an open-then-reconfigure pair collapses to a single restore. The
+    // tabs + page content ease in (PaneView / TabStrip) so this reads as a settle rather than a hard pop.
+    private IUiTimer? _defaultTabsTimer;
+    private IReadOnlyList<DefaultTabDescriptor>? _pendingDefaultTabs;
+
+    /// <summary>Raised once the tabs <see cref="OpenDefaultTabs"/> deferred have opened.</summary>
+    internal event EventHandler? DefaultTabsOpened;
+
+    /// <summary>
+    /// Opens <paramref name="tabs"/> — the workspace's saved startup layout — into the focused window, on a
+    /// short debounce so the frame renders first. Left-pane tabs (<see cref="DefaultTabDescriptor.Pane"/> 0)
+    /// open first, then right-pane tabs (1) which force the split; within each pane the active tab opens
+    /// last so it ends up selected. An empty list opens nothing (a valid "start blank" choice).
+    /// </summary>
+    public void OpenDefaultTabs(IReadOnlyList<DefaultTabDescriptor> tabs)
+    {
+        _pendingDefaultTabs = tabs;
+        _defaultTabsTimer ??= _ui.CreateTimer(TimeSpan.FromMilliseconds(40), OnDefaultTabsTick, UiTimerPriority.Background, once: true);
+        _defaultTabsTimer.Restart();
+    }
+
+    /// <summary>Synchronously restores a captured pane layout (see <see cref="IWindowHost.CaptureTabLayout"/>)
+    /// into the focused window. Used by a workspace restart, which creates + places the replacement window
+    /// itself and needs the tabs present immediately (no debounce/flash).</summary>
+    public void RestoreTabLayout(IReadOnlyList<DefaultTabDescriptor> tabs) => OpenLayout(tabs);
+
+    /// <summary>
+    /// The tabs a window opening on this workspace shows: the session the workspace left, at once, when the window is resuming it
+    /// from dormancy; its startup tabs otherwise (<see cref="OpenDefaultTabs"/>).
+    /// </summary>
+    internal void OpenWorkspaceTabs()
+    {
+        if (_workspace.TakeResumedSession() is { Count: > 0 } session) OpenLayout(session);
+        else OpenDefaultTabs(_workspace.Workspace.DefaultTabs);
+    }
+
+    private void OnDefaultTabsTick()
+    {
+        _defaultTabsTimer?.Stop();
+        var tabs = _pendingDefaultTabs;
+        _pendingDefaultTabs = null;
+        if (tabs is not null) OpenLayout(tabs);
+        OfferSessionRestore();   // default tabs are up — offer to swap in the recorded last session
+        DefaultTabsOpened?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OpenLayout(IReadOnlyList<DefaultTabDescriptor> tabs)
+    {
+        var (left, right) = PlanLayout(tabs);
+        foreach (var t in left)  OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: false);
+        foreach (var t in right) OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: true);
+    }
+
+    /// <summary>
+    /// The order a saved tabset is reopened in, which is what makes the reopened window match the saved
+    /// one: each pane's tabs in their recorded order but with its active tab LAST (AddTab makes the newest
+    /// tab active, so last opened ends selected), and a right-pane-only layout collapsed into the left
+    /// pane rather than splitting off an empty one. Separated from the opening so it can be asserted
+    /// without a window or the feature registry behind it.
+    /// </summary>
+    internal static (IReadOnlyList<DefaultTabDescriptor> Left, IReadOnlyList<DefaultTabDescriptor> Right)
+        PlanLayout(IReadOnlyList<DefaultTabDescriptor> tabs)
+    {
+        static List<DefaultTabDescriptor> ActiveLast(IEnumerable<DefaultTabDescriptor> src)
+            => src.OrderBy(t => t.IsActive ? 1 : 0).ToList();
+
+        var left  = ActiveLast(tabs.Where(t => t.Pane <= 0));
+        var right = ActiveLast(tabs.Where(t => t.Pane == 1));
+
+        return left.Count == 0 && right.Count > 0 ? (right, []) : (left, right);
+    }
+
+    // Fresh dict per open so a page mutating its PageParams can't corrupt the shared saved descriptor.
+    private static Dictionary<string, string>? CloneParams(Dictionary<string, string>? p)
+        => p is null ? null : new Dictionary<string, string>(p);
+
+    // ── Last-session capture + restore offer ──────────────────────────────
+    // On the last window's genuine close (see UnregisterWindow) — or on a switch away (WorkspaceManager) —
+    // the visible tabs are recorded as the workspace's restorable last session when they differ from its
+    // default; on the next open a toast offers to swap them in. Programmatic teardown suppresses the capture.
+    private bool _suppressSessionCapture;
+
+    /// <summary>Records the focused (or given) window's tab layout on this workspace as its restorable last
+    /// session — or clears it when the layout matches the default (there's nothing worth restoring).</summary>
+    internal void CaptureLastSession(IWindowHost? host = null)
+    {
+        // A standby window was never shown to anyone: its tabs and placement are no session of theirs.
+        var target = host ?? FocusedWindow;
+        if (target is null || _workspace.IsStandby) return;
+
+        var ws = _workspace.Workspace;
+
+        // Where the window was meant to be is kept whatever the tab setting below: reopening there is not an offer.
+        if (target.IntendedPlacement is { } placement) ws.LastWindowPlacement = placement;
+
+        // A workspace that never offers a restore records no tabs — and drops any recorded before the setting
+        // was turned on, so the offer can't reappear from stale data.
+        if (ws.SuppressSessionRestore)
+            ws.LastSessionTabs = null;
+        else
+        {
+            var layout = target.CaptureTabLayout();
+            ws.LastSessionTabs = layout.Count > 0 && !TabsetsEquivalent(layout, ws.DefaultTabs)
+                ? layout.ToList()
+                : null;
+        }
+        _savedWorkspaces.SaveWorkspaces();
+    }
+
+    /// <summary>Once the default tabs are up, offers a one-click restore of the recorded last session.</summary>
+    private void OfferSessionRestore()
+    {
+        if (_workspace.Workspace.SuppressSessionRestore) return;
+        if (_workspace.Workspace.LastSessionTabs is not { Count: > 0 } session) return;
+
+        // Transient: a passing offer, not a message worth keeping. Once it scrolls past it's meaningless,
+        // so it toasts but never lands in the inbox (clicking Restore dismisses the toast via the toast
+        // runner). 3s visible, then the shared 2s fade-out.
+        var restore = new RelayCommand(() => RestoreSession(session));
+        var note = new NotificationItem
+        {
+        Workspace     = _workspace.Workspace,
+            Title         = Str.Get("Shell.Notifications.RestoreTitle"),
+            Body          = Str.Get("Shell.Notifications.RestoreBody"),
+            Severity      = MessageSeverity.Info,
+            Transient     = true,
+            ToastDuration = TimeSpan.FromSeconds(3),
+            Actions       = [new MessageAction(Str.Get("Shell.Notifications.Restore"), restore, IsPrimary: true)],
+        };
+        _notify(note);
+    }
+
+    private void RestoreSession(IReadOnlyList<DefaultTabDescriptor> session)
+    {
+        CloseAllTabs();
+        RestoreTabLayout(session);
+        _workspace.Workspace.LastSessionTabs = null;   // consumed — don't offer it again
+        _savedWorkspaces.SaveWorkspaces();
+    }
+
+    /// <summary>Order-independent (per pane) equality of two tabsets by pane + kind + params (ignores the
+    /// display Title and which tab was active — a different active tab isn't a different session).</summary>
+    private static bool TabsetsEquivalent(IReadOnlyList<DefaultTabDescriptor> a, IReadOnlyList<DefaultTabDescriptor> b)
+    {
+        if (a.Count != b.Count) return false;
+        static string Key(DefaultTabDescriptor d)
+        {
+            var p = d.PageParams is null || d.PageParams.Count == 0
+                ? ""
+                : string.Join(";", d.PageParams.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"));
+            return $"{d.Pane}{d.PageKind}{p}";
+        }
+        return a.Select(Key).OrderBy(s => s).SequenceEqual(b.Select(Key).OrderBy(s => s));
+    }
+
+    public void CloseTab(Page tab)
+    {
+        if (!_tabToWindow.TryGetValue(tab, out var host)) return;
+        tab.RaiseClosed();
+        _tabToWindow.Remove(tab);
+        host.RemoveTab(tab);
+        DisposePage(tab);
+    }
+
+    /// <summary>Lets go of a closed page's view; the page has already disposed its view-model as it closed.</summary>
+    private void DisposePage(Page tab) => _views.Release(tab);
+
+    /// <summary>
+    /// Closes every tab across all of this workspace's windows (windows stay open). Used when the
+    /// workspace is reconfigured for a new workspace — open pages captured the now-replaced services.
+    /// </summary>
+    internal void CloseAllTabs()
+    {
+        foreach (var tab in _tabToWindow.Keys.ToList())
+            CloseTab(tab);
+    }
+
+    /// <summary>
+    /// Closes every window in this workspace, recording no session: the runtime is being replaced or its workspace deleted. Used by
+    /// <see cref="WorkspaceRuntimes.Restart"/> after a fresh replacement window is already showing, and by
+    /// <see cref="WorkspaceRuntimes.Close"/>.
+    /// </summary>
+    internal void CloseAllWindows()
+    {
+        _suppressSessionCapture = true;   // rebuild/delete teardown — not a user closing the workspace
+        foreach (var host in _windows.ToList())
+            host.Close();
+    }
+
+    // ── File watching ──────────────────────────────────────────────────────
+    // Features call WatchFile instead of creating their own FileChangeWatcher, so dispatcher
+    // marshalling, per-path dedup and teardown live here rather than leaking into each feature.
+
+    public IFileWatch WatchFile(string path, Action onChanged) => _folders.WatchFile(this, _workspace.Vfs, path, onChanged);
+
+    public IDisposable WatchFolder(string path, Action<FolderChange> onChanged) => _folders.WatchFolder(this, path, onChanged);
+
+    public Task RunOnUiAsync(Action action) => _ui.RunAsync(action);
+
+    public Task<T> RunOnUiAsync<T>(Func<Task<T>> action) => _ui.RunAsync(action);
+
+    public IUiTimer CreateUiTimer(TimeSpan interval, Action tick, UiTimerPriority priority = UiTimerPriority.Background) =>
+        _ui.CreateTimer(interval, tick, priority, once: false);
+
+        public IUiTimer CreateUiDelay(TimeSpan delay, Action elapsed, UiTimerPriority priority = UiTimerPriority.Background) =>
+            _ui.CreateTimer(delay, elapsed, priority, once: true);
+
+        public IShellClipboard Clipboard { get; }
+
+    public Page? FindTab(string pageKind, Dictionary<string, string>? pageParams = null)
+        => FindTabCore(pageKind, pageParams);
+
+    // Post to the global MessageCenter — the focused window toasts it (errors) or it lands in the
+    // shared inbox (notifications). See MessageCenter / ShellViewModel.
+    public void ShowError(string message) =>
+        _notify(new NotificationItem
+        {
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.ErrorTitle"), Body = message, Severity = MessageSeverity.Error, ShowToast = true,
+        });
+
+    public void ShowNotification(string message) =>
+        _notify(new NotificationItem
+        {
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info,
+        });
+
+    public void ShowNotification(string message, Page tab) =>
+        _notify(new NotificationItem
+        {
+            Workspace = _workspace.Workspace, Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info, ShowToast = true,
+            Actions = [new MessageAction(Str.Get("Shell.Notifications.Open"), new RelayCommand(() => ActivateTab(tab)), IsPrimary: true)],
+        });
+
+    /// <summary>Brings the window owning <paramref name="tab"/> to the front and selects it.</summary>
+    private void ActivateTab(Page tab)
+    {
+        var host = _windows.FirstOrDefault(w => w.Tabs.Contains(tab)) ?? _focused ?? _windows.FirstOrDefault();
+        if (host is null) return;
+        host.SetActiveTab(tab);
+        host.Activate();
+    }
+
+    public void InsertChatInput(string text)
+        => (_focused ?? _windows.FirstOrDefault())?.InsertChatInput(text);
+
+    public void SubmitAiQuery(string query)
+        => (_focused ?? _windows.FirstOrDefault())?.SubmitAiQuery(query);
+
+    /// <summary>
+    /// Picks up work the assistant set going in the background that has ended, where it was asked for: when
+    /// <paramref name="context"/> is the active page of the window the user last used, that window runs a turn on it and this
+    /// returns true. The user anywhere else — on another tab, or one the work itself opened — returns false, and nothing runs.
+    /// </summary>
+    internal Task<bool> ContinueWhereTheUserIsAsync(IPageViewModel context, string about, string outcome) => RunOnUiAsync(() =>
+    {
+        if ((_focused ?? _windows.FirstOrDefault()) is not { } window || !ReferenceEquals(window.ActiveTab?.ViewModel, context))
+            return Task.FromResult(false);
+
+        _ = window.ContinueAfterBackgroundJobAsync(context, about, outcome);
+        return Task.FromResult(true);
+    });
+
+    // ── Cross-window tab operations ───────────────────────────────────────
+
+    public void TearOffTab(Page tab)
+    {
+        if (!_tabToWindow.TryGetValue(tab, out var sourceHost)) return;
+        _tabToWindow.Remove(tab);
+        sourceHost.RemoveTab(tab);
+
+        if (CreateWindowFactory is null) return;
+
+        
+
+        // Factory creates a new empty window and registers it with ShellServices
+        var newHost = CreateWindowFactory();
+        _tabToWindow[tab] = newHost;
+        newHost.AddTab(tab);
+
+        newHost.ShowAtPointer();
+    }
+
+    /// <summary>
+    /// Spawns a fresh shell window and opens a single tab in it for the given page kind.
+    /// Used by the ribbon's "Open in new Window" context-menu action.
+    /// </summary>
+    public void OpenPageInNewWindow(string pageKind, Dictionary<string, string>? pageParams = null)
+    {
+        var newHost = CreateAndShowNewWindow();
+        if (newHost is null) return;
+        // SetFocused fires via Activated event before we hit OpenTab; the open lands in the new window.
+        OpenTab(pageKind, pageParams);
+    }
+
+    /// <summary>
+    /// Creates and shows a new shell window, making it the focused window.
+    /// Returns null if no factory is registered.
+    /// </summary>
+    internal IWindowHost? CreateAndShowNewWindow()
+    {
+        if (CreateWindowFactory is null) return null;
+        var newHost = CreateWindowFactory();
+        newHost.Show();
+        return newHost;
+    }
+
+    internal void MoveTab(Page tab, IWindowHost targetHost)
+    {
+        if (!_tabToWindow.TryGetValue(tab, out var sourceHost)) return;
+        if (sourceHost == targetHost) { targetHost.SetActiveTab(tab); return; }
+        MoveTabCore(tab, sourceHost, targetHost);
+    }
+
+    private void MoveTabCore(Page tab, IWindowHost source, IWindowHost target)
+    {
+        _tabToWindow[tab] = target;
+        source.RemoveTab(tab);
+        target.AddTab(tab);
+    }
+
+    // ── Tab creation ──────────────────────────────────────────────────────
+
+    public IReadOnlyList<Page> GetContextItemPages()
+        => _features.GetContextItemPages(_workspace);
+
+    /// <summary>
+    /// The workspace's open tabs in window → pane → strip order. Reads the windows rather than
+    /// <c>_tabToWindow</c>: the dictionary is unordered, and a menu built from it would shuffle between
+    /// opens.
+    /// </summary>
+    public IReadOnlyList<Page> GetOpenTabs()
+    {
+        var tabs = new List<Page>();
+        foreach (var host in _windows)
+            tabs.AddRange(host.Tabs);
+        return tabs;
+    }
+
+    public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets()
+    {
+        var targets = new List<QuickOpenTarget>();
+        var seen    = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Default-openable pages first, so a page wins a label clash with a ribbon shortcut.
+        foreach (var page in _features.GetRibbonCatalogPages(_workspace))
+        {
+            if (page.PageKind is not { } kind || !seen.Add(page.Title)) continue;
+            var pageParams = page.PageParams;
+            targets.Add(new QuickOpenTarget(page.Title, () => OpenTab(kind, pageParams)));
+        }
+
+        // Then the focused window's ribbon buttons (the ribbon is per-window shell chrome).
+        foreach (var target in FocusedWindow?.GetRibbonQuickOpenTargets() ?? [])
+            if (seen.Add(target.Label)) targets.Add(target);
+
+        return targets;
+    }
+
+    private Page? CreateTab(string pageKind, Dictionary<string, string>? pageParams)
+    {
+        if (_features.IsRegistered(pageKind))
+            return _features.CreateTab(pageKind, _workspace, pageParams);
+
+        return MakePlaceholderTab(pageKind, "📄");
+    }
+
+    /// <summary>
+    /// A tab for a page kind no loaded feature advertises. It names the missing kind rather than rendering as
+    /// empty chrome: an absent feature and a broken one look identical otherwise, and the empty tab reads as
+    /// the feature's own bug.
+    /// </summary>
+    private static Page MakePlaceholderTab(string title, string icon) => new()
+    {
+        Title       = title,
+        Icon        = icon,
+        PageKind    = title,
+        Breadcrumbs = {new BreadcrumbSegment { Label = title }},
+        ViewModelFactory = () => new PlaceholderViewModel(
+            Str.Format("Shell.Placeholder.MissingFeatureFormat", title),
+            Str.Get("Shell.Placeholder.MissingFeatureDetail"))
+    };
+
+    // ── Matching helpers ──────────────────────────────────────────────────
+
+    private Page? FindTabCore(string pageKind, Dictionary<string, string>? pageParams)
+    {
+        foreach (var tab in _tabToWindow.Keys)
+        {
+            if (!string.Equals(tab.PageKind, pageKind, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!ParamsCompatible(tab.PageParams, pageParams, tab.LocationParams))
+                continue;
+            return tab;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// A tab with null/empty PageParams is a type-identity tab (matches any request for that
+    /// PageKind). A tab with params is a document-identity tab — every <em>identity</em> entry in its
+    /// PageParams must be present and equal in the requested params.
+    /// <para>
+    /// <paramref name="locationParams"/> names the keys the page kind declared non-identity
+    /// (<see cref="PageParameter.Identity"/>): where the tab is looking inside the document, not which
+    /// document it is. Those are skipped, so re-opening the same file at a different byte offset finds
+    /// the open tab and re-points it. Anything undeclared stays identity, so a page kind that declares
+    /// nothing matches exactly as before.
+    /// </para>
+    /// </summary>
+    private static bool ParamsCompatible(
+        Dictionary<string, string>? tabParams,
+        Dictionary<string, string>? requested,
+        IReadOnlySet<string>? locationParams)
+    {
+        if (tabParams is null || tabParams.Count == 0) return true;
+        foreach (var kv in tabParams)
+        {
+            if (locationParams?.Contains(kv.Key) == true) continue;   // location, not identity
+            if (requested is null ||
+                !requested.TryGetValue(kv.Key, out var v) ||
+                !string.Equals(v, kv.Value, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+        // Every param was a location one: nothing identifies this tab, so it is a type-identity tab.
+        return true;
+    }
+
+    /// <summary>
+    /// Records where a re-pointed tab is now looking. Only the location params can differ (the identity
+    /// ones matched to get here), so only those are carried over — leaving a page kind with none of them
+    /// byte-for-byte as before, and a type-identity tab (null params) still one. The dictionary is
+    /// replaced rather than mutated: a tab shares its instance with whoever opened it.
+    /// </summary>
+    private static void UpdateLocationParams(Page tab, Dictionary<string, string>? requested)
+    {
+        if (tab.LocationParams is not { Count: > 0 } keys || tab.PageParams is not { } tabParams) return;
+
+        var merged = new Dictionary<string, string>(tabParams);
+        foreach (var key in keys)
+        {
+            if (requested is not null && requested.TryGetValue(key, out var v)) merged[key] = v;
+            else merged.Remove(key);
+        }
+        tab.PageParams = merged;
+    }
+
+    // ── Shell-level overlays (routed to the focused window) ──────────────────
+
+    void IShellServices.ShowPrompt(string title, string label, string initialValue,
+                                   Action<string> onConfirm, Action onCancel)
+        => (_focused ?? _windows.FirstOrDefault())
+            ?.ShowPrompt(title, label, initialValue, onConfirm, onCancel);
+
+    void IShellServices.ShowConfirmation(string title, string message,
+                                         Action onConfirm, Action onCancel)
+        => (_focused ?? _windows.FirstOrDefault())
+            ?.ShowConfirmation(title, message, onConfirm, onCancel);
+
+    public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default)
+        => ConfirmAsync(title, message, confirmLabel: null, cancelLabel: null, ct);
+
+    public Task<bool> ConfirmAsync(string title, string message, string? confirmLabel, string? cancelLabel,
+                                   CancellationToken ct = default)
+    {
+        var dispatcher = _ui;
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => ConfirmAsync(title, message, confirmLabel, cancelLabel, ct));
+
+        var host = _focused ?? _windows.FirstOrDefault();
+        if (host is null) return Task.FromResult(false);
+
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ct.Register(() => tcs.TrySetResult(false));
+        host.ShowConfirmation(title, message,
+            onConfirm: () => tcs.TrySetResult(true),
+            onCancel:  () => tcs.TrySetResult(false),
+            confirmLabel: confirmLabel, cancelLabel: cancelLabel);
+        return tcs.Task;
+    }
+
+    /// <summary>
+    /// Snapshot of each open window in this workspace and its open tabs, taken on the UI thread so the
+    /// (thread-affine) <see cref="Window.Title"/> is safe to read. Used to describe the shell to the AI.
+    /// </summary>
+    public IReadOnlyList<(string Title, IReadOnlyList<(string Title, string? PageKind)> Tabs)> GetWindowsWithTabs()
+    {
+        var dispatcher = _ui;
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(GetWindowsWithTabs);
+
+        var result = new List<(string, IReadOnlyList<(string, string?)>)>(_windows.Count);
+        var n = 1;
+        foreach (var host in _windows)
+        {
+            var title = string.IsNullOrWhiteSpace(host.Title) ? $"Window {n}" : host.Title;
+            var tabs  = host.Tabs.Select(t => (t.Title, t.PageKind)).ToList();
+            result.Add((title, tabs));
+            n++;
+        }
+        return result;
+    }
+
+    // ── File pickers (reuse the shell's themed picker windows) ───────────────
+
+    public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions = null,
+                                           string? initialPath = null)
+    {
+        var dispatcher = _ui;
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => PickOpenFileAsync(extensions, initialPath));
+
+        return Task.FromResult(_pickers.PickOpenFile(FocusedWindow, _workspace, extensions, initialPath));
+    }
+
+    public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions = null,
+                                                          string? initialPath = null)
+    {
+        var dispatcher = _ui;
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => PickOpenFilesAsync(extensions, initialPath));
+
+        return Task.FromResult(_pickers.PickOpenFiles(FocusedWindow, _workspace, extensions, initialPath));
+    }
+
+    public Task<string?> PickFolderAsync(string? initialPath = null)
+    {
+        var dispatcher = _ui;
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => PickFolderAsync(initialPath));
+
+        return Task.FromResult(_pickers.PickFolder(FocusedWindow, _workspace, initialPath));
+    }
+
+    public Task<string?> PickSaveFileAsync(string defaultFileName,
+                                           IReadOnlyList<string>? extensions = null,
+                                           string? initialPath = null,
+                                           long bytes = 0)
+        => PickSaveFileAsync(defaultFileName, [.. (extensions ?? []).Select(ext => new SaveFileType(ext, ext))], initialPath, bytes);
+
+    public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<SaveFileType> types,
+                                           string? initialPath = null, long bytes = 0)
+    {
+        var dispatcher = _ui;
+        if (dispatcher is not null && !dispatcher.IsCurrent)
+            return dispatcher.Run(() => PickSaveFileAsync(defaultFileName, types, initialPath, bytes));
+
+        return Task.FromResult(_pickers.PickSaveFile(FocusedWindow, _workspace, defaultFileName, types, initialPath, bytes));
+    }
+
+    // Refreshes the focused window's active page by re-initialising it with its current params.
+    // Reinitialize is the established refresh idiom (tab (re)activation calls it too); for the file
+    // browser it re-enumerates the current folder. Actions that mutate the file system from a
+    // shell-level overlay — rename / delete — call this from their confirm callback.
+    void IShellServices.RequestRefresh()
+    {
+        _ui.Run(() =>
+        {
+            // The page the user is looking at: each pane of a split window has an active page of its own.
+            var active = FocusedWindow?.ActiveTab;
+            active?.Reinitialize(active.PageParams ?? []);
+        });
+    }
+
+    // ── Folder-busy tracking (long mutations run off the UI thread) ─────────────
+
+    public event Action? FolderBusyChanged;
+
+    IDisposable IShellServices.MarkFolderBusy(string folderPath, string message)
+        => _folders.Busy.Mark(folderPath, message);
+
+    string? IShellServices.GetFolderBusyMessage(string folderPath)
+        => _folders.Busy.MessageFor(folderPath);
+
+    void IShellServices.MoveFolderInBackground(string sourcePath, string destinationPath, string busyMessage,
+                                               Action<bool>? onComplete)
+    {
+        // Mark the source folder + both parents busy so any file browser on them shows the wait panel and
+        // refreshes when the move clears (disposing the handles below raises FolderBusyChanged).
+        var handles = new[] { sourcePath, ParentOf(sourcePath), ParentOf(destinationPath) }
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(p => _folders.Busy.Mark(p!, busyMessage))
+            .ToList();
+
+        QueueBackgroundTask(
+            new MoveFolderTask(sourcePath, destinationPath, busyMessage),
+            ok =>
+            {
+                foreach (var h in handles) h.Dispose();
+                onComplete?.Invoke(ok);
+            });
+    }
+
+    private static string? ParentOf(string path)
+    {
+        try { return System.IO.Path.GetDirectoryName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)); }
+        catch { return null; }
+    }
+
+    /// <summary>Adapts <see cref="Nexaflow.IO.Common.DirectoryMover"/> as a queued background task.</summary>
+    private sealed class MoveFolderTask(string source, string dest, string description) : IBackgroundTask
+    {
+        public string Description => description;
+        public Task RunAsync(CancellationToken ct) => Nexaflow.IO.Common.DirectoryMover.MoveAsync(source, dest, ct);
+    }
+
+    void IShellServices.SaveFeatureConfig(IFeatureConfig config)
+    {
+        // Workspace-scoped configs are persisted per-workspace under Contexts\<name>\ (the same place the
+        // Configure panel loads them from); global feature configs go in the shared config root. Routing
+        // a scoped config through the global Save would write where nothing reads it back.
+        if (_features.Configs.IsWorkspaceScoped(config.GetType()))
+            _savedWorkspaces.SaveWorkspaceScopedConfig(_workspace.Workspace, config);
+        else
+            _config.Save(config, config.ConfigName);
+    }
+
+    void IShellServices.OpenOptions(string configName)
+        => _ui.Run(() =>
+        {
+            (_focused ?? _windows.FirstOrDefault())?.OpenOptionsAt(configName);
+        });
+
+    void IShellServices.OpenWorkspaceConfig(string configName)
+        => _ui.Run(() =>
+        {
+            // Deep-link the Configure overlay to this workspace, on the named section.
+            (_focused ?? _windows.FirstOrDefault())?.OpenConfigureAt(_workspace.Workspace, configName);
+        });
+
+    void IShellServices.ShowOverlay(object overlayViewModel)
+        => _ui.Run(() =>
+        {
+            (_focused ?? _windows.FirstOrDefault())?.ShowOverlay(overlayViewModel);
+        });
+
+    void IShellServices.CloseOverlay()
+        => _ui.Run(() =>
+        {
+            (_focused ?? _windows.FirstOrDefault())?.CloseOverlay();
+        });
+
+    void IShellServices.PinToRibbon(string kind, object payload)
+        => (_focused ?? _windows.FirstOrDefault())
+            ?.AddRibbonPin(new RibbonPinRequest(new DragPayload((kind, payload))));
+
+    public bool HandleObject(object obj)
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+
+        foreach (var type in DiscoverImplementations<IGenericObjectHandler>())
+        {
+            // Instances are cached per (type, workspace) and ctor-injected with this
+            // workspace's shell/ai/configs — same path as feature tab creation.
+            if (_features.Injector.Instantiate(type, _workspace) is IGenericObjectHandler handler
+                && handler.CanHandleObject(obj))
+            {
+                handler.Handle(obj);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Opens <paramref name="path"/>, handed to the app from outside it (Explorer's "Open in Nexaflow"), the way a
+    /// double-click in the file explorer does: a folder in an explorer tab, a file by its default action. The window it
+    /// opens in is restored first when minimised, so the item is seen; a path nothing can open is reported there
+    /// instead. False when it was not opened.
+    /// </summary>
+    internal bool OpenFromOutside(string path)
+    {
+        FocusedWindow?.Restore();
+
+        if (HandleObject(path)) return true;
+
+        ShowError(Str.Format("Shell.OpenFromOutside.CannotOpenFormat", path));
+        FocusedWindow?.Activate();
+        return false;
+    }
+
+    // Index-backed (FeatureCatalog): returns every implementation regardless of whether the owning feature
+    // assembly has been warmed up yet — resolving each one loads + activates its assembly on demand. This is
+    // what keeps the first FileSystem page's action set complete before the background warm-up finishes.
+    public IEnumerable<Type> DiscoverImplementations<TInterface>()
+        => _features.Catalog.TypesImplementing<TInterface>();
+
+    // Cached probe, not a fresh one: features call this on the UI thread just before using a component, and
+    // the registry owns both the probing and the "not probed yet" answer.
+    public Nexaflow.Features.Common.Dependencies.ExternalDependencyStatus GetDependencyStatus(string id)
+        => _dependencies.StatusOf(id);
+
+    // Selection lives here rather than in the caller so the shell — which owns the instances' lifetime —
+    // also owns deciding which one applies. Instances are cached per (type, workspace) and ctor-injected with
+    // this workspace's shell/ai/configs, the same path as feature tab creation, and are released by
+    // the runtime's FeatureScope. A CanExtract that throws disqualifies that extractor rather than
+    // failing the lookup: one broken feature must not make every file unsearchable.
+    public IFileTextExtractor? GetFileTextExtractor(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+
+        foreach (var type in DiscoverImplementations<IFileTextExtractor>())
+        {
+            if (_features.Injector.Instantiate(type, _workspace) is not IFileTextExtractor extractor)
+                continue;
+            try { if (extractor.CanExtract(path)) return extractor; }
+            catch { }
+        }
+        return null;
+    }
+
+    // ── Window positioning (tearoff) ──────────────────────────────────────
+}

@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Images.Details;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using SkiaSharp;
 using System.IO;
 using System.Threading;

@@ -300,7 +300,7 @@
                 </ListBox>
             </Border>
 
-            <!-- Right: custom control (when section has [CustomControl]) or property grid -->
+            <!-- Right: the config's own page (where a view draws it) or property grid -->
             <Grid Grid.Column="1">
                 <!-- Custom control mode -->
                 <local:OptionsSectionHost AutomationProperties.AutomationId="Options_CustomSection"

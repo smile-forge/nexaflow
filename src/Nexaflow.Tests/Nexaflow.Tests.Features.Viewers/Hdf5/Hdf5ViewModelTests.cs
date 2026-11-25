@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Nexaflow.Features.Hdf5.ViewModels;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using static Nexaflow.Tests.Features.Hdf5.Hdf5Harness;
 
 namespace Nexaflow.Tests.Features.Hdf5;

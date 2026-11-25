@@ -4,15 +4,14 @@ using Nexaflow.AiHost.Catalog;
 using Nexaflow.AiHost.Client;
 using Nexaflow.AiHost.Contracts;
 using Nexaflow.AiHost.Provisioning;
-using Nexaflow.Core.AI;
+
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.LocalAi;
 
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Local;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 
 namespace Nexaflow.Core.ViewModels;

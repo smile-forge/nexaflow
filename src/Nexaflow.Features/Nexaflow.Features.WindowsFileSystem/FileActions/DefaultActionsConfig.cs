@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Controls;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
@@ -10,7 +10,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 /// extension it wins over <see cref="Services.DefaultFileOpener"/>'s automatic internal-vs-shell resolution.
 /// Global config (one instance per process), edited from the Default Actions Options tab.
 /// </summary>
-[CustomControl(typeof(DefaultActionsEditorControl))]
+
 public sealed class DefaultActionsConfig : IFeatureConfig
 {
     public string ConfigName   => "defaultactions";

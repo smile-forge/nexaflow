@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 using Nexaflow.Features.WindowsRegistry.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry.ViewModels;
 

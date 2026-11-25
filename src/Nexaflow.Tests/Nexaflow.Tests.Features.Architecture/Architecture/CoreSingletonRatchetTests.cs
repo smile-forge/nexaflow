@@ -13,8 +13,9 @@ namespace Nexaflow.Tests.Features.Architecture;
 /// that happens, and that a test can only reach by resetting it — the opposite. This is the count of those left to hand over
 /// to the host, and what stops it growing.
 /// <para>
-/// <b>A ratchet, like <see cref="ViewModelWpfRatchetTests"/>.</b> The files under <c>src/Nexaflow.Core</c> and the
-/// <c>src/Nexaflow.IO.*</c> libraries that declare a static <c>Instance</c> are listed in <see cref="BaselineFile"/>, one
+/// <b>A ratchet, like <see cref="ViewModelWpfRatchetTests"/>.</b> The files under the shell's projects — <c>src/Nexaflow.Core</c>,
+/// <c>.Session</c>, <c>.Assistant</c>, <c>.Host</c> — and the <c>src/Nexaflow.IO.*</c> libraries that declare a static
+/// <c>Instance</c> are listed in <see cref="BaselineFile"/>, one
 /// repo-relative path per line: a new one fails, and a listed one that no longer declares it fails until its line is
 /// deleted, so the list can only shrink.
 /// </para>
@@ -82,7 +83,8 @@ public class CoreSingletonRatchetTests
     {
         var found = new Dictionary<string, int>(StringComparer.Ordinal);
         var src = Path.Combine(Root, "src");
-        var roots = Directory.EnumerateDirectories(src, "Nexaflow.IO.*").Prepend(Path.Combine(src, "Nexaflow.Core"));
+        var roots = Directory.EnumerateDirectories(src, "Nexaflow.IO.*")
+            .Concat(new[] { "Nexaflow.Core", "Nexaflow.Session", "Nexaflow.Assistant", "Nexaflow.Host" }.Select(project => Path.Combine(src, project)));
 
         foreach (var file in roots.SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)))
         {

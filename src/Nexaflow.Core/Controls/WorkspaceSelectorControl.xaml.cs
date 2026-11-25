@@ -1,5 +1,5 @@
 using Nexaflow.Core.Models;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
