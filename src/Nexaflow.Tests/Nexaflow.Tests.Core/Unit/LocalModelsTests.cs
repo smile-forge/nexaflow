@@ -22,7 +22,6 @@ using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Local;
 using Nexaflow.AiHost.Catalog;
 
-
 namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>

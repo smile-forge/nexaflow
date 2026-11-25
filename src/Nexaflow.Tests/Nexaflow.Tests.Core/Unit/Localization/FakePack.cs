@@ -1,7 +1,6 @@
 using System.IO;
 using System.Text;
 
-
 namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>An in-memory language pack: logical name → content.</summary>

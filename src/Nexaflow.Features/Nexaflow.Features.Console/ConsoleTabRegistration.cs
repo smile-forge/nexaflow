@@ -6,7 +6,6 @@ using Nexaflow.Localization;
 using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.Shells;
 
-
 namespace Nexaflow.Features.Console;
 
 /// <summary>

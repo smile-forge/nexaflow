@@ -1,6 +1,5 @@
 using System;
 
-
 namespace Nexaflow.Localization.Formatting;
 
 /// <summary>Formats a past instant the way a chat log wants it: relative while it's still today

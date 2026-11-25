@@ -5,7 +5,6 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Nexaflow.Icons;
 
-
 namespace Nexaflow.Session.Services;
 
 ///<summary>

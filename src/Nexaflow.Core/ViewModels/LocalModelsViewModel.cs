@@ -6,7 +6,6 @@ using CommunityToolkit.Mvvm.Input;
 
 using Nexaflow.Core.Models;
 
-
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Local;

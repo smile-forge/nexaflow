@@ -2,7 +2,6 @@ using System;
 using System.Text;
 using Nexaflow.Markdown.Ast;
 
-
 namespace Nexaflow.Markdown.Prose;
 
 /// <summary>

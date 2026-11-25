@@ -2,7 +2,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Localization;
 
-
 namespace Nexaflow.Session;
 
 public enum ThemeOption { Dark, Light, Flowers, Sunny, Ocean, Nature, Sandstone, Gothic, Arctic, Desert }

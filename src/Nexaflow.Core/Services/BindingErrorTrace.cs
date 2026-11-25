@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Windows;
 using Microsoft.Extensions.Logging;
 
-
 namespace Nexaflow.Core.Services;
 
 /// <summary>

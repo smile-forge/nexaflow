@@ -19,7 +19,6 @@ using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Viewing;
 using Microsoft.Extensions.Logging;
 
-
 namespace Nexaflow.Core;
 
 public partial class MainWindow : Window

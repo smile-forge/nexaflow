@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 
-
 namespace Nexaflow.Session.Services;
 
 /// <summary>

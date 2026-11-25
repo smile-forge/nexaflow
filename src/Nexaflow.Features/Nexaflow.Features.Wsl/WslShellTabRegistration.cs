@@ -4,7 +4,6 @@ using Nexaflow.IO.Common;
 using Nexaflow.Localization;
 using Nexaflow.Visuals.Terminal.Shells;
 
-
 namespace Nexaflow.Features.Wsl;
 
 /// <summary>

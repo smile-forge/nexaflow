@@ -4,7 +4,6 @@ using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Localization;
 
-
 namespace Nexaflow.Session.Help;
 
 /// <summary>

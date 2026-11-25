@@ -1,6 +1,5 @@
 using System;
 
-
 namespace Nexaflow.Localization.Formatting;
 
 /// <summary>Formats time spans as compact human strings (e.g. <c>3d 2h 15m</c>).</summary>
