@@ -2,7 +2,7 @@ using Microsoft.Win32;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;

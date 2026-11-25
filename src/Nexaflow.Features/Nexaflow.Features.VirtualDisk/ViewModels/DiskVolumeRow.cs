@@ -1,6 +1,6 @@
 using Nexaflow.Features.VirtualDisk.Models;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.ViewModels;
 

@@ -14,7 +14,7 @@ using Nexaflow.IO.Network.Guard;
 using Nexaflow.IO.Network.Model;
 using Nexaflow.IO.Network.Probes;
 using Nexaflow.Plugins;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Network.ViewModels;
 

@@ -10,7 +10,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Serial.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Hardware;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Serial.ViewModels;
 

@@ -3,7 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Hdf5.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Hdf5;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Hdf5;
 

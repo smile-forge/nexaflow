@@ -15,11 +15,12 @@ using Nexaflow.Visuals.Common.Theming;
 using System;
 using Nexaflow.Markdown.Packaging;
 using System.Globalization;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Ast;
 using System.Collections.ObjectModel;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.IO.Documents;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 

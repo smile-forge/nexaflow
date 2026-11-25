@@ -14,7 +14,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common;
 using Nexaflow.Interaction;
 

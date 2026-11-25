@@ -2,8 +2,8 @@ using System.ComponentModel;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common.Cloud;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Shell;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;

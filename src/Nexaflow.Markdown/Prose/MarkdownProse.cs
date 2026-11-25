@@ -1,9 +1,9 @@
 using System;
 using System.Text;
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Markdown.Prose;
 
-namespace Nexaflow.Visuals.Text.Markdown;
+
+namespace Nexaflow.Markdown.Prose;
 
 /// <summary>
 /// The words of markdown's prose, read off the reading rather than laid out — so cheap enough to read a reply again at every

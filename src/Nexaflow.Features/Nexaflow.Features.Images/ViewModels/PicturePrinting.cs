@@ -9,7 +9,7 @@ using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.Services.Printing;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.ViewModels;

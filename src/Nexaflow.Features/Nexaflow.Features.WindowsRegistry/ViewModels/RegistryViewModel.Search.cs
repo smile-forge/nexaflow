@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Search;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry.ViewModels;
 

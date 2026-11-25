@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.FileActions;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Pdf;

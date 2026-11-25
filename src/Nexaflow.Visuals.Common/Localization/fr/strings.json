@@ -36,22 +36,7 @@
   "Common.Confirm.Confirm": "Confirmer",
   "Common.Confirm.Cancel": "Annuler",
 
-  "Common.Duration.DaysHoursMinutes": "{0} j {1} h {2} min",
-  "Common.Duration.HoursMinutes": "{0} h {1} min",
-  "Common.Duration.Minutes": "{0} min",
 
-  "Common.Eta.UnderAMinute": "moins d'une minute",
-  "Common.Eta.AboutAMinute": "environ une minute",
-  "Common.Eta.AboutMinutes": "environ {0} minutes",
-  "Common.Eta.AboutAnHour": "environ une heure",
-  "Common.Eta.AboutHours": "environ {0} heures",
-  "Common.Eta.OverADay": "plus d'un jour",
-
-  "Common.Time.JustNow": "à l'instant",
-  "Common.Time.MinuteAgo": "il y a {0} minute",
-  "Common.Time.MinutesAgo": "il y a {0} minutes",
-  "Common.Time.HourAgo": "il y a {0} heure",
-  "Common.Time.HoursAgo": "il y a {0} heures",
 
   "Common.Swatch.Blue": "Bleu",
   "Common.Swatch.Cyan": "Cyan",

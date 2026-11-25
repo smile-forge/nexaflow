@@ -4,7 +4,7 @@ using Nexaflow.Features.Network.ViewModels;
 using Nexaflow.IO.Network.Actions;
 using Nexaflow.IO.Network.Probes;
 using Nexaflow.Plugins;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Network;
 

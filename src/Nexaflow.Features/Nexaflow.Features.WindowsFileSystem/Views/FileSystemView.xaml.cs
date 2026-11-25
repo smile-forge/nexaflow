@@ -19,7 +19,7 @@ using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Features.WindowsFileSystem;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Visuals.Common.Behaviors;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Icons;
 using Nexaflow.Visuals.Icons;
 using Nexaflow.Interaction;

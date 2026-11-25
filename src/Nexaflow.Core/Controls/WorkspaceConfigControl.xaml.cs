@@ -3,7 +3,7 @@ using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Core.Views;
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;

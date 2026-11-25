@@ -8,8 +8,9 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Documents.Processing;
 using Nexaflow.Providers.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.IO.Documents;
 
 namespace Nexaflow.Core.Services.Documents;
 

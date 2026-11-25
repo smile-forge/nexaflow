@@ -10,8 +10,8 @@ using Nexaflow.Features.Images.Editing.Layers;
 using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Features.Images.Editing.Wpf;
 using Nexaflow.Features.Images.Services;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.ViewModels;

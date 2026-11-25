@@ -8,7 +8,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

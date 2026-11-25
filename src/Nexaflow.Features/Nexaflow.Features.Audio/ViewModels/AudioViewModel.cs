@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -16,7 +16,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Features.Audio.Views;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.Audio.ViewModels;

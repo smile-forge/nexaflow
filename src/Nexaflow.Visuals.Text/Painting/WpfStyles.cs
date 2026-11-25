@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
 using Nexaflow.Visuals.Text.Markdown;

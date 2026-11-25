@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Core.Help;

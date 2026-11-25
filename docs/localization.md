@@ -55,8 +55,10 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
 - **Cost.** `{loc:Str}` resolves once, as the XAML loads: no `DynamicResource`, no binding. The first lookup reads
   every `strings.json` into one frozen table (logged as the startup milestone `Language.Strings`); every later lookup is
   a dictionary read.
-- **Features** reach `Str` through `Nexaflow.Visuals.Common`, which they already reference. Core sets `Str.Source`
-  at startup, the same shape as `TextTypography`, so nothing needs Core.
+- **`Str` lives in `Nexaflow.Localization`**, a WPF-free leaf, with the formatters that put a size, a duration or a time
+  into words (`Nexaflow.Localization.Formatting`). Anything that shows text references it: features and the visuals
+  through `Nexaflow.Visuals.Common`, headless code directly. The shell sets `Str.Source` at startup, so nothing needs
+  the shell. `{loc:Str}` is `Nexaflow.Visuals.Common`'s markup extension over it.
 - **A key is a literal inside the call** — `on ? Str.Get("A.On") : Str.Get("A.Off")`, never
   `Str.Get(on ? "A.On" : "A.Off")` or a computed key. The guard finds keys by reading `Str.Get("…")`,
   `Str.Format("…"`, `[ConfigDisplayName("…")]` and `{loc:Str …}`; a key it cannot read is a key it cannot check.

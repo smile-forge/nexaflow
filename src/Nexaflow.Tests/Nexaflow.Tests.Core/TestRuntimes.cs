@@ -51,6 +51,9 @@ internal static class TestRuntimes
     /// <summary>A logger in the suite's logs (<see cref="Logging"/>), for what a test builds that takes one.</summary>
     public static ILogger<T> LoggerFor<T>() => Logging.Factory.CreateLogger<T>();
 
+    /// <summary>The calling thread as the session's UI thread: what a test that builds session services on its own thread hands them.</summary>
+    public static IUiThread CurrentUi() => new WpfUiThread(Dispatcher.CurrentDispatcher);
+
     /// <summary>A configuration of its own under <paramref name="baseDir"/>, what stays on this machine alone kept beside it as
     /// <c>local</c> — for a test that reads what it registers or saves — its faults on record in <paramref name="faultLog"/>, or
     /// in the suite's logs.</summary>
@@ -71,7 +74,7 @@ internal static class TestRuntimes
             Config, new ShellConfig(), new SecurityConfig(),
             Providers, savedWorkspaces ?? SavedListOf(), Features, tasks, notify, VirtualFileSystem.Instance, locations,
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
-            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(),
+            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(), new WpfFilePickers(),
             dependencies, new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load, LoggerFor<LanguageManager>()),
             PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), HelpTools: [], Logs: Logging.Factory));
     }
@@ -112,7 +115,7 @@ internal static class TestRuntimes
     private static readonly Lazy<FeatureManager> _features = new(() =>
     {
         var features = new FeatureManager(new FeatureCatalog(Config.BaseDir, LoggerFor<FeatureCatalog>()), Config,
-                                          new WpfUiThread(Dispatcher.CurrentDispatcher), new LocationProviderRegistry(), Logging.Factory);
+                                          new WpfUiThread(Dispatcher.CurrentDispatcher), new WpfThemeHost(), new LocationProviderRegistry(), Logging.Factory);
         features.ProvideTool(new HelpLibrary(new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load,
                                                                  LoggerFor<LanguageManager>())));
         return features;

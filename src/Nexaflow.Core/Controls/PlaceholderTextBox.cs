@@ -5,7 +5,7 @@ using System.Windows.Media;
 using Nexaflow.Features.Common;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Core.Services;
 using Nexaflow.Interaction;
 

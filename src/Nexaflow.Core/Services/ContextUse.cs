@@ -1,5 +1,5 @@
 using System.Windows;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services;
 

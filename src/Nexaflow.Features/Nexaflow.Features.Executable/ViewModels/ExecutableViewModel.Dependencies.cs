@@ -12,7 +12,7 @@ using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Pe;
 using Nexaflow.Markdown.Binding;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 

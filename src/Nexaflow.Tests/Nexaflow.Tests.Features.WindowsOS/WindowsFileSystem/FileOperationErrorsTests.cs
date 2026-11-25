@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using Nexaflow.Features.WindowsFileSystem;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

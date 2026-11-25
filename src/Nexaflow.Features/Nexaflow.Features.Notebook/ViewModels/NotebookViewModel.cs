@@ -9,7 +9,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Notebook.Models;
 using Nexaflow.IO.Common;
 using Nexaflow.Syntax;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Notebook.ViewModels;
 

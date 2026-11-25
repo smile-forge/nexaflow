@@ -12,7 +12,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Editing;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;

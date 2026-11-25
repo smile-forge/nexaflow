@@ -1,10 +1,10 @@
 using System.Globalization;
 
-namespace Nexaflow.Visuals.Common.Localization;
+namespace Nexaflow.Localization;
 
 /// <summary>
 /// A UI string in the active language: <c>Str.Get("Help.Search.Placeholder")</c> in code,
-/// <c>{loc:Str Help.Search.Placeholder}</c> in XAML (<see cref="StrExtension"/>).
+/// <c>{loc:Str Help.Search.Placeholder}</c> in XAML (Nexaflow.Visuals.Common's <c>StrExtension</c>).
 /// <para>
 /// Keys are <c>&lt;Area&gt;.&lt;Surface&gt;.&lt;Element&gt;</c>, Area being the owning project's short name, and each
 /// project ships its English table as <c>Localization/en/strings.json</c> (docs/localization.md). A key the active
@@ -13,8 +13,8 @@ namespace Nexaflow.Visuals.Common.Localization;
 /// <para>
 /// A string is resolved once, where it is used. There is no live re-binding, so a language switch restarts the
 /// window the way a theme switch does, and the everyday single-language case pays for nothing but the lookup.
-/// <see cref="Source"/> is set once by the shell at startup — the same shape as <see cref="Theming.TextTypography"/> —
-/// so a feature can use this without referencing Core.
+/// <see cref="Source"/> is set once by the shell at startup, so anything that shows text can use this without referencing
+/// the shell.
 /// </para>
 /// </summary>
 public static class Str

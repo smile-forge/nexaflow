@@ -16,10 +16,10 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Controls;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 using Nexaflow.Visuals.Text.Editor.Commands;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Interaction;
 
 namespace Nexaflow.Visuals.Text.Editor;

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.ViewModels;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Providers.Common;
 using Nexaflow.Visuals.Text.Markdown;
 

@@ -7,7 +7,7 @@ using System.Windows.Media;
 using Nexaflow.Core.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Core.Unit;
 

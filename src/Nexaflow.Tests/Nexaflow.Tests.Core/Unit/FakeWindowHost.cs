@@ -8,7 +8,7 @@ namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>
 /// Minimal IWindowHost stub for ShellServices unit tests.
-/// Window returns null — tests must not exercise code paths that dereference it.
+/// Showing, closing and placing a window do nothing here.
 /// </summary>
 internal sealed class FakeWindowHost : IWindowHost
 {
@@ -20,7 +20,16 @@ internal sealed class FakeWindowHost : IWindowHost
     public IReadOnlyList<Nexaflow.Core.Models.DefaultTabDescriptor> Layout { get; set; } = [];
     public IReadOnlyList<Nexaflow.Core.Models.DefaultTabDescriptor> CaptureTabLayout() => Layout;
     public bool IsFocused { get; set; }
-    public Window Window => null!;
+    public string Title => "";
+    public void Show() { }
+    public void Close() { }
+    public void Activate() { }
+    public void Restore() { }
+    public void ShowAtPointer() { }
+    public void OpenOptionsAt(string configName) { }
+    public void OpenConfigureAt(Workspace? workspace, string configName) { }
+    public void ShowOverlay(object overlayViewModel) { }
+    public void CloseOverlay() { }
 
     public WindowPlacement? IntendedPlacement { get; set; }
     public void OpenAt(WindowPlacement placement) => IntendedPlacement = placement;

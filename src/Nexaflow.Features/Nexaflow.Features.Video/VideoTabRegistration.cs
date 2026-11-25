@@ -3,7 +3,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Video.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Video;
 

@@ -4,7 +4,7 @@ using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.AiHost;
 using Nexaflow.Providers.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services.Tools;
 

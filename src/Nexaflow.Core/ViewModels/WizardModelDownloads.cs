@@ -11,8 +11,8 @@ using Nexaflow.Core.Services.LocalAi;
 
 using Nexaflow.Providers.Common;
 using Nexaflow.Providers.Local;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 
 namespace Nexaflow.Core.ViewModels;

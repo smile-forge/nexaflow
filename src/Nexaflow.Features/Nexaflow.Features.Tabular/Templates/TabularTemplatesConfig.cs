@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Tabular.Controls;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Tabular.Templates;
 

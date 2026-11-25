@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsSearch.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsSearch;
 

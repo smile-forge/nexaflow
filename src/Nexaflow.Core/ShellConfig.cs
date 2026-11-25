@@ -1,6 +1,6 @@
 using Nexaflow.Core.Controls;
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core;

@@ -12,7 +12,7 @@ using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
 using Nexaflow.Features.WindowsApps.Models;
 using Nexaflow.Features.WindowsApps.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common;
 
 namespace Nexaflow.Features.WindowsApps.ViewModels;

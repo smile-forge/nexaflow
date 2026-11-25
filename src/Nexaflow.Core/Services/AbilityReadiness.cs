@@ -3,8 +3,8 @@ using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Features.Common;
 
 using Nexaflow.Providers.Common;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services;
 

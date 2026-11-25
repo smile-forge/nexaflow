@@ -13,8 +13,8 @@ using Nexaflow.Features.Email.Services;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Markdown.Rtf;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Features.Email.ViewModels;

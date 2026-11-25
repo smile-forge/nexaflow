@@ -8,7 +8,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using System.Collections.Generic;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Features.WindowsFileSystem.Services;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;

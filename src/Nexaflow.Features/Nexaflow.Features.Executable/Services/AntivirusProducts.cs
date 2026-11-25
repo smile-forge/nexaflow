@@ -1,6 +1,6 @@
 using System.Management;
 using System.Runtime.Versioning;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Executable.Services;
 

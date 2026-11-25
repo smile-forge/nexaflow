@@ -1,5 +1,5 @@
 using Nexaflow.Features.Images.Editing.Layers;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Images.ViewModels;
 

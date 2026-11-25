@@ -3,7 +3,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.ViewModels;
 using Nexaflow.Services.Initiatives.Product.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.ProductManager;
 

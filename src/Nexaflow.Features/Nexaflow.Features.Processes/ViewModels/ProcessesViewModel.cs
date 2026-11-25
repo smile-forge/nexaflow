@@ -7,7 +7,7 @@ using Nexaflow.Features.Processes.ClientTools;
 using Nexaflow.Features.Processes.Models;
 using Nexaflow.Visuals.Common.Converters;
 using Nexaflow.Features.Processes.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Processes.ViewModels;

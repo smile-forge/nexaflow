@@ -15,7 +15,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Providers.AiHost;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.IO;
 
 namespace Nexaflow.Core.Services;
@@ -31,6 +31,8 @@ internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool
 /// <summary>What the UI toolkit the shell runs on gives the session: the pieces only it can make.</summary>
 /// <param name="Ui">The thread the windows run on.</param>
 /// <param name="Clipboard">The system clipboard.</param>
+/// <param name="Pickers">The shell's file and folder pickers.</param>
+/// <param name="Themes">Folds the features' theme contributions into the theme applied.</param>
 /// <param name="FolderWatchers">Makes the folder watcher, which owns a window of the toolkit's.</param>
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
@@ -40,9 +42,11 @@ internal sealed record ShellHostOptions(AppDataFolders Folders, bool Reset, bool
 internal sealed record ShellPlatform(
     IUiThread Ui,
     IShellClipboard Clipboard,
-    Func<ShellFolderWatcher> FolderWatchers,
+    IFilePickers Pickers,
+    IThemeHost Themes,
+    Func<IFolderWatcher> FolderWatchers,
     Action<ShellConfig> ApplyAppearance,
-    Func<FeatureCatalog, ExternalDependencyRegistry, Action, ShellLogging, PageViews> Views);
+    Func<FeatureCatalog, ExternalDependencyRegistry, Action, ShellLogging, IPageViews> Views);
 
 /// <summary>
 /// The shell session: everything that lives as long as the process — from login when the app starts with Windows, otherwise
@@ -76,7 +80,7 @@ internal sealed class ShellHost : IAsyncDisposable
     public IUiThread Ui { get; }
 
     /// <summary>The session's background tasks: what the activity ticker shows, wherever a piece of slow work was started.</summary>
-    public BackgroundActivityManager Activities { get; } = new();
+    public BackgroundActivityManager Activities { get; }
 
     /// <summary>The location backends — WSL, SFTP and the like — every feature's registered in as its assembly activates.</summary>
     public LocationProviderRegistry LocationProviders { get; } = new();
@@ -116,7 +120,7 @@ internal sealed class ShellHost : IAsyncDisposable
     public ExternalDependencyRegistry Dependencies { get; }
 
     /// <summary>The view each open page is drawn with, kept while its tab is open, in whichever window.</summary>
-    public PageViews Views { get; }
+    public IPageViews Views { get; }
 
     /// <summary>The feature catalogue: which feature type implements which contract, and the assemblies loaded as they are needed.</summary>
     public FeatureCatalog Catalog { get; }
@@ -143,6 +147,7 @@ internal sealed class ShellHost : IAsyncDisposable
         var logs = options.Logging.Factory;
         _log     = logs.CreateLogger<ShellHost>();
         Ui       = platform.Ui;
+        Activities = new BackgroundActivityManager(platform.Ui);
         Folders  = new FolderActivity(platform.Ui, platform.FolderWatchers);
         Inbox    = new MessageCenter(platform.Ui);
         Discovered = new DiscoveredLocations(LocationProviders);
@@ -274,7 +279,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // of StartBackground); activation registers that assembly's global configs, archive handlers /
         // codecs (into the VFS) and theme contributions (folded below the theme applied in step 1), and runs the
         // feature's own setup for the session (IFeatureStartup) — the file system's file map and registries among them.
-        Features = new FeatureManager(Catalog, Config, platform.Ui, LocationProviders, logs);
+        Features = new FeatureManager(Catalog, Config, platform.Ui, platform.Themes, LocationProviders, logs);
 
         // The app-wide tools every workspace's features are given by their contract: the help pages, and the local tools above.
         Features.ProvideTool(help);
@@ -295,12 +300,12 @@ internal sealed class ShellHost : IAsyncDisposable
             Config, Shell, Security, Providers, SavedWorkspaces, Features, Activities, Inbox.Post, VirtualFileSystem.Instance,
             LocationProviders, Discovered,
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
-            platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard,
+            platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard, platform.Pickers,
             Dependencies, Language, Views, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools], logs));
         // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
                                            SavedWorkspaces.Workspaces.Contains, TimeProvider.System, logs.CreateLogger<WorkspaceRuntimes>());
-        Windows = new WindowServices(Config, Shell, Activities, Workspaces, Inbox, Dependencies, Language, Views, Features, Providers, SavedWorkspaces,
+        Windows = new WindowServices(Config, Shell, Activities, Workspaces, Inbox, Dependencies, Language, Features, Providers, SavedWorkspaces,
                                      updates, options.Logging);
         _log.StartupMilestone("Init.Workspaces");
 

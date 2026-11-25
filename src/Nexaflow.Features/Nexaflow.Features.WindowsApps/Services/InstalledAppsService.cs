@@ -1,5 +1,5 @@
 using Nexaflow.Features.WindowsApps.Models;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsApps.Services;
 

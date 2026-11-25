@@ -31,7 +31,7 @@ using Nexaflow.AiHost.Client;
 using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Core.Services.Tools;
 using Nexaflow.Providers.AiHost;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.AiHost.Catalog;
 using Nexaflow.IO.Common.Locations;
@@ -281,13 +281,13 @@ public partial class App : Application
     private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
         var host = new ShellHost(new ShellHostOptions(folders, _resetRequested, UiTest, _logging),
-                                 new ShellPlatform(ui, new ShellClipboard(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
-                                                                     PageViews.FromCatalog),
+                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
+                                                                     (catalog, dependencies, showComponents, logging) => _pageViews = PageViews.FromCatalog(catalog, dependencies, showComponents, logging)),
                                                    _updates);
         _host = host;
 
         // The window a runtime opens into for a tear-off, a "new window" or a workspace rebuild: the session cannot name MainWindow.
-        host.Workspaces.WindowFactory = ws => new MainWindow(host.Windows, ws, openDefaultTabs: false).ViewModel;
+        host.Workspaces.WindowFactory = ws => new MainWindow(host.Windows, _pageViews!, ws, openDefaultTabs: false).ViewModel;
 
         // The app ends with its last window — unless it stays resident, or an update is ending it once its installer runs, which
         // ending here would cut short.
@@ -314,6 +314,9 @@ public partial class App : Application
 
     /// <summary>The session this process runs: open from the start-up on, ended in <see cref="OnExit"/>.</summary>
     private static ShellHost? _host;
+
+    /// <summary>The views the session's pages are drawn with, made for it as it opens and handed to every window.</summary>
+    private static PageViews? _pageViews;
     /// <summary>The app's sweep of its own drafts, at start and daily while it runs.</summary>
     private DraftSweeping? _draftSweeping;
 
@@ -511,7 +514,7 @@ public partial class App : Application
 
     /// <summary>A runtime's first window, unshown: opening <paramref name="openPath"/>, or the workspace's tabs.</summary>
     private static MainWindow BuildFirstWindow(BackgroundActivityManager activityManager, WorkspaceRuntime ws, string? openPath)
-        => new(_host!.Windows, ws, openPath: openPath);
+        => new(_host!.Windows, _pageViews!, ws, openPath: openPath);
 
     /// <summary>
     /// What follows a launch's window drawing: models load ahead only then, so none of their loading competes with it, and a

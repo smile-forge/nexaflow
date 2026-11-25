@@ -3,7 +3,7 @@ using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Core.AI;
 using Nexaflow.Core.Models;
 using Nexaflow.Providers.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services.LocalAi;
 

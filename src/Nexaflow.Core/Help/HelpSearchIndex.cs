@@ -1,5 +1,5 @@
 using Nexaflow.Features.Common.Search;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Help;
 

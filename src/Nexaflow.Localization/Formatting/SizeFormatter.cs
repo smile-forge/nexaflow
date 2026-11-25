@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Common.Formatting;
+namespace Nexaflow.Localization.Formatting;
 
 /// <summary>
 /// Formats byte counts as compact human-readable sizes (e.g. <c>1.4 MB</c>). The shared home for the

@@ -1,5 +1,5 @@
 using Nexaflow.Features.WindowsFileSystem.FileActions;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.Generic;
 using System.Linq;
 

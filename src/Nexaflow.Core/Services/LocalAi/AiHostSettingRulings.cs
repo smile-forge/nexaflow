@@ -1,5 +1,5 @@
 using Nexaflow.AiHost.Contracts;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services.LocalAi;
 

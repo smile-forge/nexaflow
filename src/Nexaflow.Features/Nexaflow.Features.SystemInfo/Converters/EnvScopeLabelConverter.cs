@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 using Nexaflow.Features.SystemInfo.Models;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.SystemInfo.Converters;
 

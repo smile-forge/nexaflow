@@ -11,7 +11,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 using WorkspaceRuntime = Nexaflow.Core.Models.WorkspaceRuntime;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
 using Nexaflow.Interaction;
@@ -36,7 +36,7 @@ public partial class MainWindow : Window
 
     public ShellViewModel ViewModel => _vm;
 
-    public MainWindow(WindowServices session, WorkspaceRuntime workspace, bool openDefaultTabs = true, string? openPath = null)
+    public MainWindow(WindowServices session, PageViews views, WorkspaceRuntime workspace, bool openDefaultTabs = true, string? openPath = null)
     {
         var log = session.Logging.Factory.CreateLogger<MainWindow>();
         log.StartupMilestone("MainWindow.ctor enter");
@@ -44,9 +44,9 @@ public partial class MainWindow : Window
         log.StartupMilestone("MainWindow.InitializeComponent");
 
         // Everything in the window draws a model with the app's views: a page's preview, a folder viewlet.
-        ViewRegistry.SetRegistry(this, session.Views.Registry);
+        ViewRegistry.SetRegistry(this, views.Registry);
 
-        _vm = new ShellViewModel(session, workspace)
+        _vm = new ShellViewModel(session, views, workspace)
         {
             Window    = this,
             Placement = _placement,

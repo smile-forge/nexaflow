@@ -11,7 +11,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsRegistry.ClientTools;
 using Nexaflow.Features.WindowsRegistry.Services;
 using Nexaflow.Visuals.Common.Dialogs;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry.ViewModels;
 

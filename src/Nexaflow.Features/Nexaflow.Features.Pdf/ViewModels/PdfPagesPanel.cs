@@ -9,7 +9,7 @@ using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Editing;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Visuals.Common.Behaviors;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Pdf.ViewModels;

@@ -402,6 +402,9 @@
   <Project Path="src/Nexaflow.Icons/Nexaflow.Icons.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="src/Nexaflow.Localization/Nexaflow.Localization.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="src/Nexaflow.Interaction/Nexaflow.Interaction.csproj">
           <Platform Project="x64" />
         </Project>

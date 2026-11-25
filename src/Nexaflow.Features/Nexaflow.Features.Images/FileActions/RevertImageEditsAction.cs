@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Icons;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;

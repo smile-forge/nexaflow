@@ -9,7 +9,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 

@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common;
 
-namespace Nexaflow.Visuals.Text.Markdown;
+namespace Nexaflow.IO.Documents;
 
 /// <summary>
 /// What a Markdown document is wherever it is kept: a Markdown file, or a Markdown Package (<see cref="MarkdownPackage"/>)

@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Visuals.Common.Dropping;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Visuals.Stores;
 

@@ -10,7 +10,7 @@ using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Selection;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Interaction;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Theming;
 using SkiaSharp;
 using System;

@@ -8,7 +8,7 @@ using Nexaflow.Core.Services.LocalAi;
 using Nexaflow.Core.Services.Tools;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 

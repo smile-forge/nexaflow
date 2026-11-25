@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common.ClientTools;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 using System.Text;
 using Nexaflow.Features.Common;

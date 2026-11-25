@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Dotnet.Models;
 using Nexaflow.IO.Common.Locations;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Dotnet.Services;
 

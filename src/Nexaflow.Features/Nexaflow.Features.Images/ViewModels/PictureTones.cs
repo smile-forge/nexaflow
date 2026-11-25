@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Wpf;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Windows.Media.Imaging;
 
 namespace Nexaflow.Features.Images.ViewModels;

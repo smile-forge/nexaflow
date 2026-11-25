@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Tabular.Templates;
 

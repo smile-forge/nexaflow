@@ -15,7 +15,7 @@ namespace Nexaflow.Core.Services;
 public sealed class FolderActivity : IDisposable
 {
     private readonly IUiThread _ui;
-    private readonly Func<ShellFolderWatcher> _newFolderWatcher;
+    private readonly Func<IFolderWatcher> _newFolderWatcher;
 
     /// <summary>Each file watched, with whoever follows it.</summary>
     private readonly Dictionary<WatchKey, WatchGroup> _groups = new(new WatchKeyComparer());
@@ -24,11 +24,11 @@ public sealed class FolderActivity : IDisposable
     private readonly Dictionary<object, List<IDisposable>> _byOwner = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Made on the first folder watched: it owns a window on the UI thread.</summary>
-    private ShellFolderWatcher? _folderWatcher;
+    private IFolderWatcher? _folderWatcher;
 
     /// <param name="ui">Where a change is told.</param>
     /// <param name="newFolderWatcher">Makes the folder watcher, the first time a folder is watched.</param>
-    internal FolderActivity(IUiThread ui, Func<ShellFolderWatcher> newFolderWatcher)
+    internal FolderActivity(IUiThread ui, Func<IFolderWatcher> newFolderWatcher)
     {
         _ui               = ui;
         _newFolderWatcher = newFolderWatcher;

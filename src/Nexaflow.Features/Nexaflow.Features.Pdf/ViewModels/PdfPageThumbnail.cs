@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Editing;
 using System.Windows.Media;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Pdf.ViewModels;
 

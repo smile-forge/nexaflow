@@ -12,7 +12,7 @@ using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using System.Threading.Tasks;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Tests.Features.Infrastructure;
 using Nexaflow.Icons;
 using Nexaflow.Features.Common.Ribbon;

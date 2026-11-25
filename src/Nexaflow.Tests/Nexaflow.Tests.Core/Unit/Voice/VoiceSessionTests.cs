@@ -3,7 +3,7 @@ using Nexaflow.Core.Services.Voice;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Core.Unit.Voice;
 

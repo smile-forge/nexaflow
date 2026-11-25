@@ -10,7 +10,7 @@ using Nexaflow.Icons;
 using Nexaflow.IO.Common.Audio;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Tools;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common;
 using Nexaflow.Media.Audio;
 

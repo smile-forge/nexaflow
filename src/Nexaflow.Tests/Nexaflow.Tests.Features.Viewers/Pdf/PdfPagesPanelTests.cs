@@ -8,7 +8,7 @@ using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Behaviors;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Pdf;

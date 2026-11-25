@@ -6,7 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Nexaflow.Visuals.Common.Theming;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.ComponentModel;
 using Nexaflow.Core.Services.Logging;
 

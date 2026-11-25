@@ -3,7 +3,7 @@ using System.IO;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.ProductManager.Graph.Loaders;
 using Nexaflow.Features.ProductManager.Graph.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.ProductManager.Graph;
 

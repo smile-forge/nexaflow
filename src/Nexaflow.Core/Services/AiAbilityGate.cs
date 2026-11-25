@@ -1,7 +1,7 @@
-using System.Windows.Threading;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -12,7 +12,8 @@ namespace Nexaflow.Core.Services;
 internal sealed partial class AiAbilityGate : ObservableObject, IAiAbilityGate
 {
     private readonly IAIService _ai;
-    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    /// <summary>The thread that made the gate, which its bindings read it on; null when that thread has none to post to.</summary>
+    private readonly SynchronizationContext? _home = SynchronizationContext.Current;
 
     public AiAbilityGate(IAIService ai, IReadOnlyList<AiAbility> abilities)
     {
@@ -37,8 +38,8 @@ internal sealed partial class AiAbilityGate : ObservableObject, IAiAbilityGate
 
     private void OnAbilitiesChanged(object? sender, EventArgs e)
     {
-        if (_ui.CheckAccess()) Refresh();
-        else _ui.InvokeAsync(Refresh);
+        if (_home is null || SynchronizationContext.Current == _home) Refresh();
+        else _home.Post(_ => Refresh(), null);
     }
 
     private void Refresh() => IsEnabled = Abilities.All(a => _ai.StatusOf(a).IsUsable);

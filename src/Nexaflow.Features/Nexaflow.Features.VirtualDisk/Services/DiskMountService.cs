@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.VirtualDisk.Services;
 

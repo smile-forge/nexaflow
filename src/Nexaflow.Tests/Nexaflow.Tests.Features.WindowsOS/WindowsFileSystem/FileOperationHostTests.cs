@@ -13,7 +13,7 @@ using Nexaflow.Features.Compressed.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.Features.Common.Viewlets;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

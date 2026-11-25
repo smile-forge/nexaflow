@@ -15,11 +15,9 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Threading;
+
 using Nexaflow.Core.Localization;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Interaction;
 
@@ -50,11 +48,11 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// <summary>The third-party components the features declare, which a feature asks about before it uses one.</summary>
     private readonly ExternalDependencyRegistry _dependencies;
 
-    /// <summary>The UI language, selected again when a window restarts for a new one.</summary>
-    private readonly LanguageManager _language;
+    /// <summary>The shell's file and folder pickers, shown over the window asking.</summary>
+    private readonly IFilePickers _pickers;
 
     /// <summary>The view each open page is drawn with, let go when its tab closes.</summary>
-    private readonly PageViews _views;
+    private readonly IPageViews _views;
 
     /// <summary>The session's feature system: the pages this runtime opens, and the features it builds for them.</summary>
     private readonly FeatureManager _features;
@@ -75,7 +73,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         _folders      = session.Folders;
         _notify       = session.Notify;
         _dependencies = session.Dependencies;
-        _language     = session.Language;
+        _pickers      = session.Pickers;
         _views        = session.Views;
         _features     = session.Features;
         _savedWorkspaces = session.SavedWorkspaces;
@@ -236,30 +234,21 @@ public sealed class ShellServices : IShellServices, IDisposable
     }
 
     /// <summary>
-    /// Applies <paramref name="theme"/> and <paramref name="language"/>, then restarts <paramref name="current"/>
-    /// so they take effect, reopening its pane layout (both panes, each pane's active tab). Neither live-reflows an
-    /// open window — themes bind via StaticResource and UI strings resolve once as the XAML loads, both for
-    /// rendering performance — so changing either in Options rebuilds the window instead. The fresh window is
-    /// created and shown BEFORE the old one closes so the workspace is never left window-less (which would dispose
-    /// it); closing the old window first clears its tabs from the registry, so the restore below builds them fresh
-    /// rather than moving the old page objects across.
+    /// Replaces <paramref name="current"/> with a fresh window where it is meant to be, holding the same tabs in the same panes: how a
+    /// theme or a language, which no window re-reads once drawn, reaches a window already open. The caller has applied them.
     /// </summary>
-    internal void RestartWindowForAppearance(IWindowHost current, ThemeOption theme, string language)
+    internal void ReplaceWindow(IWindowHost current)
     {
         if (CreateWindowFactory is null) return;
 
         var layout = current.CaptureTabLayout();
 
-        if (theme != ThemeManager.Current)
-            ThemeManager.Apply(theme, _features.ThemeContributionUris);
-        _language.Select(language);
-
         // Fresh window, opened where the old one is meant to be, then close the old one.
         var fresh = CreateWindowFactory();
         if (current.IntendedPlacement is { } placement) fresh.OpenAt(placement);
-        fresh.Window.Show();
+        fresh.Show();
 
-        current.Window.Close();   // synchronously unregisters its tabs from _tabToWindow
+        current.Close();   // synchronously unregisters its tabs from _tabToWindow
 
         // The restore opens into the focused window — make certain that is the new one, then rebuild both panes
         // (a split with the help pane beside a page survives a theme or language change).
@@ -276,8 +265,6 @@ public sealed class ShellServices : IShellServices, IDisposable
     // ── Tab registry ──────────────────────────────────────────────────────
 
     private readonly Dictionary<Page, IWindowHost> _tabToWindow = [];
-
-    public IReadOnlyList<Window> OpenWindows => _windows.Select(w => w.Window).ToList();
 
     // ── IShellServices ────────────────────────────────────────────────────
 
@@ -539,7 +526,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     {
         _suppressSessionCapture = true;   // rebuild/delete teardown — not a user closing the workspace
         foreach (var host in _windows.ToList())
-            host.Window.Close();
+            host.Close();
     }
 
     // ── File watching ──────────────────────────────────────────────────────
@@ -592,7 +579,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         var host = _windows.FirstOrDefault(w => w.Tabs.Contains(tab)) ?? _focused ?? _windows.FirstOrDefault();
         if (host is null) return;
         host.SetActiveTab(tab);
-        try { host.Window.Activate(); } catch { /* window closing / not realised */ }
+        host.Activate();
     }
 
     public void InsertChatInput(string text)
@@ -625,15 +612,14 @@ public sealed class ShellServices : IShellServices, IDisposable
 
         if (CreateWindowFactory is null) return;
 
-        var (dropX, dropY, _, _, work) = WindowManager.GetCursorInfo();
+        
 
         // Factory creates a new empty window and registers it with ShellServices
         var newHost = CreateWindowFactory();
         _tabToWindow[tab] = newHost;
         newHost.AddTab(tab);
 
-        PositionWindow(newHost.Window, dropX, dropY, work);
-        newHost.Window.Show();
+        newHost.ShowAtPointer();
     }
 
     /// <summary>
@@ -656,7 +642,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     {
         if (CreateWindowFactory is null) return null;
         var newHost = CreateWindowFactory();
-        newHost.Window.Show();
+        newHost.Show();
         return newHost;
     }
 
@@ -848,7 +834,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         var n = 1;
         foreach (var host in _windows)
         {
-            var title = string.IsNullOrWhiteSpace(host.Window?.Title) ? $"Window {n}" : host.Window!.Title;
+            var title = string.IsNullOrWhiteSpace(host.Title) ? $"Window {n}" : host.Title;
             var tabs  = host.Tabs.Select(t => (t.Title, t.PageKind)).ToList();
             result.Add((title, tabs));
             n++;
@@ -865,8 +851,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         if (dispatcher is not null && !dispatcher.IsCurrent)
             return dispatcher.Run(() => PickOpenFileAsync(extensions, initialPath));
 
-        var owner = FocusedWindow?.Window;
-        return Task.FromResult(FileBrowserWindow.Show(initialPath, extensions, owner, _workspace));
+        return Task.FromResult(_pickers.PickOpenFile(FocusedWindow, _workspace, extensions, initialPath));
     }
 
     public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions = null,
@@ -876,8 +861,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         if (dispatcher is not null && !dispatcher.IsCurrent)
             return dispatcher.Run(() => PickOpenFilesAsync(extensions, initialPath));
 
-        var owner = FocusedWindow?.Window;
-        return Task.FromResult(FileBrowserWindow.ShowMany(initialPath, extensions, owner, _workspace));
+        return Task.FromResult(_pickers.PickOpenFiles(FocusedWindow, _workspace, extensions, initialPath));
     }
 
     public Task<string?> PickFolderAsync(string? initialPath = null)
@@ -886,7 +870,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         if (dispatcher is not null && !dispatcher.IsCurrent)
             return dispatcher.Run(() => PickFolderAsync(initialPath));
 
-        return Task.FromResult(FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window, _workspace));
+        return Task.FromResult(_pickers.PickFolder(FocusedWindow, _workspace, initialPath));
     }
 
     public Task<string?> PickSaveFileAsync(string defaultFileName,
@@ -902,8 +886,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         if (dispatcher is not null && !dispatcher.IsCurrent)
             return dispatcher.Run(() => PickSaveFileAsync(defaultFileName, types, initialPath, bytes));
 
-        return Task.FromResult(FileBrowserWindow.ShowSave(defaultFileName, types, initialPath, bytes,
-                                                          FocusedWindow?.Window, _workspace));
+        return Task.FromResult(_pickers.PickSaveFile(FocusedWindow, _workspace, defaultFileName, types, initialPath, bytes));
     }
 
     // Refreshes the focused window's active page by re-initialising it with its current params.
@@ -977,32 +960,26 @@ public sealed class ShellServices : IShellServices, IDisposable
     void IShellServices.OpenOptions(string configName)
         => _ui.Run(() =>
         {
-            // IWindowHost is implemented only by ShellViewModel; the feature reaches this via
-            // IShellServices, never IWindowHost itself.
-            if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
-                vm.OpenOptionsAt(configName);
+            (_focused ?? _windows.FirstOrDefault())?.OpenOptionsAt(configName);
         });
 
     void IShellServices.OpenWorkspaceConfig(string configName)
         => _ui.Run(() =>
         {
             // Deep-link the Configure overlay to this workspace, on the named section.
-            if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
-                vm.OpenConfigureAt(_workspace.Workspace, configName);
+            (_focused ?? _windows.FirstOrDefault())?.OpenConfigureAt(_workspace.Workspace, configName);
         });
 
     void IShellServices.ShowOverlay(object overlayViewModel)
         => _ui.Run(() =>
         {
-            if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
-                vm.ShowOverlay(overlayViewModel);
+            (_focused ?? _windows.FirstOrDefault())?.ShowOverlay(overlayViewModel);
         });
 
     void IShellServices.CloseOverlay()
         => _ui.Run(() =>
         {
-            if ((_focused ?? _windows.FirstOrDefault()) is ShellViewModel vm)
-                vm.CloseOverlay();
+            (_focused ?? _windows.FirstOrDefault())?.CloseOverlay();
         });
 
     void IShellServices.PinToRibbon(string kind, object payload)
@@ -1035,13 +1012,12 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// </summary>
     internal bool OpenFromOutside(string path)
     {
-        if (FocusedWindow?.Window is { WindowState: WindowState.Minimized } minimised)
-            SystemCommands.RestoreWindow(minimised);
+        FocusedWindow?.Restore();
 
         if (HandleObject(path)) return true;
 
         ShowError(Str.Format("Shell.OpenFromOutside.CannotOpenFormat", path));
-        try { FocusedWindow?.Window.Activate(); } catch { /* window closing / not realised */ }
+        FocusedWindow?.Activate();
         return false;
     }
 
@@ -1076,20 +1052,4 @@ public sealed class ShellServices : IShellServices, IDisposable
     }
 
     // ── Window positioning (tearoff) ──────────────────────────────────────
-
-    private static void PositionWindow(Window win, double dropX, double dropY, Rect work)
-    {
-        const double TopBarHeight           = 72;
-        const double TabBarHeight           = 38;
-        const double TabStripColumnFraction = 0.45;
-        const double TabStripInternalMargin = 8;
-        const double DefaultWindowWidth     = 1280;
-        const double DefaultWindowHeight    = 780;
-
-        double tabOffsetX = DefaultWindowWidth  * TabStripColumnFraction + TabStripInternalMargin;
-        double tabOffsetY = TopBarHeight + TabBarHeight / 2.0;
-
-        win.Left = Math.Max(work.Left, Math.Min(dropX - tabOffsetX, work.Right  - DefaultWindowWidth));
-        win.Top  = Math.Max(work.Top,  Math.Min(dropY - tabOffsetY, work.Bottom - DefaultWindowHeight));
-    }
 }

@@ -10,7 +10,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Providers.Common;
 using Nexaflow.Tests.Core.Unit.Voice;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Core.Unit.Generation;
 

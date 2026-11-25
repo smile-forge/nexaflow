@@ -5,7 +5,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Requirement;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;

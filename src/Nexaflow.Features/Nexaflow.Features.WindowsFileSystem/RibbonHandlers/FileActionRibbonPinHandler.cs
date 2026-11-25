@@ -7,7 +7,7 @@ using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 

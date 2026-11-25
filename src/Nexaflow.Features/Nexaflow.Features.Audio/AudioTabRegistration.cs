@@ -6,7 +6,7 @@ using Nexaflow.Features.Audio.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Audio;
 

@@ -15,7 +15,7 @@ using Nexaflow.Core.Services.LocalAi;
 
 using System.Text.Json.Nodes;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Local;
 using Nexaflow.AiHost.Catalog;

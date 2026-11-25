@@ -119,7 +119,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void ASlowCall_StartsAndTheRunMovesOn_ThenTheJobEnds_TellingTheUserAndTheRun() => OnUi(async () =>
     {
-        var tasks   = new BackgroundActivityManager();
+        var tasks   = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var told    = new List<NotificationItem>();
         var model   = new Model(DrawCall, "It is being drawn.");
         var (svc, ws) = Assistant(tasks, told, model);
@@ -148,7 +148,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void AJob_Stopped_EndsStopped_AndTheRunIsToldSo() => OnUi(async () =>
     {
-        var tasks   = new BackgroundActivityManager();
+        var tasks   = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var told    = new List<NotificationItem>();
         var (svc, _) = Assistant(tasks, told, new Model(DrawCall, "Drawing."));
         var drawing = new Drawing(tasks);
@@ -187,7 +187,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void WorkACallHandsOff_CarriesOnAsAJob_AndItsEndReachesTheUserAndTheRun() => OnUi(async () =>
     {
-        var tasks   = new BackgroundActivityManager();
+        var tasks   = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var told    = new List<NotificationItem>();
         var model   = new Model("```client_tool\n{\"tool\":\"run_command\",\"arguments\":{}}\n```", "It is installing.");
         var (svc, _) = Assistant(tasks, told, model);
@@ -253,7 +253,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void AClipTheUserAsksForFromAPicture_RunsAsTheWorkspacesJob_WithNothingAskedAndNoRunToTell() => OnUi(async () =>
     {
-        var tasks   = new BackgroundActivityManager();
+        var tasks   = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var told    = new List<NotificationItem>();
         var (svc, ws) = Assistant(tasks, told, new Model("unused"));
         var filming = new Filming();
@@ -280,7 +280,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void APictureTheUserSetsUp_IsDrawnAsTheWorkspacesJob_WithWhatTheyChose_AndSavedWhereTheyNamedIt() => OnUi(async () =>
     {
-        var tasks   = new BackgroundActivityManager();
+        var tasks   = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var (svc, _) = Assistant(tasks, [], new Model("unused"));
         var painting = new Painting();
         svc.Register("i1", painting);
@@ -321,7 +321,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void APictureWhoeverAskedTakesIn_IsHandedBackAsTheFileItWasSavedAs() => OnUi(async () =>
     {
-        var tasks   = new BackgroundActivityManager();
+        var tasks   = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var (svc, ws) = Assistant(tasks, [], new Model("unused"));
         svc.Register("i1", new Painting());
         var config = new AiConfig { Columns = [new ProviderModelPair { Id = "i1", ProviderName = "Painting", Model = "p", Kind = ModelKind.ImageGeneration }] };
@@ -348,7 +348,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void APictureOrAClip_IsNotOffered_WhereNoModelMakesIt_AndOneAskedForAnywayIsRefused()
     {
-        var (svc, _) = Assistant(new BackgroundActivityManager(), [], new Model("unused"));
+        var (svc, _) = Assistant(new BackgroundActivityManager(TestRuntimes.CurrentUi()), [], new Model("unused"));
 
         Assert.IsNull(svc.MakesPictures);
         Assert.IsNull(svc.MakesClips);
@@ -359,7 +359,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void WhereNoModelMakesAClipFromAPicture_NoneIsOffered_OrMade()
     {
-        var (svc, _) = Assistant(new BackgroundActivityManager(), [], new Model("unused"));
+        var (svc, _) = Assistant(new BackgroundActivityManager(TestRuntimes.CurrentUi()), [], new Model("unused"));
 
         Assert.AreEqual(0, svc.PictureClipLengths.Count);
         Assert.ThrowsExactly<InvalidOperationException>(() => svc.MakeClipFromPicture(new ClipFromPicture([1], "Waves.", 5, Portrait: false)));
@@ -368,7 +368,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void AWorkspacesJobs_StopWithIt_AndAWindowListsOnlyItsOwn() => OnUi(async () =>
     {
-        var tasks    = new BackgroundActivityManager();
+        var tasks    = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var told     = new List<NotificationItem>();
         var (mine, here)    = Assistant(tasks, told, new Model(DrawCall, "Drawing."));
         var (theirs, there) = Assistant(tasks, told, new Model(DrawCall, "Drawing."));
@@ -394,7 +394,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void TheModel_AsksHowItsJobsStand_AndIsShownWhatAFinishedOneMade_Once() => OnUi(async () =>
     {
-        var tasks   = new BackgroundActivityManager();
+        var tasks   = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var model   = new Model(DrawCall, "Drawing.", AskHowTheyStand, "At step 3.", AskHowTheyStand, "Done.", AskHowTheyStand, "Still done.");
         var (svc, _) = Assistant(tasks, [], model);
         var drawing = new Drawing(tasks);
@@ -421,7 +421,7 @@ public class BackgroundJobsTests
     [TestMethod]
     public void TheModel_StopsAJobTheUserNoLongerWants() => OnUi(async () =>
     {
-        var tasks   = new BackgroundActivityManager();
+        var tasks   = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var model   = new Model(DrawCall, "Drawing.", StopTheFirst, "Stopped it.");
         var (svc, _) = Assistant(tasks, [], model);
         var drawing = new Drawing(tasks);

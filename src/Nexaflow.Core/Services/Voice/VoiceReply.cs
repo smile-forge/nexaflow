@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common.Speech;
 using Nexaflow.Providers.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services.Voice;
 

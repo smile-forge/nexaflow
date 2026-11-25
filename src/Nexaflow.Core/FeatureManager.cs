@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
-using System.Windows.Threading;
+
 
 namespace Nexaflow.Core;
 
@@ -65,6 +65,9 @@ public sealed class FeatureManager
     private readonly object _themeLock = new();
     private readonly IUiThread _ui;
 
+    /// <summary>Folds the features' theme contributions into the theme the windows are drawn with.</summary>
+    private readonly IThemeHost _themes;
+
     /// <summary>The session's location backends, which every feature's are registered in.</summary>
     private readonly LocationProviderRegistry _locationProviders;
 
@@ -91,17 +94,19 @@ public sealed class FeatureManager
     /// <summary>
     /// The session's feature system over <paramref name="catalog"/>: builds the catalog's (cached) discovery index — no feature
     /// assemblies are loaded on the cache-hit path — and activates Core. A feature's global configs are registered in
-    /// <paramref name="config"/>, its theme is folded in on <paramref name="ui"/>, however its assembly came to load, and its
+    /// <paramref name="config"/>, its theme is folded in by <paramref name="themes"/> on <paramref name="ui"/>, however its assembly came
+    /// to load, and its
     /// location backends are registered in <paramref name="locationProviders"/>. A feature whose constructor asks for an
     /// <see cref="ILogger{T}"/> is given one made by <paramref name="logs"/>, the session's logs, which also hear of a feature's setup
     /// that failed.
     /// </summary>
-    public FeatureManager(FeatureCatalog catalog, ConfigManager config, IUiThread ui, LocationProviderRegistry locationProviders,
-                          ILoggerFactory logs)
+    public FeatureManager(FeatureCatalog catalog, ConfigManager config, IUiThread ui, IThemeHost themes,
+                          LocationProviderRegistry locationProviders, ILoggerFactory logs)
     {
         Catalog            = catalog;
         _config            = config;
         _ui                = ui;
+        _themes            = themes;
         _locationProviders = locationProviders;
         _logs              = logs;
         _log               = logs.CreateLogger<FeatureManager>();
@@ -248,7 +253,7 @@ public sealed class FeatureManager
             if (gen == _themeApplied) return;   // nothing new since the last merge
             uris = _themeContributionUris.ToArray();
         }
-        ThemeManager.Apply(ThemeManager.Current, uris);
+        _themes.ApplyContributions(uris);
         lock (_themeLock) _themeApplied = gen;
     }
 

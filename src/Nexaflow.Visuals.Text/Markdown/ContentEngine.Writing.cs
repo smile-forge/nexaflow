@@ -5,7 +5,7 @@ using System.Windows;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;

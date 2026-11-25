@@ -9,7 +9,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.SystemInfo.ClientTools;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Features.SystemInfo.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.SystemInfo.ViewModels;
 

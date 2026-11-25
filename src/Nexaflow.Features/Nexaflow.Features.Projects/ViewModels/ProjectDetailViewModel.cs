@@ -4,7 +4,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Projects.Model;
 using Nexaflow.Markdown.Editing;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 

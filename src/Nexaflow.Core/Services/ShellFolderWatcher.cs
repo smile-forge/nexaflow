@@ -13,7 +13,7 @@ namespace Nexaflow.Core.Services;
 /// state moves. One message-only window on the workspace's UI thread receives them; each folder is registered once, however
 /// many views watch it, and a burst of notifications reaches each view as one <see cref="FolderChange"/> a quiet moment later.
 /// </summary>
-internal sealed class ShellFolderWatcher : IDisposable
+internal sealed class ShellFolderWatcher : IFolderWatcher
 {
     private const int ChangeMessage = 0x8000 + 0x31;   // WM_APP + n, private to this window
     private const int Sources = 0x0001 | 0x0002 | 0x8000;   // SHCNRF_InterruptLevel | SHCNRF_ShellLevel | SHCNRF_NewDelivery

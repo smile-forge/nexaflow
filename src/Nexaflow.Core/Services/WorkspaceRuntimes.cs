@@ -146,7 +146,7 @@ public sealed class WorkspaceRuntimes : IDisposable
 
         var freshHost = WindowFactory(fresh);
         if (placement is not null) freshHost.OpenAt(placement);
-        freshHost.Window.Show();
+        freshHost.Show();
 
         // The old runtime is no longer the workspace's: its last window closing ends it.
         old.ShellServices.CloseAllWindows();

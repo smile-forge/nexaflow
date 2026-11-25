@@ -2,7 +2,7 @@ using System.IO;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core;
 

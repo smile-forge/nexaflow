@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Common.Localization;
+namespace Nexaflow.Localization;
 
 /// <summary>Where <see cref="Str"/> looks a key up — in the app, the shell's language manager.</summary>
 public interface ILocalizedStringSource

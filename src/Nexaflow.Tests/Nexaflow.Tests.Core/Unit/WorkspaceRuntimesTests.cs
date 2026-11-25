@@ -74,7 +74,7 @@ public class WorkspaceRuntimesTests
     [TestMethod]
     public async Task AWorkspaceWhoseWorkStillRuns_StaysActive_UntilTheWorkIsDone()
     {
-        var tasks     = new BackgroundActivityManager();
+        var tasks     = new BackgroundActivityManager(TestRuntimes.CurrentUi());
         var runtimes  = Runtimes(TestRuntimes.FactoryWith(tasks, _ => { }));
         var workspace = TestRuntimes.Saved(new Workspace { Name = "Home" });
         var runtime   = runtimes.Open(workspace);

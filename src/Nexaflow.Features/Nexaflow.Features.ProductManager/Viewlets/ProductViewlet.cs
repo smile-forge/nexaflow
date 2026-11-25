@@ -1,7 +1,7 @@
 using System.Windows;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.ProductManager.Viewlets;
 

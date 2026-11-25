@@ -1,5 +1,5 @@
 using LibGit2Sharp;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Git.Services;
 

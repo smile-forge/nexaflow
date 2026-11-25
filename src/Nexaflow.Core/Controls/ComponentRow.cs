@@ -1,6 +1,6 @@
 using System.Windows.Media;
 using Nexaflow.Features.Common.Dependencies;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Controls;
 

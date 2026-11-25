@@ -3,7 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using Nexaflow.Core.Services;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Microsoft.Extensions.Logging;
 using Nexaflow.Core.Services.Logging;
 

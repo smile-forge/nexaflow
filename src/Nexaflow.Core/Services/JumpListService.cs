@@ -2,7 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Shell;
 using System.Windows.Threading;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services;
 

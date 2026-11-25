@@ -11,7 +11,7 @@ using System.Collections.ObjectModel;
 using System.Data.OleDb;
 using System.Diagnostics;
 using System.Text.Json.Nodes;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsSearch.ViewModels;
 

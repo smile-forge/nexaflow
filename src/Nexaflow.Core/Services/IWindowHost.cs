@@ -1,7 +1,7 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
 using System.Collections.Generic;
-using System.Windows;
+
 
 namespace Nexaflow.Core.Services;
 
@@ -9,7 +9,7 @@ namespace Nexaflow.Core.Services;
 /// Represents a single shell window from the perspective of <see cref="ShellServices"/>.
 /// Implemented by <see cref="ViewModels.ShellViewModel"/>.
 /// </summary>
-internal interface IWindowHost
+public interface IWindowHost
 {
     IReadOnlyList<Page> Tabs { get; }
 
@@ -20,8 +20,36 @@ internal interface IWindowHost
 
     bool IsFocused { get; set; }
 
-    /// <summary>The underlying WPF window — used for point-in-window hit testing.</summary>
-    Window Window { get; }
+    /// <summary>The window's title, as the person sees it.</summary>
+    string Title { get; }
+
+    /// <summary>Shows the window.</summary>
+    void Show();
+
+    /// <summary>Closes the window; its tabs leave the runtime as it goes.</summary>
+    void Close();
+
+    /// <summary>Brings the window to the front and gives it focus.</summary>
+    void Activate();
+
+    /// <summary>Puts the window back where it was when it is minimised.</summary>
+    void Restore();
+
+    /// <summary>Shows the window under the pointer, placed so its tab strip is where the pointer is — where a torn-off tab lands.</summary>
+    void ShowAtPointer();
+
+    /// <summary>Opens Options in this window on the section of the config named <paramref name="configName"/>.</summary>
+    void OpenOptionsAt(string configName);
+
+    /// <summary>Opens the Configure overlay in this window for <paramref name="workspace"/> on the section named
+    /// <paramref name="configName"/>.</summary>
+    void OpenConfigureAt(Workspace? workspace, string configName);
+
+    /// <summary>Shows a feature's overlay over this window's pages.</summary>
+    void ShowOverlay(object overlayViewModel);
+
+    /// <summary>Closes the feature overlay this window shows.</summary>
+    void CloseOverlay();
 
     /// <summary>Where the user means this window to be — not where Windows moved it while a monitor was asleep or
     /// missing. Null until the window has been shown or opened at a placement.</summary>

@@ -1,5 +1,5 @@
 using System.IO;
-using System.Windows.Threading;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Features.Common;
 
@@ -92,7 +92,8 @@ internal sealed partial class DocumentWorkWatch : ObservableObject, IDocumentWor
 {
     private readonly DocumentWorkLedger _ledger;
     private readonly string _document;
-    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    /// <summary>The thread that made the watch, which its bindings read it on; null when that thread has none to post to.</summary>
+    private readonly SynchronizationContext? _home = SynchronizationContext.Current;
 
     public DocumentWorkWatch(DocumentWorkLedger ledger, string document)
     {
@@ -108,8 +109,8 @@ internal sealed partial class DocumentWorkWatch : ObservableObject, IDocumentWor
     {
         if (!document.Equals(_document, StringComparison.OrdinalIgnoreCase)) return;
 
-        if (_ui.CheckAccess()) Refresh();
-        else _ui.InvokeAsync(Refresh);
+        if (_home is null || SynchronizationContext.Current == _home) Refresh();
+        else _home.Post(_ => Refresh(), null);
     }
 
     private void Refresh() => Underway = _ledger.On(_document);

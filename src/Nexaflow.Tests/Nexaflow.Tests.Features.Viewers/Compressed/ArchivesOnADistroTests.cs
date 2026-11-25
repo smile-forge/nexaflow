@@ -12,6 +12,7 @@ using Nexaflow.IO.Location.Wsl;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using NSubstitute;
+using Nexaflow.IO.Documents;
 
 namespace Nexaflow.Tests.Features.Compressed;
 

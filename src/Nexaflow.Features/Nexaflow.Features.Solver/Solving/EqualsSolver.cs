@@ -1,5 +1,5 @@
 using AngouriMath;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Solver.Solving;
 

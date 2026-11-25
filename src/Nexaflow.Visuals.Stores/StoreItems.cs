@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Icons;
 using Nexaflow.IO.Common.Stores;
 using Nexaflow.Visuals.Common.Behaviors;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 
 namespace Nexaflow.Visuals.Stores;
 

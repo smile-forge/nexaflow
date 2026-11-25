@@ -1,7 +1,7 @@
 using Nexaflow.Core.Models;
 using Nexaflow.Providers.Common;
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
+
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 
 namespace Nexaflow.Core.Services;
@@ -11,7 +11,7 @@ namespace Nexaflow.Core.Services;
 /// <see cref="IBackgroundActivityManager"/> so providers can report activity
 /// without knowing about WPF.  Thread-safe: any thread can call
 /// <see cref="StartActivity"/>; all collection mutations are marshalled to
-/// the UI dispatcher.
+/// the UI thread.
 /// Starts with a blank idle placeholder, which <see cref="Controls.ActivityTicker"/> words as "Idle"; replaces it
 /// when work begins and restores it when all in-flight activities complete.
 /// </summary>
@@ -19,8 +19,8 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
 {
     public ObservableCollection<BackgroundTask> Tasks { get; } = [];
 
-    /// <summary>The app UI dispatcher, captured at construction (built on the UI thread by ShellHost).</summary>
-    private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
+    /// <summary>The thread the windows run on, where the list changes and its listeners hear of it.</summary>
+    private readonly IUiThread _ui;
 
     private int _activeCount;
     private BackgroundTask? _idlePlaceholder;
@@ -31,7 +31,12 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
     /// <summary>Fired (on the UI thread) whenever <see cref="IsActive"/> changes.</summary>
     public event EventHandler<bool>? IsActiveChanged;
 
-    public BackgroundActivityManager() => Dispatch(InsertIdlePlaceholder);
+    /// <param name="ui">The thread the windows run on: every change to <see cref="Tasks"/> is made there.</param>
+    public BackgroundActivityManager(IUiThread ui)
+    {
+        _ui = ui;
+        Dispatch(InsertIdlePlaceholder);
+    }
 
     // ── IBackgroundActivityManager ─────────────────────────────────────────
 
@@ -165,10 +170,7 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
 
     private void Dispatch(Action action)
     {
-        if (_ui.CheckAccess())
-            action();
-        else
-            _ui.Invoke(action);
+        _ui.Run(action);
     }
 
     // ── ActivityHandle ─────────────────────────────────────────────────────

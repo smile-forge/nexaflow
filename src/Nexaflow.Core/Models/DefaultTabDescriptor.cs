@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Models;
 

@@ -8,7 +8,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Pdf.Services;
 

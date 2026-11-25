@@ -8,7 +8,7 @@ using System.Windows.Media;
 using System.Windows.Navigation;
 using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Core.Controls;

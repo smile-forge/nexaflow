@@ -8,7 +8,7 @@ using Nexaflow.IO.Common.Stores;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Storage;
 using Nexaflow.IO.Usb.Tools;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Stores;
 
 namespace Nexaflow.Features.UsbProbe.StorageTools;

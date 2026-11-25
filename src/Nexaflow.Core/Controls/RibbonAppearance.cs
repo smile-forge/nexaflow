@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Core.Models;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core.Controls;

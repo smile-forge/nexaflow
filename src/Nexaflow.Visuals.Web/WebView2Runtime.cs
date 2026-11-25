@@ -1,5 +1,5 @@
 using Microsoft.Web.WebView2.Core;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Visuals.Web;
 

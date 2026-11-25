@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Words in the user's language, WPF-free: Str, which looks a UI string up in the active language, the source it looks in
+    (ILocalizedStringSource, which the shell's language manager is), and the formatters that put a size, a duration or a time
+    into words. It sits under everything that shows a person text, headless or drawn: the session, the assistant, every
+    feature. The XAML markup extension that reads Str ({loc:Str …}) is Nexaflow.Visuals.Common's.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
+  </ItemGroup>
+
+</Project>

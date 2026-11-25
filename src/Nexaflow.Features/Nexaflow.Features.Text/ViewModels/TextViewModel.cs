@@ -8,7 +8,7 @@ using Nexaflow.Search;
 using Nexaflow.Features.Text.ClientTools;
 using Nexaflow.Features.Text.Services;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 using Nexaflow.Visuals.Common.Controls;
 using System.Globalization;
 using System.IO;
@@ -16,7 +16,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using Nexaflow.Visuals.Common.Theming;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Interaction;
 

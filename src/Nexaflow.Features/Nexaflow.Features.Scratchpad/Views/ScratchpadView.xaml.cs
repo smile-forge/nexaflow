@@ -5,7 +5,7 @@ using Nexaflow.Features.Scratchpad.ViewModels;
 using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Layout;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;

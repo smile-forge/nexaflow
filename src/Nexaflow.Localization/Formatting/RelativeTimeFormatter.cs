@@ -1,7 +1,7 @@
 using System;
-using Nexaflow.Visuals.Common.Localization;
 
-namespace Nexaflow.Visuals.Common.Formatting;
+
+namespace Nexaflow.Localization.Formatting;
 
 /// <summary>Formats a past instant the way a chat log wants it: relative while it's still today
 /// (<c>just now</c>, <c>5 minutes ago</c>, <c>3 hours ago</c>), absolute once it isn't
@@ -18,16 +18,16 @@ public static class RelativeTimeFormatter
         var elapsed = now - when;
 
         // A clock skew (or a message stamped a moment in the future) is not worth a special case.
-        if (elapsed < TimeSpan.FromSeconds(60)) return Str.Get("Common.Time.JustNow");
+        if (elapsed < TimeSpan.FromSeconds(60)) return Str.Get("Localization.Time.JustNow");
 
         if (elapsed < TimeSpan.FromHours(1))
         {
             var mins = (int)elapsed.TotalMinutes;
-            return mins == 1 ? Str.Format("Common.Time.MinuteAgo", mins) : Str.Format("Common.Time.MinutesAgo", mins);
+            return mins == 1 ? Str.Format("Localization.Time.MinuteAgo", mins) : Str.Format("Localization.Time.MinutesAgo", mins);
         }
 
         var hours = (int)elapsed.TotalHours;
-        return hours == 1 ? Str.Format("Common.Time.HourAgo", hours) : Str.Format("Common.Time.HoursAgo", hours);
+        return hours == 1 ? Str.Format("Localization.Time.HourAgo", hours) : Str.Format("Localization.Time.HoursAgo", hours);
     }
 
     public static string Format(DateTime when) => Format(when, DateTime.Now);

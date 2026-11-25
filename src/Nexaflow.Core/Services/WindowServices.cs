@@ -12,7 +12,7 @@ namespace Nexaflow.Core.Services;
 /// <param name="Inbox">The session's inbox: the window shows every message in it and toasts the new ones.</param>
 /// <param name="Dependencies">The third-party components the features declare, which the window's About page lists.</param>
 /// <param name="Language">The UI language: the window's Options lists the installed ones, and restarts the window for a new one.</param>
-/// <param name="Views">The view each open page is drawn with, which the window's panes show.</param>
+
 /// <param name="Features">The feature system: the pages the window opens, the handlers its chat bar and ribbon offer, and what
 /// its Options and Configure panels list.</param>
 /// <param name="Providers">The provider pool: the AI host the window's AI line watches, and the providers and models on this
@@ -29,7 +29,7 @@ public sealed record WindowServices(
     MessageCenter Inbox,
     ExternalDependencyRegistry Dependencies,
     LanguageManager Language,
-    PageViews Views,
+
     FeatureManager Features,
     ProviderManager Providers,
     WorkspaceManager SavedWorkspaces,

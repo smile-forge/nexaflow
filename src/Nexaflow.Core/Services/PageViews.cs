@@ -23,7 +23,7 @@ namespace Nexaflow.Core.Services;
 /// <param name="registry">Finds the view that draws a page's view-model.</param>
 /// <param name="failedView">Draws a page that could not be made, with the exception that stopped it.</param>
 /// <param name="log">Where the exception that stopped a page is put on record, as a fault.</param>
-public sealed class PageViews(ViewRegistry registry, Func<Page, Exception?, FrameworkElement> failedView, ILogger<PageViews> log)
+public sealed class PageViews(ViewRegistry registry, Func<Page, Exception?, FrameworkElement> failedView, ILogger<PageViews> log) : IPageViews
 {
 
     /// <summary>

@@ -1,7 +1,7 @@
 using Nexaflow.Features.Scratchpad;
 
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Features.Scratchpad;
 

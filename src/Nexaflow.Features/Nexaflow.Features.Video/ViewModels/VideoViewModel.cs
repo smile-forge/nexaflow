@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -22,7 +22,7 @@ using Nexaflow.Features.Video.Interop;
 using Nexaflow.Features.Video.Models;
 using Nexaflow.Features.Video.Rendering;
 using VlcMediaPlayer = LibVLCSharp.MediaPlayer;   // disambiguate from System.Windows.Media.MediaPlayer
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Features.Video.Views;
 

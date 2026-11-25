@@ -3,7 +3,7 @@ using System.Linq;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 

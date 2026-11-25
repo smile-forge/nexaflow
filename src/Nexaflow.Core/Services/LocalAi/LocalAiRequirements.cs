@@ -6,8 +6,8 @@ using Nexaflow.Features.Common.Dependencies;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Hardware;
 using Nexaflow.Providers.Common;
-using Nexaflow.Visuals.Common.Formatting;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization.Formatting;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Services.LocalAi;
 

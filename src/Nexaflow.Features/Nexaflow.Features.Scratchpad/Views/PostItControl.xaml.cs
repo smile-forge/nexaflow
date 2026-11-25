@@ -13,7 +13,7 @@ using System.Windows.Media;
 using Nexaflow.Interaction;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Common.Dropping;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.Scratchpad.Views;
 

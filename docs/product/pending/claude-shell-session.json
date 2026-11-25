@@ -1,0 +1,77 @@
+{
+  "branch": "claude/shell-session",
+  "nodes": {
+    "languages-strings": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Localization/Str.cs",
+          "class": "Str"
+        }
+      ]
+    },
+    "aichat-rewind": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.AIChat/ViewModels/ConversationViewModel.cs",
+          "class": "ConversationViewModel",
+          "method": "RewindTo"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Localization/Formatting/RelativeTimeFormatter.cs",
+          "class": "RelativeTimeFormatter",
+          "method": "Format"
+        }
+      ]
+    },
+    "vcommon-formatters": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Localization/Formatting/SizeFormatter.cs",
+          "class": "SizeFormatter"
+        }
+      ]
+    },
+    "markdown-package": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Documents/MarkdownPackage.cs",
+          "class": "MarkdownPackage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Packaging/MarkdownAttachments.cs",
+          "class": "MarkdownAttachments"
+        },
+        {
+          "type": "markdown",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/Markdown.md",
+          "title_path": [
+            "Markdown",
+            "Viewing \u0026 authoring"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Documents/MarkdownDocuments.cs",
+          "class": "MarkdownDocuments"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "aichat-rewind",
+    "languages-strings",
+    "markdown-package",
+    "vcommon-formatters"
+  ]
+}

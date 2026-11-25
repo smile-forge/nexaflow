@@ -51,8 +51,9 @@ public sealed record RuntimeSessionServices(
     FolderActivity Folders,
     ElevatedBridgeLauncher Elevation,
     IShellClipboard Clipboard,
+    IFilePickers Pickers,
     ExternalDependencyRegistry Dependencies,
     LanguageManager Language,
-    PageViews Views,
+    IPageViews Views,
     IReadOnlyList<IClientTool> HelpTools,
     ILoggerFactory Logs);

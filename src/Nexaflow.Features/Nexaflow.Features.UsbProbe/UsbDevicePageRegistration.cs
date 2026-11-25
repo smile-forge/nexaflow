@@ -7,7 +7,7 @@ using Nexaflow.IO.Usb.Naming;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.IO.Usb.Windows;
 using Nexaflow.Plugins;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Features.UsbProbe;
 

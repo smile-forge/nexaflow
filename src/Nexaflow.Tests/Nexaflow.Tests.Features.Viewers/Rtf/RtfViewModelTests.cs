@@ -10,7 +10,7 @@ using Nexaflow.Features.Rtf.ClientTools;
 using Nexaflow.Features.Rtf.ViewModels;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Localization.Formatting;
 using Nexaflow.Visuals.Text.Markdown;
 using NSubstitute;
 

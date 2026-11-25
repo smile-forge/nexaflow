@@ -6,7 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Nexaflow.Core.Models;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Core.Controls;
 

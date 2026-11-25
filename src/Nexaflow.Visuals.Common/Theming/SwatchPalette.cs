@@ -1,6 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Visuals.Common.Theming;
 

@@ -1,6 +1,6 @@
 using Nexaflow.Core.ViewModels.Overlays;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Localization;
 
 namespace Nexaflow.Tests.Core.Unit;
 

@@ -9,7 +9,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Markdown.Packaging;
 
-namespace Nexaflow.Visuals.Text.Markdown;
+namespace Nexaflow.IO.Documents;
 
 /// <summary>
 /// A Markdown Package (*.mdz): one Markdown document and the files it shows or links to, zipped together as a .docx keeps
