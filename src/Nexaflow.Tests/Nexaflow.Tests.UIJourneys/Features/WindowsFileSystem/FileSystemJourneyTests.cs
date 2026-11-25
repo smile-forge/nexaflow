@@ -421,6 +421,16 @@ public partial class FileSystemJourneyTests : UiJourneyTestBase
         var vanishing = Path.Combine(_folder, "vanishing");
         Directory.CreateDirectory(vanishing);
         NavigateFileBrowserTo(vanishing);
+        // The shell starts listening to a folder a moment after it opens, and what changes there before then goes unheard, as it
+        // would in Explorer. A file made there and seen to go again says it is listening, before the folder itself is taken away.
+        var marker = Path.Combine(vanishing, "listening.txt");
+        Check("a folder just opened is listened to", () => WaitForFs(() =>
+        {
+            File.WriteAllText(marker, "x");
+            if (FindInFileList("listening.txt", 2) is null) return false;
+            File.Delete(marker);
+            return WaitForFs(() => list.FindFirstDescendant(cf => cf.ByName("listening.txt")) is null, 2);
+        }, Affordable(20)));
         Directory.Delete(vanishing);
         var retry = WaitForId("FileListRetryButton", Affordable(10));
         Check("a folder that cannot be read says why, with Try again", () => retry is not null);

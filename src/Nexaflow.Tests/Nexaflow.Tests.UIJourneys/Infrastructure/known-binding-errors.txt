@@ -13,6 +13,4 @@
 4: Cannot find source for binding with reference 'RelativeSource FindAncestor, AncestorType='System.Windows.Controls.ItemsControl', AncestorLevel='1''. BindingExpression:Path=HorizontalContentAlignment; DataItem=null; target element is 'TreeViewItem' (Name=''); target property is 'HorizontalContentAlignment' (type 'HorizontalAlignment')
 4: Cannot find source for binding with reference 'RelativeSource FindAncestor, AncestorType='System.Windows.Controls.ItemsControl', AncestorLevel='1''. BindingExpression:Path=VerticalContentAlignment; DataItem=null; target element is 'TreeViewItem' (Name=''); target property is 'VerticalContentAlignment' (type 'VerticalAlignment')
 
-# FileListRowStyle's double-click binds the list's OpenEntryCommand through the ListView above the row, which a row
-# being recycled is briefly without; it finds the list once the row is placed again.
-4: Cannot find source for binding with reference 'RelativeSource FindAncestor, AncestorType='System.Windows.Controls.ListView', AncestorLevel='1''. BindingExpression:Path=DataContext.OpenEntryCommand; DataItem=null; target element is 'MouseBinding'; target property is 'Command' (type 'ICommand')
+

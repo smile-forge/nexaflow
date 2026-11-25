@@ -96,8 +96,10 @@
                     <Grid Margin="10,0,10,10" Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
                         <TextBox Style="{StaticResource ValueBox}" Text="{Binding Error, Mode=OneWay}" Foreground="{StaticResource DangerBrush}"
                                  Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
-                        <ContentPresenter Content="{Binding Tool}"
-                                          Visibility="{Binding HasError, Converter={StaticResource InvBoolToVis}}" />
+                        <!-- A ContentControl, not a ContentPresenter: a presenter takes its content as its own DataContext, so its
+                             Visibility would look for HasError on the tool rather than on this device function. -->
+                        <ContentControl Content="{Binding Tool}" Focusable="False" IsTabStop="False"
+                                        Visibility="{Binding HasError, Converter={StaticResource InvBoolToVis}}" />
                     </Grid>
                 </DockPanel>
             </Border>
