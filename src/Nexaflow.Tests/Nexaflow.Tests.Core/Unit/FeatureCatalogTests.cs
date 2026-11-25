@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Nexaflow.Core;
+using Nexaflow.Core.Controls;
+using Nexaflow.Core.Help;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
@@ -54,6 +57,25 @@ public class FeatureCatalogTests
 
         Assert.IsTrue(catalog.TypesImplementing<IFileAction>().Count > 0,
             "file actions must be discoverable so the action bar can populate");
+    }
+
+    // ── The shell's own assemblies are catalogued beside the features ──
+    // The app, the session and the assistant are named like no feature, yet each carries what the catalogue must find: the app
+    // its page kinds and the views of the session's configs, the session its configs. Missed, Options draws no Shell or About
+    // page and Help is an empty tab.
+    [TestMethod]
+    public void TheShellsOwnAssemblies_AreIndexedAndActivated_BesideTheFeatures()
+    {
+        var catalog   = TestRuntimes.NewCatalog();
+        var activated = new List<Assembly>();
+        catalog.Initialize((assembly, _) => activated.Add(assembly));
+
+        Assert.IsTrue(catalog.HasPageKind(HelpPageRegistration.StaticPageKind), "the app's own page kinds are indexed");
+        Assert.AreEqual(typeof(AiPersonaControl), catalog.ViewTypeFor(typeof(AiPersonaConfig)),
+            "the app's views of the session's configs are indexed");
+        CollectionAssert.IsSubsetOf(
+            new[] { typeof(HelpPageRegistration).Assembly, typeof(ShellConfig).Assembly, typeof(AIService).Assembly }, activated,
+            "the app, the session and the assistant are activated as the catalogue starts");
     }
 
     private sealed class SampleConfig : IFeatureConfig

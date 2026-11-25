@@ -58,7 +58,8 @@ internal static class TestRuntimes
     public static IUiThread CurrentUi() => new WpfUiThread(Dispatcher.CurrentDispatcher);
 
     /// <summary>A catalogue of the features beside the tests, indexing WPF's views as the app's does.</summary>
-    public static FeatureCatalog NewCatalog() => new(Config.BaseDir, SetupWizardViewModel.CurrentVersion(), typeof(ViewForAttribute), LoggerFor<FeatureCatalog>());
+    public static FeatureCatalog NewCatalog() => new(Config.BaseDir, SetupWizardViewModel.CurrentVersion(), typeof(ViewForAttribute),
+        [typeof(SetupWizardViewModel).Assembly, typeof(FeatureCatalog).Assembly, typeof(AIService).Assembly], LoggerFor<FeatureCatalog>());
 
     /// <summary>Pages for no config: every section a test builds shows its settings as rows.</summary>
     public static ConfigPageModels RowsOnly { get; } = new(_ => null, session: null);

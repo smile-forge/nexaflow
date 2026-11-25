@@ -16,7 +16,6 @@ public class ShellTextSizeTests
     [TestMethod]
     public void TheSettingsDefault_IsTheSizeTheVisualsStartAt()
     {
-        Assert.AreEqual(TextTypography.DefaultBaseFontSize, ShellConfig.DefaultTextFontSize);
-        Assert.AreEqual(ShellConfig.DefaultTextFontSize, new ShellConfig().TextFontSize);
+        Assert.AreEqual(TextTypography.DefaultBaseFontSize, new ShellConfig().TextFontSize);
     }
 }

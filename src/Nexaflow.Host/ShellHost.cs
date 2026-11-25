@@ -27,6 +27,8 @@ internal sealed record ShellHostOptions(AppDataFolders Folders, string Version, 
 /// <param name="Themes">Folds the features' theme contributions into the theme applied.</param>
 /// <param name="ViewMarker">The attribute the toolkit's views are marked with, naming the model type each draws as its first
 /// argument: what the feature catalogue indexes views by.</param>
+/// <param name="App">The app's own assembly: its page kinds, handlers and views, which the feature catalogue indexes beside the
+/// features'.</param>
 /// <param name="FenceDrawn">Whether a fenced markdown block of an info string is drawn as something other than its text — a
 /// chart, a formula — by the toolkit's renderer: what a help page's searchable text leaves out.</param>
 /// <param name="Framing">Fits a picture to the frame a video model starts its clip from, with the toolkit's imaging.</param>
@@ -42,6 +44,7 @@ internal sealed record ShellPlatform(
     IFilePickers Pickers,
     IThemeHost Themes,
     Type ViewMarker,
+    System.Reflection.Assembly App,
     Func<string?, bool> FenceDrawn,
     IPictureFitting Framing,
     Func<IFolderWatcher> FolderWatchers,
@@ -163,7 +166,8 @@ internal sealed class ShellHost : IAsyncDisposable
         // A stored value that could not be read goes on record in the crash log, which writes into the same folders.
         Config = new ConfigManager(options.Folders.BaseDir, options.Folders.LocalDir, logs.CreateLogger<ConfigManager>());
         // The feature catalogue's index is cached under the configuration.
-        Catalog = new FeatureCatalog(Config.BaseDir, options.Version, platform.ViewMarker, logs.CreateLogger<FeatureCatalog>());
+        Catalog = new FeatureCatalog(Config.BaseDir, options.Version, platform.ViewMarker,
+                                     [platform.App, typeof(FeatureCatalog).Assembly, typeof(AIService).Assembly], logs.CreateLogger<FeatureCatalog>());
         _log.StartupMilestone("Init.ConfigManager");
 
         // ── 1. Shell config ──────────────────────────────────────────────────

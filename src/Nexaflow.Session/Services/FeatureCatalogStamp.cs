@@ -50,11 +50,12 @@ public static class FeatureCatalogStamp
     public static readonly IReadOnlyList<string> CataloguedPatterns = [FeatureDllPattern, LocationDllPattern, VisualsDllPattern];
 
     /// <summary>
-    /// The current stamp for <paramref name="exeDir"/>: every feature and location assembly plus Core, name-ordered so
+    /// The current stamp for <paramref name="exeDir"/>: every feature and location assembly plus the shell's own
+    /// (<paramref name="shellFiles"/>), name-ordered so
     /// two captures of the same directory compare equal regardless of enumeration order. A directory that cannot be read is
     /// told to <paramref name="log"/>, and gives an empty stamp.
     /// </summary>
-    public static List<FeatureFileStamp> Capture(string exeDir, string coreFile, ILogger log)
+    public static List<FeatureFileStamp> Capture(string exeDir, IReadOnlyList<string> shellFiles, ILogger log)
     {
         var stamps = new List<FeatureFileStamp>();
         try
@@ -64,11 +65,12 @@ public static class FeatureCatalogStamp
                 foreach (var f in dir.EnumerateFiles(pattern))
                     stamps.Add(Of(f));
 
-            // Core carries registrations too, and does not match the feature pattern.
-            if (!stamps.Exists(s => string.Equals(s.Name, coreFile, StringComparison.OrdinalIgnoreCase)))
+            // The shell's own assemblies carry registrations too, and match no feature's pattern.
+            foreach (var shellFile in shellFiles)
             {
-                var core = new FileInfo(Path.Combine(exeDir, coreFile));
-                if (core.Exists) stamps.Add(Of(core));
+                if (stamps.Exists(s => string.Equals(s.Name, shellFile, StringComparison.OrdinalIgnoreCase))) continue;
+                var shell = new FileInfo(Path.Combine(exeDir, shellFile));
+                if (shell.Exists) stamps.Add(Of(shell));
             }
         }
         catch (Exception ex)

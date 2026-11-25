@@ -109,8 +109,13 @@ public sealed class FeatureCatalog
 
     /// <summary>The version of the app the index is built for: a cache from another version is built again.</summary>
     private readonly string _appVersion;
-    private string _exeDir = "";
-    private string _coreFile = "";
+    private readonly string _exeDir;
+    /// <summary>
+    /// The shell's own assemblies, by file — the app's (its page kinds, handlers and views), the session's (its configs) and the
+    /// assistant's — indexed beside the features though their names match no feature's, and activated as the index is built.
+    /// The first is the app's, beside which every feature is found.
+    /// </summary>
+    private readonly IReadOnlyList<string> _shellFiles;
 
     private static readonly JsonSerializerOptions _json = new()
     {
@@ -123,12 +128,14 @@ public sealed class FeatureCatalog
     /// <summary>A catalogue whose index is cached under <paramref name="baseDir"/>, as <c>discovery\catalog.json</c>.</summary>
     /// <param name="baseDir">The configuration's base directory (<see cref="ConfigManager.BaseDir"/>).</param>
     /// <param name="log">Where the catalogue says how its index was built, and what it could not load, activate or cache.</param>
-    public FeatureCatalog(string baseDir, string appVersion, Type viewMarker, ILogger<FeatureCatalog> log)
+    public FeatureCatalog(string baseDir, string appVersion, Type viewMarker, IReadOnlyList<Assembly> shellAssemblies, ILogger<FeatureCatalog> log)
     {
         _cachePath = Path.Combine(baseDir, "discovery", "catalog.json");
         _log        = log;
         _viewMarker = viewMarker;
         _appVersion = appVersion;
+        _exeDir     = Path.GetDirectoryName(shellAssemblies[0].Location)!;
+        _shellFiles = [.. shellAssemblies.Select(assembly => Path.GetFileName(assembly.Location))];
     }
 
     /// <summary>
@@ -140,11 +147,10 @@ public sealed class FeatureCatalog
     public void Initialize(Action<Assembly, AssemblyEntry> onActivated)
     {
         _onActivated = onActivated;
-        _exeDir   = Path.GetDirectoryName(typeof(FeatureCatalog).Assembly.Location)!;
-        _coreFile = Path.GetFileName(typeof(FeatureCatalog).Assembly.Location);
+
 
         var version = _appVersion;
-        var stamp   = FeatureCatalogStamp.Capture(_exeDir, _coreFile, _log);
+        var stamp   = FeatureCatalogStamp.Capture(_exeDir, _shellFiles, _log);
 
 #if DEBUG
         // Debug builds never read or write the cache — a full scan loads every assembly, so a feature broken
@@ -192,8 +198,8 @@ public sealed class FeatureCatalog
             }
         }
 
-        // Core is already loaded and owns registrations/handlers/configs — activate it now.
-        EnsureLoaded(_coreFile);
+        // The shell's own assemblies are already loaded and own registrations, handlers, configs and views — activate them now.
+        foreach (var file in _shellFiles) EnsureLoaded(file);
 
         // A full scan happens on first run / post-update — exactly when the setup wizard runs and needs
         // every feature's global config registered (its [MandatorySetup] steps read ConfigManager.GetAll).
@@ -225,7 +231,7 @@ public sealed class FeatureCatalog
             .Where(f => f is not null)
             .Select(f => f!)
             .ToList();
-        if (!files.Contains(_coreFile, StringComparer.OrdinalIgnoreCase)) files.Add(_coreFile);
+        files.AddRange(_shellFiles);
 
         foreach (var file in files.Distinct(StringComparer.OrdinalIgnoreCase))
         {

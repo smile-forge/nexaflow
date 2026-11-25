@@ -40,7 +40,7 @@ public class FeatureCatalogStampTests
         File.WriteAllText(Path.Combine(_dir, name), content);
 
     private System.Collections.Generic.List<FeatureFileStamp> Capture() =>
-        FeatureCatalogStamp.Capture(_dir, Core, TestRuntimes.LoggerFor<FeatureCatalog>());
+        FeatureCatalogStamp.Capture(_dir, [Core], TestRuntimes.LoggerFor<FeatureCatalog>());
 
     // ── What it captures ─────────────────────────────────────────────────────
 
@@ -126,7 +126,7 @@ public class FeatureCatalogStampTests
     [TestMethod]
     public void UnreadableDirectory_YieldsAStampThatMatchesNothing()
     {
-        var missing = FeatureCatalogStamp.Capture(Path.Combine(_dir, "does-not-exist"), Core, TestRuntimes.LoggerFor<FeatureCatalog>());
+        var missing = FeatureCatalogStamp.Capture(Path.Combine(_dir, "does-not-exist"), [Core], TestRuntimes.LoggerFor<FeatureCatalog>());
 
         Assert.AreEqual(0, missing.Count);
         Assert.IsFalse(FeatureCatalogStamp.Matches(missing, Capture()));

@@ -284,7 +284,7 @@ public partial class App : Application
     private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
         var host = new ShellHost(new ShellHostOptions(folders, SetupWizardViewModel.CurrentVersion(), _resetRequested, UiTest, _logging),
-                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), ContentLanguages.Draws, new WpfPictureFitting(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
+                                 new ShellPlatform(ui, new ShellClipboard(), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), typeof(App).Assembly, ContentLanguages.Draws, new WpfPictureFitting(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
                                                                      (catalog, dependencies, showComponents, logging) => _pageViews = PageViews.FromCatalog(catalog, dependencies, showComponents, logging)),
                                                    _updates);
         _host = host;
