@@ -1,0 +1,94 @@
+{
+  "branch": "claude/solver-latex-button-validation-d486fb",
+  "nodes": {
+    "solver-symbol-grid": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Solver/SolverPaletteTests.cs",
+            "class": "SolverPaletteTests",
+            "method": "NoLatexKeyRunsIntoTheNextOne"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Solver/SolverPaletteTests.cs",
+            "class": "SolverPaletteTests",
+            "method": "APaddingSlotIsNeverPressable"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Solver/SolverPaletteTests.cs",
+            "class": "SolverPaletteTests",
+            "method": "TheTreeIsExactlyThreeLevelsDeep"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Solver/SolverPaletteTests.cs",
+            "class": "SolverPaletteTests",
+            "method": "EveryLatexKeyWritesSomethingTheFormulaSetsAsMaths"
+          }
+        ]
+      }
+    },
+    "latex-placeholders": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/SingleFormulaEditorTests.cs",
+            "class": "SingleFormulaEditorTests",
+            "method": "AnEmptyArgumentBecomesAHoleInTheTreeAndNotInTheSource"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/SingleFormulaEditorTests.cs",
+            "class": "SingleFormulaEditorTests",
+            "method": "ASelectionSweepingAcrossAHoleShowsItPickedUp"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/Typesetting/UnwrittenConstructsTests.cs",
+            "class": "UnwrittenConstructsTests",
+            "method": "WhatIsStillToBeWrittenInAStackOrInWordsIsAHole"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/Typesetting/UnwrittenConstructsTests.cs",
+            "class": "UnwrittenConstructsTests",
+            "method": "AHoleIsAnOutlineAtEverySize"
+          }
+        ]
+      }
+    },
+    "maths-typesetting": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/TypesettingUnchangedTests.cs",
+            "class": "TypesettingUnchangedTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/Typesetting/UnwrittenConstructsTests.cs",
+            "class": "UnwrittenConstructsTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "latex-placeholders",
+    "maths-typesetting",
+    "solver-symbol-grid"
+  ]
+}

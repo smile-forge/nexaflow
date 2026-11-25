@@ -186,6 +186,11 @@ public sealed class TexParser : ITranspile
                 case TexTokenKind.Comment:
                     return this.TakenAs(Kinds.Comment);
 
+                // A prime with nothing before it to wear it is TeX's ^{\prime} on an empty base, as a ^ with nothing before
+                // it is: the marks are gathered into one script rather than read as characters nothing draws.
+                case TexTokenKind.Character when this.NextIsMark():
+                    return this.Script(null, until);
+
                 case TexTokenKind.Character:
                     return this.TakenAs(Kinds.Char);
 

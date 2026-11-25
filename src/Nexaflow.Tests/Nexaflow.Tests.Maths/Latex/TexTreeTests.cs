@@ -80,6 +80,19 @@ public class TexTreeTests
     }
 
     [TestMethod]
+    public void APrimeWithNothingBeforeItIsAScriptWithNoBase()
+    {
+        // TeX reads ' as ^{\prime}, and a ^ with nothing before it is a script on an empty base — so is a prime. Both marks
+        // of '' are the one script's, as they are on f''.
+        var script = Only("''");
+
+        Assert.AreEqual(TexKinds.Script, script.Kind);
+        Assert.IsNull(script.Part(TexRole.Base), "there is nothing it is written on");
+        Assert.AreEqual(2, script.Children.Count(child => child.Role == TexRole.Mark));
+        Assert.AreEqual("''", script.Print());
+    }
+
+    [TestMethod]
     public void AScriptAfterAPrimeLandsOnWhatThePrimeIsOn()
     {
         // The reason the marks belong to the base rather than wrapping it. Written as a prime standing

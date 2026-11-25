@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Text.Editing;
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 
 using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 
@@ -68,6 +69,30 @@ public class ArrayAndOperatorTests
         Assert.AreEqual(3, AcrossRules(ruled));     // above, between, below
         Assert.IsTrue(TotalHeight(ruled) < TotalHeight(@"\begin{array}{c} a \\ b \\ c \end{array}"),
                       "two rows, not five");
+    });
+
+    [TestMethod]
+    public void AnHlineAtTheEdgeOfTheTableStandsClearOfItsLetters() => UiThread.Run(() =>
+    {
+        // TeX gives every row of an array its strut, so a rule above the first row or below the last has the strut's room
+        // between it and the letters rather than running through their tops. Without a rule there the edge stays tight.
+        const double strut = TexMatrixArrangement.RowStrutHeight + TexMatrixArrangement.RowStrutDepth;
+
+        Assert.IsTrue(TotalHeight(@"\begin{array}{c} \hline x \\ \hline \end{array}") >= strut - 1e-9,
+                      "a ruled row is at least its strut tall");
+        Assert.IsTrue(TotalHeight(@"\begin{array}{c} x \end{array}") < strut,
+                      "an unruled one is only as tall as what is in it");
+    });
+
+    [TestMethod]
+    public void ARuleAtTheEdgeOfTheTableKeepsTheGapBesideIt() => UiThread.Run(() =>
+    {
+        // The gap outside the first and last columns is trimmed so a bare table sits flush with what is around it — but a
+        // rule standing at that edge keeps it, or the letters touch the rule.
+        var ruled = Width(@"\begin{array}{|c|} x \end{array}");
+        var bare = Width(@"\begin{array}{c} x \end{array}");
+
+        Assert.AreEqual(TexMatrixArrangement.ColumnGap, ruled - bare, 1e-9);
     });
 
     [TestMethod]

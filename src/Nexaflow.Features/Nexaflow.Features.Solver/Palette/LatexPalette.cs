@@ -100,7 +100,7 @@ public static class LatexPalette
         ]),
         Leaf("latex.numbers.modular", static () => Str.Get("Solver.Latex.Numbers.Modular"),
         [
-            O("mod", @"\bmod"), F("(mod n)", @"\pmod{}", 1), F("(n)", @"\pod{}", 1), O("mod", @"\mod"),
+            O("mod", @"\bmod"), F("(mod n)", @"\pmod{}", 1), F("(n)", @"\pod{}", 1), F("mod n", @"\mod{}", 1),
             Fn("gcd", @"\gcd"), O("≡", @"\equiv"), O("∤", @"\nmid"), O("|", "|"),
         ]),
         Leaf("latex.numbers.scientific", static () => Str.Get("Solver.Latex.Numbers.Scientific"),
@@ -280,8 +280,10 @@ public static class LatexPalette
         ]),
         Leaf("latex.delim.sizes", static () => Str.Get("Solver.Latex.Delimiters.Sizes"),
         [
-            O("big", @"\big"), O("Big", @"\Big"), O("bigg", @"\bigg"), O("Bigg", @"\Bigg"),
-            O("bigl", @"\bigl"), O("bigr", @"\bigr"), O("Bigl", @"\Bigl"), O("Bigr", @"\Bigr"),
+            SizedPair("big ( )", @"\bigl(", @"\bigr)"), SizedPair("Big ( )", @"\Bigl(", @"\Bigr)"),
+            SizedPair("bigg ( )", @"\biggl(", @"\biggr)"), SizedPair("Bigg ( )", @"\Biggl(", @"\Biggr)"),
+            SizedPair("big [ ]", @"\bigl[", @"\bigr]"), SizedPair("Big [ ]", @"\Bigl[", @"\Bigr]"),
+            SizedPair("bigg [ ]", @"\biggl[", @"\biggr]"), SizedPair("Bigg [ ]", @"\Biggl[", @"\Biggr]"),
         ]),
         Leaf("latex.delim.accents", static () => Str.Get("Solver.Latex.Delimiters.Accents"),
         [
@@ -457,6 +459,14 @@ public static class LatexPalette
             ? new PaletteKey(label, command, command, PaletteKeyKind.Function, caretBack)
             : new PaletteKey(label, command + "(", command, PaletteKeyKind.Function)
               { InsertKind = KeyInsert.Wrapping, Close = ")" };
+
+    /// <summary>
+    /// A delimiter pair set at one fixed size — brackets the selection, like a function key does. A size is only ever
+    /// written with the delimiter it sizes, so the key writes both sides: a lone <c>\big</c> is a command missing its
+    /// argument, and one in front of whatever is typed next sizes that instead.
+    /// </summary>
+    private static PaletteKey SizedPair(string label, string open, string close)
+        => new(label, open, $"{open} … {close}", PaletteKeyKind.Function) { InsertKind = KeyInsert.Wrapping, Close = close };
 
     /// <summary>A structural key — these carry a caret offset so you land inside the braces.</summary>
     private static PaletteKey F(string label, string command, int caretBack = 0)

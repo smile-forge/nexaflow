@@ -1,10 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Solver;
 using Nexaflow.Features.Solver.Palette;
 using Nexaflow.Features.Solver.Solving;
 using Nexaflow.Features.Solver.Views;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Features.Solver;
 
@@ -138,6 +144,51 @@ public class SolverPaletteTests
                 Assert.IsTrue(key.Insert.EndsWith(" ") || key.Insert.EndsWith("}") || key.Insert.EndsWith("\n"),
                     $"'{key.Label}' inserts '{key.Insert}' with nothing to separate it from what follows");
     }
+
+    /// <summary>
+    /// What TeX accepts only inside an alignment — a table, a matrix, cases — so a key writing one is pressed inside one.
+    /// </summary>
+    private static readonly string[] AlignmentOnly = ["&", @"\\", @"\hline", @"\hdotsfor"];
+
+    [TestMethod]
+    [CoversNode("solver-symbol-grid")]
+    public void EveryLatexKeyWritesSomethingTheFormulaSetsAsMaths() => UiThread.Run(() =>
+    {
+        // A key is pressed into an empty definition and laid out as the editor lays it, holes and all: nothing it writes may
+        // be unreadable, read but undrawable, or drop the formula back to its source. Then its empty arguments are filled
+        // and the finished formula is laid out read-only, as an answer would be, where nothing at all may be reported.
+        var wrong = new List<string>();
+
+        foreach (var group in LatexPalette.LeafGroups())
+            foreach (var key in group.Keys.Where(k => !k.IsBlank))
+            {
+                var written = key.InsertKind == KeyInsert.Wrapping ? key.Insert + key.Close : key.Insert;
+                var formula = AlignmentOnly.Any(written.TrimStart().StartsWith)
+                    ? "\\begin{array}{cc}\n a & b \\\\\n" + written + "\n\\end{array}"
+                    : written;
+
+                var engine = new ContentEngine();
+                var reading = engine.Read("latex", formula, writing: true).Root;
+                var writing = engine.Lay("latex", EditState.For(formula), WpfStyles.Dark, double.PositiveInfinity, readOnly: false);
+
+                var said = reading.SelfAndDescendants()
+                    .Where(part => part.Trouble is not null && part.Kind != Kinds.Hole)
+                    .Select(part => $"{part.Print()}: {part.Trouble}")
+                    .Concat(writing.Trouble.Where(trouble => trouble.Severity == LayoutSeverity.Warning)
+                                           .Select(trouble => $"{formula.Substring(trouble.Start, trouble.Length)}: {trouble.Message}"))
+                    .ToList();
+                if (writing.ShowsSource) said.Add("shown as its source");
+
+                var finished = formula.Replace("{}", "{x}").Replace("[]", "[n]").Replace("()", "(x)");
+                var answer = new ContentEngine().Lay("latex", EditState.For(finished), WpfStyles.Dark, double.PositiveInfinity, readOnly: true);
+                said.AddRange(answer.Trouble.Select(trouble => $"once filled in as {finished}: {trouble.Message}"));
+                if (answer.ShowsSource) said.Add($"once filled in as {finished}: shown as its source");
+
+                if (said.Count > 0) wrong.Add($"{group.Id} '{key.Label}' writes {written} — {string.Join("; ", said)}");
+            }
+
+        Assert.AreEqual(0, wrong.Count, "\n" + string.Join("\n", wrong));
+    });
 
     [TestMethod]
     [CoversNode("solver-symbol-grid")]
