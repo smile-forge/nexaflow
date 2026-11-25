@@ -141,7 +141,9 @@ public static class GraphTools
                 + "graph has never seen is still editable because the id names the file and the declaration "
                 + "outright. Do not worry about line endings, indentation or escaping - write the "
                 + "replacement flush-left with \\n and it lands correctly indented with the file's own "
-                + "endings. Use dry_run first to see the hunk. 'move' lifts a declaration out and places it in a type or a file, "
+                + "endings - except inside a string literal that spans lines (a raw or verbatim string), where the whitespace is "
+                + "the string's value: there the find must match it exactly and the replacement lands exactly as written. "
+                + "Use dry_run first to see the hunk. 'move' lifts a declaration out and places it in a type or a file, "
                 + "bringing the imports it needs. Several edits go in 'edits' and are planned as one: each sees what the ones "
                 + "before it did, and nothing is written unless all of them succeed.",
                 [new ClientToolParameter("node_id", "The code node to edit (see graph_search / graph_context)."),
@@ -166,7 +168,8 @@ public static class GraphTools
                    + "run away across the file. Literal unless find_is_regex, and refused unless it matches "
                    + "exactly once - use this instead of rewriting a whole method to change one line. "
                    + "Indentation need not match: paste the fragment as you read it, or flush-left, and it "
-                   + "will still be found. If it is not there, the refusal names the declaration that does "
+                   + "will still be found - except inside a string literal that spans lines, where it must, and a "
+                   + "refusal shows the lines with every space marked. If it is not there, the refusal names the declaration that does "
                    + "contain it.", Required: false),
                  new ClientToolParameter("find_is_regex",
                      "Treat 'find' as a regular expression. Off by default, because a '(' or '.' in a code "

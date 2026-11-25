@@ -767,6 +767,13 @@ public static partial class StructuralEdit
         var body  = view.Text;
         var edits = new List<(int Start, int End, string Text)>();
 
+        // Where a match touches a string literal spanning lines, it is written character for character: whitespace there is
+        // the string's value, so placing lines would be a guess (see LiteralsSpanningLines). Parsed for only when something matched.
+        List<(int Start, int End)>? literals = null;
+        bool AsItStands(int start, int end) =>
+            (literals ??= LiteralsSpanningLines(grammarId, src)).Exists(l => from + view.ToOriginal(start) < l.End && from + view.ToOriginal(end) > l.Start);
+        var verbatim = replacement.Replace("\r\n", "\n");
+
         if (o.FindIsRegex)
         {
             Regex regex;
@@ -778,10 +785,10 @@ public static partial class StructuralEdit
             if (matches.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(rawFind, matches.Count), false);
             if (matches.Count > 1) notes.Add($"replaced {matches.Count} occurrences");
 
-            NoteIfInsideString(grammarId, src, from + view.ToOriginal(matches[0].Index), notes);
-
             foreach (Match m in matches)
-                edits.Add((m.Index, m.Index + m.Length, Expanded(body, m, replacement)));
+                edits.Add((m.Index, m.Index + m.Length,
+                           AsItStands(m.Index, m.Index + m.Length) ? m.Result(verbatim) : Expanded(body, m, replacement)));
+            if (matches.Any(m => AsItStands(m.Index, m.Index + m.Length))) notes.Add(WrittenAsItStands);
             return (src[..from] + view.Splice(edits, newline) + src[a.End..], null, false);
         }
 
@@ -794,10 +801,10 @@ public static partial class StructuralEdit
         if (exact.Count > 0)
         {
             if (exact.Count > 1) notes.Add($"replaced {exact.Count} occurrences");
-            NoteIfInsideString(grammarId, src, from + view.ToOriginal(exact[0]), notes);
-
             foreach (var at in exact)
-                edits.Add((at, at + find.Length, Placed(body, at, at + find.Length, find, replacement)));
+                edits.Add((at, at + find.Length,
+                           AsItStands(at, at + find.Length) ? verbatim : Placed(body, at, at + find.Length, find, replacement)));
+            if (exact.Any(at => AsItStands(at, at + find.Length))) notes.Add(WrittenAsItStands);
             return (src[..from] + view.Splice(edits, newline) + src[a.End..], null, false);
         }
 
@@ -809,11 +816,14 @@ public static partial class StructuralEdit
         if (loose.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, loose.Count), false);
         if (loose.Count == 0) return (null, null, true);
 
+        // Ignoring indentation is exactly the guess a literal spanning lines refuses: say where the text is, with its whitespace.
+        var inLiteral = loose.FindIndex(m => AsItStands(m.Start, m.End));
+        if (inLiteral >= 0)
+            return (null, NotAsItStands(src, from + view.ToOriginal(loose[inLiteral].Start), from + view.ToOriginal(loose[inLiteral].End)), false);
+
         notes.Add(loose.Count == 1
             ? "matched ignoring indentation"
             : $"replaced {loose.Count} occurrences, matched ignoring indentation");
-
-        NoteIfInsideString(grammarId, src, from + view.ToOriginal(loose[0].Start), notes);
 
         foreach (var (start, end) in loose)
             edits.Add((start, end, Placed(body, start, end, find, replacement)));
@@ -954,40 +964,63 @@ public static partial class StructuralEdit
     private static readonly Regex Substitution = new(@"\$(?:\d+|\{[^{}]+\}|[$&`'+_])", RegexOptions.CultureInvariant);
 
     /// <summary>
-    /// Says so when a substitution lands inside a string literal, because the payload means something different
-    /// there.
+    /// Where the file's string literals span lines, as offsets into it: the places a substitution is matched and written
+    /// character for character (see <see cref="SubstituteFrom"/>).
     /// <para>
-    /// The tool's one promise about whitespace is that the caller does not handle it: text written flush-left
-    /// arrives indented for where it lands. Inside a raw or verbatim string that promise still holds, but what
-    /// is being indented is the string's <i>value</i> rather than the file's text — so a payload copied out of
-    /// the file, carrying the literal's own baseline indentation, arrives with that baseline applied twice. It
-    /// compiles, it reads correctly in the diff, and it is wrong on screen. Working that out from the result
-    /// took four attempts once; this note is instead of a fifth.
+    /// Whitespace inside such a literal is the string's value. Placing a replacement - working out from the lines it replaces
+    /// where its own lines should start - is a guess there, and every rule for guessing has been wrong for some literal: the
+    /// rule was rewritten more than once, and a payload copied out of the file still came back with the literal's baseline
+    /// applied twice, or what stood before a find part-way along a line kept and the text's own indentation added on top.
+    /// So nothing is guessed: a find must match the literal's whitespace exactly, and its text lands exactly as written. The
+    /// cases that settle this are EditIndentationRuleTests, which are the rule's specification.
     /// </para>
     /// <para>
-    /// Asked of the parser rather than worked out here. tree-sitter already knows what a string is — knowing is
-    /// what lets it colour them — and its answer covers plain, verbatim, raw and interpolated forms across every
-    /// grammar, where scanning for triple quotes would be a second and worse answer to a settled question. It
-    /// costs a parse of the file, on an operation that has already paid for several.
+    /// A literal on one line is left to the code rule: no line can start inside it, so placing lines never touches its value,
+    /// and an ordinary statement holding a <c>"..."</c> keeps the flush-left convenience everything else has.
+    /// </para>
+    /// <para>
+    /// Asked of the parser rather than worked out here. tree-sitter already knows what a string is - knowing is what lets it
+    /// colour them - and its answer covers plain, verbatim, raw and interpolated forms in every grammar. XML colours every
+    /// attribute value as a string, and an attribute value's indentation is the file's, so in XML there are none.
     /// </para>
     /// </summary>
-    private static void NoteIfInsideString(string grammarId, string source, int at, List<string> notes)
+    private static List<(int Start, int End)> LiteralsSpanningLines(string grammarId, string source)
     {
-        // XML colours every attribute value as a string, and an attribute value is not a literal whose indentation
-        // means something different from the file's - the note would be on every edit and true of none.
-        if (TreeSitterLanguages.IsXml(grammarId)) return;
+        if (grammarId.Length == 0 || TreeSitterLanguages.IsXml(grammarId)) return [];
 
         using var highlighter = CodeHighlighter.TryCreate(grammarId);
-        if (highlighter is null) return;
+        if (highlighter is null) return [];
 
-        foreach (var span in highlighter.Highlight(source))
-            if (span.Capture == "string" && at >= span.Start && at < span.Start + span.Length)
-            {
-                notes.Add("this lands inside a string literal, so the replacement is indented as the string's "
-                        + "value — write it with the indentation you want within the string, not the indentation "
-                        + "the file shows");
-                return;
-            }
+        // A literal can come back in pieces - an interpolation splits one - so touching pieces are joined first.
+        var spans = new List<(int Start, int End)>();
+        foreach (var span in highlighter.Highlight(source).Where(s => s.Capture == "string").OrderBy(s => s.Start))
+        {
+            var end = span.Start + span.Length;
+            if (spans.Count > 0 && span.Start <= spans[^1].End) spans[^1] = (spans[^1].Start, Math.Max(spans[^1].End, end));
+            else spans.Add((span.Start, end));
+        }
+        return [.. spans.Where(s => source.AsSpan(s.Start, s.End - s.Start).Contains('\n'))];
+    }
+
+    /// <summary>Said when a substitution was written character for character, inside a literal spanning lines.</summary>
+    private const string WrittenAsItStands =
+        "this is inside a string literal that spans lines, so it was matched and written character for character - nothing was re-indented";
+
+    /// <summary>
+    /// The refusal for a find that is inside a literal spanning lines only when indentation is ignored: the lines as they are,
+    /// numbered, with every space and tab shown, so the next find can be written exactly.
+    /// </summary>
+    private static string NotAsItStands(string src, int start, int end)
+    {
+        var first  = LineStart(src, start);
+        var number = src.AsSpan(0, first).Count('\n') + 1;
+        var last   = src.IndexOf('\n', Math.Max(start, end - 1));
+        var lines  = src[first..(last < 0 ? src.Length : last)].Replace("\r", "").Split('\n');
+
+        return "the text is here only when indentation is ignored, and it is inside a string literal that spans lines, where a "
+             + "find is matched and its text written character for character - the whitespace is the string's value, so none is "
+             + "guessed. The lines as they are (· a space, → a tab):\n"
+             + string.Join("\n", lines.Select((line, i) => $"  {number + i,5}  {line.Replace(' ', '·').Replace('\t', '→')}"));
     }
 
     /// <summary>

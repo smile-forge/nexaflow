@@ -780,6 +780,8 @@ internal static class Program
                   checked afterwards, not assumed. `signature` keeps the attributes too, unless the
                   replacement opens with one of its own. Line endings, indentation and BOMs are the tool's problem:
                   write the replacement flush-left with \n and it lands indented, with the file's own endings.
+                  Inside a string literal that spans lines nothing is placed: the find must match its
+                  whitespace exactly, and the text lands exactly as written.
                   --dry-run prints the hunk and writes nothing. --expect S refuses unless the block still
                   contains S, for a caller pinning an edit to what it read.
 

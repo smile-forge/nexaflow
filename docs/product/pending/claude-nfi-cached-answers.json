@@ -59,11 +59,28 @@
           }
         ]
       }
+    },
+    "syntax-structural-edit": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/StructuralEditTests.cs",
+            "class": "StructuralEditTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/EditIndentationRuleTests.cs",
+            "class": "EditIndentationRuleTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 3,
   "touched_nodes": [
-    "graph-ask-paging"
+    "graph-ask-paging",
+    "syntax-structural-edit"
   ]
 }
