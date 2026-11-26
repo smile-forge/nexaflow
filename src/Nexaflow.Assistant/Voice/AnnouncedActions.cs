@@ -7,7 +7,11 @@ namespace Nexaflow.Assistant.Voice;
 /// <summary>What a voice conversation shows while it says an action and waits to be stopped: the sentence, and what
 /// the two buttons say. Held — announced before instructions the user is still giving — it is shown in red with only
 /// its stop, and not said.</summary>
-public sealed record VoiceConfirmation(string Text, string ProceedLabel, string StopLabel, bool IsHeld = false);
+public sealed record VoiceConfirmation(string Text, string ProceedLabel, string StopLabel, bool IsHeld = false)
+{
+    /// <summary>A question asked for an approval the agent wants: <paramref name="text"/>, answered by going ahead or stopping.</summary>
+    public static VoiceConfirmation Asking(string text) => new(text, Str.Get("Shell.Voice.Proceed"), Str.Get("Shell.Voice.Stop"));
+}
 
 /// <summary>Where a voice conversation shows what it is about to do, with a button to go ahead and one to stop.</summary>
 public interface IVoiceConfirmations

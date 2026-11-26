@@ -3,7 +3,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Services;
-using Nexaflow.Core.Services.Voice;
+using Nexaflow.Assistant.Voice;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common.Audio;
@@ -24,14 +24,13 @@ public sealed record ShownBlockViewModel(string Markdown);
 /// </summary>
 public sealed partial class VoiceConversationViewModel(Dispatcher ui) : ObservableObject, IAIResponseHandler, IVoiceConfirmations
 {
-    private VoiceSession? _session;
-    private ISpeechCapture? _capture;
-    private ISpeechPlayback? _playback;
+    private readonly IUiThread _thread = new WpfUiThread(ui);
+
+    /// <summary>The conversation under way; null when none is.</summary>
+    private SpokenConversation? _conversation;
+
     private TaskCompletionSource<bool>? _confirmed;
     private bool _inline;
-
-    /// <summary>The workspace's AI service the conversation runs on, for its models to forget it when it ends.</summary>
-    private AIService? _service;
 
     /// <summary>A conversation is under way.</summary>
     [ObservableProperty] private bool _isActive;
@@ -87,7 +86,7 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
 
     /// <summary>The name the spoken conversation's turns are taken under while it is held here, in the bar; null on a page that
     /// holds the conversation itself, and once it has ended.</summary>
-    public string? ConversationName { get; private set; }
+    public string? ConversationName => _conversation?.ConversationName;
 
     public ObservableCollection<ShownBlockViewModel> Shown { get; } = [];
 
@@ -105,36 +104,30 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
 
     /// <summary>Opens the microphone and speakers and starts listening.</summary>
     /// <param name="inline">The page's own handler, for a page that shows AI replies itself; null for the bar.</param>
-    public async Task StartAsync(AIService service, Func<IPageViewModel?> currentPage, Func<bool> includeContext,
-                                 IAIResponseHandler? inline, string language)
+    public async Task StartAsync(AIService service, Func<IPageViewModel?> currentPage, Func<bool> includeContext, IAIResponseHandler? inline)
     {
         if (IsActive) return;
-        _inline   = inline is not null;
-        _service  = service;
-        ConversationName = _inline ? null : "voice-" + Guid.NewGuid().ToString("N");
-        Saying    = "";
+        _inline    = inline is not null;
+        Saying     = "";
         ContextUse = null;
-        _playback = new SpeakerPlayback();
-        _capture  = new CommunicationsCapture(_playback.EndpointId);
-        var parts = new VoiceSessionParts(service.SpeechToText!, service.TextToSpeech!, _capture, _playback,
-                                          new PageVoiceAgent(service, ui, currentPage, includeContext, pageKeepsConversation: _inline),
-                                          inline ?? this, this, TimeProvider.System);
-        var session = new VoiceSession(parts, language);
-        session.StateChanged += (_, state) => OnUi(() => State = state);
-        session.Heard        += (_, text)  => OnUi(() => Heard?.Invoke(text));
-        session.TurnTaken    += (_, text)  => OnUi(() => { ShowTurn(text); TurnTaken?.Invoke(text); });
-        session.Voiced       += (_, text)  => OnUi(() => Saying = text);
-        session.Shown        += (_, md)    => OnUi(() => { if (!_inline) Shown.Add(new ShownBlockViewModel(md)); });
-        session.Ended        += (_, why)   => OnUi(() => _ = FinishAsync(why));
-        _session = session;
+        var conversation = new SpokenConversation(service, _thread, currentPage, includeContext, inline ?? this, this, heldByPage: _inline);
+        conversation.StateChanged += (_, state) => OnUi(() => State = state);
+        conversation.Heard        += (_, text)  => OnUi(() => Heard?.Invoke(text));
+        conversation.TurnTaken    += (_, text)  => OnUi(() => { ShowTurn(text); TurnTaken?.Invoke(text); });
+        conversation.Voiced       += (_, text)  => OnUi(() => Saying = text);
+        conversation.Shown        += (_, md)    => OnUi(() => { if (!_inline) Shown.Add(new ShownBlockViewModel(md)); });
+        conversation.Ended        += (_, why)   => OnUi(() => Finish(conversation, why));
+        _conversation = conversation;
         try
         {
-            await session.StartAsync();
+            await conversation.StartAsync();
             IsActive = true;
         }
         catch
         {
-            await TearDownAsync();
+            _conversation = null;
+            await conversation.DisposeAsync();
+            Reset();
             throw;
         }
     }
@@ -157,33 +150,24 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     /// again starts afresh.</summary>
     public async Task StopAsync()
     {
-        if (!IsActive && _session is null) return;
-        if (_session is { } session) await session.StopAsync();
-        await FinishAsync(reason: null);
+        if (_conversation is { } conversation) await conversation.StopAsync();
     }
 
     /// <summary>A turn typed into the box while talking, answered aloud.</summary>
-    public void Submit(string text) => _session?.Submit(text);
+    public void Submit(string text) => _conversation?.Submit(text);
 
-    private async Task FinishAsync(string? reason)
+    /// <summary><paramref name="conversation"/> has ended: the bar leaves voice mode, unless a newer conversation already holds it.</summary>
+    private void Finish(SpokenConversation conversation, string? reason)
     {
-        if (_session is null && !IsActive) return;
-        await TearDownAsync();
+        if (!ReferenceEquals(_conversation, conversation)) return;
+        _conversation = null;
+        Reset();
         Ended?.Invoke(reason);
     }
 
-    private async Task TearDownAsync()
+    /// <summary>Clears what the bar shows of a conversation.</summary>
+    private void Reset()
     {
-        var session = _session;
-        _session = null;
-        if (session is not null) await session.DisposeAsync();
-        if (ConversationName is { } ended) _ = _service?.ForgetConversationAsync(ended);   // the conversation is over: its models let it go
-        ConversationName = null;
-        _service         = null;
-        _capture?.Dispose();
-        _playback?.Dispose();
-        _capture  = null;
-        _playback = null;
         _confirmed?.TrySetCanceled();
         Confirmation = null;
         Shown.Clear();
@@ -191,9 +175,9 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
         Saying      = "";
         TurnText    = "";
         IsTurnFresh = false;
-        Progress  = null;
-        IsActive  = false;
-        State     = VoiceState.Ended;
+        Progress    = null;
+        IsActive    = false;
+        State       = VoiceState.Ended;
     }
 
     /// <summary>Puts away what the spoken replies showed over the page.</summary>
@@ -203,7 +187,7 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     [RelayCommand]
     private async Task OpenInConversation()
     {
-        var said = _session?.History.ToList() ?? [];
+        var said = _conversation?.History.ToList() ?? [];
         await StopAsync();
         OpenInConversationRequested?.Invoke(said);
     }
@@ -259,9 +243,9 @@ public sealed partial class VoiceConversationViewModel(Dispatcher ui) : Observab
     /// <summary>A voice reply announces its actions itself; were the bar asked, it would show the question with its
     /// buttons and wait for one.</summary>
     public Task<bool> RequestToolBatchApprovalAsync(string explanationMarkdown, IReadOnlyList<ToolCall> batch, CancellationToken ct)
-        => ShowAsync(new VoiceConfirmation(SpeechText.Of(explanationMarkdown), Str.Get("Shell.Voice.Proceed"), Str.Get("Shell.Voice.Stop")), ct);
+        => ShowAsync(VoiceConfirmation.Asking(SpeechText.Of(explanationMarkdown)), ct);
 
     /// <inheritdoc cref="RequestToolBatchApprovalAsync"/>
     public Task<bool> RequestPlanApprovalAsync(ClientPlan plan, CancellationToken ct)
-        => ShowAsync(new VoiceConfirmation(plan.Title, Str.Get("Shell.Voice.Proceed"), Str.Get("Shell.Voice.Stop")), ct);
+        => ShowAsync(VoiceConfirmation.Asking(plan.Title), ct);
 }

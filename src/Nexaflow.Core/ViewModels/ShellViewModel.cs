@@ -17,11 +17,11 @@ using System.Windows.Threading;
 using Nexaflow.Core.Help;
 using Nexaflow.Localization;
 using Nexaflow.Interaction;
-using Nexaflow.AiHost.Client;
+using Nexaflow.Assistant.Requests;
 
 namespace Nexaflow.Core.ViewModels;
 
-public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHost
+public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHost, IAssistantBar
 {
     // ── IWindowHost ───────────────────────────────────────────────────────
 
@@ -272,8 +272,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             _ui.Invoke(() => MoveToWorkspace(fallback));
     }
 
-    /// <summary>The workspace's models changed: the mic follows its Speech In chain, and the AI's line what its own models need.</summary>
-    private void OnRuntimeProvidersChanged(object? sender, EventArgs e) => _ui.InvokeAsync(() =>
+    /// <summary>The workspace's assistant may now hold a spoken conversation or not, or its own models came into or went out of reach:
+    /// the mic and the AI's line follow it.</summary>
+    private void OnAssistantReadinessChanged(object? sender, EventArgs e) => _ui.InvokeAsync(() =>
     {
         RecomputeVoiceAvailable();
         RecomputeLocalAiNotice();
@@ -324,16 +325,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void RecomputeLocalAiNotice()
     {
-        LocalAiNotice = _session.Providers.Service<IAiHost>() is { Unreachable: { } why } && CurrentRuntime.AiService is { UsesOwnModels: true }
-            ? Str.Format("Shell.AiBar.LocalAiUnreachable", why)
-            : null;
+        LocalAiNotice = CurrentRuntime.AiService.OwnModelsUnreachable is { } why ? Str.Format("Shell.AiBar.LocalAiUnreachable", why) : null;
     }
-
-    private void OnHostReachabilityChanged(object? sender, EventArgs e) => _ui.InvokeAsync(() =>
-    {
-        RecomputeLocalAiNotice();
-        RecomputeVoiceAvailable();
-    });
 
     /// <summary>Whether the AI's line was shown when last told: its coming and going is animated, so it is told only when it changes.</summary>
     private bool _aiLineShown;
@@ -355,11 +348,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>Inline completion proposed by the clear-winner query handler; null = none.</summary>
     [ObservableProperty] private string? _aiCompletionSuggestion;
 
-    private CancellationTokenSource? _handlerEvalCts;
+    /// <summary>The requests this window's AI bar sends, and how each is answered.</summary>
+    private readonly AssistantRequests _requests;
 
-    // Created when a send begins; CancelAi cancels it. Token plumbing into the
-    // providers is deferred — this only backs the Submit↔Cancel UI for now.
-    private CancellationTokenSource? _aiSendCts;
+    /// <summary>What the words in the AI bar point at, which the bar's symbol, listening state and completion show.</summary>
+    private readonly TypedQueryPreview _preview;
 
     // ── Toast (transient presentation of a message) ────────────────────────
     // One toast shows at a time; further posts queue. ActiveToast is the message currently displayed.
@@ -559,7 +552,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         if (ReferenceEquals(workspace, CurrentRuntime?.Workspace)) return;
 
         // Cancel any in-flight AI send before the window leaves the workspace it was sent in.
-        _aiSendCts?.Cancel();
+        _requests.Cancel();
 
         MoveToWorkspace(workspace);
     }
@@ -592,9 +585,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// AI's line — it follows there.</summary>
     private void AttachRuntime(WorkspaceRuntime from, WorkspaceRuntime to)
     {
-        from.ProvidersChanged -= OnRuntimeProvidersChanged;
+        from.AiService.ReadinessChanged -= OnAssistantReadinessChanged;
         CurrentRuntime = to;
-        to.ProvidersChanged += OnRuntimeProvidersChanged;
+        to.AiService.ReadinessChanged += OnAssistantReadinessChanged;
         RecomputeVoiceAvailable();
         RecomputeLocalAiNotice();
     }
@@ -780,6 +773,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             if (e.PropertyName == nameof(WorkspaceBackgroundTasks.Any))    RecheckAiLine();
         };
         Ai = new ShellAIResponseHandler(this);
+        _requests = new AssistantRequests(() => CurrentRuntime.AiService, this);
+        _requests.BusyChanged += (_, _) => AiIsBusy = _requests.IsBusy;
+        _requests.Failed      += ex => ShowError(Str.Get("Shell.Errors.Ai"), ex.Message);
+        // The user cancelled what they sent: it goes back in the bar to be changed and sent again.
+        _requests.Cancelled   += text => AiInputText = text;
+        _preview = new TypedQueryPreview(new WpfUiThread(_ui), () => CurrentRuntime.AiService, () => ActivePageViewModel);
+        _preview.Changed += (_, _) =>
+        {
+            AiHandlerSymbol        = _preview.Current.Symbol;
+            AiIsListening          = _preview.Current.Listening;
+            AiCompletionSuggestion = _preview.Current.Completion;
+        };
         Voice = new VoiceConversationViewModel(_ui);
 
         // Modal-overlay state machine; the flags stay here (they gate switching/deep-links), the
@@ -828,8 +833,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // ── Voice input availability + the AI's line ─────────────────────────
         // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away. What the
         // workspace's own models need is the host they run in: out of reach, the AI's line says so.
-        workspace.ProvidersChanged += OnRuntimeProvidersChanged;
-        if (_session.Providers.Service<IAiHost>() is { } host) host.ReachabilityChanged += OnHostReachabilityChanged;
+        workspace.AiService.ReadinessChanged += OnAssistantReadinessChanged;
 
         // A spoken conversation owns the bar as dictation does: what is heard fills the box, and the mic stops it.
         Voice.Heard += text => AiInputText = text;
@@ -869,14 +873,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         _inbox.MessagePosted -= OnMessagePosted;
 
-        // The host outlives its windows: unhooked, or this window stays rooted by it.
-        if (_session.Providers.Service<IAiHost>() is { } host) host.ReachabilityChanged -= OnHostReachabilityChanged;
-
-        // The workspace list and the runtime outlive their windows: unhook them, or a closed window stays rooted and keeps
+        // The workspace list, the runtime and the AI host outlive their windows: unhook them, or a closed window stays rooted and keeps
         // switching the runtime other windows show. A window that closes while listening stops listening.
         _session.SavedWorkspaces.WorkspacesRefreshed -= OnWorkspacesRefreshed;
-        CurrentRuntime.ProvidersChanged -= OnRuntimeProvidersChanged;
+        CurrentRuntime.AiService.ReadinessChanged -= OnAssistantReadinessChanged;
         _ = Voice.StopAsync();
+        _preview.Dispose();
 
         Notifications.CollectionChanged -= OnInboxChanged;
         foreach (var m in Notifications) m.PropertyChanged -= OnMessageItemChanged;
@@ -925,12 +927,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     private void RecomputeVoiceAvailable()
     {
-        var ai = CurrentRuntime.AiService;
-        VoiceAvailable = ai is not null && ai.StatusOf(AiAbility.SpeechIn).IsUsable && ai.CanConverse(SpokenLanguage());
+        VoiceAvailable = CurrentRuntime.AiService.CanHoldSpokenConversation;
     }
-
-    /// <summary>The language a conversation is held in: the app's.</summary>
-    private string SpokenLanguage() => _session.Language.Current[..2].ToLowerInvariant();
 
     // ── Tab commands ──────────────────────────────────────────────────────
 
@@ -1371,74 +1369,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // pushed — including an empty value — so the preview clears on send/clear.
         PushInputPreview(value);
 
-        _handlerEvalCts?.Cancel();
-
-        // While listening, voice owns the display — don't score handlers or
-        // propose completions against the live transcription.
+        // While listening, voice owns the display — no handler is scored, nor completion proposed, against the live transcription.
         if (IsRecording)
         {
+            _preview.Cancel();
             AiHandlerSymbol        = null;
             AiCompletionSuggestion = null;
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            AiHandlerSymbol        = null;
-            AiIsListening          = false;
-            AiCompletionSuggestion = null;
-            return;
-        }
-
-        // A stale suggestion no longer matches the edited text — drop it until
-        // the clear-winner handler proposes a fresh one.
-        AiCompletionSuggestion = null;
-
-        _handlerEvalCts = new CancellationTokenSource();
-        var cts = _handlerEvalCts;
-        _ = Task.Delay(150, cts.Token).ContinueWith(t =>
-        {
-            if (t.IsCanceled) return;
-            _ui.Invoke(() => EvaluateHandlers(value, cts.Token));
-        }, TaskScheduler.Default);
-    }
-
-    private void EvaluateHandlers(string text, CancellationToken token)
-    {
-        var pageVm = ActivePageViewModel;
-        var (_, clearWinner, effectiveText, prefixed) = CurrentRuntime.AiService!.ScoreHandlers(text, pageVm);
-
-        if (clearWinner?.Symbol is not null)
-        {
-            AiHandlerSymbol = clearWinner.Symbol;
-            AiIsListening   = false;
-        }
-        else
-        {
-            AiHandlerSymbol = null;
-            AiIsListening   = true;
-        }
-
-        // Inline completion is only offered by the clear-winner handler.
-        if (clearWinner is not null)
-            _ = UpdateCompletionAsync(clearWinner, text, effectiveText, prefixed, pageVm, token);
-        else
-            AiCompletionSuggestion = null;
-    }
-
-    private async Task UpdateCompletionAsync(IQueryHandler handler, string rawText, string effectiveText,
-                                             bool prefixed, IPageViewModel? pageVm, CancellationToken token)
-    {
-        string? suggestion;
-        try { suggestion = await handler.CompleteAsync(effectiveText, prefixed, pageVm); }
-        catch { return; }
-
-        // Discard if cancelled or the input moved on while we were computing. The suggestion completes the
-        // stripped query, but the box shows the raw text (symbol included) — so staleness checks the raw.
-        if (token.IsCancellationRequested) return;
-        if (!string.Equals(AiInputText, rawText, StringComparison.Ordinal)) return;
-
-        AiCompletionSuggestion = string.IsNullOrEmpty(suggestion) ? null : suggestion;
+        _preview.Update(value);
     }
 
     // ── Chat-bar feature handlers (keys / drop / live preview) ────────────
@@ -1494,38 +1434,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             if (p.CanPreview(pageVm)) p.OnInputChanged(text, pageVm);
     }
 
-    /// <summary>Block until the active page's context is ready (or the send is cancelled), showing a
-    /// "waiting for data collection…" line meanwhile. No-op for ready or unobservable pages so a page
-    /// that can't signal readiness never wedges the send.</summary>
-    private static async Task WaitForContextAsync(IAIResponseHandler handler, IPageViewModel? pageVm, CancellationToken ct)
-    {
-        if (pageVm is null || pageVm.IsContextReady) return;
-        if (pageVm is not INotifyPropertyChanged inpc) return;
-
-        handler.ReportProgress(Str.Get("Shell.AiResponse.WaitingForData"));
-
-        var tcs = new TaskCompletionSource();
-        void OnChanged(object? _, PropertyChangedEventArgs __)
-        {
-            if (pageVm.IsContextReady) tcs.TrySetResult();
-        }
-
-        inpc.PropertyChanged += OnChanged;
-        using var reg = ct.Register(() => tcs.TrySetResult());
-        try
-        {
-            if (!pageVm.IsContextReady)   // re-check after subscribing — guard the lost-update race
-                await tcs.Task;
-        }
-        finally { inpc.PropertyChanged -= OnChanged; }
-    }
-
-    private enum TurnOutcome { Completed, Cancelled, Prefill, Error }
-
-    /// <summary>The handler driving the in-flight run, or null when idle. While set, a new submission is
-    /// queued into it as an interjection rather than starting a fresh run.</summary>
-    private IAIResponseHandler? _runningHandler;
-
     [RelayCommand]
     private async Task SendAiMessage()
     {
@@ -1540,209 +1448,21 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             return;
         }
 
-        AiInputText            = string.Empty;
-        AiHandlerSymbol        = null;
-        AiIsListening          = false;
-        AiCompletionSuggestion = null;
-
-        // A run is already in flight → queue this as an interjection; the agent picks it up at the next
-        // turn boundary (it can steer mid-task). Cancel is still available separately.
-        if (_runningHandler is not null) { _runningHandler.Enqueue(text); return; }
-
-        var originalInput = text;   // restored to the bar if the user cancels this run
-
-        // A new send cancels any in-flight agent run; its pending approval (if any) resolves
-        // to "deny" through the token registration below.
-        _aiSendCts?.Cancel();
-        _aiSendCts = new CancellationTokenSource();
-        var sendToken = _aiSendCts.Token;
-
-        // On an EXPLICIT cancel (the Cancel button cancels this run's token in place), put the user's
-        // message back in the bar so they can tweak and resend. A newer send installs a fresh CTS, so
-        // we never clobber a message the user is already sending.
-        void RestoreInputIfCancelled()
-        {
-            var superseded = _aiSendCts is null || _aiSendCts.Token != sendToken;
-            if (sendToken.IsCancellationRequested && !superseded)
-                AiInputText = originalInput;
-        }
-
-        var pageVm  = ActivePageViewModel;
-        var handler = ResponseSurfaceFor(pageVm);
-        await RunTurnsAsync(handler,
-                            () => RunTypedTurnAsync(text, pageVm, handler, sendToken),
-                            leftover => RunTypedTurnAsync(leftover, pageVm, handler, sendToken),
-                            RestoreInputIfCancelled);
+        AiInputText = string.Empty;
+        await _requests.SendAsync(text, ActivePageViewModel);
     }
 
-    /// <summary>
-    /// Picks up work the assistant set going in the background that has ended, while the user is still on <paramref name="context"/>:
-    /// a turn of the assistant's own, answered where any turn about that page is, the outcome its request. With a run already in
-    /// flight, the outcome joins it, as words typed meanwhile do.
-    /// </summary>
-    public async Task ContinueAfterBackgroundJobAsync(IPageViewModel context, string about, string outcome)
-    {
-        if (_runningHandler is { } running) { running.Enqueue(PickUp(outcome)); return; }
+    /// <summary>Picks up work the assistant set going in the background that has ended, while the user is still on <paramref name="context"/>.</summary>
+    public Task ContinueAfterBackgroundJobAsync(IPageViewModel context, string about, string outcome)
+        => _requests.PickUpAsync(context, about, outcome);
 
-        var handler = ResponseSurfaceFor(context);
-        _aiSendCts = new CancellationTokenSource();
-        var token = _aiSendCts.Token;
+    IAIResponseHandler IAssistantBar.Surface => Ai;
 
-        async Task<TurnOutcome> PickUpTurn()
-        {
-            handler.BeginFollowUp(about, outcome);
-            await WaitForContextAsync(handler, context, token);
-            if (token.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
-            return await RunAgentTurnAsync(context, PickUp(outcome), handler, includeContext: true, token);
-        }
+    AgentRunOptions IAssistantBar.RunOptions() => Ai.BarRun();
 
-        await RunTurnsAsync(handler, PickUpTurn, leftover => RunTypedTurnAsync(leftover, context, handler, token), onCancelled: null);
-    }
+    Task IAssistantBar.PrefillAsync(string text) => AnimatePrefillAsync(text);
 
-    /// <summary>What the assistant is told when work it set going has ended and it picks it up.</summary>
-    private static string PickUp(string outcome) =>
-        $"Work you set going in the background has ended: {outcome}\n\n" +
-        "Tell the user briefly what came of it, or carry on with it where it waits on something you can do.";
-
-    /// <summary>
-    /// Where a turn about <paramref name="pageVm"/> is answered: a page that renders the assistant itself (e.g. the conversation) in
-    /// itself; any other in this window's AI bar (Ai). Either way the agent loop talks only to this handler.
-    /// </summary>
-    private IAIResponseHandler ResponseSurfaceFor(IPageViewModel? pageVm) => pageVm as IAIResponseHandler ?? Ai;
-
-    /// <summary>
-    /// Runs a run's turns on <paramref name="handler"/>: the first, then each follow-up the user typed after the run's last turn
-    /// boundary, until one ends other than completed. While it runs, words typed meanwhile join it as interjections.
-    /// </summary>
-    private async Task RunTurnsAsync(IAIResponseHandler handler, Func<Task<TurnOutcome>> first, Func<string, Task<TurnOutcome>> next,
-                                     Action? onCancelled)
-    {
-        _runningHandler = handler;
-        AiIsBusy = true;
-        try
-        {
-            var outcome = await first();
-            while (true)
-            {
-                if (outcome == TurnOutcome.Cancelled) { onCancelled?.Invoke(); break; }
-                if (outcome != TurnOutcome.Completed) break;   // Prefill / Error
-
-                // A message arrived after the run's last turn boundary — run it as a fresh follow-up.
-                var leftover = handler.DrainQueue();
-                if (leftover.Count == 0) break;
-                outcome = await next(string.Join("\n", leftover));
-            }
-        }
-        finally { _runningHandler = null; AiIsBusy = false; }
-    }
-
-    /// <summary>
-    /// Runs one typed prompt → answer: a query handler that owns it answers it; otherwise the agent does. Returns how it ended so
-    /// the caller can deliver any late interjections.
-    /// </summary>
-    private async Task<TurnOutcome> RunTypedTurnAsync(string input, IPageViewModel? pageVm, IAIResponseHandler handler, CancellationToken sendToken)
-    {
-        var svc = CurrentRuntime.AiService!;
-
-        // Scored BEFORE anything is shown. A query handler that owns the input never reaches the AI, so
-        // presenting the AI's response surface for it is wrong even briefly — and not briefly at all
-        // when the handler is slow: the overlay stayed up for the whole of a folder scan, sitting over
-        // the results that scan was busy producing. Scoring is synchronous, so there is nothing to
-        // show during it.
-        var (scored, clearWinner, effectiveText, prefixed) = svc.ScoreHandlers(input, pageVm);
-        var effective = effectiveText;
-
-        if (clearWinner is not null)
-        {
-            string? won;
-            try   { won = await clearWinner.ProcessAsync(effective, prefixed, pageVm); }
-            catch (Exception ex) { ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
-
-            // Only a handler with something to SAY needs the surface. One that renders its own result —
-            // a search filling its list — stays silent, and the overlay never appears.
-            if (won is not null)
-            {
-                handler.BeginResponse(input);
-                handler.ShowFinal(won);
-            }
-            return TurnOutcome.Completed;
-        }
-
-        handler.BeginResponse(input);   // echo the user + show a "considering" placeholder
-
-        // Pinned context may still be gathering (e.g. SystemInfo's background scan). Hold the turn
-        // until the active page reports ready so the model sees real data, not a "still gathering…" stub.
-        await WaitForContextAsync(handler, pageVm, sendToken);
-        if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
-
-        // No clear winner: asking the model which tool to use is itself an AI call, so the surface is
-        // already up by here and stays up.
-        IQueryHandler? selected = null;
-        if (scored.Count > 0)
-        {
-            try   { selected = await svc.DisambiguateToolSelection(pageVm, effective, scored); }
-            catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
-
-            // Cancelled while the model weighed it: what it chose — a command, perhaps — must not then run.
-            if (sendToken.IsCancellationRequested) { handler.Abort(); return TurnOutcome.Cancelled; }
-        }
-
-        // A query handler matched — run it; its result is the final answer.
-        if (selected is not null)
-        {
-            string? result;
-            try   { result = await selected.ProcessAsync(effective, prefixed, pageVm); }
-            catch (Exception ex) { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
-
-            if (result is not null) handler.ShowFinal(result);
-            else                    handler.Abort();
-            return TurnOutcome.Completed;
-        }
-
-        // No handler → client-side agent run.
-        return await RunAgentTurnAsync(pageVm, effective, handler, IncludeContext, sendToken);
-    }
-
-    /// <summary>One request of the agent's: the client-side agent loop, driving <paramref name="handler"/> (progress / approval / final).</summary>
-    private async Task<TurnOutcome> RunAgentTurnAsync(IPageViewModel? pageVm, string input, IAIResponseHandler handler, bool includeContext,
-                                                      CancellationToken token)
-    {
-        var svc = CurrentRuntime.AiService!;
-        AiResponse? response;
-        try
-        {
-            // Answered in the bar, the request continues the bar's conversation, its reply leading with the answer, briefly;
-            // answered on a page that holds a conversation, it is a turn of that conversation.
-            var options = ReferenceEquals(handler, Ai) ? Ai.BarRun() : AgentRunOptions.Typed with { Conversation = handler.ConversationName };
-            response = await svc.RunAgentAsync(pageVm, input, includeContext, handler, options, token);
-        }
-        catch (OperationCanceledException) { handler.Abort(); return TurnOutcome.Cancelled; }
-        catch (Exception ex)               { handler.Abort(); ShowError(Str.Get("Shell.Errors.Ai"), ex.Message); return TurnOutcome.Error; }
-
-        if (response is null)
-        {
-            // Nothing to answer: said in the reply's place, rather than the request vanishing — why the workspace's own models cannot
-            // run where that is why, else that nothing is assigned.
-            if (!token.IsCancellationRequested && !svc.StatusOf(AiAbility.GeneralIntelligence).IsUsable)
-            {
-                handler.ShowFinal(LocalAiNotice ?? Str.Format("Shell.Ai.AbilityDisabledFor", AiAbilityNames.Friendly(AiAbility.GeneralIntelligence)));
-                return TurnOutcome.Completed;
-            }
-            handler.Abort();
-            return token.IsCancellationRequested ? TurnOutcome.Cancelled : TurnOutcome.Completed;
-        }
-
-        // Carry the agent's touched files for the shell handler's "Continue as Conversation".
-        Ai.AgentContextPaths = response.Attachments;
-
-        if (response.Kind == AiResponseKind.Prefill)
-        {
-            handler.Abort();
-            await AnimatePrefillAsync(response.Text!);
-            return TurnOutcome.Prefill;
-        }
-        return TurnOutcome.Completed;   // Message: already rendered by handler.ShowFinal in the loop
-    }
+    void IAssistantBar.Touched(IReadOnlyList<string> paths) => Ai.AgentContextPaths = paths;
 
     private async Task AnimatePrefillAsync(string prefill)
     {
@@ -1778,12 +1498,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         var ai = CurrentRuntime.AiService;
         if (ai is null || !await ai.MakeReadyAsync(AiAbility.SpeechIn)) return;   // a model still to download offers it, and stops here
-        string language = SpokenLanguage();
-        if (!ai.CanConverse(language)) return;   // the workspace's models changed since the mic was offered; it is offered again when they can
+        if (!ai.CanConverse(ai.ConversationLanguage)) return;   // the workspace's models changed since the mic was offered; it is offered again when they can
         var pageVm = ActivePageViewModel;
         try
         {
-            await Voice.StartAsync(ai, () => ActivePageViewModel, () => IncludeContext, pageVm as IAIResponseHandler, language);
+            await Voice.StartAsync(ai, () => ActivePageViewModel, () => IncludeContext, pageVm as IAIResponseHandler);
         }
         catch (Exception ex)
         {
@@ -1795,27 +1514,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// messages, saved like any other, and the mic there carries it on by voice.</summary>
     private async Task OpenVoiceConversationAsync(IReadOnlyList<LlmMessage> said)
     {
-        var now = DateTime.Now;
-        var record = new ConversationRecord
-        {
-            Id        = Guid.NewGuid().ToString(),
-            StartedAt = now,
-            Messages  = [.. said.Select(m => new ConversationMessage { Text = m.Text, IsUser = m.Role == LlmRole.User, Timestamp = now })],
-        };
-        record.DeriveTitle();
-        try { await CurrentRuntime.AiService!.SaveConversationAsync(record); }
-        catch { /* persistence failures shouldn't block opening the tab */ }
-        ShellServices.OpenTab("Conversation", new Dictionary<string, string> { ["conversationId"] = record.Id });
+        var id = await CurrentRuntime.AiService.SaveSpokenConversationAsync(said);
+        ShellServices.OpenTab("Conversation", new Dictionary<string, string> { ["conversationId"] = id });
     }
 
-    /// <summary>
-    /// Cancels the in-flight AI request. Today this only trips the local
-    /// <see cref="_aiSendCts"/>; the token is not yet observed by AIService or
-    /// the providers, so the request may still complete. UI scaffolding for a
-    /// later cancellation-plumbing pass.
-    /// </summary>
+    /// <summary>Cancels what the bar sent: the agent's run stops at its next step, and the words go back in the bar.</summary>
     [RelayCommand]
-    private void CancelAi() => _aiSendCts?.Cancel();
+    private void CancelAi() => _requests.Cancel();
 
     // ── Background tasks ──────────────────────────────────────────────────
 

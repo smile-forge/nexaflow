@@ -39,6 +39,7 @@ using Microsoft.Extensions.Logging;
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Core.Help;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.IO.Common.Audio;
 
 
 namespace Nexaflow.Core;
@@ -283,7 +284,7 @@ public partial class App : Application
     private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
         var host = new ShellHost(new ShellHostOptions(folders, SetupWizardViewModel.CurrentVersion(), _resetRequested, UiTest, _logging),
-                                 new ShellPlatform(ui, _clipboard = new ShellClipboard(this), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), typeof(App).Assembly, ContentLanguages.Draws, new WpfPictureFitting(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
+                                 new ShellPlatform(ui, _clipboard = new ShellClipboard(this), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), typeof(App).Assembly, ContentLanguages.Draws, new WpfPictureFitting(), new WasapiSpeechDevices(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
                                                                      (catalog, dependencies, showComponents, logging) => _pageViews = PageViews.FromCatalog(catalog, dependencies, showComponents, logging)),
                                                    _updates);
         _host = host;

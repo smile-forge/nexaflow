@@ -43,7 +43,7 @@
   
   "Shell.Prompt.Cancel": "Cancel",
 
-  "Shell.Ai.AbilityDisabledFor": "{0} — Disabled: Assign a different provider in the workspace configuration to enable",
+
 
 
 
@@ -374,7 +374,7 @@
 
 
 
-  "Shell.AiBar.LocalAiUnreachable": "Nexaflow's own models can't run: {0}",
+
 
 
 
@@ -590,7 +590,7 @@
   "Shell.AiResponse.Working": "Working",
   "Shell.AiResponse.DeclinedFormat": "Declined — asking {0}",
   "Shell.AiResponse.ApprovePlanFormat": "Approve plan: {0}",
-  "Shell.AiResponse.WaitingForData": "Waiting for data collection…",
+
 
 
 

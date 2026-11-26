@@ -10,6 +10,7 @@ using Nexaflow.Providers.AiHost;
 using Nexaflow.Localization;
 using System.IO;
 using Nexaflow.Interaction;
+using Nexaflow.IO.Common.Audio;
 
 namespace Nexaflow.Host;
 
@@ -33,6 +34,7 @@ internal sealed record ShellHostOptions(AppDataFolders Folders, string Version, 
 /// <param name="FenceDrawn">Whether a fenced markdown block of an info string is drawn as something other than its text — a
 /// chart, a formula — by the toolkit's renderer: what a help page's searchable text leaves out.</param>
 /// <param name="Framing">Fits a picture to the frame a video model starts its clip from, with the toolkit's imaging.</param>
+/// <param name="Speech">Opens the microphone and speakers a spoken conversation is held through, the platform's devices.</param>
 /// <param name="FolderWatchers">Makes the folder watcher, which owns a window of the toolkit's.</param>
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
@@ -48,6 +50,7 @@ internal sealed record ShellPlatform(
     System.Reflection.Assembly App,
     Func<string?, bool> FenceDrawn,
     IPictureFitting Framing,
+    ISpeechDevices Speech,
     Func<IFolderWatcher> FolderWatchers,
     Action<ShellConfig> ApplyAppearance,
     Func<FeatureCatalog, ExternalDependencyRegistry, Action, ShellLogging, IPageViews> Views);
@@ -310,7 +313,7 @@ internal sealed class ShellHost : IAsyncDisposable
             new StoredCredentialSource(CredentialManagerStore.Default), () => _firstDiscovery,
             platform.Ui, Folders, new ElevatedBridgeLauncher(), platform.Clipboard, platform.Pickers,
             Dependencies, Language, Views,
-            new WorkspaceAssistants(Features, Providers, Shell, Security, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools], platform.Framing,
+            new WorkspaceAssistants(Features, Providers, Shell, Security, Language, [.. new HelpClientTools(help).Tools, .. new MarkdownSyntaxTools(help).Tools], platform.Framing, platform.Speech,
                                     Activities, Inbox.Post).Create,
             logs));
         // A workspace left stays dormant for as long as the person has said, then ends; a deleted one ends with its last window.

@@ -1,4 +1,6 @@
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.IO.Common.Audio;
+using Nexaflow.Session.Localization;
 
 namespace Nexaflow.Assistant;
 
@@ -11,19 +13,21 @@ namespace Nexaflow.Assistant;
 /// <param name="providers">The provider pool.</param>
 /// <param name="shell">The shell's settings.</param>
 /// <param name="security">What the person allows the assistant to do.</param>
+/// <param name="language">The UI language, which a spoken conversation is held in.</param>
 /// <param name="helpTools">The tools that read the help the app ships, offered on every page.</param>
 /// <param name="framing">Fits a starting picture to the frame a video model begins its clip from.</param>
+/// <param name="speech">The microphone and speakers a spoken conversation is held through, as the platform opens them.</param>
 /// <param name="tasks">The session's background tasks, which a job of the assistant's runs as; null runs none.</param>
 /// <param name="notify">The session's inbox, which a job reports to.</param>
 public sealed class WorkspaceAssistants(FeatureManager features, ProviderManager providers, ShellConfig shell, SecurityConfig security,
-                                        IReadOnlyList<IClientTool> helpTools, IPictureFitting framing, BackgroundActivityManager? tasks,
+                                        LanguageManager language, IReadOnlyList<IClientTool> helpTools, IPictureFitting framing, ISpeechDevices speech, BackgroundActivityManager? tasks,
                                         Action<NotificationItem> notify)
 {
     /// <summary>The assistant for <paramref name="runtime"/>'s workspace, its slow work run on the session's background tasks.</summary>
     public IWorkspaceAssistant Create(WorkspaceRuntime runtime)
     {
         var jobs    = tasks is not null ? new BackgroundJobs(tasks, runtime, notify) : null;
-        var service = new AIService(runtime, features, providers, shell, security, runtime.Workspace.ConversationsDir, helpTools, framing, jobs);
+        var service = new AIService(runtime, features, providers, shell, security, language, runtime.Workspace.ConversationsDir, helpTools, framing, speech, jobs);
         service.LoadAbilityConfig(runtime.Workspace.AiConfig);
         return service;
     }

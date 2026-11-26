@@ -55,7 +55,7 @@ Two things follow from that, and both are already handled — do not re-solve th
 src/
   Nexaflow.Core/                      the WPF app: shell chrome, main window, ribbon, AI input bar — views and view-models over Host
   Nexaflow.Session/                   WPF-free shell session: workspaces + runtimes, config, FeatureManager, providers pool, inbox, logs, help
-  Nexaflow.Assistant/                 WPF-free assistant: each runtime's AIService, agent loop, tools — uses Session, which never references it
+  Nexaflow.Assistant/                 WPF-free assistant: each runtime's AIService, agent loop, tools, the AI bar's requests, spoken conversations — uses Session, which never references it
   Nexaflow.Host/                      WPF-free composition root (ShellHost): wires Session + Assistant; a UI app fills its ShellPlatform
   Nexaflow.Features/
     Nexaflow.Features.Common/         ALL contracts (interfaces + small DTOs) — no FeatureManager, that's Core

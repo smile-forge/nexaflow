@@ -14,10 +14,13 @@ using Nexaflow.Localization;
 using Nexaflow.AiHost.Provisioning;
 using Nexaflow.Providers.Local;
 using Nexaflow.AiHost.Catalog;
+using Nexaflow.Session.Localization;
+using Nexaflow.IO.Common.Audio;
+using Nexaflow.Assistant.Requests;
 
 namespace Nexaflow.Assistant;
 
-public sealed class AIService : IWorkspaceAssistant
+public sealed class AIService : IWorkspaceAssistant, IAnswersRequests
 {
     // ── Provider registry ─────────────────────────────────────────────────
     // Keyed by ability-grid column id: each entry is a model-bound execution instance for that column.
@@ -318,6 +321,16 @@ public sealed class AIService : IWorkspaceAssistant
         => CandidateColumns<ISpeechToTextProvider>(AiAbility.SpeechIn).FirstOrDefault() is { Column: not null }
            && TextToSpeech is { } voice && voice.Speaks(language) && GetProvider(AiAbility.GeneralIntelligence) is not null;
 
+    /// <summary>The language a spoken conversation is held in: the app's, as its two-letter code.</summary>
+    public string ConversationLanguage => _language.Current[..2].ToLowerInvariant();
+
+    /// <summary>
+    /// Whether the mic can start a spoken conversation now: Speech In has a model to listen with — one still to download counts, the
+    /// first press offering it — and the workspace's models can hold a conversation in <see cref="ConversationLanguage"/>
+    /// (<see cref="CanConverse"/>).
+    /// </summary>
+    public bool CanHoldSpokenConversation => StatusOf(AiAbility.SpeechIn).IsUsable && CanConverse(ConversationLanguage);
+
     /// <summary>Whether the model that holds the conversation has made way on its GPU for a picture being drawn: a reply
     /// waits for it until the picture is done.</summary>
     public bool ConversationMakingWay => GetProvider(AiAbility.GeneralIntelligence) is { IsMakingWay: true };
@@ -328,6 +341,22 @@ public sealed class AIService : IWorkspaceAssistant
     {
         add => _workspace.ProvidersChanged += value;
         remove => _workspace.ProvidersChanged -= value;
+    }
+
+    /// <summary>Raised, on whichever thread it happened, when <see cref="CanHoldSpokenConversation"/> or <see cref="OwnModelsUnreachable"/>
+    /// may have changed: the workspace's models changed, or the host Nexaflow's own models run in came into or went out of reach.</summary>
+    public event EventHandler? ReadinessChanged
+    {
+        add
+        {
+            _workspace.ProvidersChanged += value;
+            if (_pool.Service<IAiHost>() is { } host) host.ReachabilityChanged += value;
+        }
+        remove
+        {
+            _workspace.ProvidersChanged -= value;
+            if (_pool.Service<IAiHost>() is { } host) host.ReachabilityChanged -= value;
+        }
     }
 
     public AiAbilityStatus StatusOf(AiAbility ability) => _readiness.StatusOf(ability);
@@ -544,6 +573,10 @@ public sealed class AIService : IWorkspaceAssistant
     /// <summary>Whether the workspace's ability grid names any model of Nexaflow's own — what the host being out of reach takes away.</summary>
     public bool UsesOwnModels => OwnedModelsInUse().Count > 0;
 
+    /// <summary>Why the workspace's models of Nexaflow's own cannot run now — the host they run in is out of reach, or the machine's
+    /// AI host service has stopped — where the workspace uses any; null otherwise. A request that needs one is answered with it.</summary>
+    public string? OwnModelsUnreachable => _pool.Service<IAiHost>() is { Unreachable: { } why } && UsesOwnModels ? why : null;
+
     public Task<LocalAiSetup?> DescribeLocalAiAsync(CancellationToken ct = default)
     => _pool.Service<HostHolds>() is { } holds
     ? LocalAiSetupReader.DescribeAsync(holds, OwnedModelsInUse(),
@@ -566,6 +599,9 @@ public sealed class AIService : IWorkspaceAssistant
     /// <summary>Fits a starting picture to the frame a video model begins its clip from.</summary>
     private readonly IPictureFitting _framing;
 
+    /// <summary>The microphone and speakers a spoken conversation is held through, as the platform opens them.</summary>
+    internal ISpeechDevices SpeechDevices { get; }
+
     /// <summary>The tools that read the help the app ships, offered on every page.</summary>
     private readonly IReadOnlyList<IClientTool> _helpTools;
 
@@ -582,6 +618,9 @@ public sealed class AIService : IWorkspaceAssistant
     /// <summary>The security settings: whether the assistant may see the open windows.</summary>
     private readonly SecurityConfig _security;
 
+    /// <summary>The UI language, which a spoken conversation is held in.</summary>
+    private readonly LanguageManager _language;
+
     /// <summary>Where each ability stands, and the offer of a download it waits on.</summary>
     private readonly AbilityReadiness _readiness;
 
@@ -594,21 +633,25 @@ public sealed class AIService : IWorkspaceAssistant
     /// <param name="pool">The session's provider pool, whose app-wide services the assistant uses.</param>
     /// <param name="shell">The shell's settings, whose Enhanced AI Protection Mode frames every prompt the assistant makes.</param>
     /// <param name="security">The security settings, which say whether the assistant may see the open windows.</param>
+    /// <param name="language">The UI language, which a spoken conversation is held in.</param>
     /// <param name="conversationsDir">Full path to the directory where this workspace's conversations are stored.</param>
     /// <param name="helpTools">The tools that read the help the app ships — the session's, none where it ships no help.</param>
+    /// <param name="speech">The microphone and speakers a spoken conversation is held through, as the platform opens them.</param>
     /// <param name="jobs">Where slow tool calls run on in the background; without it, every call is waited for.</param>
     public AIService(WorkspaceRuntime workspace, FeatureManager features, ProviderManager pool, ShellConfig shell, SecurityConfig security,
-                     string conversationsDir, IReadOnlyList<IClientTool> helpTools, IPictureFitting framing, BackgroundJobs? jobs = null)
+                     LanguageManager language, string conversationsDir, IReadOnlyList<IClientTool> helpTools, IPictureFitting framing, ISpeechDevices speech, BackgroundJobs? jobs = null)
     {
         _workspace = workspace;
         _features  = features;
         _pool      = pool;
         _shell     = shell;
         _security  = security;
+        _language  = language;
         _baseDir   = conversationsDir;
         _helpTools = helpTools;
         _jobs      = jobs;
         _framing   = framing;
+        SpeechDevices = speech;
         _readiness = new(() => _abilityConfig, id => _providers.GetValueOrDefault(id), () => workspace.Providers, pool, () => workspace.ShellServices);
     }
 
@@ -648,6 +691,22 @@ public sealed class AIService : IWorkspaceAssistant
         try { ConversationStore.Save(_baseDir, activeConversation); }
         catch { /* never crash on persistence failures */ }
         return Task.CompletedTask;
+    }
+
+    /// <summary>Saves what was said in a spoken conversation as a conversation of the workspace's, its first messages, so a conversation
+    /// page carries it on: the new conversation's id. A save that fails still gives the id, of a conversation that holds nothing yet.</summary>
+    public async Task<string> SaveSpokenConversationAsync(IReadOnlyList<LlmMessage> said)
+    {
+        var now = DateTime.Now;
+        var record = new ConversationRecord
+        {
+            Id        = Guid.NewGuid().ToString(),
+            StartedAt = now,
+            Messages  = [.. said.Select(m => new ConversationMessage { Text = m.Text, IsUser = m.Role == LlmRole.User, Timestamp = now })],
+        };
+        record.DeriveTitle();
+        await SaveConversationAsync(record);
+        return record.Id;
     }
 
     public event Action<string>? ConversationArtifactSaved;

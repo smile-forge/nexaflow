@@ -11,7 +11,7 @@
   
   "Shell.Prompt.Cancel": "Annuler",
 
-  "Shell.Ai.AbilityDisabledFor": "{0} — Désactivé : attribuez un autre fournisseur dans la configuration de l'espace de travail pour l'activer",
+
 
 
 
@@ -339,7 +339,7 @@
 
 
 
-  "Shell.AiBar.LocalAiUnreachable": "Les modèles propres à Nexaflow ne peuvent pas s'exécuter : {0}",
+
 
 
 
@@ -584,7 +584,7 @@
   "Shell.AiResponse.Working": "Exécution",
   "Shell.AiResponse.DeclinedFormat": "Refusé — {0} est consulté",
   "Shell.AiResponse.ApprovePlanFormat": "Approuver le plan : {0}",
-  "Shell.AiResponse.WaitingForData": "En attente de la collecte des données…",
+
 
 
 
