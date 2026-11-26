@@ -21,7 +21,7 @@
     Aliases (xaml -> xml, jinja -> html) resolve to another id and need no row of their own.
 
     Root defaults to the bindings submodule's tree-sitter-<id> folder. A grammar the bindings repo does not
-    carry - xml, powershell, sql, diff - is a submodule of its own, which Root names.
+    carry - xml, powershell, sql, diff, latex - is a submodule of its own, which Root names.
   -->
   <ItemGroup>
     <TreeSitterGrammar Include="c"                 SourceDir="src" />
@@ -43,6 +43,7 @@
     <TreeSitterGrammar Include="powershell"        SourceDir="src"     Root="external/tree-sitter-powershell" />
     <TreeSitterGrammar Include="sql"               SourceDir="src"     Root="external/tree-sitter-sql" />
     <TreeSitterGrammar Include="diff"              SourceDir="src"     Root="external/tree-sitter-diff" />
+    <TreeSitterGrammar Include="latex"             SourceDir="src"     Root="external/tree-sitter-latex" />
   </ItemGroup>
 
 </Project>

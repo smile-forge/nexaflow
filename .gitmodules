@@ -35,3 +35,7 @@
 	path = external/tree-sitter-diff
 	url = https://github.com/smile-forge/tree-sitter-diff.git
 	branch = nexaflow
+[submodule "external/tree-sitter-latex"]
+	path = external/tree-sitter-latex
+	url = https://github.com/smile-forge/tree-sitter-latex.git
+	branch = nexaflow

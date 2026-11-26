@@ -65,6 +65,7 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [tree-sitter-powershell](https://github.com/airbus-cert/tree-sitter-powershell) (built from source) | MIT |
 | [tree-sitter-sql](https://github.com/DerekStride/tree-sitter-sql) (built from source) | MIT |
 | [tree-sitter-diff](https://github.com/tree-sitter-grammars/tree-sitter-diff) (built from source) | MIT |
+| [tree-sitter-latex](https://github.com/latex-lsp/tree-sitter-latex) (built from source) | MIT |
 | [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) (+ Microsoft.Extensions.*, Microsoft.Bcl.*, and the C#/WinRT Windows SDK projection) | MIT |
 

@@ -96,6 +96,7 @@ public class HighlightingRegistryTests
                  {
                      ("build.ps1", "powershell"), ("Module.psm1", "powershell"), ("Module.psd1", "powershell"),
                      ("schema.sql", "sql"), ("change.diff", "diff"), ("fix.patch", "diff"),
+                     ("paper.tex", "tex-file"), ("style.sty", "tex-file"), ("article.cls", "tex-file"),
                  })
         {
             var r = HighlightingRegistry.Resolve(name);

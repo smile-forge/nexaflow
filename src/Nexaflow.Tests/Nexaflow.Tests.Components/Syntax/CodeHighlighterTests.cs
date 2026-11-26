@@ -107,6 +107,22 @@ public class CodeHighlighterTests
         Assert.IsTrue(pairs.Any(p => p.cap == "inserted" && p.text.StartsWith("+new")), "the line added");
     }
 
+    [TestMethod]
+    [CoversNode("syntax-queries")]
+    public void TexFile_ColoursCommandsEnvironmentsMathsAndLabels()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("tex-file");
+        const string src = "% note\n\\begin{document}\n\\section{One}\\label{sec:one}\nSee $x$ and \\ref{sec:one}.\n\\end{document}\n";
+        var pairs = Captured(highlighter!, src);
+
+        CollectionAssert.Contains(pairs, (cap: "comment", text: "% note"));
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "\\begin"));
+        CollectionAssert.Contains(pairs, (cap: "type", text: "document"));
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "\\section"));
+        CollectionAssert.Contains(pairs, (cap: "attribute", text: "sec:one"));
+        CollectionAssert.Contains(pairs, (cap: "constant", text: "$x$"));
+    }
+
     private static (string cap, string text)[] Captured(CodeHighlighter highlighter, string src) =>
         highlighter.Highlight(src).Select(s => (cap: s.Capture, text: src.Substring(s.Start, s.Length))).ToArray();
 
@@ -193,6 +209,7 @@ public class CodeHighlighterTests
         ["powershell"]        = "# alpha\n# beta\nfunction Get-One {\n  return 1\n}\n",
         ["sql"]               = "-- alpha\n-- beta\nCREATE FUNCTION one() RETURNS int AS $$\nBEGIN\n  RETURN 1;\nEND;\n$$ LANGUAGE plpgsql;\n",
         ["diff"]              = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,2 +1,2 @@\n-old\n+new\n same\n",
+        ["tex-file"]          = "% alpha\n% beta\n\\begin{document}\n\\section{One}\nHello $x^2$.\n\\end{document}\n",
     };
 
     public static IEnumerable<object[]> FoldSampleGrammars() =>

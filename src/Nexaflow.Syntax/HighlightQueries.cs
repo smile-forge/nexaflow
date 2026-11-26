@@ -127,6 +127,34 @@ public static class HighlightQueries
             (binary_hunk ["literal" "delta"] @keyword (size) @number)
             """,
 
+        ["tex-file"] =
+            """
+            ; Patterns are ordered low → high priority: maths first, so the commands inside it still colour as commands.
+            [(line_comment) (block_comment) (comment_environment)] @comment
+            [(inline_formula) (displayed_equation)] @constant
+
+            (command_name) @function
+
+            (begin command: _ @keyword name: (curly_group_text text: (text) @type))
+            (end command: _ @keyword name: (curly_group_text text: (text) @type))
+            (part command: _ @keyword)
+            (chapter command: _ @keyword)
+            (section command: _ @keyword)
+            (subsection command: _ @keyword)
+            (subsubsection command: _ @keyword)
+            (paragraph command: _ @keyword)
+            (subparagraph command: _ @keyword)
+            (class_include command: _ @keyword)
+            (package_include command: _ @keyword)
+            (new_command_definition command: _ @keyword)
+            (label_definition command: _ @keyword)
+            (label_reference command: _ @keyword)
+            (citation command: _ @keyword)
+
+            (label) @attribute
+            [(path) (uri)] @string
+            """,
+
         ["json"] =
             """
             (string) @string

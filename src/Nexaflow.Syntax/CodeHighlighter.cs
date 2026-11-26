@@ -55,6 +55,7 @@ public sealed class CodeHighlighter : IDisposable
     {
         ["jinja"] = "html",   // markup parses as html; python injected into {{ }}/{% %}
         ["xaml"]  = "xml",    // XAML is XML; the id stays distinct so the outline can read WPF meaning
+        ["tex-file"] = "latex", // a LaTeX file; "latex" is the maths a fence or a formula is written in
     };
 
     private CodeHighlighter(string grammarId, Language language, Parser parser, string queryText)

@@ -50,6 +50,9 @@ public static class TreeSitterLanguages
         Register("powershell", ".ps1", ".psm1", ".psd1");
         Register("sql",        ".sql");
         Register("diff",       ".diff", ".patch");
+        // A LaTeX document parses with the latex grammar under an id of its own: "latex" and "tex" already name the maths a
+        // fence or a formula is written in, which the shared engine typesets rather than colours.
+        Register("tex-file",   ".tex", ".sty", ".cls", ".ltx");
         // .ipynb is owned by the Notebook feature (its own viewer), not the code editor.
     }
 

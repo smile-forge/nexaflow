@@ -40,12 +40,15 @@ names → `TextSwatch.*`, for every surface that colours code.
 | PowerShell | `powershell` | `.ps1` `.psm1` `.psd1` |
 | SQL        | `sql`        | `.sql` |
 | Diff       | `diff`       | `.diff` `.patch` |
+| LaTeX      | `tex-file` *(→latex native)* | `.tex` `.sty` `.cls` `.ltx` |
 
 Several of these are **injection hosts** — they embed another language (see *Embedded languages* below).
-Two are **aliases**, parsing with another language's native grammar while keeping their own id
+Three are **aliases**, parsing with another language's native grammar while keeping their own id
 (`CodeHighlighter.NativeAlias`): `jinja` parses with html and routes injection by its own id; `xaml`
 parses with xml so the structure extractor can read WPF meaning — `x:Class`, `x:Name`, `x:Key`, event
-handlers — out of the same tree, while a plain `.xml` gets a generic element outline.
+handlers — out of the same tree, while a plain `.xml` gets a generic element outline; and `tex-file` parses
+with latex, because `latex` and `tex` already name the maths a fence or a formula is written in, which the
+shared engine typesets rather than colours.
 
 The XML rows are why the build and the installer are no longer opaque: `.wxs`/`.wxl` author the MSI and
 `.props`/`.targets` carry the logic every project inherits, so all of them now parse, outline and take a
@@ -60,7 +63,7 @@ Project and solution files (`.csproj`, `.vbproj`, `.slnx`, …) are coloured wit
 `ForEdit`, without being registered: the graph reads them through its structured layer, and a registered
 extension would be walked as code as well.
 
-**Everything else is plain text**, VB (`.vb`), TeX (`.tex`), ASPX and Boo among them: there is no grammar
+**Everything else is plain text**, VB (`.vb`), ASPX and Boo among them: there is no grammar
 for them, and colour without a tree would give none of what the rows above do — outline, folding, injection
 spans, something a snaplink can name. A surface that knows its language **by name rather than by file** — the
 PE inspector's manifest pane — says so to the surface (`WrittenIn="xml"`), and the same grammar colours it.
@@ -120,7 +123,7 @@ Add a new role only if an existing one doesn't fit: add the token to `Tokens.xam
    `tools/build-tree-sitter-natives.ps1` compiles what it lists, and `tools/ensure-submodules.ps1` reads it
    to know which nested submodules a fresh worktree must populate. `SourceDir` is where that grammar's C
    lives (usually `src`); `Root` is needed only when the grammar is its own submodule rather than one
-   nested inside the bindings repo — `xml`, `powershell`, `sql` and `diff` are.
+   nested inside the bindings repo — `xml`, `powershell`, `sql`, `diff` and `latex` are.
 
    The **id decides two names** — the DLL (`tree-sitter-<id>.dll`) and the export the runtime binds
    (`tree_sitter_<id>`) — so it must match what `CodeHighlighter` passes to `new Language(...)`. An alias

@@ -1018,10 +1018,29 @@
           }
         ]
       }
+    },
+    "parser-latex": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/HighlightQueries.cs",
+          "class": "HighlightQueries"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/CodeHighlighterTests.cs",
+            "class": "CodeHighlighterTests",
+            "method": "TexFile_ColoursCommandsEnvironmentsMathsAndLabels"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 46,
+  "changed_sets": 48,
   "touched_nodes": [
     "barcode-editing",
     "code-folding",
@@ -1057,6 +1076,7 @@
     "md-image-resolver",
     "md-link-decorator",
     "parser-diff",
+    "parser-latex",
     "parser-powershell",
     "parser-sql",
     "solver-latex-fence",
