@@ -4,7 +4,7 @@ using Nexaflow.Localization;
 namespace Nexaflow.Session.Help;
 
 /// <summary>One help page's share of a search: how often it matched, and the first line it matched on.</summary>
-internal sealed record HelpSearchResult(HelpTopic Topic, int MatchCount, string Preview)
+public sealed record HelpSearchResult(HelpTopic Topic, int MatchCount, string Preview)
 {
     public string CountLabel => MatchCount == 1
         ? Str.Get("Help.OtherPages.Match")
@@ -13,14 +13,14 @@ internal sealed record HelpSearchResult(HelpTopic Topic, int MatchCount, string 
 
 /// <summary>One match: the page, which match it is on that page (0-based, in reading order — the ordinal the page's
 /// own highlight steps through), and the line it sits on.</summary>
-internal sealed record HelpHit(HelpTopic Topic, int Ordinal, string Preview);
+public sealed record HelpHit(HelpTopic Topic, int Ordinal, string Preview);
 
 /// <summary>
 /// The "then every help page" half of a help search. Holds each page as <see cref="HelpPlainText"/> and matches with
 /// the same <see cref="TextSearchMatcher"/> the open page highlights with, so its counts and ordinals agree with what
 /// the reader sees. Built once, off the UI thread, the first time a search needs it.
 /// </summary>
-internal sealed class HelpSearchIndex(Func<IReadOnlyList<(HelpTopic Topic, string Markdown)>> source, Func<string?, string> plainText)
+public sealed class HelpSearchIndex(Func<IReadOnlyList<(HelpTopic Topic, string Markdown)>> source, Func<string?, string> plainText)
 {
     private const int PreviewLength = 140;
 

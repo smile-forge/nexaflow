@@ -7,7 +7,7 @@ using Nexaflow.Providers.Common;
 using Nexaflow.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.ComponentModel.DataAnnotations;
+
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -93,7 +93,7 @@ public partial class PropertyEditViewModel : ObservableObject
     {
         try
         {
-            _pi.SetValue(_editingClone, ConvertToTargetType(value, _pi.PropertyType));
+            _pi.SetValue(_editingClone, ConfigRequirements.Coerce(value, _pi.PropertyType));
         }
         catch { /* type mismatch — ignore */ }
 
@@ -122,25 +122,6 @@ public partial class PropertyEditViewModel : ObservableObject
                 => Str.Get("Shell.Options.FileMissing"),
             _ => null,
         };
-    }
-
-    private static object? ConvertToTargetType(object? value, Type targetType)
-    {
-        if (value is null) return null;
-        var target = Nullable.GetUnderlyingType(targetType) ?? targetType;
-        if (target.IsEnum && value is string s)
-            return Enum.Parse(target, s);
-
-        // TextBox editors hand back strings; coerce to the property's numeric type.
-        if (value is string str && target != typeof(string) && target.IsValueType)
-        {
-            if (string.IsNullOrWhiteSpace(str)) return Activator.CreateInstance(target);
-            if (target == typeof(int))     return int.Parse(str);
-            if (target == typeof(long))    return long.Parse(str);
-            if (target == typeof(double))  return double.Parse(str);
-            if (target == typeof(decimal)) return decimal.Parse(str);
-        }
-        return value;
     }
 
     /// <summary>Picks the folder through the window's shell, whose picker lists its workspace's places; without one — the setup
@@ -175,15 +156,12 @@ public partial class PropertyEditViewModel : ObservableObject
 
         Label        = LabelKey(pi) is { } key ? Str.Get(key) : pi.Name;
         PropertyName = pi.Name;
-        IsRequired   = pi.GetCustomAttribute<RequiredAttribute>() is not null;
-        var disabledIfSet =
-            pi.GetCustomAttribute<Nexaflow.Features.Common.DisabledIfSetAttribute>()?.PropertyName
-            ?? pi.GetCustomAttribute<Nexaflow.Providers.Common.DisabledIfSetAttribute>()?.PropertyName;
-        var disabledIfNotSet =
-            pi.GetCustomAttribute<Nexaflow.Features.Common.DisabledIfNotSetAttribute>()?.PropertyName
-            ?? pi.GetCustomAttribute<Nexaflow.Providers.Common.DisabledIfNotSetAttribute>()?.PropertyName;
-        if (disabledIfSet is not null)      { DisabledIfProperty = disabledIfSet;    DisabledWhenSiblingSet = true;  }
-        else if (disabledIfNotSet is not null) { DisabledIfProperty = disabledIfNotSet; DisabledWhenSiblingSet = false; }
+        IsRequired   = ConfigRequirements.IsRequired(pi);
+        if (ConfigRequirements.DisabledBy(pi) is var (sibling, whileSet))
+        {
+            DisabledIfProperty     = sibling;
+            DisabledWhenSiblingSet = whileSet;
+        }
 
         var folderAttr  = pi.GetCustomAttribute<FolderPathAttribute>();
         var fileAttr    = pi.GetCustomAttribute<FilePathAttribute>();
@@ -269,10 +247,8 @@ public partial class ConfigEditViewModel : ObservableObject
             ? CustomControlHasChanges(CustomControlInstance)
             : Properties.Any(p => p.HasChanged);
 
-        var required = Properties.Where(p => p.IsRequired).ToList();
-        IsRequiredSatisfied = required.Count == 0
-            || required.All(p =>  string.IsNullOrWhiteSpace(p.Value as string))   // all empty = valid (no-op)
-            || required.All(p => !string.IsNullOrWhiteSpace(p.Value as string));  // all filled = valid
+        // A page of its own judges its own entries; rows are judged by what they wrote into the edited copy.
+        IsRequiredSatisfied = HasCustomControl || ConfigRequirements.RequiredAllOrNone(EditingClone);
     }
 
     /// <summary>
@@ -285,20 +261,6 @@ public partial class ConfigEditViewModel : ObservableObject
         Nexaflow.Features.Common.ICustomConfigApply or Nexaflow.Providers.Common.ICustomConfigApply => true,
         _ => false,
     };
-
-    /// <summary>
-    /// Returns true if <paramref name="config"/> has no [Required] properties or all such properties have non-empty values.
-    /// Used by the AI ability grid to filter the provider dropdown to configured providers only.
-    /// </summary>
-    public static bool AreRequiredPropertiesSatisfied(object config)
-    {
-        var required = config.GetType()
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.GetCustomAttribute<RequiredAttribute>() is not null)
-            .ToList();
-        return required.Count == 0
-            || required.All(p => !string.IsNullOrWhiteSpace(p.GetValue(config) as string));
-    }
 
     public void ResetChanges()
     {
@@ -317,9 +279,7 @@ public partial class ConfigEditViewModel : ObservableObject
                 applyable2.Apply();
             return;
         }
-        foreach (var pi in EditingClone.GetType().GetProperties()
-                     .Where(p => p.CanRead && p.CanWrite))
-            pi.SetValue(RealConfig, pi.GetValue(EditingClone));
+        ConfigRequirements.CopyInto(EditingClone, RealConfig);
     }
 
     // Explicit-control section: an already-instantiated custom control (not a view made for the config's
@@ -390,7 +350,7 @@ public partial class ConfigEditViewModel : ObservableObject
             return;  // skip property reflection
         }
 
-        foreach (var pi in EditableProperties(EditingClone.GetType()))
+        foreach (var pi in ConfigRequirements.EditableProperties(EditingClone.GetType()))
             Properties.Add(new PropertyEditViewModel(pi, EditingClone, RecheckValidity, rulings, shell));
 
         WireConditionalEnables();
@@ -409,39 +369,13 @@ public partial class ConfigEditViewModel : ObservableObject
             if (src is null) continue;
 
             void Update() => dependent.IsEnabled =
-                dependent.DisabledWhenSiblingSet ? !IsValueSet(src.Value) : IsValueSet(src.Value);
+                dependent.DisabledWhenSiblingSet ? !ConfigRequirements.IsSet(src.Value) : ConfigRequirements.IsSet(src.Value);
             Update();
             src.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(PropertyEditViewModel.Value)) Update();
             };
         }
-    }
-
-    private static bool IsValueSet(object? v) => v switch
-    {
-        null     => false,
-        bool b   => b,
-        string s => !string.IsNullOrWhiteSpace(s) && s.Trim() != "0",
-        _        => System.Convert.ToDouble(v) != 0,
-    };
-
-    /// <summary>
-    /// The properties the grid gives a row: public and read-write — only those round-trip through ApplyToReal on
-    /// Save — other than the interface's identity members, and of a type an editor can hold. A list or an object a
-    /// feature persists for itself (the Solver's recent symbols) is state, not a setting.
-    /// </summary>
-    internal static IEnumerable<PropertyInfo> EditableProperties(Type configType)
-        => configType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.CanRead && p.CanWrite
-                        && p.Name is not (nameof(IFeatureConfig.ConfigName) or nameof(IFeatureConfig.FriendlyName))
-                        && IsEditable(p.PropertyType));
-
-    private static bool IsEditable(Type type)
-    {
-        var t = Nullable.GetUnderlyingType(type) ?? type;
-        return t == typeof(string) || t == typeof(bool) || t.IsEnum
-            || t == typeof(int) || t == typeof(long) || t == typeof(double) || t == typeof(decimal);
     }
 }
 
@@ -547,10 +481,7 @@ public partial class OptionsViewModel : ObservableObject
         // A refresh closes and reopens the tab, so reopening every feature's tabs on any save threw away
         // pages whose settings nobody touched — a Network sweep in flight among them.
         var activeCtx = _runtimes.FirstWithWindows;
-        var pageKindsToRefresh = activeCtx is null ? [] : changed
-            .SelectMany(type => _features.GetPageKindsForConfig(type, activeCtx))
-            .Distinct()
-            .ToList();
+        var pageKindsToRefresh = activeCtx is null ? [] : _features.PageKindsChangedBy(changed, activeCtx);
 
         if (pageKindsToRefresh.Count > 0)
             TabRefreshRequested?.Invoke(pageKindsToRefresh);

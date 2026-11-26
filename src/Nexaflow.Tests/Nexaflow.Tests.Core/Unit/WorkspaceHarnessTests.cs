@@ -120,7 +120,7 @@ public class WorkspaceHarnessTests
         var provider = new Step("Choose a provider", () => !owned);
         var model    = new Step("Choose a model", () => !owned);
         var persona  = new Step("Persona", () => true);
-        var wizard   = new SetupWizardViewModel([harness, provider, model, persona], ctx: null);
+        var wizard   = new SetupWizardViewModel([harness, provider, model, persona], setup: null);
         Assert.AreEqual("Step 1 of 4", wizard.StepIndicator);
 
         owned = true;   // what the harness step's commit decides
@@ -140,7 +140,7 @@ public class WorkspaceHarnessTests
         var hidden = new Step("Who runs the AI", () => false);
         var first  = new Step("Choose a provider", () => true);
 
-        var wizard = new SetupWizardViewModel([hidden, first], ctx: null);
+        var wizard = new SetupWizardViewModel([hidden, first], setup: null);
 
         Assert.AreSame(first, wizard.CurrentStep);
         Assert.IsFalse(wizard.ShowBack);

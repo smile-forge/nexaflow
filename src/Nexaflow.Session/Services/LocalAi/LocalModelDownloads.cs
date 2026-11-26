@@ -123,6 +123,27 @@ public sealed class LocalModelDownloads
     {
         public void Report(AssetProgress value) => report(value);
     }
+
+    /// <summary>Downloads what each of <paramref name="options"/> needs, as <see cref="Fetch"/> does one — a model whose own files are
+    /// all here but whose runtime is not among them — each with its download.</summary>
+    public IReadOnlyDictionary<LocalModelOption, LocalDownload> FetchAll(IEnumerable<LocalModelOption> options)
+        => options.Distinct().ToDictionary(o => o, Fetch);
+
+    /// <summary>
+    /// The choice of <paramref name="option"/> for <paramref name="workspace"/>'s <paramref name="slot"/>: one that is here — or is the
+    /// job's model already, <paramref name="current"/> — is the job's at once, any choice waiting on a download forgotten, and null is
+    /// returned for the caller to make it the job's model; one not here is downloaded and becomes the job's once it lands
+    /// (<see cref="Choose"/>), and its download is returned.
+    /// </summary>
+    public LocalDownload? ChooseOrFetch(Workspace workspace, LocalSlot slot, LocalModelOption option, ProviderModelPair? current, LocalModelShelf shelf)
+    {
+        if (option.IsIn(current) || shelf.IsReady(option))
+        {
+            Forget(workspace, slot);
+            return null;
+        }
+        return Choose(workspace, slot, option);
+    }
 }
 
 /// <summary>

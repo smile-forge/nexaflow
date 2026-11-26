@@ -13,7 +13,7 @@ namespace Nexaflow.Session.Services;
 /// is <paramref name="handOver"/>, and what follows an installer that then fails to start, with no window left to
 /// report it, is <paramref name="stranded"/>.
 /// </summary>
-internal sealed class UpdatumReleaseSource(Action handOver, Action<Exception> stranded) : IAppReleaseSource
+public sealed class UpdatumReleaseSource(Action handOver, Action<Exception> stranded) : IAppReleaseSource
 {
     private const string RepositoryOwner = "smile-forge";
     private const string RepositoryName  = "nexaflow";

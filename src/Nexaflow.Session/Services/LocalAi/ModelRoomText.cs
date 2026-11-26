@@ -5,7 +5,7 @@ using Nexaflow.Localization;
 namespace Nexaflow.Session.Services.LocalAi;
 
 /// <summary>A model download's lack of room, and any other failure of one, as a person reads it in their language.</summary>
-internal static class ModelRoomText
+public static class ModelRoomText
 {
     extension(ModelRoom room)
     {

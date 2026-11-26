@@ -142,19 +142,18 @@ public sealed partial class LocalJobViewModel : ObservableObject
     private void Choose(LocalChoiceViewModel choice)
     {
         if (!choice.Runs) { Refresh(); return; }
-        if (choice == Current || _shelf.IsReady(choice.Option))
+        if (_downloads.ChooseOrFetch(_workspace, Slot, choice.Option, _grid.LocalModelFor(Slot), _shelf) is { } download)
         {
-            _downloads.Forget(_workspace, Slot);
-            StopWaiting();
-            if (choice != Current)
-            {
-                _grid.ChooseLocal(Slot, choice.Option.Column());
-                _committed();
-            }
-            Refresh();
+            Wait(download);
             return;
         }
-        Wait(_downloads.Choose(_workspace, Slot, choice.Option));
+        StopWaiting();
+        if (choice != Current)
+        {
+            _grid.ChooseLocal(Slot, choice.Option.Column());
+            _committed();
+        }
+        Refresh();
     }
 
     /// <summary>Follows the download a choice waits on, saying how it goes.</summary>

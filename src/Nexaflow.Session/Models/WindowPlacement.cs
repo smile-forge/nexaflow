@@ -13,11 +13,6 @@ namespace Nexaflow.Session.Models;
 /// </summary>
 public sealed record WindowPlacement(PixelRect Normal, bool Maximized, MonitorArea Monitor)
 {
-    internal const int SW_SHOWNORMAL          = 1;
-    internal const int SW_SHOWMINIMIZED       = 2;
-    internal const int SW_SHOWMAXIMIZED       = 3;
-    internal const int WPF_RESTORETOMAXIMIZED = 0x0002;
-
     /// <summary>A hand-edited or half-written entry is never applied: fitting it needs a size and a monitor.</summary>
     [JsonIgnore]
     public bool IsUsable => !Normal.IsEmpty
@@ -25,27 +20,8 @@ public sealed record WindowPlacement(PixelRect Normal, bool Maximized, MonitorAr
                          && !monitor.Bounds.IsEmpty
                          && !monitor.WorkArea.IsEmpty;
 
-    /// <summary>
-    /// The placement a window's <c>WINDOWPLACEMENT</c> describes, on <paramref name="monitor"/>.
-    /// <paramref name="shown"/> is the window's live rectangle in screen pixels, used only in the normal state: a
-    /// window snapped to half a monitor shows a different rectangle from its restore one, and the one it shows is
-    /// where the user put it.
-    /// </summary>
-    internal static WindowPlacement FromNative(int showCmd, int flags, PixelRect normalPosition, PixelRect? shown,
-                                               MonitorArea monitor)
-    {
-        bool maximized = showCmd == SW_SHOWMAXIMIZED
-                      || (showCmd == SW_SHOWMINIMIZED && (flags & WPF_RESTORETOMAXIMIZED) != 0);
-        bool normalState = showCmd is not (SW_SHOWMINIMIZED or SW_SHOWMAXIMIZED);
-
-        var normal = normalState && shown is { IsEmpty: false } live
-            ? live.Offset(-(monitor.WorkArea.Left - monitor.Bounds.Left), -(monitor.WorkArea.Top - monitor.Bounds.Top))
-            : normalPosition;
-        return new WindowPlacement(normal, maximized, monitor);
-    }
-
     /// <summary>True when <paramref name="other"/> puts the window in the same place: same rectangle, same state, same monitor.</summary>
-    internal bool SamePlaceAs(WindowPlacement other)
+    public bool SamePlaceAs(WindowPlacement other)
         => Normal == other.Normal && Maximized == other.Maximized && Monitor.Id == other.Monitor.Id;
 
     /// <summary>
@@ -56,7 +32,7 @@ public sealed record WindowPlacement(PixelRect Normal, bool Maximized, MonitorAr
     /// desktop) or the primary — its position and size in proportion to the work area, and wholly inside it.
     /// <paramref name="onOwnMonitor"/> says whether its own monitor was there.
     /// </summary>
-    internal WindowPlacement FitTo(IReadOnlyList<MonitorArea> attached, out bool onOwnMonitor)
+    public WindowPlacement FitTo(IReadOnlyList<MonitorArea> attached, out bool onOwnMonitor)
     {
         var own = attached.FirstOrDefault(m => m.Id == Monitor.Id);
         onOwnMonitor = own is not null;

@@ -3,7 +3,7 @@ using Nexaflow.Localization;
 
 namespace Nexaflow.Session.AI;
 
-internal static class AiAbilityNames
+public static class AiAbilityNames
 {
     public static string Friendly(AiAbility a) => a switch
     {

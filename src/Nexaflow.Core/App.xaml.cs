@@ -124,6 +124,9 @@ public partial class App : Application
     /// </summary>
     private static bool _profilingStartup;
 
+    /// <summary>The app's version: its assembly's, as the config files are stamped with it.</summary>
+    public static string Version => (typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0, 0)).ToString();
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -142,7 +145,7 @@ public partial class App : Application
         var folders = AppDataFolders.ForThisProcess();
 
         // The logs, before anything that writes to them: the exception hooks, the single-instance guard, the steps of start-up.
-        _logging     = ShellLogging.Open(folders, SetupWizardViewModel.CurrentVersion(), UiTest, _profilingStartup);
+        _logging     = ShellLogging.Open(folders, Version, UiTest, _profilingStartup);
         _log         = _logging.Factory.CreateLogger<App>();
         _faultPolicy = new DispatcherFaultPolicy(() => DateTimeOffset.Now);
 
@@ -243,17 +246,13 @@ public partial class App : Application
             _standby = standby;
         }
 
-        // Feature warm-up — the remaining feature assemblies load and activate off the UI thread now that the first window is up.
+        // The session's background work now that the first window is up: the remaining feature assemblies load and activate off the UI
+        // thread, and the sweep of the app's own drafts starts.
         var warmUp = _host!.StartBackground();
         if (_standby is { } ready)
             warmUp.ContinueWith(_ => ready.Schedule(TimeSpan.Zero), TaskScheduler.FromCurrentSynchronizationContext());
 
-        // Drafts are the app's to clear, never Windows': a little after start-up, and daily while the app runs, every draft no tab
-        // shows or would open again that has gone untouched too long, or is past the drafts' budget. What the tabs name is asked
-        // only once the window has nothing else to do, and the sweep itself is off the UI thread.
-        _draftSweeping = new DraftSweeping(() => Dispatcher.InvokeAsync(() => _host!.SavedWorkspaces.TabPaths(_host!.Workspaces.OpenTabs()), DispatcherPriority.ApplicationIdle).Task,
-                                           paths => DraftLocation.Sweep(paths), TimeProvider.System);
-        _draftSweeping.Start();
+
 
 
 
@@ -283,7 +282,7 @@ public partial class App : Application
     /// </summary>
     private ShellHost OpenSession(WpfUiThread ui, AppDataFolders folders)
     {
-        var host = new ShellHost(new ShellHostOptions(folders, SetupWizardViewModel.CurrentVersion(), _resetRequested, UiTest, _logging),
+        var host = new ShellHost(new ShellHostOptions(folders, Version, _resetRequested, UiTest, _logging),
                                  new ShellPlatform(ui, _clipboard = new ShellClipboard(this), new WpfFilePickers(), new WpfThemeHost(), typeof(ViewForAttribute), typeof(App).Assembly, ContentLanguages.Draws, new WpfPictureFitting(), new WasapiSpeechDevices(), () => new ShellFolderWatcher(ui.Dispatcher), ApplyAppearance,
                                                                      (catalog, dependencies, showComponents, logging) => _pageViews = PageViews.FromCatalog(catalog, dependencies, showComponents, logging)),
                                                    _updates);
@@ -325,13 +324,10 @@ public partial class App : Application
 
     /// <summary>The views the session's pages are drawn with, made for it as it opens and handed to every window.</summary>
     private static PageViews? _pageViews;
-    /// <summary>The app's sweep of its own drafts, at start and daily while it runs.</summary>
-    private DraftSweeping? _draftSweeping;
-
     protected override void OnExit(ExitEventArgs e)
     {
         _log.LogInformation("shutdown begun (exit code {ExitCode})", e.ApplicationExitCode);
-        _draftSweeping?.Dispose();
+        
 
         // The session ends: every workspace still running, the watches, the models held ahead, the AI host — each wait bounded.
         _host?.DisposeAsync().AsTask().Wait();
@@ -490,7 +486,7 @@ public partial class App : Application
             // stamped so post-update detection stays consistent.
             if (!UiTest && !_profilingStartup)
             {
-                var wizard = SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Config, _host.Shell, _host.Features, _host.Providers,
+                var wizard = SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Config, _host.Runs, _host.Features, _host.Providers,
                                                                         _host.SavedWorkspaces);
                 if (wizard is not null)
                 {
@@ -571,7 +567,7 @@ public partial class App : Application
     private bool SettleSetupAhead(Workspace workspace)
     {
         if (_setupShown) return true;
-        if (!UiTest && !_profilingStartup && SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Config, _host.Shell, _host.Features,
+        if (!UiTest && !_profilingStartup && SetupWizardViewModel.Build(workspace, ConfigPages(), _host!.Config, _host.Runs, _host.Features,
                                                                                           _host.Providers, _host.SavedWorkspaces) is not null) return false;
         _setupShown = true;
         FinishSetup();
@@ -582,7 +578,7 @@ public partial class App : Application
     /// the language the wizard's Shell step may have picked is selected before the window's strings resolve.</summary>
     private static void FinishSetup()
     {
-        StampLastRunVersion();
+        _host!.Runs.Stamp();
         _host!.Language.Select(_host.Shell.Language);
     }
 
@@ -626,16 +622,6 @@ public partial class App : Application
             Process.Start(new ProcessStartInfo(exe, "--reset") { UseShellExecute = false });
 
         Current.Shutdown();
-    }
-
-    /// <summary>Records the current version so the next launch can detect an update (drives What's New).</summary>
-    private static void StampLastRunVersion()
-    {
-        var shell   = _host!.Shell;
-        var current = SetupWizardViewModel.CurrentVersion();
-        if (shell.LastRunVersion == current) return;   // unchanged — skip the write
-        shell.LastRunVersion = current;
-        try { _host.Config.Save(shell, shell.ConfigName); } catch { }
     }
 
     /// <summary>Resolves a workspace name to a saved <see cref="Workspace"/>, or null.</summary>

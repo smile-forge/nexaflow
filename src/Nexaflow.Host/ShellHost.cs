@@ -20,7 +20,7 @@ namespace Nexaflow.Host;
 /// <param name="UiTest">A UI journey drives the app: every feature is activated up front, and nothing is downloaded.</param>
 /// <param name="Logging">The process's logs, made by the app before the session: what the session logs to, and hands each service
 /// it makes a logger from.</param>
-internal sealed record ShellHostOptions(AppDataFolders Folders, string Version, bool Reset, bool UiTest, ShellLogging Logging);
+public sealed record ShellHostOptions(AppDataFolders Folders, string Version, bool Reset, bool UiTest, ShellLogging Logging);
 
 /// <summary>What the UI toolkit the shell runs on gives the session: the pieces only it can make.</summary>
 /// <param name="Ui">The thread the windows run on.</param>
@@ -41,7 +41,7 @@ internal sealed record ShellHostOptions(AppDataFolders Folders, string Version, 
 /// <param name="Views">Makes the view each open page is drawn with, from the toolkit's views the feature catalogue marks as drawing
 /// it; a page that could not be made is recorded in the logs, and drawn naming the session's missing components that may be why,
 /// with the way to the About page that lists them all.</param>
-internal sealed record ShellPlatform(
+public sealed record ShellPlatform(
     IUiThread Ui,
     IShellClipboard Clipboard,
     IFilePickers Pickers,
@@ -68,7 +68,7 @@ internal sealed record ShellPlatform(
 /// toolkit: what only the toolkit can make comes in a <see cref="ShellPlatform"/>.
 /// </para>
 /// </summary>
-internal sealed class ShellHost : IAsyncDisposable
+public sealed class ShellHost : IAsyncDisposable
 {
     /// <summary>How long ending waits for the runtimes' connections to close, the models to let go and the AI host to close.</summary>
     private static readonly TimeSpan RuntimesPatience  = TimeSpan.FromSeconds(3);
@@ -117,6 +117,9 @@ internal sealed class ShellHost : IAsyncDisposable
     /// <summary>The shell's own settings.</summary>
     public ShellConfig Shell { get; }
 
+    /// <summary>This run against the one before: a first run, or the first since an update, until the setup that greets it is done.</summary>
+    public AppRuns Runs { get; }
+
     /// <summary>The security settings: what the assistant may see of the desktop.</summary>
     public SecurityConfig Security { get; }
 
@@ -124,7 +127,7 @@ internal sealed class ShellHost : IAsyncDisposable
     public LanguageManager Language { get; }
 
     /// <summary>The help pages, read through the language: the Help page shows them, and every runtime's assistant reads them.</summary>
-    internal HelpLibrary Help { get; }
+    public HelpLibrary Help { get; }
 
     /// <summary>The third-party components the features declare, and what the last probe found of each.</summary>
     public ExternalDependencyRegistry Dependencies { get; }
@@ -177,6 +180,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // ── 1. Shell config ──────────────────────────────────────────────────
         Shell = new ShellConfig();
         Config.Register(Shell, Shell.ConfigName);
+        Runs  = new AppRuns(Shell, Config, options.Version);
 
         // From here this session knows whether it keeps a safety log: what startup held so far is written out or dropped.
         options.Logging.Session.Apply(Shell.SafetyLogging);
@@ -363,13 +367,35 @@ internal sealed class ShellHost : IAsyncDisposable
     /// loading competes with the frame.</summary>
     public void FirstWindowDrawn() => _residency.Open();
 
+    /// <summary>The sweep of the app's own drafts, started with the background work; null until then.</summary>
+    private DraftSweeping? _draftSweeping;
+
     /// <summary>
     /// Loads and activates the remaining feature assemblies off the UI thread — archive backends first, so browsing into an
     /// archive works as early as possible — so deferred features and their handlers, themes and configs are ready within a
     /// second or two without blocking first paint. The task ends when every feature is active.
     /// </summary>
     public Task StartBackground()
-        => Task.Run(() => Catalog.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
+    {
+        // Drafts are the app's to clear, never Windows': a little after start-up, and daily while the app runs, every draft no tab
+        // shows or would open again that has gone untouched too long, or is past the drafts' budget.
+        _draftSweeping ??= new DraftSweeping(TabPathsWhenIdleAsync, paths => DraftLocation.Sweep(paths), TimeProvider.System);
+        _draftSweeping.Start();
+        return Task.Run(() => Catalog.WarmUpAll(["Nexaflow.Features.Compressed", "Nexaflow.Features.Email"]));
+    }
+
+    /// <summary>The paths the open tabs and every workspace's saved tabsets name, asked on the UI thread once it has drawn and handled
+    /// its input: the sweep itself runs off it.</summary>
+    private Task<IReadOnlyList<string>> TabPathsWhenIdleAsync()
+    {
+        var named = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Ui.PostInBackground(() =>
+        {
+            try { named.SetResult(SavedWorkspaces.TabPaths(Workspaces.OpenTabs())); }
+            catch (Exception ex) { named.SetException(ex); }
+        });
+        return named.Task;
+    }
 
     /// <summary>
     /// Ends the session, in the reverse of the order it started: every workspace runtime still running — with windows, on
@@ -383,6 +409,7 @@ internal sealed class ShellHost : IAsyncDisposable
         _ended = true;
 
         _log.LogInformation("session ending");
+        _draftSweeping?.Dispose();
         Workspaces.Dispose();
         var runtimesEnding = RuntimeFactory.EndAllAsync();
         Folders.Dispose();

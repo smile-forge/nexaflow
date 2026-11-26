@@ -62,7 +62,7 @@ public sealed class WorkspaceRuntimes : IDisposable
     /// Builds the window a runtime opens into — unshown, opening no tabs — for a tear-off or a "new window". Set by the app,
     /// which knows what a window is; handed to each runtime this registry holds.
     /// </summary>
-    internal Func<WorkspaceRuntime, IWindowHost>? WindowFactory { get; set; }
+    public Func<WorkspaceRuntime, IWindowHost>? WindowFactory { get; set; }
 
     /// <summary>Raised when the last window open in any workspace has closed — the session has no window left. A standby closing
     /// is not that: it was never a window anyone saw.</summary>
@@ -109,10 +109,10 @@ public sealed class WorkspaceRuntimes : IDisposable
 
     /// <summary>A runtime for <paramref name="workspace"/> standing ready for a launch that has not come yet: its workspace's one
     /// runtime, though no window shows it, until a launch adopts it (<see cref="Adopt"/>) or it is set aside.</summary>
-    internal WorkspaceRuntime OpenStandby(Workspace workspace) => Hold(_factory.CreateStandby(workspace));
+    public WorkspaceRuntime OpenStandby(Workspace workspace) => Hold(_factory.CreateStandby(workspace));
 
     /// <summary>A launch adopted the standby runtime: its models are weighed for loading ahead, as any opened runtime's are.</summary>
-    internal void Adopt(WorkspaceRuntime standby) => standby.Adopted();
+    public void Adopt(WorkspaceRuntime standby) => standby.Adopted();
 
     /// <summary>Has every runtime of <paramref name="workspace"/> take up its providers again: its grid changed under it.</summary>
     internal void Reacquire(Workspace workspace)
@@ -155,7 +155,7 @@ public sealed class WorkspaceRuntimes : IDisposable
 
     /// <summary>Ends <paramref name="workspace"/>'s runtime now, closing any window still showing it — the workspace is being
     /// deleted.</summary>
-    internal void Close(Workspace workspace)
+    public void Close(Workspace workspace)
     {
         if (Find(workspace) is not { } runtime) return;
         _byWorkspace.Remove(workspace);

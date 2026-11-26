@@ -418,4 +418,20 @@ public sealed class WorkspaceManager
         var assigned = cfg.AssignedColumnIds();
         return [.. cfg.Columns.Where(c => assigned.Contains(c.Id))];
     }
+
+    /// <summary>Whether <paramref name="workspace"/> has a language model ready to answer: one its ability grid assigns, from a provider
+    /// whose required config (an API key, say) is complete — or one that takes no config at all, Nexaflow's own, from an assembly
+    /// <paramref name="providers"/> has loaded. A speech model alone does not make one.</summary>
+    public static bool HasAnsweringModel(Workspace workspace, ProviderManager providers)
+    {
+        var ai       = workspace.AiConfig;
+        var assigned = ai.AssignedColumnIds();
+        if (assigned.Count == 0) return false;
+        var byName = workspace.ProviderConfigs.ToDictionary(c => c.FriendlyName);
+        return ai.Columns
+            .Where(c => c.Kind == ModelKind.Language && assigned.Contains(c.Id))
+            .Any(c => byName.TryGetValue(c.ProviderName, out var config)
+                      ? ConfigRequirements.IsComplete(config)
+                      : providers.TakesNoConfig(c.AssemblyFileName));
+    }
 }

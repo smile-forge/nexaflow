@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -210,7 +211,7 @@ internal sealed class WindowPlacementTracker
         if (AttachedMonitors.Of(_hwnd, attached) is not { } monitor) return null;
 
         PixelRect? shown = GetWindowRect(_hwnd, out var rect) ? AttachedMonitors.ToPixelRect(rect) : null;
-        return WindowPlacement.FromNative(native.showCmd, native.flags,
+        return FromNative(native.showCmd, native.flags,
                                           AttachedMonitors.ToPixelRect(native.rcNormalPosition), shown, monitor);
     }
 
@@ -233,12 +234,12 @@ internal sealed class WindowPlacementTracker
         if (!opening && IsIconic(_hwnd))
         {
             native.showCmd = SW_SHOWMINNOACTIVE;
-            native.flags   = placement.Maximized ? WindowPlacement.WPF_RESTORETOMAXIMIZED : 0;
+            native.flags   = placement.Maximized ? WPF_RESTORETOMAXIMIZED : 0;
         }
         else if (placement.Maximized)
-            native.showCmd = WindowPlacement.SW_SHOWMAXIMIZED;
+            native.showCmd = SW_SHOWMAXIMIZED;
         else
-            native.showCmd = opening ? WindowPlacement.SW_SHOWNORMAL : SW_SHOWNOACTIVATE;
+            native.showCmd = opening ? SW_SHOWNORMAL : SW_SHOWNOACTIVATE;
 
         _applying = true;
         try { SetWindowPlacement(_hwnd, ref native); }
@@ -302,4 +303,31 @@ internal sealed class WindowPlacementTracker
 
     [DllImport("user32.dll")]
     private static extern bool UnregisterPowerSettingNotification(IntPtr handle);
+
+    /// <summary>
+    /// The placement a window's <c>WINDOWPLACEMENT</c> describes, on <paramref name="monitor"/>.
+    /// <paramref name="shown"/> is the window's live rectangle in screen pixels, used only in the normal state: a
+    /// window snapped to half a monitor shows a different rectangle from its restore one, and the one it shows is
+    /// where the user put it.
+    /// </summary>
+    internal static WindowPlacement FromNative(int showCmd, int flags, PixelRect normalPosition, PixelRect? shown,
+                                               MonitorArea monitor)
+    {
+        bool maximized = showCmd == SW_SHOWMAXIMIZED
+                      || (showCmd == SW_SHOWMINIMIZED && (flags & WPF_RESTORETOMAXIMIZED) != 0);
+        bool normalState = showCmd is not (SW_SHOWMINIMIZED or SW_SHOWMAXIMIZED);
+
+        var normal = normalState && shown is { IsEmpty: false } live
+            ? live.Offset(-(monitor.WorkArea.Left - monitor.Bounds.Left), -(monitor.WorkArea.Top - monitor.Bounds.Top))
+            : normalPosition;
+        return new WindowPlacement(normal, maximized, monitor);
+    }
+
+    internal const int SW_SHOWNORMAL          = 1;
+
+    internal const int SW_SHOWMINIMIZED       = 2;
+
+    internal const int SW_SHOWMAXIMIZED       = 3;
+
+    internal const int WPF_RESTORETOMAXIMIZED = 0x0002;
 }

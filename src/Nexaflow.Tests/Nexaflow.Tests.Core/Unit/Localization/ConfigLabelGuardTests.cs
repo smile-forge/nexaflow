@@ -28,7 +28,7 @@ public partial class ConfigLabelGuardTests
         var problems = new List<string>();
         foreach (var type in ConfigTypes().Where(ShowsAGrid))
         {
-            foreach (var pi in ConfigEditViewModel.EditableProperties(type))
+            foreach (var pi in ConfigRequirements.EditableProperties(type))
             {
                 Check(problems, $"{type.FullName}.{pi.Name}", PropertyEditViewModel.LabelKey(pi));
 

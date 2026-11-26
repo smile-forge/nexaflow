@@ -51,66 +51,23 @@ public sealed partial class DownloadedModelsViewModel : ObservableObject
     /// <summary>Lists what is on disk again, and who uses each.</summary>
     public void Refresh()
     {
-        var workspaces = _workspaces();
-        var options    = _shelf.All;
-        var usedBy     = options.ToDictionary(o => o, o => workspaces.Where(w => Uses(w.Config, o)).Select(w => w.Workspace).ToList());
-
+        var usage = LocalModelUsage.Of(_shelf, _workspaces(), _tools);
         Models.Clear();
-        var counted = new HashSet<string>(StringComparer.Ordinal);   // a file two builds share takes its room once
-        var onDisk  = options.ToDictionary(o => o, o => o.Model.Files.Where(f => _shelf.Store.Has(f))
-                                                                     .Select(f => f.RelativePath).ToHashSet(StringComparer.Ordinal));
-        long total = 0;
-        foreach (var option in options)
-        {
-            var here = Here(option.Model.Files);
-            if (here == 0 || Covered(option, onDisk)) continue;
-            total += Here(option.Model.Files.Where(f => counted.Add(f.RelativePath)));
-            Models.Add(new DownloadedModelViewModel(this, option.Model.DisplayName, KindOf(option.Kind), here, usedBy[option], option.Model.Files));
-        }
-        foreach (var tool in _tools)
-        {
-            var here = Here(tool.OwnFiles);
-            if (here == 0) continue;
-            total += Here(tool.OwnFiles.Where(f => counted.Add(f.RelativePath)));
-            Models.Add(new DownloadedModelViewModel(this, tool.Name, Str.Get("Shell.Config.Downloaded.Tool"), here, [], tool.OwnFiles));
-        }
-        foreach (var runtime in _shelf.Runtimes)
-        {
-            var here = Here(runtime.Files);
-            if (here == 0) continue;
-            total += Here(runtime.Files.Where(f => counted.Add(f.RelativePath)));
-            var users = options.Where(o => o.Runtime?.Id == runtime.Id).SelectMany(o => usedBy[o]).Distinct().ToList();
-            Models.Add(new DownloadedModelViewModel(this, runtime.DisplayName, Str.Get("Shell.Config.Downloaded.Runtime"), here, users, runtime.Files));
-        }
-        TotalBytes = total;
-        Total   = Str.Format("Shell.Config.Downloaded.TotalFormat", SizeFormatter.FormatBytes(total));
+        foreach (var item in usage.Items)
+            Models.Add(new DownloadedModelViewModel(this, item.Name, KindOf(item), item.Bytes, item.UsedBy, item.Files));
+        TotalBytes = usage.TotalBytes;
+        Total   = Str.Format("Shell.Config.Downloaded.TotalFormat", SizeFormatter.FormatBytes(usage.TotalBytes));
         IsEmpty = Models.Count == 0;
     }
 
-    /// <summary>
-    /// Whether all of <paramref name="option"/>'s files here are another model's that is here beyond them — a build whose own
-    /// files are gone, the parts it shared with another build staying for that one. It is not listed: nothing of its own is
-    /// left to delete.
-    /// </summary>
-    private static bool Covered(LocalModelOption option, IReadOnlyDictionary<LocalModelOption, HashSet<string>> onDisk)
-        => onDisk.Any(other => !ReferenceEquals(other.Key, option) && other.Value.Except(onDisk[option]).Any()
-                               && onDisk[option].All(path => other.Key.Model.Files.Any(f => f.RelativePath == path)));
-
     internal Task RemoveAsync(IReadOnlyList<ModelAsset> files) => _shelf.RemoveAsync(files);
 
-    /// <summary>The bytes of <paramref name="files"/> on disk.</summary>
-    private long Here(IEnumerable<ModelAsset> files) => files.Where(f => _shelf.Store.Has(f)).Sum(f => f.Size);
-
-    /// <summary>Whether a grid has some ability use the model: a column holding it that a chain names.</summary>
-    private static bool Uses(AiConfig config, LocalModelOption option)
+    private static string KindOf(LocalDiskItem item) => item.Sort switch
     {
-        var assigned = config.AssignedColumnIds();
-        return config.Columns.Any(c => assigned.Contains(c.Id) && c.Kind == option.Kind && option.IsIn(c));
-    }
-
-    private static string KindOf(ModelKind kind) => kind == ModelKind.Language
-        ? Str.Get("Shell.Config.Downloaded.Language")
-        : ProviderOffer.KindLabel(kind);
+        LocalDiskItemSort.Tool    => Str.Get("Shell.Config.Downloaded.Tool"),
+        LocalDiskItemSort.Runtime => Str.Get("Shell.Config.Downloaded.Runtime"),
+        _ => item.Kind == ModelKind.Language ? Str.Get("Shell.Config.Downloaded.Language") : ProviderOffer.KindLabel(item.Kind ?? ModelKind.Language),
+    };
 }
 
 /// <summary>A model or runtime on disk.</summary>

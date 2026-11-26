@@ -113,11 +113,11 @@ public class WorkspaceConfigScopingTests
     // ── Required-property gate (used by the wizard + ability grid) ──
 
     [TestMethod]
-    public void AreRequiredPropertiesSatisfied_Cases()
+    public void AConfigIsComplete_WhenEveryRequiredSettingIsFilled()
     {
-        Assert.IsTrue(ConfigEditViewModel.AreRequiredPropertiesSatisfied(new NoRequiredConfig()));
-        Assert.IsFalse(ConfigEditViewModel.AreRequiredPropertiesSatisfied(new FakeProviderConfig { ApiKey = "" }));
-        Assert.IsTrue(ConfigEditViewModel.AreRequiredPropertiesSatisfied(new FakeProviderConfig { ApiKey = "sk-123" }));
+        Assert.IsTrue(ConfigRequirements.IsComplete(new NoRequiredConfig()));
+        Assert.IsFalse(ConfigRequirements.IsComplete(new FakeProviderConfig { ApiKey = "" }));
+        Assert.IsTrue(ConfigRequirements.IsComplete(new FakeProviderConfig { ApiKey = "sk-123" }));
     }
 
     // ── Wizard predicate: is the startup workspace usable as-is? ──
@@ -126,7 +126,7 @@ public class WorkspaceConfigScopingTests
     public void IsWorkspaceConfigured_NoAssignments_False()
     {
         var p = new Workspace();
-        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p, TestRuntimes.Providers));
+        Assert.IsFalse(WorkspaceManager.HasAnsweringModel(p, TestRuntimes.Providers));
     }
 
     [TestMethod]
@@ -137,7 +137,7 @@ public class WorkspaceConfigScopingTests
         p.AiConfig.Columns = new List<ProviderModelPair> { col };
         p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
 
-        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p, TestRuntimes.Providers));
+        Assert.IsFalse(WorkspaceManager.HasAnsweringModel(p, TestRuntimes.Providers));
     }
 
     [TestMethod]
@@ -149,7 +149,7 @@ public class WorkspaceConfigScopingTests
         p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
         SetProviderConfigs(p, new FakeProviderConfig { ApiKey = "sk-123" });
 
-        Assert.IsTrue(SetupWizardViewModel.IsWorkspaceConfigured(p, TestRuntimes.Providers));
+        Assert.IsTrue(WorkspaceManager.HasAnsweringModel(p, TestRuntimes.Providers));
     }
 
     [TestMethod]
@@ -161,7 +161,7 @@ public class WorkspaceConfigScopingTests
         p.AiConfig.Assignments["Disambiguation"] = AbilityChain.Of("c1");
         SetProviderConfigs(p, new FakeProviderConfig { ApiKey = "" });
 
-        Assert.IsFalse(SetupWizardViewModel.IsWorkspaceConfigured(p, TestRuntimes.Providers));
+        Assert.IsFalse(WorkspaceManager.HasAnsweringModel(p, TestRuntimes.Providers));
     }
 
     // Workspace.ProviderConfigs is loaded from disk in production; set it directly here.

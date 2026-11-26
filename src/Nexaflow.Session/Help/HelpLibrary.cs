@@ -20,7 +20,7 @@ namespace Nexaflow.Session.Help;
 /// by the feature injection, and to every runtime's assistant, as the tools that read it.
 /// </para>
 /// </summary>
-internal sealed partial class HelpLibrary
+public sealed partial class HelpLibrary
 {
     public const string IndexTopic = "index";
     private const string IndexName = "Nexaflow.Core/help/index.md";
