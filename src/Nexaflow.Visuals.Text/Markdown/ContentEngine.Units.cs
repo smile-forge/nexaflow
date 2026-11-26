@@ -259,8 +259,9 @@ public sealed partial class ContentEngine
 
             if (laid[index] is not { } standing)
             {
-                var (unit, _) = window.Listed[index];
-                y += language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, showing.WrapsLines ? room : null, saying) - this.HiddenHeight(window, index, showing.Style)
+                var (unit, start) = window.Listed[index];
+                y += unit.Skipped ? this.SkippedHeight(window, language, start, unit.Width, showing, room, perCharacter)
+                   : language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, showing.WrapsLines ? room : null, saying) - this.HiddenHeight(window, index, showing.Style)
                    : window.Staged.TryGetValue(unit.Tree, out var staged) && staged.Laid is { } was ? was.Laid.Height
                    : unit.Width * perCharacter;
                 above = null;
@@ -278,6 +279,32 @@ public sealed partial class ContentEngine
 
         tops[count] = y;
         return (tops, laid, perCharacter);
+    }
+
+    /// <summary>
+    /// How tall a stretch skipped from <paramref name="start"/> over <paramref name="width"/> characters stands: its lines — counted from the
+    /// document, not read — at the height the language says a line comes to; where lines wrap, as many rows as its characters need where
+    /// that is more than one a line, each half the text size wide across <paramref name="room"/>; at what its characters come to, for a
+    /// language that says nothing of its lines.
+    /// </summary>
+    private double SkippedHeight(ContentWindow window, ContentLanguage language, int start, int width, ContentShowing showing, double room, double perCharacter)
+    {
+        if (language.LineHeight is not { } line) return width * perCharacter;
+
+        var document = window.ListedIn;
+        var end = start + width;
+
+        // A stretch ends where a line starts, so its lines are the breaks in it — and the last line too, where it runs to the end.
+        var lines = document.LineOf(end) - document.LineOf(start) + (end >= document.Length ? 1 : 0);
+        var rows = (double)lines;
+
+        if (showing.WrapsLines)
+        {
+            var across = Math.Max(1, room / Math.Max(showing.Style.TextSize * 0.5, 1));
+            rows = Math.Max(lines, Math.Ceiling(width / across));
+        }
+
+        return rows * line(showing.Style, _medium);
     }
 
     /// <summary>
@@ -629,12 +656,16 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// The reading of the content's unit at <paramref name="index"/>, placed where it starts — worked over now where nothing has yet, as the
-    /// units laid were; null before anything has been laid to say how.
+    /// units laid were; null before anything has been laid to say how, and for a stretch skipped, which nothing has read.
     /// </summary>
     private ContentPart? PlacedAt(int index)
     {
         var shown = _shown!;
         var (unit, start) = shown.Listed[index];
+
+        // A stretch skipped has no reading to place: it is read when something reaches it.
+        if (unit.Skipped) return null;
+
         if (shown.Staged.TryGetValue(unit.Tree, out var staged)) return staged.Placed(start, shown.ListedIn).Root;
         if (shown.StagedBy is not var (language, showing)) return null;
 

@@ -52,6 +52,7 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
         this.Last = original.Last;
         this.Tree = original.Tree;
         this.Bodies = original.Bodies;
+        this.Skipped = original.Skipped;
     }
 
     /// <summary>
@@ -59,6 +60,16 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
     /// those read so far: a body is read when something asks for it (<see cref="ContentBody"/>).
     /// </summary>
     public IReadOnlyList<(int At, ContentBody Body)> Bodies { get; init; } = [];
+
+    /// <summary>
+    /// Whether it is a stretch not read — not yet, or let go of since — standing for its characters only by how many there are: what a
+    /// reading that can start at any line start (<see cref="ContentUnits.Skips"/>) leaves between the stretches it read where the reader was.
+    /// </summary>
+    public bool Skipped { get; init; }
+
+    /// <summary>A stretch of <paramref name="width"/> characters not read, reaching the end of the reading where <paramref name="last"/> says.</summary>
+    public static ContentUnit Skipping(int width, bool last) =>
+        new(width, null, null, last, ContentNode.Leaf(Kinds.Unreached, string.Empty, Roles.Trivia)) { Skipped = true };
 
     /// <summary>The reading of the body held by the holder starting at <paramref name="at"/> in the unit, or null where none is read.</summary>
     public ContentBody? Body(int at)
@@ -190,6 +201,13 @@ public sealed record ContentUnit(int Width, object? Begun, object? Ended, bool L
 /// <strong>Immutable.</strong> Reading another unit, or reading again where something changed, hands back another, sharing every
 /// unit it did not read — so a reading carried on away from the thread that lays it never disturbs the one being laid.
 /// </para>
+/// <para>
+/// <strong>Read where the reader is, where it can start anywhere.</strong> A reading in a language whose every line start is
+/// somewhere to start reading — text, code — need not read everything before what it reads (<see cref="Skips"/>): what it has not
+/// come to is held as stretches skipped (<see cref="ContentUnit.Skipped"/>), each only a width, read into where the reader comes
+/// (<see cref="ReadInto"/>) and let go of again far from them (<see cref="LetGo"/>). So a file the size of the disk costs the
+/// stretches read near the reader, and a jump to its end reads its end. A change into a stretch skipped reads nothing.
+/// </para>
 /// </summary>
 public sealed class ContentUnits
 {
@@ -206,13 +224,155 @@ public sealed class ContentUnits
     }
 
     /// <summary>
+    /// Whether the reading can start at any line start, and so leaves what the reader has not come to skipped rather than reading everything
+    /// before what it reads.
+    /// </summary>
+    public bool Skips { get; private init; }
+
+    /// <summary>
+    /// A reading of <paramref name="length"/> characters in <paramref name="language"/> that can start at any line start: <paramref name="first"/>,
+    /// read from the start, and the rest skipped until something reads into it.
+    /// </summary>
+    public static ContentUnits Skipping(string language, ContentUnit first, int length, IReadingSyntax? syntax)
+    {
+        var units = ContentIndex<ContentUnit>.Empty.Added(first);
+        if (!first.Last && length > first.Width) units = units.Added(ContentUnit.Skipping(length - first.Width, last: true));
+
+        return new ContentUnits(language, units, syntax) { Skips = true };
+    }
+
+    /// <summary>Whether any of it is skipped, not read.</summary>
+    public bool Skipped
+    {
+        get
+        {
+            foreach (var (unit, _) in _units.From(0))
+                if (unit.Skipped) return true;
+
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The reading with the stretch skipped at <paramref name="index"/> read where <paramref name="offset"/> is: from the start of the line it is
+    /// on — a line with something written on it, as every unit starts, looking back no further than <paramref name="softMaxLength"/> characters
+    /// nor past where the stretch starts — a unit at a time, at most <paramref name="most"/> of them, up to where the stretch ends; what is left
+    /// either side stays skipped. A unit read past where the stretch ends — into a unit read before that starts on a line with nothing written,
+    /// which a reading stops past — reads the units it reached again with it. Itself, where the unit at <paramref name="index"/> is read.
+    /// </summary>
+    public ContentUnits ReadInto(int index, int offset, Func<ContentStretch, ContentParse> parse, IContentCharacters characters, int softMaxLength, int most)
+    {
+        var (skipped, from) = _units[index];
+        if (!skipped.Skipped) return this;
+
+        var (end, endsLast, replaced) = (from + skipped.Width, skipped.Last, index + 1);
+
+        // Near the end of the reading, the last stretch's worth of it is read — as reading on from the start ends on a stretch, not on the last
+        // line alone — and a place at the very end of a stretch reads the line that ends there.
+        var place = skipped.Last && offset > end - softMaxLength ? Math.Max(from, end - softMaxLength) : offset;
+        var at = LineStart(characters, from, Math.Clamp(place, from, Math.Max(from, end - 1)), softMaxLength);
+        var parts = new List<ContentUnit>();
+
+        if (at > from) parts.Add(ContentUnit.Skipping(at - from, last: false));
+
+        var (reached, read) = (at, 0);
+
+        while (true)
+        {
+            // Asked to stop no later than where the stretch ends — a line start, where a reading that starts at any line start stops — and
+            // handed the characters past it, so it reads to there without taking it for the end of the reading.
+            for (; read < most && reached < end; read++)
+            {
+                var unit = ContentUnit.Read(parse, characters, reached, Math.Min(softMaxLength, end - reached), null);
+                parts.Add(unit);
+                reached += unit.Width;
+            }
+
+            if (reached <= end) break;
+
+            // Read past the end into units read before: those it reached go, and are read again to where the last of them ended.
+            while (replaced < this.Count && reached > end)
+            {
+                var (next, start) = _units[replaced++];
+                (end, endsLast) = (start + next.Width, next.Last);
+            }
+
+            if (reached >= end) break;
+
+            most = int.MaxValue;
+        }
+
+        if (reached < end) parts.Add(ContentUnit.Skipping(end - reached, endsLast));
+
+        return this.With(_units.Replaced(index, replaced, parts), this.Syntax);
+    }
+
+    /// <summary>The reading with every stretch skipped read: all of it, for whatever has to have all of it.</summary>
+    public ContentUnits ReadAllSkipped(Func<ContentStretch, ContentParse> parse, IContentCharacters characters, int softMaxLength)
+    {
+        var units = this;
+
+        for (var index = 0; index < units.Count; index++)
+            if (units[index].Unit.Skipped) units = units.ReadInto(index, units[index].Start, parse, characters, softMaxLength, int.MaxValue);
+
+        return units;
+    }
+
+    /// <summary>
+    /// The reading with the unit at <paramref name="index"/> let go of — skipped again, joined to any stretch skipped either side — so a reading
+    /// far from where the reader is holds no more than its width. Itself, where the reading cannot start anywhere.
+    /// </summary>
+    public ContentUnits LetGo(int index)
+    {
+        if (!this.Skips) return this;
+
+        var (first, last) = (index, index);
+        while (first > 0 && _units[first - 1].Item.Skipped) first--;
+        while (last + 1 < this.Count && _units[last + 1].Item.Skipped) last++;
+
+        var width = 0;
+        for (var at = first; at <= last; at++) width += _units[at].Item.Width;
+
+        return this.With(_units.Replaced(first, last + 1, [ContentUnit.Skipping(width, _units[last].Item.Last)]), this.Syntax);
+    }
+
+    /// <summary>The same language, and whether it skips, holding <paramref name="units"/> and keeping <paramref name="syntax"/>.</summary>
+    private ContentUnits With(ContentIndex<ContentUnit> units, IReadingSyntax? syntax) => new(this.Language, units, syntax) { Skips = this.Skips };
+
+    /// <summary>
+    /// Where the line holding <paramref name="offset"/> starts — or, where that line has nothing written on it, the last line before it that
+    /// does, since a reading stops past blank lines, never before one — looking back no further than <paramref name="softMaxLength"/> characters
+    /// nor past <paramref name="from"/>; and <paramref name="from"/> itself, where no such line starts that near.
+    /// </summary>
+    private static int LineStart(IContentCharacters characters, int from, int offset, int softMaxLength)
+    {
+        var low = Math.Max(from, offset - Math.Max(softMaxLength, 1));
+        if (offset <= low) return from;
+
+        var looked = characters.Slice(low, offset - low + 1 <= characters.Length - low ? offset - low + 1 : offset - low);
+
+        for (var cut = Math.Min(offset - low, looked.Length) - 1; cut >= 0; cut--)
+        {
+            if (looked[cut] is not ('\n' or '\r')) continue;
+
+            // The \r of a \r\n is not the end of the break; a line with nothing written on it is not where a unit starts.
+            var after = low + cut + 1;
+            if (after < characters.Length && characters[after] is '\n' or '\r') continue;
+
+            return after;
+        }
+
+        return from;
+    }
+
+    /// <summary>
     /// What the reading's language keeps of all of it beside its units — code's syntax tree — carried through every change, or null for a
     /// language that keeps nothing.
     /// </summary>
     public IReadingSyntax? Syntax { get; }
 
     /// <summary>The same reading keeping <paramref name="syntax"/> of all of it beside its units.</summary>
-    public ContentUnits WithSyntax(IReadingSyntax? syntax) => new(this.Language, _units, syntax);
+    public ContentUnits WithSyntax(IReadingSyntax? syntax) => this.With(_units, syntax);
 
     /// <summary>The language the reading is written in, which its tree says.</summary>
     public string Language { get; }
@@ -250,7 +410,7 @@ public sealed class ContentUnits
         var index = _units.IndexAt(at);
         var (unit, start) = _units[index];
 
-        return new(this.Language, _units.Replaced(index, index + 1, [unit.Holding(at - start, body)]), this.Syntax);
+        return this.With(_units.Replaced(index, index + 1, [unit.Holding(at - start, body)]), this.Syntax);
     }
 
     /// <summary>
@@ -276,7 +436,7 @@ public sealed class ContentUnits
     {
         if (this.Done) throw new InvalidOperationException("A unit cannot follow one that read to the end of the reading.");
 
-        return new(this.Language, _units.Added(unit), this.Syntax);
+        return this.With(_units.Added(unit), this.Syntax);
     }
 
     /// <summary>The same, with the next unit of <paramref name="characters"/> read by <paramref name="parse"/> — or itself, once everything is read.</summary>
@@ -301,6 +461,14 @@ public sealed class ContentUnits
         foreach (var (unit, start) in _units.From(0))
         {
             if (taken-- <= 0) break;
+
+            // A stretch skipped stands for its characters, as what is not read yet does.
+            if (unit.Skipped)
+            {
+                parts.Add(ContentNode.Leaf(Kinds.Unreached, characters, start, unit.Width, Roles.Trivia, offset: start));
+                reached = start + unit.Width;
+                continue;
+            }
 
             last = unit.Placed(start);
             foreach (var part in last.Children)
@@ -369,9 +537,13 @@ public sealed class ContentUnits
         // Written inside a body another reading reads, which its holder's language says still ends where it did: nothing is read
         // again, and the unit holding it only stands for more or fewer characters.
         if (bounds is not null && this.Grown(holding, changedFrom, changedTo, by, edited, bounds) is { } grown)
-            return (new(this.Language, _units.Replaced(holding, holding + 1, [grown]), syntax), holding, 0);
+            return (this.With(_units.Replaced(holding, holding + 1, [grown]), syntax), holding, 0);
 
-        var kept = holding > 0 && Opening(edited, _units[holding].Start, changedFrom) ? holding - 1 : holding;
+        // Written into a stretch skipped: nothing is read — what the change reached is skipped, as wide as it is now.
+        if (this.Skips && this.SkippedOver(changedFrom, changedTo, by, syntax) is { } skipped) return (skipped, holding, 0);
+
+        // Never back into a stretch skipped: what it holds was never read, so nothing read there can change.
+        var kept = holding > 0 && !_units[holding - 1].Item.Skipped && Opening(edited, _units[holding].Start, changedFrom) ? holding - 1 : holding;
         var (first, from) = _units[kept];
         var begun = first.Begun;
         var next = Math.Max(_units.IndexAt(changedTo), kept);
@@ -395,11 +567,57 @@ public sealed class ContentUnits
             if (next < this.Count && _units[next] is var (old, start) && start + by == stop && Equals(old.Begun, read.Ended))
                 return this.Reread(kept, next, reread, changedFrom, changedTo, by, edited, syntax);
 
+            // Read on into a stretch skipped: what is left of it stays skipped — or, read past the whole of it, reading carries on as past one read.
+            if (next < this.Count && _units[next] is var (passed, at) && passed.Skipped && stop > at + by)
+            {
+                var ends = at + by + passed.Width;
+
+                if (stop < ends)
+                {
+                    reread.Add(ContentUnit.Skipping(ends - stop, passed.Last));
+                    return this.Reread(kept, next + 1, reread, changedFrom, changedTo, by, edited, syntax);
+                }
+
+                next++;
+                (from, begun) = (stop, read.Ended);
+                continue;
+            }
+
+            // Far enough past the change, a reading that skips leaves the rest skipped rather than letting it go unread.
+            if (this.Skips && stop >= enough && stop < edited.Length)
+            {
+                reread.Add(ContentUnit.Skipping(edited.Length - stop, last: true));
+                return this.Reread(kept, this.Count, reread, changedFrom, changedTo, by, edited, syntax);
+            }
+
             if ((!this.Done && stop >= this.Reached + by) || stop >= enough)
                 return this.Reread(kept, this.Count, reread, changedFrom, changedTo, by, edited, syntax);
 
             (from, begun) = (stop, read.Ended);
         }
+    }
+
+    /// <summary>
+    /// Where the characters from <paramref name="from"/> to <paramref name="to"/> written over touch a stretch skipped: the reading with every
+    /// unit the change reached skipped as one stretch, joined to any skipped either side and as wide as it is now — or null where the change
+    /// reached only units read.
+    /// </summary>
+    private ContentUnits? SkippedOver(int from, int to, int by, IReadingSyntax? syntax)
+    {
+        var (low, high) = (_units.IndexAt(from), _units.IndexAt(Math.Max(from, to - 1)));
+        if (low < 0) return null;
+
+        var touched = false;
+        for (var at = low; at <= high && !touched; at++) touched = _units[at].Item.Skipped;
+        if (!touched) return null;
+
+        while (low > 0 && _units[low - 1].Item.Skipped) low--;
+        while (high + 1 < this.Count && _units[high + 1].Item.Skipped) high++;
+
+        var width = by;
+        for (var at = low; at <= high; at++) width += _units[at].Item.Width;
+
+        return this.With(_units.Replaced(low, high + 1, [ContentUnit.Skipping(width, _units[high].Item.Last)]), syntax);
     }
 
     /// <summary>
@@ -430,7 +648,7 @@ public sealed class ContentUnits
             }
         }
 
-        return (new(this.Language, _units.Replaced(kept, next, reread), syntax), kept, reread.Count);
+        return (this.With(_units.Replaced(kept, next, reread), syntax), kept, reread.Count);
     }
 
     /// <summary>

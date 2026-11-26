@@ -69,6 +69,19 @@ public sealed record ContentLanguage(
     public Func<Func<ContentStretch, ContentParse>>? Windowed { get; init; }
 
     /// <summary>
+    /// Whether every line start of what it reads is somewhere its windowed parse can start, with nothing carried from before — text, code —
+    /// so a long document in it is read where the reader is and skipped elsewhere (<see cref="ContentUnits.Skips"/>), rather than read from
+    /// the start.
+    /// </summary>
+    public bool ReadsFromLineStarts { get; init; }
+
+    /// <summary>
+    /// How tall one line comes to in a style, for a language whose content is laid a line at a time — what a stretch skipped stands as, its
+    /// lines counted from the document without reading them — or null for a language that says nothing.
+    /// </summary>
+    public Func<LayoutStyle, ILayoutMedium, double>? LineHeight { get; init; }
+
+    /// <summary>
     /// What the language says about a body it holds in another language when something is written inside it — whether the body
     /// still ends where it did (<see cref="IBodyBounds"/>) — or null, for a language that says nothing, whose unit is read again.
     /// </summary>

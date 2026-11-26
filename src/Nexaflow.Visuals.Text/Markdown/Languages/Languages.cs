@@ -1717,6 +1717,8 @@ internal static class Shipped
         BoxedAsWritten = true,
         WrapsLines = true,
         Windowed = TextParser.Windowed,
+        ReadsFromLineStarts = true,
+        LineHeight = TextSetting.LineHeight,
         UnitHeight = TextSetting.HeightOf,
     };
 
@@ -1743,6 +1745,8 @@ internal static class Shipped
         Editing = CodeEdits,
             BoxedAsWritten = true,
             Windowed = () => CodeParser.Windowed(grammar ?? string.Empty),
+            ReadsFromLineStarts = true,
+            LineHeight = CodeSetting.LineHeight,
             UnitHeight = CodeSetting.HeightOf,
             Syntax = grammar is null ? null : characters => characters.Length > CodeSyntax.ColoursUpTo ? null : CodeSyntax.Of(grammar, characters),
         };

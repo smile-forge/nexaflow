@@ -631,6 +631,14 @@ with nothing to take back; growing at its start lets the steps go, since every o
 characters over the file just written (`EditedDocument.Rebase`, told as `Rebased`): a version made from the last by a change
 writing nothing, so every view, mark, anchor and step carries straight across without comparing the two.
 
+**Text and code are read where the reader is.** A language whose every line start is somewhere its windowed parse can start
+(`ContentLanguage.ReadsFromLineStarts`) need not read everything before what it shows: its reading holds what it has not come to as
+stretches skipped (`ContentUnit.Skipped`), each only a width, and reads into one where the screen, the caret, what is picked out or a
+jump reaches (`ContentUnits.ReadInto`) — from a line with something written on it, as every unit starts. A stretch skipped stands as
+tall as its lines, counted from the document without reading them (`ContentLanguage.LineHeight`); once a few hundred units are read,
+those farthest from the screen are let go of again (`ContentEngine.LetFarGo`); and a change into a stretch skipped reads nothing. So a
+file the size of the disk costs what is near the reader, a jump to its end reads its end, and the background has nothing to read.
+
 **So is a view of it.** Where the caret is, what is picked out and which lines are on the page are a `ContentEditor`, as
 plain an object as the document, which a page holds beside it and hands the surface (`NexaTextSurface.Editor`) — or the
 surface makes one of its own. The engine showing it is its view (`IContentEditorView`): what the page asks — put the caret

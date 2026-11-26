@@ -1066,10 +1066,61 @@
           }
         ]
       }
+    },
+    "windowed-reading": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Ast/WindowedReadingTests.cs",
+            "class": "WindowedReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests"
+          },
+          {
+            "type": "code",
+            "status": "should",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Ast/ContentIndexTests.cs",
+            "class": "ContentIndexTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "Code_LaidAStretchAtATime_IsTheCodeLaidWhole"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "ColouredCodeWrittenIn_IsColouredAsTheCodeItBecameLaidWhole"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "LongCode_StandsAsTallAsItIs_BeforeAnyMoreOfItIsLaid"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/WindowedLayoutTests.cs",
+            "class": "WindowedLayoutTests",
+            "method": "AKeystrokeInCode_LaysTheLineItWasTypedOn_AndSetsDownEveryOtherAsItWasLaid"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SkippedReadingTests.cs",
+            "class": "SkippedReadingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 50,
+  "changed_sets": 51,
   "touched_nodes": [
     "barcode-editing",
     "code-folding",
@@ -1112,6 +1163,7 @@
     "solver-latex-fence",
     "solver-source-toggle",
     "visuals-text",
-    "vtext-selectable-markdown"
+    "vtext-selectable-markdown",
+    "windowed-reading"
   ]
 }

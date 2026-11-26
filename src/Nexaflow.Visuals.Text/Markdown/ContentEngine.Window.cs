@@ -117,6 +117,9 @@ public sealed partial class ContentEngine
     /// </summary>
     internal Task ReadingRest => _window?.Read ?? Task.CompletedTask;
 
+    /// <summary>How many units of a document shown a stretch at a time are read now — what it holds of what it shows — and none for content laid whole.</summary>
+    internal int UnitsRead => _window is { } window ? window.Units.From(0).Count(unit => !unit.Unit.Skipped) : 0;
+
     /// <summary>Whether content in <paramref name="language"/> as long as <paramref name="document"/> is shown a stretch at a time.</summary>
     private bool Windows(ContentLanguage language, ContentDocument document) => language.Windowed is not null && document.Length >= WindowedFrom;
 
@@ -146,7 +149,7 @@ public sealed partial class ContentEngine
         {
             while (true)
             {
-                this.ReadFurther(window);
+                this.ReadFurther(window, state);
 
                 var anchor = ScreenMoving ? null : this.StillPoint(window);
                 laid = LaidFrom(language, _named, window, state, style, room, readOnly, new KeptInContent(window, state.Document), tops => this.Wanted(window, state, tops));
@@ -178,6 +181,8 @@ public sealed partial class ContentEngine
         if (window.Read is not { IsCompleted: false } && (!window.Units.Done || this.Unworked(window))) Background(window, style);
         if (shifted != 0) Shifted?.Invoke(this, shifted);
 
+        this.LetFarGo(window, state);
+
         return laid;
     }
 
@@ -201,6 +206,9 @@ public sealed partial class ContentEngine
                 if (Holding(window,end) is >= 0 and var at) wanted.Add(at);
 
         if (_reveal is { } target && Holding(window,target) is >= 0 and var revealed) wanted.Add(revealed);
+
+        // A stretch skipped is read before it is laid, never laid as it is.
+        wanted.RemoveWhere(index => index < window.Listed.Count && window.Listed[index].Unit.Skipped);
 
         return wanted;
     }
@@ -227,6 +235,7 @@ public sealed partial class ContentEngine
     private bool Short(ContentWindow window, EditState state)
     {
         if (window.Standing.Length != window.Listed.Count) return true;
+        if (window.Units.Skips && this.SkippedWanted(window, state)) return true;
 
         foreach (var index in this.Wanted(window, state, window.Tops))
         {
@@ -245,9 +254,10 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// Reads on — a few stretches at most, so a jump far down is laid a pass at a time and the page is shown between them — where the
-    /// page reaches past what is read, going by what a character comes to, or what the reader went to is not read yet.
+    /// page reaches past what is read, going by what a character comes to, or what the reader went to is not read yet; and, in a reading
+    /// that skips, reads into the stretches skipped that the page, the caret, what is picked out or what the reader went to reach.
     /// </summary>
-    private void ReadFurther(ContentWindow window)
+    private void ReadFurther(ContentWindow window, EditState state)
     {
         var (bottom, most) = (window.Tops[^1], window.Units.Reached + (4 * StretchLength));
         var perCharacter = window.PerCharacter > 0 ? window.PerCharacter : Unsaid(_style, Room);
@@ -261,6 +271,120 @@ public sealed partial class ContentEngine
 
             bottom += (window.Units.Reached - reached) * perCharacter;
         }
+
+        if (window.Units.Skips) this.ReadSkipped(window, state);
+    }
+
+    /// <summary>
+    /// Reads into each stretch skipped where the page reaches it — at the place on the page it reaches, going by where the stretch stood as last
+    /// laid out — and where the caret, an end of what is picked out or what the reader went to stands in one: a few units at each, from the line
+    /// it reaches, so a jump to the end of a file the size of the disk reads its end and nothing before it.
+    /// </summary>
+    private void ReadSkipped(ContentWindow window, EditState state)
+    {
+        var places = new List<int>();
+        var (tops, listed) = (window.Tops, window.Listed);
+
+        if (listed.Count + 1 == tops.Length && ReferenceEquals(window.ListedIn, window.Document))
+        {
+            var (top, bottom) = this.Reach();
+
+            for (var index = Reaching(tops, top); index < listed.Count && tops[index] < bottom; index++)
+            {
+                var (unit, start) = listed[index];
+                if (!unit.Skipped) continue;
+
+                var high = tops[index + 1] - tops[index];
+                var into = high > 0 ? (Math.Max(top, tops[index]) - tops[index]) / high : 0;
+                places.Add(start + (int)Math.Clamp(into * unit.Width, 0, Math.Max(unit.Width - 1, 0)));
+            }
+        }
+
+        places.AddRange(this.ReaderPlaces(state));
+
+        foreach (var place in places)
+        {
+            var at = window.Units.IndexAt(Math.Clamp(place, 0, Math.Max(window.Document.Length - 1, 0)));
+            if (at < 0 || !window.Units[at].Unit.Skipped) continue;
+
+            window.Units = window.Units.ReadInto(at, place, window.Parse, window.Document, StretchLength, most: 4);
+            window.Altered();
+        }
+    }
+
+    /// <summary>Whether, in a reading that skips, a stretch skipped is where the page reaches or where the reader is — so there is more to read and lay.</summary>
+    private bool SkippedWanted(ContentWindow window, EditState state)
+    {
+        var (tops, listed) = (window.Tops, window.Listed);
+
+        if (listed.Count + 1 == tops.Length)
+        {
+            var (top, bottom) = this.Reach();
+            for (var index = Reaching(tops, top); index < listed.Count && tops[index] < bottom; index++)
+                if (listed[index].Unit.Skipped) return true;
+        }
+
+        foreach (var place in this.ReaderPlaces(state))
+            if (window.Units.IndexAt(Math.Clamp(place, 0, Math.Max(window.Document.Length - 1, 0))) is >= 0 and var at && window.Units[at].Unit.Skipped)
+                return true;
+
+        return false;
+    }
+
+    /// <summary>Where the reader is besides the screen: the caret, each end of what is picked out, and what they went to.</summary>
+    private IEnumerable<int> ReaderPlaces(EditState state)
+    {
+        yield return state.Caret;
+
+        foreach (var range in state.Selection)
+        {
+            yield return range.Start;
+            yield return range.End;
+        }
+
+        if (_reveal is { } target) yield return target;
+    }
+
+    /// <summary>How many units of a reading that skips are kept read: past it, those farthest from the screen are let go of.</summary>
+    private const int KeptRead = 256;
+
+    /// <summary>
+    /// Lets go of the units of a reading that skips farthest from the screen once more than <see cref="KeptRead"/> are read — never where the
+    /// caret, what is picked out or what the reader went to stands — so a reader paging through a file the size of the disk holds what is near
+    /// them rather than everything they passed.
+    /// </summary>
+    private void LetFarGo(ContentWindow window, EditState state)
+    {
+        if (!window.Units.Skips) return;
+
+        var read = new List<int>();
+        foreach (var (unit, start) in window.Units.From(0))
+            if (!unit.Skipped) read.Add(start);
+
+        if (read.Count <= KeptRead) return;
+
+        var (top, bottom) = this.ScreenBand();
+        var centre = window.Listed.Count > 0 && window.Listed.Count + 1 == window.Tops.Length
+            ? window.Listed[Math.Min(Reaching(window.Tops, (top + bottom) / 2), window.Listed.Count - 1)].Start
+            : state.Caret;
+
+        var held = new HashSet<int>();
+        foreach (var place in this.ReaderPlaces(state))
+            if (window.Units.IndexAt(Math.Clamp(place, 0, Math.Max(window.Document.Length - 1, 0))) is >= 0 and var at) held.Add(window.Units[at].Start);
+
+        foreach (var start in read.Where(start => !held.Contains(start)).OrderByDescending(start => Math.Abs((long)start - centre)).Take(read.Count - KeptRead).ToList())
+        {
+            var index = window.Units.IndexAt(start);
+            if (index < 0) continue;
+
+            var (unit, at) = window.Units[index];
+            if (unit.Skipped || at != start) continue;
+
+            window.Staged.Remove(unit.Tree);
+            window.Units = window.Units.LetGo(index);
+        }
+
+        window.Altered();
     }
 
     /// <summary>
@@ -385,7 +509,13 @@ public sealed partial class ContentEngine
         var first = ContentUnit.Read(parse, document, 0, StretchLength, null);
         var named = (first.Tree as BlockNode)?.Language ?? _named ?? string.Empty;
 
-        return _window = new ContentWindow(language, document, new ContentUnits(named).WithSyntax(language.Syntax?.Invoke(document)).Added(first), parse)
+        // A language read from any line start reads where the reader is and skips the rest; any other reads on from the start.
+        var syntax = language.Syntax?.Invoke(document);
+        var units = language.ReadsFromLineStarts
+            ? ContentUnits.Skipping(named, first, document.Length, syntax)
+            : new ContentUnits(named).WithSyntax(syntax).Added(first);
+
+        return _window = new ContentWindow(language, document, units, parse)
                 {
                     Length = StretchLength,
                     Targets = _targets,
@@ -472,7 +602,7 @@ public sealed partial class ContentEngine
     private bool Unworked(ContentWindow window)
     {
         foreach (var (unit, _) in window.Listed)
-            if (!_facts.TryGetValue(unit.Tree, out _)) return true;
+            if (!unit.Skipped && !_facts.TryGetValue(unit.Tree, out _)) return true;
 
         return false;
     }
@@ -519,6 +649,13 @@ public sealed partial class ContentEngine
     /// <summary>All of a windowed document, read to its end — what the background reading has read taken in, and the rest read here.</summary>
     private ContentNode Everything(ContentWindow window)
     {
+        // A reading that skips reads every stretch it skipped, where all of it is wanted.
+        if (window.Units.Skips && window.Units.Skipped)
+        {
+            window.Units = window.Units.ReadAllSkipped(window.Parse, window.Document, window.Length);
+            window.Altered();
+        }
+
         if (!window.Units.Done)
         {
             window.Read?.Wait();
@@ -616,7 +753,7 @@ public sealed partial class ContentEngine
                     if (cancel.IsCancellationRequested) return;
 
                     looked++;
-                    if (facts.TryGetValue(unit.Tree, out _)) continue;
+                    if (unit.Skipped || facts.TryGetValue(unit.Tree, out _)) continue;
 
                     working.Enqueue((unit.Tree, Worked(language, named, style, unit, start)));
                     if (++worked % WorkedBetween == 0) Grow();
