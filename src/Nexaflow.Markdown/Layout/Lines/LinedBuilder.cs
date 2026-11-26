@@ -132,13 +132,15 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
     /// null where it is to be laid afresh.
     /// </summary>
     private KeptLaying? Kept(LaidBlock? laid) =>
-        laid?.Last is { } last && last.IsReadOnly == IsReadOnly && (!WrapsLines || last.Room == Room) ? last : null;
+        laid?.Last is { } last && last.IsReadOnly == IsReadOnly && (!WrapsLines || last.Room == Room)
+        && last.TabWidth == Style.TabWidth && last.ShowsWhitespace == Style.ShowsWhitespace ? last : null;
 
     /// <summary>
     /// One line, as a tree of its own standing at the top of its own frame, its picture kept once painted, put down whole — and how far
-    /// across it reaches: each of its pieces set in the ink it is given, the line end taking no room, and where it wraps, carrying on under
-    /// its indent in the row beneath where each row after the first starts, a piece cut there laid as pieces standing for their share of
-    /// it. Kept as it was laid, to be set down again where it reads the same.
+    /// across it reaches: each of its pieces set in the ink it is given, a tab a piece of its own reaching to the next tab stop, the line end
+    /// taking no room, and where it wraps, carrying on under its indent in the row beneath where each row after the first starts, a piece
+    /// cut there laid as pieces standing for their share of it. Where the style shows whitespace, each space, tab and line end has a faint
+    /// mark drawn over it that stands for none of it. Kept as it was laid, to be set down again where it reads the same.
     /// </summary>
     /// <param name="wrapped">Where in the line each row after its first starts, and how far in, or null where lines are kept whole.</param>
     private (LayoutMount Mount, double Reach) Line(ContentPart line, LaidBlock? laid, double height, (List<int> Starts, double Indent)? wrapped)
@@ -147,6 +149,7 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
         var apart = new LayoutBuilder(Medium);
         var (breaks, indent) = (wrapped?.Starts, wrapped?.Indent ?? 0);
         var (x, reach, row, next, along) = (0.0, 0.0, 0, 0, 0);
+        var faint = Style.ShowsWhitespace ? Style.Syntax(LinedSetting.WhitespaceKind) ?? Style.TextMuted : null;
 
         apart.Open(LineKind, line, stops: LayoutStops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
 
@@ -159,7 +162,23 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
                 // A row starting here carries the line on in the row beneath, under its indent.
                 for (; breaks is not null && next < breaks.Count && breaks[next] <= along + from; next++) (x, row) = (indent, row + 1);
 
-                var to = breaks is not null && next < breaks.Count ? Math.Min(breaks[next] - along, text.Length) : text.Length;
+                var at = new LayoutPoint(x, row * height);
+
+                // A tab reaches to the next tab stop: a piece of its own, which a caret stands either side of and never inside.
+                if (text[from] == '\t')
+                {
+                    var tab = LinedSetting.TabAcross(x, this.Advance(" ", 0), Style.TabWidth);
+                    this.Tab(apart, at, tab, height, text.Length == 1 ? part : new PartSlice(part, from, 1), kind, faint);
+
+                    x += tab;
+                    reach = Math.Max(reach, x);
+                    from++;
+                    continue;
+                }
+
+                var end = breaks is not null && next < breaks.Count ? Math.Min(breaks[next] - along, text.Length) : text.Length;
+                var tabbed = text.IndexOf('\t', from, end - from);
+                var to = tabbed < 0 ? end : tabbed;
                 var whole = from == 0 && to == text.Length;
                 var glyphs = Medium.Shape(whole ? text : text[from..to], characters.Face, characters.Size, ink);
 
@@ -169,8 +188,10 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
 
                 // The piece is called what the language called it, so what a reader pressed and what the theme coloured are the same
                 // question asked of the same piece.
-                LayoutText.Words(apart, glyphs, new LayoutPoint(x, row * height), across + 1, LayoutAlign.Left,
+                LayoutText.Words(apart, glyphs, at, across + 1, LayoutAlign.Left,
                                  whole ? part : new PartSlice(part, from, to - from), kind, maps: true, ink: ink);
+
+                if (faint is not null) this.Spaces(apart, glyphs, at, text, from, to, faint);
 
                 x += across;
                 reach = Math.Max(reach, x);
@@ -180,15 +201,61 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
             along += text.Length;
         }
 
+        // A line end shown is marked where the line's last row ends.
+        if (faint is not null && line.Children.Count > 0 && line.Children[^1].Kind == LineKinds.LineEnd)
+            this.Marked(apart, new LayoutPoint(x, row * height), "¶", faint);
+
         apart.Close();
 
         // Where it wraps, the spaces a row ends on hang past the room and take none of it.
         if (breaks is not null) reach = Math.Min(reach, Room);
 
         var made = apart.Seal();
-        if (laid is not null) laid.Last = new KeptLaying(line, made, (1 + (breaks?.Count ?? 0)) * height, reach, [], Room, IsReadOnly);
+        if (laid is not null)
+            laid.Last = new KeptLaying(line, made, (1 + (breaks?.Count ?? 0)) * height, reach, [], Room, IsReadOnly,
+                                       TabWidth: Style.TabWidth, ShowsWhitespace: Style.ShowsWhitespace);
 
         return (new LayoutMount(made), reach);
+    }
+
+    /// <summary>
+    /// A tab, <paramref name="across"/> wide: a piece standing for its one character, whose two ends are where a caret stands — and, where
+    /// whitespace is shown, an arrow drawn at its start.
+    /// </summary>
+    private void Tab(LayoutBuilder apart, LayoutPoint at, double across, double height, ISourcePart part, string kind, LayoutInk? faint)
+    {
+        apart.Open(kind, part, at, LayoutStops.Both);
+        apart.Covers(new LayoutRect(0, 0, across, height));
+        apart.Close();
+
+        if (faint is not null) this.Marked(apart, at, "→", faint);
+    }
+
+    /// <summary>A dot over each space in <paramref name="text"/> from <paramref name="from"/> to <paramref name="to"/>, where <paramref name="glyphs"/> set them.</summary>
+    private void Spaces(LayoutBuilder apart, IShapedText glyphs, LayoutPoint at, string text, int from, int to, LayoutInk faint)
+    {
+        for (var space = text.IndexOf(' ', from, to - from); space >= 0; space = space + 1 < to ? text.IndexOf(' ', space + 1, to - space - 1) : -1)
+        {
+            var run = space;
+            while (run < to && text[run] == ' ') run++;
+
+            var box = glyphs.Covers(at, space - from, run - space);
+            this.Marked(apart, new LayoutPoint(box.X, at.Y), new string('·', run - space), faint);
+
+            space = run - 1;
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="marks"/> drawn at <paramref name="at"/> in <paramref name="ink"/>: a piece standing for nothing written, where no caret
+    /// stands and no press lands on anything.
+    /// </summary>
+    private void Marked(LayoutBuilder apart, LayoutPoint at, string marks, LayoutInk ink)
+    {
+        // It takes no room either: what it covers is no part of the line's, so a caret placed by the line's edge is where it would be without it.
+        apart.Open(LinedSetting.WhitespaceKind, null, at, LayoutStops.None, gathers: false);
+        apart.Draw(new TextMark(Medium.Shape(marks, Characters.Face, Characters.Size, ink), default, ink));
+        apart.Close();
     }
 
     /// <summary>
@@ -203,7 +270,10 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
         foreach (var (_, text, _) in this.Runs(line))
         {
             for (var at = 0; at < text.Length; at++)
-                if (rows.Next(text[at], this.Advance(text, at)) is >= 0 and var starts) breaks.Add(starts);
+                {
+                    var wide = text[at] == '\t' ? LinedSetting.TabAcross(rows.Along, this.Advance(" ", 0), Style.TabWidth) : this.Advance(text, at);
+                    if (rows.Next(text[at], wide) is >= 0 and var starts) breaks.Add(starts);
+                }
         }
 
         return (breaks, rows.Indent);

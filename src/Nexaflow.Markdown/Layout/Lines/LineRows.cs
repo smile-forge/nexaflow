@@ -52,6 +52,9 @@ internal struct LineRows(double room)
     /// <summary>How many times the line fed so far has broken onto a row beneath.</summary>
     public int Breaks { get; private set; }
 
+    /// <summary>How far across the line the next character stands: past the indent the row starts under, on a row after the first.</summary>
+    public readonly double Along => (this.Breaks == 0 ? 0 : this.Indent) + _across;
+
     /// <summary>
     /// The line's next character, set <paramref name="wide"/> across: where in the line the row it moves onto starts, where it does not
     /// fit on the row being filled, or -1 where it does.

@@ -15,13 +15,17 @@ namespace Nexaflow.Tests.Visuals.Markdown.PlainText;
 public class TextBuilderTests
 {
     [TestMethod]
-    public void ALineIsSetAsOneRunOfWhatIsWrittenOnIt()
+    public void ALineIsSetAsOneRunOfWhatIsWrittenOnIt_ATabAPieceOfItsOwn()
     {
         var laid = Laying.Lay(TextParser.Language, "one  two\tthree\nfour\n", style: WpfStyles.Dark);
+        var words = Words(laid).Where(piece => piece.Words is not null).ToList();
 
-        CollectionAssert.AreEqual(new[] { "one  two\tthree", "four" }, Words(laid).Select(piece => piece.Words!.Glyphs.Text).ToArray(),
-            "its words are the reading's; nothing draws one apart from another, so they are shaped together");
-        Assert.IsTrue(Words(laid).All(piece => piece.Words!.Maps), "it is the source, so the caret goes straight into it");
+        CollectionAssert.AreEqual(new[] { "one  two", "three", "four" }, words.Select(piece => piece.Words!.Glyphs.Text).ToArray(),
+            "its words are the reading's, shaped together as far as a tab, which reaches to its stop as a piece of its own");
+        Assert.IsTrue(words.All(piece => piece.Words!.Maps), "it is the source, so the caret goes straight into it");
+
+        var tab = Words(laid).Single(piece => piece.Words is null);
+        Assert.AreEqual(("one  two".Length, 1), (tab.Part!.Start, tab.Part.Length), "the tab is a piece standing for its one character");
     }
 
     [TestMethod]

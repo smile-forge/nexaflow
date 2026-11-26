@@ -115,6 +115,12 @@ public sealed record LayoutStyle
 
         return _known.GetOrAdd((family, weight, italic), _faces(family, weight, italic));
     }
+
+    /// <summary>How many characters' advance apart the tab stops of content laid line by line stand — code, text shown as typed.</summary>
+    public int TabWidth { get; init; } = 4;
+
+    /// <summary>Whether the spaces, tabs and line ends of content laid line by line are drawn, as faint marks standing for none of it.</summary>
+    public bool ShowsWhitespace { get; init; }
 }
 
 /// <summary>Where content stands in what holds it.</summary>

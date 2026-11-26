@@ -727,13 +727,41 @@
           "method": "Commanded"
         }
       ]
+    },
+    "content-line-setting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Lines/LinedSetting.cs",
+          "class": "LinedSetting",
+          "method": "TabAcross"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Lines/LinedBuilder.cs",
+          "class": "LinedBuilder",
+          "method": "Line"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs",
+          "class": "LayoutStyle"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Lines.cs",
+          "class": "NexaTextSurface",
+          "method": "Sliding"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 32,
+  "changed_sets": 33,
   "touched_nodes": [
     "barcode-editing",
     "content-editor",
+    "content-line-setting",
     "content-margins",
     "executable-dependency-viewport",
     "markdown-block-model",

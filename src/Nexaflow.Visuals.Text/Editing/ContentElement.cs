@@ -829,9 +829,16 @@ public class ContentElement : FrameworkElement
 
     // ── Layout and painting ─────────────────────────────────────────────────
 
+    /// <summary>
+    /// The width the content is laid in where what holds it gives it as much as it asks for, because it slides sideways — a code page whose
+    /// lines are kept whole — or null where it is laid in whatever it is given. Laid in this, it asks for as much as its widest line reaches.
+    /// </summary>
+    internal double? SlidingRoom { get; set; }
+
     protected override Size MeasureOverride(Size availableSize)
     {
-        var room = availableSize.Width is > 0 and < double.PositiveInfinity ? availableSize.Width
+        var room = SlidingRoom is { } sliding && double.IsPositiveInfinity(availableSize.Width) ? sliding
+                 : availableSize.Width is > 0 and < double.PositiveInfinity ? availableSize.Width
                  : UnlimitedWidth && double.IsPositiveInfinity(availableSize.Width) ? double.PositiveInfinity
                  : 680;
 

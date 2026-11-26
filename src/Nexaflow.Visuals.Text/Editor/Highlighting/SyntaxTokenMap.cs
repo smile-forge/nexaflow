@@ -26,6 +26,7 @@ internal static class SyntaxTokenMap
         ["tag"]       = "TextSwatch.Tag",         // html/markup element names
         ["attribute"] = "TextSwatch.Attribute",   // html attributes, css properties
         ["operator"]  = "TextSwatch.Operator",    // markup delimiters (< > /> =), operators
+        ["whitespace"] = "TextSwatch.Whitespace", // the faint marks shown over spaces, tabs and line ends
     };
 
     /// <summary>The <c>TextSwatch.*</c> resource key for a capture, or null if the capture has no colour role.</summary>

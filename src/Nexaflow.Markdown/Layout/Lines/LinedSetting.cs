@@ -17,15 +17,34 @@ public static class LinedSetting
     /// <summary>
     /// How tall <paramref name="tree"/>, a stretch laid line by line, comes to set in <paramref name="characters"/>: a line height for each
     /// line, and one for the line after the last line end, unless the next stretch carries on from it — or, where its lines wrap, one for
-    /// each row they break onto (<see cref="LineRows"/>). Counted from its characters where they are held, so none of them is copied to say it.
+    /// each row they break onto (<see cref="LineRows"/>), a tab reaching to the next of the stops <paramref name="tabWidth"/> characters
+    /// apart. Counted from its characters where they are held, so none of them is copied to say it.
     /// </summary>
     /// <param name="wrapsIn">The room its lines wrap in, or null where they are kept whole.</param>
-    public static double HeightOf(ContentNode tree, LayoutCharacters characters, ILayoutMedium medium, double? wrapsIn)
+    public static double HeightOf(ContentNode tree, LayoutCharacters characters, ILayoutMedium medium, double? wrapsIn, int tabWidth)
     {
         var carriedOn = CarriedOn(tree);
-        var rows = wrapsIn is { } room ? Rows(tree, room, Advances(characters, medium), carriedOn) : Lines(tree, carriedOn);
+        var rows = wrapsIn is { } room ? Rows(tree, room, Advance(characters, medium), tabWidth, carriedOn) : Lines(tree, carriedOn);
 
         return Math.Max(rows, 1) * LineHeight(characters, medium);
+    }
+
+    /// <summary>What a mark standing for a space, a tab or a line end is called, and the ink it is drawn in is asked by.</summary>
+    public const string WhitespaceKind = "whitespace";
+
+    /// <summary>
+    /// How far a tab standing <paramref name="along"/> across a line reaches: to the next tab stop, the stops standing
+    /// <paramref name="tabWidth"/> characters of <paramref name="advance"/> apart from the line's start.
+    /// </summary>
+    public static double TabAcross(double along, double advance, int tabWidth)
+    {
+        var stop = Math.Max(1, tabWidth) * advance;
+        if (stop <= 0) return 0;
+
+        // A place a hair short of a stop, from adding up advances, is at it.
+        var stops = Math.Floor((along / stop) + 1e-9);
+
+        return ((stops + 1) * stop) - along;
     }
 
     /// <summary>How far apart lines set in <paramref name="characters"/> are.</summary>
@@ -48,10 +67,10 @@ public static class LinedSetting
 
     /// <summary>
     /// How many rows the lines of <paramref name="tree"/> break onto in <paramref name="room"/>: every character set at the face's
-    /// advance and a tab at its own, which is what a monospaced face sets them at, said without measuring each — and the line after the
-    /// last line end, unless the next stretch carries on from it.
+    /// advance and a tab reaching to the next tab stop, which is what a monospaced face sets them at, said without measuring each — and the
+    /// line after the last line end, unless the next stretch carries on from it.
     /// </summary>
-    private static int Rows(ContentNode tree, double room, (double Character, double Tab) advance, bool carriedOn)
+    private static int Rows(ContentNode tree, double room, double advance, int tabWidth, bool carriedOn)
     {
         var line = new LineRows(room);
         var rows = 0;
@@ -68,17 +87,14 @@ public static class LinedSetting
                     }
 
                     // A return before a line feed is the line end's, and the second half of a pair stands for no character of its own.
-                    line.Next(character, character == '\t' ? advance.Tab : character == '\r' || char.IsLowSurrogate(character) ? 0 : advance.Character);
+                    line.Next(character, character == '\t' ? TabAcross(line.Along, advance, tabWidth)
+                                       : character == '\r' || char.IsLowSurrogate(character) ? 0 : advance);
                 }
 
         return carriedOn ? rows : rows + 1 + line.Breaks;
     }
 
-    /// <summary>How far along the face <paramref name="characters"/> are set in moves for a character, and for a tab.</summary>
-    private static (double Character, double Tab) Advances(LayoutCharacters characters, ILayoutMedium medium)
-    {
-        var measure = medium.Measuring(characters.Face, characters.Size);
-
-        return (measure.Of(" ").Advance, measure.Of("\t").Advance);
-    }
+    /// <summary>How far along the face <paramref name="characters"/> are set in moves for a character.</summary>
+    private static double Advance(LayoutCharacters characters, ILayoutMedium medium) =>
+        medium.Measuring(characters.Face, characters.Size).Of(" ").Advance;
 }

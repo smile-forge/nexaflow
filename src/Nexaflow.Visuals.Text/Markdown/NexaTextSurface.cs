@@ -111,6 +111,8 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
             Reported();
         };
 
+        Sliding();
+
         _shown = Made(string.Empty);
 
         // The page between what stands beside it on either side, each stack in the order it stands outward from the page.
@@ -465,6 +467,8 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         (Palette ?? WpfStyles.FromTheme()) with
         {
             TextSize = double.IsNaN(BaseFontSize) || BaseFontSize <= 0 ? TextTypography.BaseFontSize : BaseFontSize,
+            TabWidth = TabWidth,
+            ShowsWhitespace = ShowsWhitespace,
         };
 
     /// <summary>What the host said about what the document holds, as the engine is told it.</summary>
@@ -531,6 +535,7 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         {
             IsReadOnly = IsReadOnly,
             UnlimitedWidth = UnlimitedWidth,
+            SlidingRoom = SlidingRoom(),
             Margin = ContentPadding,
         };
 

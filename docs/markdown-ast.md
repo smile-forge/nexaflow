@@ -224,7 +224,17 @@ its lines unless its language wraps them (`ContentLanguage.WrapsLines`, `Content
 the box, and code's are kept whole. A box narrower than the lines it keeps whole keeps to its room and slides sideways inside it
 (`LayoutSlide`, §8): what it holds is set slid along and cut to the box (`LayoutPaint.Clip`, which a piece's reach is cut to as
 well), with a bar under it saying how much shows and where along. Content laid for paper slides nothing, so there a box's lines
-wrap instead and all of them show (`ContentEngine.Slides`).
+wrap instead and all of them show (`ContentEngine.Slides`). A page that is itself code or text with its lines kept whole slides
+the same way at the top (`NexaTextSurface.HorizontalScrollBarVisibility`): it is laid in the page's width and asks for as much as
+its widest line laid reaches (`ContentElement.SlidingRoom`), and Shift with the wheel slides it.
+
+**A tab reaches to the next tab stop**, the stops `LayoutStyle.TabWidth` characters apart from the line's start
+(`LinedSetting.TabAcross`): a piece of its own standing for its one character, which a caret stands either side of and never inside,
+and counted the same way wherever a line is broken into rows or a unit's height is said. Where the style shows whitespace
+(`LayoutStyle.ShowsWhitespace`), each space, tab and line end has a faint mark drawn over it in `TextSwatch.Whitespace` — a piece
+standing for nothing written and taking no room, so a caret, a selection, a copy and a search meet the text as they would without it.
+Both are the style's, so a line kept under other settings is laid again (`KeptLaying`), and only content laid line by line has
+either: prose, formulas and diagrams set their own space.
 
 **What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
 where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and

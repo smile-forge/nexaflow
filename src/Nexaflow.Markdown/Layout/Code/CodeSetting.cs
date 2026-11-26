@@ -16,7 +16,7 @@ public static class CodeSetting
     /// <paramref name="wrapsIn"/> — said without laying it (<see cref="LinedSetting.HeightOf"/>).
     /// </summary>
     public static double HeightOf(ContentNode tree, LayoutStyle style, ILayoutMedium medium, double? wrapsIn) =>
-        LinedSetting.HeightOf(tree, Mono(style), medium, wrapsIn);
+        LinedSetting.HeightOf(tree, Mono(style), medium, wrapsIn, style.TabWidth);
 
     /// <summary>The face and size code is set in: the one text shown as typed is set in.</summary>
     internal static LayoutCharacters Mono(LayoutStyle style) => LinedSetting.Typed(style);

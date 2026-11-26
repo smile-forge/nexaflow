@@ -58,7 +58,7 @@ internal sealed class LaidBlock
 /// <param name="Slides">How far along each box it set slid sideways was slid as it was laid, by what the host knows each by.</param>
 internal sealed record KeptLaying(ContentPart Part, LayoutTree Tree, double Height, double Reach,
                               IReadOnlyList<LayoutDiagnostic> Trouble, double Room, bool IsReadOnly,
-                              IReadOnlyList<(object Reader, double At)>? Slides = null)
+                              IReadOnlyList<(object Reader, double At)>? Slides = null, int TabWidth = 0, bool ShowsWhitespace = false)
 {
     /// <summary>
     /// What every piece stands for, and what the languages inside said, as the block reads now — <paramref name="now"/> being the same
