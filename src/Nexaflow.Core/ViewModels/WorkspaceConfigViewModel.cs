@@ -14,11 +14,9 @@ using System.ComponentModel;
 namespace Nexaflow.Core.ViewModels;
 
 /// <summary>
-/// The per-workspace "Configure" panel. Drives a <see cref="Workspace"/> (which may have no live
-/// <see cref="WorkspaceRuntime"/>). To avoid disrupting a running workspace mid-edit, the panel works on a
-/// SEPARATE set of config instances loaded from the workspace's folder — <see cref="Apply"/> writes
-/// them to disk only; the live instances are untouched. If anything was applied, <see cref="Close"/>
-/// reloads the workspace from disk and rebuilds the live workspace once (no per-apply popup).
+/// The per-workspace "Configure" panel: a page per section of a <see cref="WorkspaceSettingsDraft"/>, which edits copies of the
+/// workspace's settings — the workspace may have no live <see cref="WorkspaceRuntime"/> — and, once anything was saved, reloads and
+/// restarts the workspace when the panel closes. The identity and default-tabs pages edit the workspace itself and save themselves.
 /// </summary>
 public partial class WorkspaceConfigViewModel : ObservableObject
 {
@@ -39,35 +37,18 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// so like the identity page it's special-cased in Apply (no per-folder config file).</summary>
     private ConfigEditViewModel? _defaultTabsSection;
 
-    private readonly Workspace _workspace;
-
-    // Disk-backed EDITING copies — independent of the workspace's live instances.
-    private readonly AiConfig                       _aiConfig;
-    private readonly AiPersonaConfig                _persona;
-    private IReadOnlyList<IProviderConfig>          _providerConfigs;
-    private readonly IReadOnlyList<IFeatureConfig>  _workspaceConfigs;
-
-    // Provider set the ability grid queries for model lists; re-acquired when a key changes.
-    private ProviderSet? _editingProviderSet;
+    /// <summary>The edit of the workspace's settings the pages show.</summary>
+    private readonly WorkspaceSettingsDraft _settings;
 
     /// <summary>The ability grid being edited — one, shared by the AI page and every local-model page, so a model
     /// chosen on either is the same edit.</summary>
     private readonly AiAbilityGridViewModel _grid;
 
-    /// <summary>The edit of the ability grid the grid shows.</summary>
-    private readonly AiConfigDraft _aiDraft;
-
-    /// <summary>The models on this machine, read from the editing provider set; null without an asset store.</summary>
-    private readonly LocalModelShelf? _shelf;
-
     /// <summary>The app's downloads of models on this machine; null where the app has none.</summary>
     private readonly LocalModelDownloads? _downloads;
 
-    /// <summary>The pages whose apply writes the ability grid, saved as <see cref="_aiConfig"/>.</summary>
+    /// <summary>The pages whose apply writes the ability grid.</summary>
     private readonly List<ConfigEditViewModel> _gridSections = [];
-
-    // Set once any section is applied to disk — drives the single rebuild on Close.
-    private bool _dirty;
 
     public event Action<string>? ApplyError;
 
@@ -76,21 +57,14 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// <summary>The page each section is edited on where it has one of its own.</summary>
     private readonly ConfigPageModels _pages;
 
-    /// <summary>The session's feature system, which knows the workspace-scoped configs the panel edits.</summary>
-    private readonly FeatureManager _features;
-
-    /// <summary>The session's provider pool: the providers and their configs the panel edits, and the models on this machine.</summary>
+    /// <summary>The session's provider pool: the tools with models of their own, and the CUDA pack's download.</summary>
     private readonly ProviderManager _providers;
 
-    /// <summary>The saved workspaces: the configured one among them, and every grid a downloaded model is used by.</summary>
+    /// <summary>The saved workspaces, which the identity and default-tabs pages save the workspace in.</summary>
     private readonly WorkspaceManager _savedWorkspaces;
 
-    /// <summary>The live workspaces, whose runtime of the configured one is rebuilt when an applied edit closes the panel.</summary>
-    private readonly WorkspaceRuntimes _runtimes;
-
-    /// <summary>The session's configuration: the editing copies are read from the workspace's folder and applied back through it,
-    /// and what rules on a setting shows as it rules.</summary>
-    private readonly ConfigManager _config;
+    /// <summary>What rules on a setting the app does not decide alone: one it rules on shows as it rules.</summary>
+    private readonly IConfigRulings _rulings;
 
     /// <param name="workspace">The workspace the panel configures.</param>
     /// <param name="session">What the window has of the session: the configuration the workspace's settings are read and saved
@@ -101,37 +75,17 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// handed it, and a path is browsed for with its pickers.</param>
     public WorkspaceConfigViewModel(Workspace workspace, WindowServices session, ConfigPageModels pages, Nexaflow.Features.Common.IShellServices? shell = null)
     {
-        _workspace       = workspace;
-        _features        = session.Features;
         _providers       = session.Providers;
         _savedWorkspaces = session.SavedWorkspaces;
-        _runtimes        = session.Workspaces;
-        _config          = session.Config;
+        _rulings         = session.Config;
         _shell   = shell;
         _pages   = pages;
         _title   = Str.Format("Shell.Workspace.Configure.TitleFormat", workspace.Name);
 
-        // Discover provider plugins, then make sure the workspace's folder + scoped-type list exist.
-        _providers.DiscoverAll();
-        workspace.EnsureSharedServicesLoaded(_providers);
-
-        var dir = workspace.Dir;
-
-        _aiConfig = new AiConfig();
-        _config.LoadFrom(dir, _aiConfig, _aiConfig.ConfigName);
-
-        _persona = new AiPersonaConfig();
-        _config.LoadFrom(dir, _persona, _persona.ConfigName);
-
-        _providerConfigs  = _providers.LoadProviderConfigs(dir);
-        _workspaceConfigs = LoadEditingWorkspaceConfigs(dir);
-
-        // Capability instances for the ability grid's model lists (model-agnostic; columns: none).
-        _editingProviderSet  = _providers.AcquireProviderSet(_providerConfigs, []);
-        _shelf               = _providers.Assets is { } assets ? new LocalModelShelf(_editingProviderSet, assets) : null;
-        _downloads           = _providers.Service<LocalModelDownloads>();
-        _aiDraft             = new AiConfigDraft(_aiConfig, _editingProviderSet, _shelf);
-        _grid                = new AiAbilityGridViewModel(_aiDraft, _downloads);
+        _settings  = new WorkspaceSettingsDraft(workspace, session.Config, session.Features, session.Providers, session.SavedWorkspaces,
+                                                session.Workspaces);
+        _downloads = _providers.Service<LocalModelDownloads>();
+        _grid      = new AiAbilityGridViewModel(_settings.AiDraft, _downloads);
 
         BuildSections();
         SelectedSection = Sections.FirstOrDefault();
@@ -148,35 +102,37 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
     private void BuildSections()
     {
+        var workspace = _settings.Workspace;
+
         // First page: the workspace identity (name/symbol/colour). The control edits the live workspace
         // directly on Apply, so it carries no per-folder config (special-cased in Apply below).
-        var identityControl = new WorkspaceIdentityControl(_savedWorkspaces, _shell) { DataContext = _workspace };
+        var identityControl = new WorkspaceIdentityControl(_savedWorkspaces, _shell) { DataContext = workspace };
         _identitySection = ConfigEditViewModel.ForCustomControl(identityControl, "workspace-identity", Str.Get("Shell.Config.WorkspaceIdentity"));
         Sections.Add(_identitySection);
 
         // Startup tabset editor (delete-only; captured via the workspace icon's "Use Tabset as Default").
-        var defaultTabsControl = new WorkspaceDefaultTabsControl(_savedWorkspaces) { DataContext = _workspace };
+        var defaultTabsControl = new WorkspaceDefaultTabsControl(_savedWorkspaces) { DataContext = workspace };
         _defaultTabsSection = ConfigEditViewModel.ForCustomControl(defaultTabsControl, "workspace-default-tabs", Str.Get("Shell.Config.WorkspaceDefaultTabs"));
         Sections.Add(_defaultTabsSection);
 
-        Sections.Add(GridSection(new AiAbilityGridControl(_grid), _aiConfig.ConfigName, _aiConfig.FriendlyName));
+        Sections.Add(GridSection(new AiAbilityGridControl(_grid), _settings.AiConfig.ConfigName, _settings.AiConfig.FriendlyName));
 
         // The models on this machine: a page choosing one for each job, and one of what is on disk.
-        if (_shelf is not null && _downloads is not null)
+        if (_settings.Shelf is { } shelf && _downloads is not null)
         {
             var tools = _providers.Services<ILocalTool>();
-            var local = new LocalModelsViewModel(_shelf, _grid, _workspace, _downloads, CommitLocalChoice, tools,
+            var local = new LocalModelsViewModel(shelf, _grid, workspace, _downloads, CommitLocalChoice, tools,
                                                  _providers.Service<CudaPackDownload>());
             Sections.Add(GridSection(new LocalModelsControl(local, _grid), "local-models", Str.Get("Shell.Config.Local.Title")));
-            Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(_shelf, SavedGrids, tools)),
+            Sections.Add(ConfigEditViewModel.ForCustomControl(new DownloadedModelsControl(new DownloadedModelsViewModel(shelf, _settings.SavedGrids, tools)),
                                                               "downloaded-models", Str.Get("Shell.Config.Downloaded.Title")));
         }
-        Sections.Add(new ConfigEditViewModel(_persona, _persona.ConfigName, _persona.FriendlyName, _config, _pages, _shell));
-        foreach (var config in _providerConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _config, _pages, _shell));
+        Sections.Add(new ConfigEditViewModel(_settings.Persona, _settings.Persona.ConfigName, _settings.Persona.FriendlyName, _rulings, _pages, _shell));
+        foreach (var config in _settings.ProviderConfigs)
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _rulings, _pages, _shell));
 
-        foreach (var config in _workspaceConfigs)
-            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _config, _pages, _shell));
+        foreach (var config in _settings.WorkspaceConfigs)
+            Sections.Add(new ConfigEditViewModel(config, config.ConfigName, config.FriendlyName, _rulings, _pages, _shell));
     }
 
     private ConfigEditViewModel GridSection(System.Windows.FrameworkElement control, string configName, string title)
@@ -190,67 +146,28 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// a download is saved by the app's downloads when it lands, whether or not this panel is still open.</summary>
     private void CommitLocalChoice() => SaveGridConfig();
 
-    /// <summary>Every workspace's grid as saved, by name — this one's as this panel holds it — for who uses which model.</summary>
-    private IReadOnlyList<(string Workspace, AiConfig Config)> SavedGrids()
-        => [.. _savedWorkspaces.Workspaces.Select(w => (w.Name, ReferenceEquals(w, _workspace) ? _aiConfig : SavedGrid(w)))];
-
-    private AiConfig SavedGrid(Workspace workspace)
-    {
-        var config = new AiConfig();
-        _config.LoadFrom(workspace.Dir, config, config.ConfigName);
-        return config;
-    }
-
     /// <summary>Saves the ability grid's config; every page that edits the grid is then unchanged.</summary>
     private bool SaveGridConfig()
     {
         try
         {
-            _config.SaveTo(_workspace.Dir, _aiConfig, _aiConfig.ConfigName);
-            _dirty = true;
+            _settings.SaveGrid();
             foreach (var s in _gridSections) s.ResetChanges();
             return true;
         }
         catch (Exception ex)
         {
-            ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", _aiConfig.FriendlyName, ex.Message));
+            ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", _settings.AiConfig.FriendlyName, ex.Message));
             return false;
         }
     }
 
-    private List<IFeatureConfig> LoadEditingWorkspaceConfigs(string dir)
-    {
-        var list = new List<IFeatureConfig>();
-        foreach (var t in _features.Configs.WorkspaceScopedTypes)
-        {
-            var cfg = (IFeatureConfig)Activator.CreateInstance(t)!;
-            _config.LoadFrom(dir, cfg, cfg.ConfigName);
-            list.Add(cfg);
-        }
-        return list;
-    }
-
     /// <summary>
-    /// Releases the editing provider set and, if anything was applied, reloads the workspace from disk
-    /// and rebuilds the live workspace once. Called by the host when the panel closes. Returns true
-    /// when changes were applied (so the host knows not to bounce back to the Options popup).
+    /// Closes the edit: the provider set is let go and, if anything was saved, the workspace is reloaded and its runtime rebuilt
+    /// once. Called by the host when the panel closes. Returns true when changes were applied (so the host knows not to bounce back
+    /// to the Options popup).
     /// </summary>
-    public bool Close()
-    {
-        if (_editingProviderSet is not null)
-        {
-            _providers.ReleaseProviderSet(_editingProviderSet);
-            _editingProviderSet = null;
-        }
-
-        if (!_dirty) return false;
-        _dirty = false;
-
-        // Pull the just-saved values into the live workspace, then rebuild the running workspace (if any).
-        _workspace.ReloadSharedConfigs(_features.Configs, _providers);
-        _runtimes.Restart(_workspace);
-        return true;
-    }
+    public bool Close() => _settings.Close();
 
     partial void OnSelectedSectionChanged(ConfigEditViewModel? value)
     {
@@ -298,24 +215,20 @@ public partial class WorkspaceConfigViewModel : ObservableObject
 
     private bool ApplySection(ConfigEditViewModel section)
     {
-        // The identity page edits the live workspace directly (name/symbol/colour) and persists itself
-        // (workspace list + on-disk folder move), so it skips the per-folder disk-save the config sections
-        // take. A rename moved the data folder, so a live workspace must rebuild (its AIService captured
-        // the old conversations path) — flag it dirty so Close() rebuilds; colour/symbol update live.
+        // The identity page edits the live workspace directly (name/symbol/colour) and persists itself (workspace list + on-disk
+        // folder move); a rename moved the data folder, which the running workspace must be rebuilt to follow.
         if (ReferenceEquals(section, _identitySection))
         {
-            var oldName = _workspace.Name;
+            var oldName = _settings.Workspace.Name;
             section.ApplyToReal();
             section.ResetChanges();
-            Title = Str.Format("Shell.Workspace.Configure.TitleFormat", _workspace.Name);
-            if (!string.Equals(oldName, _workspace.Name, StringComparison.Ordinal))
-                _dirty = true;
+            Title = Str.Format("Shell.Workspace.Configure.TitleFormat", _settings.Workspace.Name);
+            if (!string.Equals(oldName, _settings.Workspace.Name, StringComparison.Ordinal))
+                _settings.Renamed();
             return true;
         }
 
-        // The default-tabs page also edits the live workspace and persists itself (SaveWorkspaces). Its change
-        // only affects future window startups, so it needs neither a per-folder disk save nor a workspace
-        // rebuild — apply and return without touching _dirty.
+        // The default-tabs page also edits the live workspace and persists itself; its change only affects future window startups.
         if (ReferenceEquals(section, _defaultTabsSection))
         {
             section.ApplyToReal();
@@ -331,18 +244,11 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             return SaveGridConfig();
         }
 
-        section.ApplyToReal();   // clone -> editing instance (NOT the live workspace instance)
-
+        section.ApplyToReal();   // clone -> the edit's copy (NOT the live workspace's)
         try
         {
-            _config.SaveTo(_workspace.Dir, section.RealConfig, section.ConfigName);
+            _settings.Save(section.RealConfig, section.ConfigName);
             section.ResetChanges();
-            _dirty = true;
-
-            // A provider config (not the persona, which is also an IProviderConfig) changed — rebuild the
-            // editing provider set so the grid can list models with the new key.
-            if (section.RealConfig is IProviderConfig && !ReferenceEquals(section.RealConfig, _persona))
-                ReacquireEditingProviderSet();
             return true;
         }
         catch (Exception ex)
@@ -350,14 +256,5 @@ public partial class WorkspaceConfigViewModel : ObservableObject
             ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", section.FriendlyName, ex.Message));
             return false;
         }
-    }
-
-    private void ReacquireEditingProviderSet()
-    {
-        var fresh = _providers.AcquireProviderSet(_providerConfigs, []);
-        var old   = _editingProviderSet;
-        _editingProviderSet = fresh;
-        _aiDraft.UseProviders(fresh, _shelf);
-        if (old is not null) _providers.ReleaseProviderSet(old);
     }
 }
