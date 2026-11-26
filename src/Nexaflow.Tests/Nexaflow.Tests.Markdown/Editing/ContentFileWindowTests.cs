@@ -21,14 +21,7 @@ public class ContentFileWindowTests
     private string _folder = string.Empty;
 
     [TestInitialize]
-    public void Begin() => Directory.CreateDirectory(_folder = Path.Combine(Path.GetTempPath(), "nexaflow-file-window-" + Guid.NewGuid().ToString("N")));
-
-    [TestCleanup]
-    public void End()
-    {
-        try { Directory.Delete(_folder, recursive: true); }
-        catch (IOException) { }
-    }
+    public void Begin() => _folder = TestTemp.CreateSubdirectory("file-window").FullName;
 
     [TestMethod]
     public void TheWindow_HoldsTheFilesCharactersWhereItStands_WhereverItMoves()

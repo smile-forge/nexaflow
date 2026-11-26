@@ -1068,6 +1068,71 @@
       }
     },
     "windowed-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentUnits.cs",
+          "class": "ContentUnits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentStretch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Rtf/RtfParser.cs",
+          "class": "RtfParser",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Rtf/RtfResume.cs",
+          "class": "RtfResume"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Windowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentUnits.cs",
+          "class": "ContentUnits",
+          "method": "Edited"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DrawnText.cs",
+          "class": "DrawnText",
+          "method": "Of"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "Background"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentStretch.cs",
+          "class": "ContentUnit",
+          "method": "Standing"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/LinkTargets.cs",
+          "class": "LinkTargets",
+          "method": "Report"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -1141,10 +1206,45 @@
           }
         ]
       }
+    },
+    "json-text-mode": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Json/ViewModels/JsonViewModel.cs",
+          "class": "JsonViewModel",
+          "method": "SetTextMode"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Json/ViewModels/JsonViewModel.cs",
+          "class": "JsonViewModel",
+          "method": "CommitRawJson"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Json/JsonJourneyTests.cs",
+          "class": "JsonJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Json/JsonViewModelTests.cs",
+          "class": "JsonViewModelTests"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Json/Models/JsonDisplayItem.cs",
+          "class": "JsonInlineContentDisplayItem"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 53,
+  "changed_sets": 55,
   "touched_nodes": [
     "barcode-editing",
     "code-folding",
@@ -1158,6 +1258,7 @@
     "content-search",
     "content-text-automation",
     "executable-dependency-viewport",
+    "json-text-mode",
     "markdown-block-model",
     "markdown-block-picture",
     "markdown-block-undo",

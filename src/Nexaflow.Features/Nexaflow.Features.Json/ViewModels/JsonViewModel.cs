@@ -1253,7 +1253,7 @@ internal sealed partial class JsonViewModel : ObservableObject, IPageViewModel, 
         catch { /* ignore */ }
     }
 
-    // ── Commit raw JSON from AvalonEdit ───────────────────────────────────────
+    // ── Commit the raw JSON written in Text mode ──────────────────────────────
 
     internal void CommitRawJson(JsonNodeModel node, string rawText)
     {

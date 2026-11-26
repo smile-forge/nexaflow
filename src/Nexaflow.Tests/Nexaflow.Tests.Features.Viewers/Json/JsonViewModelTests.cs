@@ -124,6 +124,25 @@ public class JsonViewModelTests
     }
 
     [TestMethod]
+    public async Task TextMode_ShowsTheNodesJsonAsADocument_UnwrittenUntilSomethingIsWritten()
+    {
+        var (vm, path) = await LoadVmAsync("""{ "obj": { "n": 1 } }""");
+        try
+        {
+            var obj = ((JsonObjectNodeModel)vm.Root!).Children[0];
+            vm.SelectedDisplayItem = vm.DisplayItems.OfType<JsonTreeDisplayItem>().First(i => i.Node == obj);
+            vm.SetTextModeCommand.Execute(null);
+
+            var inline = vm.DisplayItems.OfType<JsonInlineContentDisplayItem>().Single();
+
+            Assert.AreEqual(inline.RawJson, inline.Document.ToString());
+            Assert.IsFalse(inline.Document.IsDirty);
+            Assert.AreSame(inline.Document, inline.Document, "the row keeps its one document, which a recycled editor is given again");
+        }
+        finally { File.Delete(path); }
+    }
+
+    [TestMethod]
     public async Task SetTextThenSetTreeMode_RemovesInlineContent()
     {
         var (vm, path) = await LoadVmAsync("""{ "obj": { "n": 1 } }""");
