@@ -13,7 +13,7 @@ namespace Nexaflow.Tests.Core.Unit.Requests;
 [CoversNode("aibar-bar-reply")]
 public class BarReplyTests
 {
-    private sealed class Window : IBarReplyHost
+    private sealed class FakeHost : IBarReplyHost
     {
         public WorkspaceRuntime CurrentRuntime { get; } = TestRuntimes.Unstarted(new Workspace { Name = "Bar" });
         public Page? ActiveTab => null;
@@ -32,7 +32,7 @@ public class BarReplyTests
         public IUiTimer CreateTimer(TimeSpan interval, Action tick, UiTimerPriority priority, bool once) => throw new NotSupportedException();
     }
 
-    private static BarReply Reply() => new(new InlineUi(), new Window());
+    private static BarReply Reply() => new(new InlineUi(), new FakeHost());
 
     [TestMethod]
     [CoversNode("aibar-progress-line")]
