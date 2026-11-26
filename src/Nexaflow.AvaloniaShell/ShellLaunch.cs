@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Nexaflow.AvaloniaShell.Platform;
 using Nexaflow.AvaloniaShell.Shell;
+using Nexaflow.AvaloniaShell.Theming;
 using Nexaflow.AvaloniaShell.Views;
 using Nexaflow.Host;
 using Nexaflow.IO.Common.Audio;
@@ -24,6 +25,10 @@ internal sealed class ShellLaunch
     private const string OwnRoot = "nexaflow-avalonia-spike";
 
     private readonly Application _app;
+    private readonly IClassicDesktopStyleApplicationLifetime _desktop;
+
+    /// <summary>The theme the windows draw with now.</summary>
+    private ShellTheme? _theme;
     private readonly ShellLogging _logging;
     private readonly ILogger<ShellLaunch> _log;
     private readonly AvaloniaClipboard _clipboard;
@@ -40,6 +45,7 @@ internal sealed class ShellLaunch
     private ShellLaunch(Application app, IClassicDesktopStyleApplicationLifetime desktop)
     {
         _app = app;
+        _desktop = desktop;
         var folders = Folders();
         _logging = ShellLogging.Open(folders, Version, uiTest: false, profileStartup: false);
         _log     = _logging.Factory.CreateLogger<ShellLaunch>();
@@ -123,14 +129,23 @@ internal sealed class ShellLaunch
     }
 
     /// <summary>
-    /// The shell settings that decide how windows look. Avalonia's Fluent theme has a light and a dark variant; the named themes are
-    /// WPF resource dictionaries, and nothing in the session says which variant one stands on, so they are drawn dark and said so.
+    /// The shell settings that decide how windows look: the theme, read from the WPF app's own theme dictionaries
+    /// (<see cref="ShellTheme"/>) — or the one <c>--theme &lt;name&gt;</c> names for this run — with its scenes drawn by this app's ports.
     /// </summary>
     private void ApplyAppearance(ShellConfig shell)
     {
-        _app.RequestedThemeVariant = shell.Theme == ThemeOption.Light ? ThemeVariant.Light : ThemeVariant.Dark;
-        if (shell.Theme is not (ThemeOption.Light or ThemeOption.Dark))
-            _log.LogInformation("theme {Theme} has no Avalonia palette; drawn with Fluent's dark variant", shell.Theme);
+        var option = ThemeAsked() ?? shell.Theme;
+        var theme = ShellTheme.Load(option, _logging.Factory.CreateLogger<ShellTheme>());
+        theme.Apply(_app, _theme);
+        _theme = theme;
+    }
+
+    /// <summary>The theme this run was asked to show with <c>--theme &lt;name&gt;</c>, over the one the settings hold; null when none was.</summary>
+    private ThemeOption? ThemeAsked()
+    {
+        var args = _desktop.Args ?? [];
+        var at = Array.FindIndex(args, arg => string.Equals(arg, "--theme", StringComparison.OrdinalIgnoreCase));
+        return at >= 0 && at + 1 < args.Length && Enum.TryParse<ThemeOption>(args[at + 1], ignoreCase: true, out var asked) ? asked : null;
     }
 
     /// <summary>A fault on the UI thread: recorded, told in the inbox, and handled so the window stays open.</summary>

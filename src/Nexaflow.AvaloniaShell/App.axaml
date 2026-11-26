@@ -1,8 +1,9 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Nexaflow.AvaloniaShell.App"
-             RequestedThemeVariant="Dark">
+             x:Class="Nexaflow.AvaloniaShell.App">
+  <!-- Fluent underneath, the shell's own chrome styles over it; the theme's resources arrive as the session applies the theme. -->
   <Application.Styles>
     <FluentTheme />
+    <StyleInclude Source="avares://Nexaflow.AvaloniaShell/Theming/ShellStyles.axaml" />
   </Application.Styles>
 </Application>

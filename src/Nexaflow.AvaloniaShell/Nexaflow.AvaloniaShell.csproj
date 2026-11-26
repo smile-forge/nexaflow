@@ -49,6 +49,15 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Every theme as the WPF app defines it: the palettes, the region tokens and each theme's overrides and scenes, Core's own
+         files embedded unchanged and read by ShellTheme, so the two apps share one definition of each theme. -->
+    <EmbeddedResource Include="..\Nexaflow.Core\Themes\Colors.*.xaml;..\Nexaflow.Core\Themes\Theme.*.xaml;..\Nexaflow.Core\Themes\Tokens.xaml"
+                      Link="Themes\%(Filename)%(Extension)" LogicalName="Themes.%(Filename)%(Extension)" />
+    <!-- The bundled Fluent icon font, Nexaflow.Visuals.Icons' own file, for ribbon icons of the Fluent sets. -->
+    <AvaloniaResource Include="..\Nexaflow.Visuals.Icons\Assets\Fonts\FluentSystemIcons-Resizable.ttf" Link="Assets\Fonts\FluentSystemIcons-Resizable.ttf" />
+  </ItemGroup>
+
   <!-- Language packs: Languages\Nexaflow.Language.<code>.dll, which LanguageManager reads beside the exe. -->
   <Import Project="..\Nexaflow.Languages\LanguagePacks.Deploy.targets" />
 

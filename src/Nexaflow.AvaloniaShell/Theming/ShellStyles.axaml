@@ -1,0 +1,331 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- The shell chrome's controls, drawn as the WPF shell draws them (MainWindow.xaml, Styles.xaml): every colour a theme key,
+       bound dynamically so a theme applied while the window is open is followed at once. Chrome buttons take ShellButton, a
+       bare template, so Fluent's own states (its pressed scale, its pointer-over fill) never mix in. -->
+
+  <Styles.Resources>
+    <ControlTheme x:Key="ShellButton" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+
+    <ControlTheme x:Key="ShellToggle" TargetType="ToggleButton">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+            <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+  </Styles.Resources>
+
+  <!-- ── Caption buttons (min / max / close) ── -->
+  <Style Selector="Button.caption">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Cursor" Value="Arrow" />
+    <Setter Property="Width" Value="44" />
+    <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="Button.caption:pointerover">
+    <Setter Property="Background" Value="#1AFFFFFF" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.caption.close:pointerover">
+    <Setter Property="Background" Value="#E81123" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <!-- ── The right panel's actions: no box; their children set their own colours, so hover changes nothing seen ── -->
+  <Style Selector="Button.topAction">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+  </Style>
+
+  <!-- ── The workspace selector, on the workspace's own colour ── -->
+  <Style Selector="Button.workspace">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Button.workspace:pointerover">
+    <Setter Property="Background" Value="#28FFFFFF" />
+  </Style>
+  <Style Selector="Button.workspace:pressed">
+    <Setter Property="Background" Value="#44FFFFFF" />
+  </Style>
+  <Style Selector="Button.workspaceItem">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.workspaceItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+  </Style>
+  <Style Selector="Button.workspaceItem:pressed">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+  </Style>
+
+  <!-- ── Ribbon buttons: icon over label, a frame that fills on hover and press, no animation ── -->
+  <Style Selector="Button.ribbon">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Background" Value="{DynamicResource Ribbon.ButtonBg}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="MinWidth" Value="45" />
+    <Setter Property="Margin" Value="2,0,2,0" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Button.ribbon:pointerover">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.ribbon:pressed">
+    <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+  </Style>
+  <Style Selector="Button.ribbonEdit">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Width" Value="28" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Bottom" />
+  </Style>
+  <Style Selector="Button.ribbonEdit:pointerover">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+  </Style>
+  <Style Selector="Button.ribbonEdit:pressed">
+    <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+  </Style>
+
+  <!-- ── Breadcrumb ── -->
+  <Style Selector="Button.crumb">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="Button.crumb.last">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.crumb:pointerover">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+  </Style>
+  <Style Selector="Button.crumb:pressed">
+    <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+  </Style>
+
+  <!-- ── Tabs: a 2px accent underline on the active one, the close cross only under the pointer ── -->
+  <Style Selector="Button.tab">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="6,6,0,0" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="Button.tab:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Tab.HoverBg}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.tab.active, Button.tab.active:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Tab.ActiveBg}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Tab.Accent}" />
+    <Setter Property="Foreground" Value="{DynamicResource Tab.Accent}" />
+  </Style>
+  <Style Selector="Button.tabClose">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Margin" Value="6,0,0,0" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="Button.tab:pointerover Button.tabClose">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Button.tabClose:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+
+  <!-- ── IconButton: the mic, the clear cross, the reply's dismiss ── -->
+  <Style Selector="Button.icon">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Width" Value="28" />
+    <Setter Property="Height" Value="28" />
+  </Style>
+  <Style Selector="Button.icon:pointerover">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="Button.icon:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+  <Style Selector="Button.clear">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+  <Style Selector="Border.userField:pointerover Button.clear">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Button.clear:pointerover">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+  </Style>
+
+  <!-- ── The page-context toggle, the queue and send buttons ── -->
+  <Style Selector="ToggleButton.context">
+    <Setter Property="Theme" Value="{StaticResource ShellToggle}" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.context:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="ToggleButton.context:checked">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+  </Style>
+  <Style Selector="Button.send">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Button.send.cancel">
+    <Setter Property="Background" Value="#E11D48" />
+  </Style>
+  <Style Selector="Button.send:pointerover">
+    <Setter Property="Opacity" Value="0.85" />
+  </Style>
+
+  <!-- ── PrimaryAction / SecondaryAction: a modal's OK and Cancel, the reply's Allow and Deny ── -->
+  <Style Selector="Button.primary">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Padding" Value="8,6" />
+  </Style>
+  <Style Selector="Button.primary:pointerover">
+    <Setter Property="Opacity" Value="0.85" />
+  </Style>
+  <Style Selector="Button.secondary">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Padding" Value="8,6" />
+  </Style>
+  <Style Selector="Button.secondary:pointerover">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+  </Style>
+  <Style Selector="Button.slim">
+    <Setter Property="Padding" Value="10,2" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Margin" Value="4,0,0,0" />
+  </Style>
+  <Style Selector="Button.scrim">
+    <Setter Property="Theme" Value="{StaticResource ShellButton}" />
+    <Setter Property="Cursor" Value="Arrow" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+
+  <!-- ── PopupBorder ── -->
+  <Style Selector="Border.popup">
+    <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BoxShadow" Value="0 4 24 0 #80000000" />
+  </Style>
+
+  <!-- ── The status dot: ready, a handler's pip, the assistant listening (a slow breath), busy (a squash) ── -->
+  <Style Selector="Ellipse.dot">
+    <Setter Property="Width" Value="28" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="Fill" Value="{DynamicResource AiStatus.Ready}" />
+  </Style>
+  <Style Selector="Ellipse.dot.handler">
+    <Setter Property="Fill" Value="{DynamicResource AiStatus.Handler}" />
+  </Style>
+  <Style Selector="Ellipse.dot.listening">
+    <Setter Property="Fill" Value="{DynamicResource AiStatus.ListenBrush}" />
+    <Style.Animations>
+      <Animation Duration="0:0:1.4" IterationCount="Infinite" PlaybackDirection="Alternate" Easing="SineEaseInOut">
+        <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.4" /></KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+  <Style Selector="Ellipse.dot.busy">
+    <Setter Property="Fill" Value="{DynamicResource AiStatus.Busy}" />
+    <Style.Animations>
+      <Animation Duration="0:0:0.8" IterationCount="Infinite" PlaybackDirection="Alternate" Easing="SineEaseInOut">
+        <KeyFrame Cue="0%"><Setter Property="Width" Value="28" /></KeyFrame>
+        <KeyFrame Cue="100%"><Setter Property="Width" Value="24" /></KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <!-- ── The AI input: no box of its own; the field around it is the box ── -->
+  <Style Selector="TextBox.aiInput">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="8,3,28,3" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="CaretBrush" Value="#FFD8D8D8" />
+    <Setter Property="PlaceholderForeground" Value="#4A5270" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+  </Style>
+  <Style Selector="TextBox.aiInput:pointerover /template/ Border#PART_BorderElement, TextBox.aiInput:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="TextBox.aiInput:pointerover, TextBox.aiInput:focus">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+</Styles>
