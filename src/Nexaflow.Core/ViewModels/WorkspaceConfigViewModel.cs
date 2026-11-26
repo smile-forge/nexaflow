@@ -54,6 +54,9 @@ public partial class WorkspaceConfigViewModel : ObservableObject
     /// chosen on either is the same edit.</summary>
     private readonly AiAbilityGridViewModel _grid;
 
+    /// <summary>The edit of the ability grid the grid shows.</summary>
+    private readonly AiConfigDraft _aiDraft;
+
     /// <summary>The models on this machine, read from the editing provider set; null without an asset store.</summary>
     private readonly LocalModelShelf? _shelf;
 
@@ -127,7 +130,8 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         _editingProviderSet  = _providers.AcquireProviderSet(_providerConfigs, []);
         _shelf               = _providers.Assets is { } assets ? new LocalModelShelf(_editingProviderSet, assets) : null;
         _downloads           = _providers.Service<LocalModelDownloads>();
-        _grid                = new AiAbilityGridViewModel(_aiConfig, _editingProviderSet, _shelf, _downloads);
+        _aiDraft             = new AiConfigDraft(_aiConfig, _editingProviderSet, _shelf);
+        _grid                = new AiAbilityGridViewModel(_aiDraft, _downloads);
 
         BuildSections();
         SelectedSection = Sections.FirstOrDefault();
@@ -353,7 +357,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         var fresh = _providers.AcquireProviderSet(_providerConfigs, []);
         var old   = _editingProviderSet;
         _editingProviderSet = fresh;
-        _grid.UseProviders(fresh);
+        _aiDraft.UseProviders(fresh, _shelf);
         if (old is not null) _providers.ReleaseProviderSet(old);
     }
 }
