@@ -1,19 +1,18 @@
 using System.IO;
 using System.Security;
-using System.Windows.Media;
+using System.Runtime.Versioning;
 using Microsoft.Win32;
-using Nexaflow.IO.Common;
 
-namespace Nexaflow.Visuals.Common.Shell;
+namespace Nexaflow.IO.Common.Shell;
 
 /// <summary>Where <see cref="ShellFileIcons"/> gets its icons and its decisions from — the shell, or a test's stand-in.</summary>
 internal interface IShellIconSource
 {
     /// <summary>The icon every file ending <paramref name="extension"/> shares, or every plain folder's.</summary>
-    ImageSource? TypeIcon(string extension, bool isFolder, ShellIconSize size);
+    ShellIconPixels? TypeIcon(string extension, bool isFolder, ShellIconSize size);
 
     /// <summary>The icon of the one file or folder at <paramref name="path"/>. Reads the disk.</summary>
-    ImageSource? PathIcon(string path, ShellIconSize size);
+    ShellIconPixels? PathIcon(string path, ShellIconSize size);
 
     /// <summary>Whether each file ending <paramref name="extension"/> draws an icon of its own — a program, a shortcut, an icon file.</summary>
     bool DrawsItsOwnIcon(string extension);
@@ -23,11 +22,12 @@ internal interface IShellIconSource
 }
 
 /// <summary>The shell itself, and the registry it decides from.</summary>
+[SupportedOSPlatform("windows")]
 internal sealed class SystemShellIconSource : IShellIconSource
 {
-    public ImageSource? TypeIcon(string extension, bool isFolder, ShellIconSize size) => ShellInterop.TypeIcon(extension, isFolder, size);
+    public ShellIconPixels? TypeIcon(string extension, bool isFolder, ShellIconSize size) => ShellInterop.TypeIcon(extension, isFolder, size);
 
-    public ImageSource? PathIcon(string path, ShellIconSize size) => ShellInterop.PathIcon(path, size);
+    public ShellIconPixels? PathIcon(string path, ShellIconSize size) => ShellInterop.PathIcon(path, size);
 
     /// <summary>
     /// As Explorer decides it: the extension's class names the file itself as its icon (<c>DefaultIcon</c> of <c>%1</c>), or

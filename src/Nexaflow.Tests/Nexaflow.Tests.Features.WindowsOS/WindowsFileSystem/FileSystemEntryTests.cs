@@ -5,6 +5,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Localization.Formatting;
 using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Shell;
+using Nexaflow.IO.Common.Shell;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

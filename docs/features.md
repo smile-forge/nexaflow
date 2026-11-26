@@ -499,6 +499,9 @@ each file that draws its own icon (a program, a shortcut, a customised folder) b
 that waits for a scroll to settle and draws the rows on screen first — so a virtualised list asks only for what is in
 view, and a recycled row is never handed its old path's icon. A Type column takes its text from
 `ShellFileTypes.NameFor`, the shell's own name for the kind ("Text Document"), safe to call from a background enumerator.
+`ShellFileIcons`, `ShellResourceIcons` and `ShellFileTypes` name no UI toolkit (`IO.Common`'s Shell namespace): an icon
+arrives as `ShellIconPixels`, posted to the asking thread through its `IAnswerThread`, and `FileIcon` and `ResourceIcon`
+turn each buffer into a WPF bitmap once with `ShellIconBitmaps`.
 
 
 **A file list in a cloud-synced folder shows sync status with `CloudStatusIcon`**, beside `FileIcon`. Read the folder

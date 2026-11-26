@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
+using System.Runtime.Versioning;
 
-namespace Nexaflow.Visuals.Common.Shell;
+namespace Nexaflow.IO.Common.Shell;
 
 /// <summary>
 /// The shell's name for a kind of file — "Text Document", "File folder" — as Explorer's Type column shows it. Read from the
 /// registry once per extension and kept, so a background enumerator can name every row it builds.
 /// </summary>
+[SupportedOSPlatform("windows")]
 public static class ShellFileTypes
 {
     private static readonly ConcurrentDictionary<(string Extension, bool IsFolder), string> Names = new();

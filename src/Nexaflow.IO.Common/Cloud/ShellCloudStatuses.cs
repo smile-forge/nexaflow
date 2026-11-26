@@ -1,15 +1,14 @@
-using System.Windows.Threading;
-using Nexaflow.IO.Common.Cloud;
+using Nexaflow.IO.Common.Shell;
 
-namespace Nexaflow.Visuals.Common.Shell;
+namespace Nexaflow.IO.Common.Cloud;
 
 /// <summary>What a row asks its sync provider about.</summary>
 /// <param name="Listed">What the folder's listing already said of it; a different listing is a different question.</param>
 /// <param name="Revision">Moved on by the row's list whenever the shell says the file changed in ways a listing cannot show.</param>
-internal readonly record struct CloudStatusQuery(string Path, CloudFileState Listed, long Revision);
+public readonly record struct CloudStatusQuery(string Path, CloudFileState Listed, long Revision);
 
 /// <summary>What a request gives back at once: the provider's word if it was already read, and the ticket while it is being read.</summary>
-internal readonly record struct CloudStatusLookup(CloudFileStatus? Status, IDisposable? Pending);
+public readonly record struct CloudStatusLookup(CloudFileStatus? Status, IDisposable? Pending);
 
 /// <summary>Where <see cref="ShellCloudStatuses"/> reads a file's sync status from — its provider, or a test's stand-in.</summary>
 internal interface ICloudStatusSource
@@ -28,7 +27,7 @@ internal sealed class ProviderCloudStatusSource : ICloudStatusSource
 /// on screen first, and kept against the question that was asked — the same row scrolled past and back is not read again
 /// until its listing or its revision says something changed.
 /// </summary>
-internal sealed class ShellCloudStatuses
+public sealed class ShellCloudStatuses
 {
     /// <summary>The app's one set: a provider's word on a file is the same for every window.</summary>
     public static ShellCloudStatuses Shared { get; } =
@@ -54,7 +53,7 @@ internal sealed class ShellCloudStatuses
     /// <paramref name="arrived"/> on <paramref name="dispatcher"/>'s thread, unless the returned ticket is disposed first. A
     /// provider with nothing to say answers no one, and the row keeps what its listing said.
     /// </summary>
-    public CloudStatusLookup Request(CloudStatusQuery query, Dispatcher dispatcher, Action<CloudFileStatus> arrived)
+    public CloudStatusLookup Request(CloudStatusQuery query, IAnswerThread thread, Action<CloudFileStatus> arrived)
     {
         lock (_gate)
         {
@@ -65,7 +64,7 @@ internal sealed class ShellCloudStatuses
                 return new(kept.Value.Status, null);
             }
         }
-        return new(null, _queue.Enqueue(query, dispatcher, arrived));
+        return new(null, _queue.Enqueue(query, thread, arrived));
     }
 
     private CloudFileStatus? ReadAndKeep(CloudStatusQuery query)

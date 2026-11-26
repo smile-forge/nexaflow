@@ -1,7 +1,6 @@
 using System.Diagnostics;
-using System.Windows.Threading;
 
-namespace Nexaflow.Visuals.Common.Shell;
+namespace Nexaflow.IO.Common.Shell;
 
 /// <summary>
 /// The rows of a list waiting on the shell, answered the way a reader scrolls. One background STA thread (the shell's
@@ -41,12 +40,12 @@ internal sealed class ShellRequestQueue<TKey, TResult> where TKey : notnull wher
     }
 
     /// <summary>
-    /// Asks for <paramref name="key"/>; its answer is handed to <paramref name="arrived"/> on <paramref name="dispatcher"/>'s
-    /// thread, unless the returned ticket is disposed first.
+    /// Asks for <paramref name="key"/>; its answer is handed to <paramref name="arrived"/> on <paramref name="thread"/>, unless
+    /// the returned ticket is disposed first.
     /// </summary>
-    public IDisposable Enqueue(TKey key, Dispatcher dispatcher, Action<TResult> arrived)
+    public IDisposable Enqueue(TKey key, IAnswerThread thread, Action<TResult> arrived)
     {
-        var ticket = new Ticket(dispatcher, arrived);
+    var ticket = new Ticket(thread, arrived);
         lock (_gate)
         {
             if (!_jobs.TryGetValue(key, out var job))
@@ -147,13 +146,13 @@ internal sealed class ShellRequestQueue<TKey, TResult> where TKey : notnull wher
     private static void Deliver(List<(Ticket Ticket, TResult Result)> outgoing)
     {
         if (outgoing.Count == 0) return;
-        foreach (var batch in outgoing.GroupBy(item => item.Ticket.Dispatcher))
+        foreach (var batch in outgoing.GroupBy(item => item.Ticket.Thread))
         {
-            var arrivals = batch.ToArray();
-            batch.Key.InvokeAsync(() =>
-            {
-                foreach (var (ticket, result) in arrivals) ticket.Arrive(result);
-            }, DispatcherPriority.Background);
+        var arrivals = batch.ToArray();
+        batch.Key.Post(() =>
+        {
+        foreach (var (ticket, result) in arrivals) ticket.Arrive(result);
+        });
         }
         outgoing.Clear();
     }
@@ -167,14 +166,14 @@ internal sealed class ShellRequestQueue<TKey, TResult> where TKey : notnull wher
     }
 
     /// <summary>One row's wait for one answer. Disposed when the row moves on; it then never arrives.</summary>
-    private sealed class Ticket(Dispatcher dispatcher, Action<TResult> arrived) : IDisposable
+    private sealed class Ticket(IAnswerThread thread, Action<TResult> arrived) : IDisposable
     {
-        private volatile bool _cancelled;
+    private volatile bool _cancelled;
 
-        public Dispatcher Dispatcher { get; } = dispatcher;
-        public bool Cancelled => _cancelled;
+    public IAnswerThread Thread { get; } = thread;
+    public bool Cancelled => _cancelled;
 
-        /// <summary>On <see cref="Dispatcher"/>'s thread, the same one that disposes, so a disposed ticket is never answered.</summary>
+    /// <summary>On <see cref="Thread"/>, the same thread that disposes, so a disposed ticket is never answered.</summary>
         public void Arrive(TResult result)
         {
             if (_cancelled) return;

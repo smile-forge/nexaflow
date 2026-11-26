@@ -133,7 +133,7 @@ public sealed class CloudStatusIcon : FrameworkElement
         _status = null;
         if (string.IsNullOrEmpty(Path)) return;
 
-        var lookup = ShellCloudStatuses.Shared.Request(new CloudStatusQuery(Path, Listed, Revision), Dispatcher, Arrived);
+        var lookup = ShellCloudStatuses.Shared.Request(new CloudStatusQuery(Path, Listed, Revision), DispatcherAnswerThread.For(Dispatcher), Arrived);
         _status  = lookup.Status;
         _pending = lookup.Pending;
     }
