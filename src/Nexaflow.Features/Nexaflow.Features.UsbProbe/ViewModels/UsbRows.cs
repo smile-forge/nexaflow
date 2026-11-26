@@ -7,6 +7,7 @@ using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.UsbProbe.ViewModels;
 

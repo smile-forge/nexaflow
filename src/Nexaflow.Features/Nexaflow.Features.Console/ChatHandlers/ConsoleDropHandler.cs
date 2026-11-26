@@ -3,6 +3,7 @@ using Nexaflow.Visuals.Terminal;
 using Nexaflow.Interaction;
 using Nexaflow.Features.Console.ViewModels;
 using Nexaflow.Visuals.Terminal.ViewModels;
+using Nexaflow.IO.Terminal;
 
 namespace Nexaflow.Features.Console.ChatHandlers;
 

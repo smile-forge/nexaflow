@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.OpenRaster;
+using Nexaflow.Media;
 using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Images;

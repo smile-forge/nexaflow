@@ -2,7 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Wsl.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Terminal.Shells;
+using Nexaflow.IO.Terminal.Shells;
 
 namespace Nexaflow.Features.Wsl;
 

@@ -4,9 +4,9 @@ using Nexaflow.Features.Pdf.Document;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Editing;
 using UglyToad.PdfPig.Writer;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Pdf.Editing;
 

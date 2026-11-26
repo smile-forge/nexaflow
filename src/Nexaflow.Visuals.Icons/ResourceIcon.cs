@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
 using Nexaflow.Icons;
+using Nexaflow.IO.Common.Shell;
 using Nexaflow.Visuals.Common.Shell;
 
 namespace Nexaflow.Visuals.Icons;
@@ -102,11 +103,11 @@ public sealed class ResourceIcon : FrameworkElement
         }
 
         int pixels = (int)Math.Ceiling(FontSize * VisualTreeHelper.GetDpi(this).DpiScaleX);
-        _request.Ask(arrived => ShellResourceIcons.Shared.Request(resource, pixels, Dispatcher, arrived));
+        _request.Ask(arrived => ShellResourceIcons.Shared.Request(resource, pixels, DispatcherAnswerThread.For(Dispatcher), arrived));
     }
 
     private FormattedText Glyph() => new(
         IconCatalog.GlyphFor(Icon), CultureInfo.CurrentUICulture, FlowDirection,
-        new Typeface(IconCatalog.FontFor(Icon) ?? FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+        new Typeface(IconFonts.FontFor(Icon) ?? FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
         FontSize, Foreground, VisualTreeHelper.GetDpi(this).PixelsPerDip);
 }

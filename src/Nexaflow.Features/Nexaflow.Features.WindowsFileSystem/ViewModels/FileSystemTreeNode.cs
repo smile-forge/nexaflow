@@ -1,8 +1,8 @@
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Collections;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 

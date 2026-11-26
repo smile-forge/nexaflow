@@ -1,5 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Nexaflow.Visuals.Common.Dialogs;
+using Nexaflow.Interaction;
 using Nexaflow.Localization;
 
 namespace Nexaflow.Core.ViewModels.Overlays;

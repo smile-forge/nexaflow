@@ -61,13 +61,13 @@ src/
     Nexaflow.Features.Common/         ALL contracts (interfaces + small DTOs) — no FeatureManager, that's Core
     Nexaflow.Features.<Feature>/      one assembly per feature (~30)
       …Compressed.{Modern,SecureZip,SharpCompress}/   codec backends — reference IO.Common ONLY
-  Nexaflow.Interaction/               WPF-free input vocabulary: KeyModifiers, drag payloads, IDropTarget + IPasteTarget, the async clipboard — the window's DropRouter and ClipboardRouter do the rest
+  Nexaflow.Interaction/               WPF-free input vocabulary: KeyModifiers, drag payloads, IDropTarget + IPasteTarget, the async clipboard — the window's DropRouter and ClipboardRouter do the rest; and the toolkit-free view-model helpers (collections, undo history, the shell's questions)
   Nexaflow.Localization/              WPF-free words in the user's language: Str, and the size / duration / time formatters
-  Nexaflow.Visuals.Common/            shared WPF controls, converters, formatters
+  Nexaflow.Visuals.Common/            shared WPF controls, converters, formatters — only what needs WPF; toolkit-free code goes in Interaction / IO.* / Media / Icons
   Nexaflow.Visuals.Text/              markdown shown or written in — one MarkdownSurface, never hand-roll a RichTextBox
   Nexaflow.Visuals.Terminal/          terminal input logic
-  Nexaflow.IO.Common/                 WPF-free IO leaves: encoding, glob, hashing, codec/archive contracts, VFS, file watching
-  Nexaflow.IO.Terminal/               PTY host
+  Nexaflow.IO.Common/                 WPF-free IO leaves: encoding, glob, hashing, codec/archive contracts, VFS, file watching, the shell's file types, icons and cloud statuses
+  Nexaflow.IO.Terminal/               PTY host, shells, and the console's toolkit-free logic
   Nexaflow.Media/                     WPF-free media codecs carried as our own memory-safe source, a folder each with its licence: Jbig2, Jpeg, Jpeg2000
   Nexaflow.Syntax/                    tree-sitter engine + StructuralEdit; grammars built from submodules (externals.md)
   Nexaflow.Services.Initiatives/      WPF-free product tree + graph backend — never references WPF/Core/Features

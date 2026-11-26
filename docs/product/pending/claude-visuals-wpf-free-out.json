@@ -1,0 +1,428 @@
+{
+  "branch": "claude/visuals-wpf-free-out",
+  "nodes": {
+    "vcommon-collections": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Interaction/RangeObservableCollection.cs",
+          "class": "RangeObservableCollection"
+        }
+      ]
+    },
+    "winfs-reload-in-place": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "RefreshEntriesAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/RangeObservableCollection.cs",
+          "class": "RangeObservableCollection",
+          "method": "MatchTo"
+        }
+      ]
+    },
+    "images-recipe-history": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/SnapshotHistory.cs",
+          "class": "SnapshotHistory"
+        }
+      ]
+    },
+    "vcommon-snapshot-history": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/SnapshotHistory.cs",
+          "class": "SnapshotHistory"
+        }
+      ]
+    },
+    "made-file-drafts": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/DraftFile.cs",
+          "class": "DraftFile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/DraftSaving.cs",
+          "class": "DraftSaving"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Drafts/DraftBanner.xaml.cs",
+          "class": "DraftBanner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/DraftLocation.cs",
+          "class": "DraftLocation"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ImageDraftHandler.cs",
+          "class": "ImageDraftHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/AudioDraftHandler.cs",
+          "class": "AudioDraftHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/VideoDraftHandler.cs",
+          "class": "VideoDraftHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/CacheLocation.cs",
+          "class": "CacheLocation"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Session/Services/DraftSweeping.cs",
+          "class": "DraftSweeping"
+        }
+      ]
+    },
+    "images-gen-image": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/FileActions/GenerateImageCreateAction.cs",
+          "class": "GenerateImageCreateAction"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/GenerateImageOptions.cs",
+          "class": "GenerateImageOptions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/GenerateImageOptionsView.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/GenerationChoices.cs",
+          "class": "GenerationChoices"
+        }
+      ]
+    },
+    "video-gen-video": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/FileActions/GenerateVideoCreateAction.cs",
+          "class": "GenerateVideoCreateAction"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/GenerateVideoOptions.cs",
+          "class": "GenerateVideoOptions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Views/GenerateVideoOptionsView.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Media/GenerationChoices.cs",
+          "class": "GenerationChoices"
+        }
+      ]
+    },
+    "icons-catalog": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/IconCatalog.cs",
+          "class": "IconCatalog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/IconRef.cs",
+          "class": "IconRef"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/EmojiIcons.cs",
+          "class": "EmojiIcons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/FluentGlyphs.cs",
+          "class": "FluentGlyphs"
+        }
+      ]
+    },
+    "console-environments-group": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Console/ConsoleConfig.cs",
+          "class": "ConsoleConfig"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.IO.Terminal/Models/TerminalEnvironment.cs",
+          "class": "TerminalEnvironment"
+        }
+      ]
+    },
+    "vterm-environments": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.IO.Terminal/Models/TerminalEnvironment.cs",
+          "class": "TerminalEnvironment"
+        }
+      ]
+    },
+    "vterm-shell-dialects": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/Shells/TerminalShellDialect.cs",
+          "class": "TerminalShellDialect"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/Shells/CmdShellDialect.cs",
+          "class": "CmdShellDialect"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/Shells/PosixShellDialect.cs",
+          "class": "PosixShellDialect"
+        }
+      ]
+    },
+    "wslshell-shell": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Wsl/WslShellTabRegistration.cs",
+          "class": "WslShellTabRegistration"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/Shells/TerminalShellRoute.cs",
+          "class": "TerminalShellRoute",
+          "method": "ForLocationShell"
+        }
+      ]
+    },
+    "console-routing-group": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.IO.Terminal/CommandClassifier.cs",
+          "class": "CommandClassifier",
+          "method": "JudgeLine"
+        }
+      ]
+    },
+    "vterm-classifier": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.IO.Terminal/CommandClassifier.cs",
+          "class": "CommandClassifier"
+        }
+      ]
+    },
+    "console-enter-classify": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "HandleEnter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/TerminalEnterRouting.cs",
+          "class": "TerminalEnterRouting"
+        }
+      ]
+    },
+    "console-files-panel": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "RefreshFiles"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Terminal/ViewModels/TerminalViewModel.cs",
+          "class": "TerminalViewModel",
+          "method": "NavigateInto"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/TerminalFileList.cs",
+          "class": "TerminalFileList"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/TerminalFileList.cs",
+          "class": "TerminalFileList",
+          "method": "ListAsync"
+        }
+      ]
+    },
+    "wslshell-files-panel": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/TerminalFileList.cs",
+          "class": "TerminalFileList",
+          "method": "ListAsync"
+        }
+      ]
+    },
+    "console-bar-drop": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Console/ChatHandlers/ConsoleDropHandler.cs",
+          "class": "ConsoleDropHandler",
+          "method": "BuildInsertText"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Terminal/TerminalDropLogic.cs",
+          "class": "TerminalDropLogic"
+        }
+      ]
+    },
+    "vcommon-shell-icons": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/FileIcon.cs",
+          "class": "FileIcon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Shell/ShellFileIcons.cs",
+          "class": "ShellFileIcons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Shell/ShellIconSource.cs",
+          "class": "SystemShellIconSource"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Shell/ShellFileTypes.cs",
+          "class": "ShellFileTypes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Shell/ShellRequestQueue.cs",
+          "class": "ShellRequestQueue"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Shell/ShellIconPixels.cs",
+          "class": "ShellIconPixels"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellIconBitmaps.cs",
+          "class": "ShellIconBitmaps"
+        }
+      ]
+    },
+    "vcommon-cloud-status": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/CloudStatusIcon.cs",
+          "class": "CloudStatusIcon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Cloud/ShellCloudStatuses.cs",
+          "class": "ShellCloudStatuses"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Shell/ShellRequestQueue.cs",
+          "class": "ShellRequestQueue"
+        }
+      ]
+    },
+    "vcommon-shell-resource-icons": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Shell/ShellResourceIcons.cs",
+          "class": "ShellResourceIcons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Shell/ShellIconRequest.cs",
+          "class": "ShellIconRequest"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Common/Shell/ShellInterop.cs",
+          "class": "ShellInterop",
+          "method": "ResourceIcon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/ShellIconRef.cs",
+          "class": "ShellIconRef"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 21,
+  "touched_nodes": [
+    "console-bar-drop",
+    "console-enter-classify",
+    "console-environments-group",
+    "console-files-panel",
+    "console-routing-group",
+    "icons-catalog",
+    "images-gen-image",
+    "images-recipe-history",
+    "made-file-drafts",
+    "vcommon-cloud-status",
+    "vcommon-collections",
+    "vcommon-shell-icons",
+    "vcommon-shell-resource-icons",
+    "vcommon-snapshot-history",
+    "video-gen-video",
+    "vterm-classifier",
+    "vterm-environments",
+    "vterm-shell-dialects",
+    "winfs-reload-in-place",
+    "wslshell-files-panel",
+    "wslshell-shell"
+  ]
+}

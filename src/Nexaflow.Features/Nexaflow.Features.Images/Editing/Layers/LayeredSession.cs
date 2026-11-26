@@ -4,7 +4,7 @@ using Nexaflow.Features.Images.Editing.Kept;
 using Nexaflow.Features.Images.Editing.Recipe;
 using Nexaflow.Features.Images.Editing.Rendering;
 using Nexaflow.Features.Images.Editing.Selection;
-using Nexaflow.Visuals.Common.Editing;
+using Nexaflow.Interaction;
 using SkiaSharp;
 
 namespace Nexaflow.Features.Images.Editing.Layers;

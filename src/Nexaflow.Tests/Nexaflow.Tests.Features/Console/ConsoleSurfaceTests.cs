@@ -10,7 +10,6 @@ using Nexaflow.Interaction;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Terminal;
-using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 

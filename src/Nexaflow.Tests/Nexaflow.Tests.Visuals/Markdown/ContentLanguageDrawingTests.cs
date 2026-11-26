@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 

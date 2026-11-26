@@ -18,6 +18,7 @@ using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Features.Audio.Views;
 using Nexaflow.Localization;
 using Nexaflow.IO.Common;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Audio.ViewModels;
 

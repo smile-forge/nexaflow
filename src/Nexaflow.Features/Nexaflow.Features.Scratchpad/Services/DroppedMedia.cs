@@ -4,6 +4,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
+using Nexaflow.Media;
 using Nexaflow.Visuals.Common.Previews;
 
 namespace Nexaflow.Features.Scratchpad.Services;

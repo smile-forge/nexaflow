@@ -35,7 +35,7 @@ public class IconCatalogTests
     [TestMethod]
     public void Fluent_EveryGlyphIsInTheFont()
     {
-        var typeface = new Typeface(IconCatalog.FluentFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var typeface = new Typeface(IconFonts.FluentFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         Assert.IsTrue(typeface.TryGetGlyphTypeface(out var glyphs), "the bundled font did not load");
 
         var missing = IconCatalog.All(IconSet.FluentRegular).Concat(IconCatalog.All(IconSet.FluentFilled))
@@ -56,8 +56,8 @@ public class IconCatalogTests
     public void Emoji_DrawsItself_InTheSurroundingFont()
     {
         Assert.AreEqual("📁", IconCatalog.GlyphFor(IconRef.Emoji("📁")));
-        Assert.IsNull(IconCatalog.FontFor(IconRef.Emoji("📁")));
-        Assert.IsNotNull(IconCatalog.FontFor(IconRef.Fluent("home")));
+        Assert.IsNull(IconFonts.FontFor(IconRef.Emoji("📁")));
+        Assert.IsNotNull(IconFonts.FontFor(IconRef.Fluent("home")));
     }
 
     [TestMethod]

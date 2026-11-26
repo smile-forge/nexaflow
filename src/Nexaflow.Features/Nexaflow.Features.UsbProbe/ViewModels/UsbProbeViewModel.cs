@@ -8,7 +8,6 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Usb.Browsing;
 using Nexaflow.IO.Usb.Inventory;
 using Nexaflow.IO.Usb.Naming;
-using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Localization;
 using Nexaflow.Interaction;
 

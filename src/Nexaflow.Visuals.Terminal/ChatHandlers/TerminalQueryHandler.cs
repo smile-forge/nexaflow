@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
 namespace Nexaflow.Visuals.Terminal.ChatHandlers;

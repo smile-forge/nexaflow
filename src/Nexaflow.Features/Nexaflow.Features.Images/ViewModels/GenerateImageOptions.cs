@@ -6,8 +6,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 
-using Nexaflow.Visuals.Common.Generation;
 using Nexaflow.Localization;
+using Nexaflow.Media;
 
 namespace Nexaflow.Features.Images.ViewModels;
 

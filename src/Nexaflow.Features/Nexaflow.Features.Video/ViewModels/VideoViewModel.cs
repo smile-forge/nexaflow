@@ -22,9 +22,11 @@ using Nexaflow.Features.Video.Interop;
 using Nexaflow.Features.Video.Models;
 using Nexaflow.Features.Video.Rendering;
 using VlcMediaPlayer = LibVLCSharp.MediaPlayer;   // disambiguate from System.Windows.Media.MediaPlayer
+using VlcMedia = LibVLCSharp.Media;               // and from the Nexaflow.Media namespace
 using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Features.Video.Views;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Video.ViewModels;
 
@@ -36,7 +38,7 @@ namespace Nexaflow.Features.Video.ViewModels;
 /// Holds native resources, so it is <see cref="IDisposable"/> (the registration disposes it on
 /// <see cref="Page.Closed"/>); it pauses on tab-switch (<see cref="OnDeactivated"/>) and there is no
 /// autoplay. Playback uses plain Play/SetPause; thumbnails and frame captures run on their own short-lived
-/// <see cref="Media"/> objects so they never share a decoder with live playback. A fatal engine error
+/// <see cref="VlcMedia"/> objects so they never share a decoder with live playback. A fatal engine error
 /// raises <see cref="FatalError"/> so the shell can close the tab with a notice.
 /// </para>
 /// </summary>
@@ -58,7 +60,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
 
     private LibVLC? _libVlc;
     private VlcMediaPlayer? _mp;
-    private Media? _media;
+    private VlcMedia? _media;
     private VlcVideoSink? _sink;
 
     private bool _loaded;
@@ -202,7 +204,7 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
                 // Render frames into a WPF WriteableBitmap (no native window → no airspace).
                 _sink = new VlcVideoSink(_mp, OnUi, bmp => VideoFrame = bmp);
 
-                _media = new Media(new Uri(media));
+                _media = new VlcMedia(new Uri(media));
 
                 _mp.TimeChanged      += OnTimeChanged;
                 _mp.LengthChanged    += OnLengthChanged;
@@ -550,8 +552,8 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
     {
         if (_libVlc is null) return;
 
-        Media thumbMedia;
-        try { thumbMedia = new Media(new Uri(await RealMediaPathAsync().ConfigureAwait(false))); } catch { return; }
+        VlcMedia thumbMedia;
+        try { thumbMedia = new VlcMedia(new Uri(await RealMediaPathAsync().ConfigureAwait(false))); } catch { return; }
 
         using (thumbMedia)
         {
@@ -610,8 +612,8 @@ public sealed partial class VideoViewModel : ObservableObject, IPageViewModel, I
             ? (uint)Math.Round(_videoHeight * (w / (double)_videoWidth))
             : 720u;
 
-        Media capMedia;
-        try { capMedia = new Media(new Uri(await RealMediaPathAsync().ConfigureAwait(false))); } catch { return null; }
+        VlcMedia capMedia;
+        try { capMedia = new VlcMedia(new Uri(await RealMediaPathAsync().ConfigureAwait(false))); } catch { return null; }
         using (capMedia)
         using (var linked = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, ct))
         {

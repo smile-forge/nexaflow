@@ -16,6 +16,7 @@ using NSubstitute;
 using SkiaSharp;
 using static Nexaflow.Tests.Features.Images.EditingFixtures;
 using System.Text.Json.Nodes;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Tests.Features.Images;
 

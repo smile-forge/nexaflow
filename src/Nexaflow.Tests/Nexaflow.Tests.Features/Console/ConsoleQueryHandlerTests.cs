@@ -3,14 +3,13 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.ChatHandlers;
 using Nexaflow.IO.Terminal;
-using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Features.Console;
 using Nexaflow.Features.Console.ViewModels;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Terminal.Shells;
+using Nexaflow.IO.Terminal.Shells;
 
 namespace Nexaflow.Tests.Features.Console;
 

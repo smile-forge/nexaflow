@@ -1,3 +1,4 @@
+using Nexaflow.IO.Terminal;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Terminal;
 
