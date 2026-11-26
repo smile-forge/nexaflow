@@ -16,7 +16,7 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | `IPageViewModel` on your ViewModel | yes | What the page is: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant`, `Reinitialize` |
 | `[ViewFor(typeof(YourViewModel))]` on your view | yes | The view that draws it, with one constructor taking the view-model |
 | Add project reference in `Nexaflow.Core.csproj` | yes | So the feature DLL ships and `FeatureManager` reflection-discovers it at startup |
-| Add a default-button entry in `src/Nexaflow.Core/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
+| Add a default-button entry in `src/Nexaflow.Session/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
 | Help page | recommended | `Localization/en/help/<StaticPageKind>.md` in your project — what the page can do, shown by the Help pane beside it; snaplink it as the feature's `docs` concern ([localization.md](localization.md#help-pages)) |
 | `IQueryHandler` | optional | Handle AI input bar text |

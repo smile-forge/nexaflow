@@ -25,6 +25,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The ribbon a workspace starts with (RibbonLayoutService.LoadDefaults), beside whichever app runs the session. -->
+    <Content Include="Ribbon\default-ribbon.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Common\Nexaflow.Providers.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Providers\Nexaflow.Providers.Local\Nexaflow.Providers.Local.csproj" />

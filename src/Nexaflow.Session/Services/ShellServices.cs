@@ -859,32 +859,14 @@ public sealed class ShellServices : IShellServices, IDisposable
 
     public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions = null,
                                            string? initialPath = null)
-    {
-        var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.IsCurrent)
-            return dispatcher.Run(() => PickOpenFileAsync(extensions, initialPath));
-
-        return Task.FromResult(_pickers.PickOpenFile(FocusedWindow, _workspace, extensions, initialPath));
-    }
+        => _ui.RunAsync(() => _pickers.PickOpenFileAsync(FocusedWindow, _workspace, extensions, initialPath));
 
     public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions = null,
                                                           string? initialPath = null)
-    {
-        var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.IsCurrent)
-            return dispatcher.Run(() => PickOpenFilesAsync(extensions, initialPath));
-
-        return Task.FromResult(_pickers.PickOpenFiles(FocusedWindow, _workspace, extensions, initialPath));
-    }
+        => _ui.RunAsync(() => _pickers.PickOpenFilesAsync(FocusedWindow, _workspace, extensions, initialPath));
 
     public Task<string?> PickFolderAsync(string? initialPath = null)
-    {
-        var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.IsCurrent)
-            return dispatcher.Run(() => PickFolderAsync(initialPath));
-
-        return Task.FromResult(_pickers.PickFolder(FocusedWindow, _workspace, initialPath));
-    }
+        => _ui.RunAsync(() => _pickers.PickFolderAsync(FocusedWindow, _workspace, initialPath));
 
     public Task<string?> PickSaveFileAsync(string defaultFileName,
                                            IReadOnlyList<string>? extensions = null,
@@ -894,13 +876,7 @@ public sealed class ShellServices : IShellServices, IDisposable
 
     public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<SaveFileType> types,
                                            string? initialPath = null, long bytes = 0)
-    {
-        var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.IsCurrent)
-            return dispatcher.Run(() => PickSaveFileAsync(defaultFileName, types, initialPath, bytes));
-
-        return Task.FromResult(_pickers.PickSaveFile(FocusedWindow, _workspace, defaultFileName, types, initialPath, bytes));
-    }
+        => _ui.RunAsync(() => _pickers.PickSaveFileAsync(FocusedWindow, _workspace, defaultFileName, types, initialPath, bytes));
 
     // Refreshes the focused window's active page by re-initialising it with its current params.
     // Reinitialize is the established refresh idiom (tab (re)activation calls it too); for the file

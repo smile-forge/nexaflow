@@ -26,11 +26,7 @@
     <PackageReference Include="StageKit.Updatum" Version="0.4.1" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="Ribbon\default-ribbon.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+
 
   <ItemGroup>
     <!-- Shown by the setup wizard's "What's New" step (read via Application.GetResourceStream). -->
@@ -121,14 +117,10 @@
          plugin sets; the attribute lives in a dependency-free leaf so a plugin assembly stays WPF-free. -->
     <ProjectReference Include="..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
 
-    <!-- Elevation: the launcher uses the contract DTOs (real ref). The bridge exe is a helper — referenced for build
-         ordering only, its output copied to PrivilegeBridge\ by CopyHelperExes (Directory.Build.targets). -->
+    <!-- Elevation: the launcher uses the contract DTOs. The AI host: the client starts the host exe. The bridge and the host
+         exes themselves ship through Nexaflow.Host.Deploy.targets, imported below. -->
     <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
-    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="PrivilegeBridge" />
-
-    <!-- The AI host: the client (real ref) starts the host exe, a helper copied to AiHost\ the same way. -->
     <ProjectReference Include="..\Nexaflow.AiHost\Nexaflow.AiHost.Client\Nexaflow.AiHost.Client.csproj" />
-    <ProjectReference Include="..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="AiHost" />
   </ItemGroup>
 
 
@@ -206,7 +198,7 @@
     <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
   </ItemGroup>
 
-  <!-- Language packs: Languages\Nexaflow.Language.<code>.dll, each gathered from every project's Localization/<code>/. -->
-  <Import Project="..\Nexaflow.Languages\LanguagePacks.Deploy.targets" />
+  <!-- What the session reads beside the exe: AiHost\, PrivilegeBridge\ and the language packs in Languages\. -->
+  <Import Project="..\Nexaflow.Host\Nexaflow.Host.Deploy.targets" />
 
 </Project>

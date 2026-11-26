@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    What a UI app over the session ships beside its exe, which the session reads from there: the AI host (AiHost\), the
+    elevated bridge (PrivilegeBridge\) and the language packs (Languages\). The app's project imports this, so its build
+    makes and copies them; any toolkit's shell does the same rather than repeating the wiring. The session's own data files
+    (the shipped ribbon, Ribbon\default-ribbon.json) reach the app's output through its reference to the host.
+    The helpers are referenced for build ordering only; CopyHelperExes (Directory.Build.targets) copies each into its folder.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj"
+                      ReferenceOutputAssembly="false" Private="false" HelperFolder="PrivilegeBridge" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj"
+                      ReferenceOutputAssembly="false" Private="false" HelperFolder="AiHost" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)..\Nexaflow.Languages\LanguagePacks.Deploy.targets" />
+</Project>

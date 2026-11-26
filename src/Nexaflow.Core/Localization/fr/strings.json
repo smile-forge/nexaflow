@@ -67,8 +67,6 @@
   "Shell.Prompt.Unapplied.Save": "Enregistrer",
   "Shell.Prompt.Unapplied.Discard": "Abandonner",
   "Shell.Prompt.Unapplied.KeepEditing": "Continuer",
-  "Shell.AiResponse.ContextRelease.Explanation": "Cette page contient des informations système, qui restent sur cet ordinateur sauf si vous acceptez de les envoyer. Répondre ici enverrait son contenu à {0}.",
-  "Shell.AiResponse.ContextRelease.Question": "Envoyer le contenu de cette page à {0} ?",
   "Shell.Config.AiGrid.ChainHint": "Cliquez sur les cases pour choisir les modèles qui assurent chaque capacité, dans l'ordre où ils sont essayés : une demande va au premier disponible. La colonne Local regroupe les modèles de cet ordinateur, choisis sur la page Local ; une ligne de conversation, de résolution ou d'analyse qui tient un modèle ici et un autre ailleurs envoie chaque demande à celui qui lui convient. Sur une page contenant des informations système, vous êtes consulté avant que son contenu ne parte vers un modèle dont les données quittent cet ordinateur.",
   "Shell.Config.AiGrid.CellTip": "Ajouter ce modèle à la capacité, ou l'en retirer",
   "Shell.Config.AiGrid.Kind.SpeechToText": "transcription vocale",
@@ -87,7 +85,7 @@
 
 
 
-  "Shell.AiBar.ContextFormat": "{0} jetons sur les {1} du contexte du modèle ({2} %)",
+
 
 
 
@@ -98,7 +96,6 @@
 
 
 
-  "Shell.AiResponse.ApproveFormat": "{0} ?",
   "Shell.BackgroundTasks.Header": "Tâches en arrière-plan",
   "Shell.BackgroundTasks.CountOne": "1 tâche en arrière-plan",
   "Shell.BackgroundTasks.CountFormat": "{0} tâches en arrière-plan",
@@ -578,10 +575,6 @@
   "Shell.AiBar.Spell.IgnoreAll": "Tout ignorer",
   "Shell.Text.Cut": "Couper",
   "Shell.Text.Paste": "Coller",
-  "Shell.AiResponse.Considering": "Réflexion",
-  "Shell.AiResponse.Working": "Exécution",
-  "Shell.AiResponse.DeclinedFormat": "Refusé — {0} est consulté",
-  "Shell.AiResponse.ApprovePlanFormat": "Approuver le plan : {0}",
 
 
 

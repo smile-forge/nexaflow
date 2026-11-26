@@ -37,7 +37,7 @@ public class ShellFolderWatcherTests
     [TestMethod]
     public void AFileMadeInTheFolder_IsTold() => UiThread.Run(() =>
     {
-        using var watcher = new ShellFolderWatcher(Dispatcher.CurrentDispatcher);
+        using var watcher = new ShellFolderWatcher(new WpfUiThread(Dispatcher.CurrentDispatcher));
         var told = new List<FolderChange>();
         using var watch = watcher.Watch(_folder, told.Add);
         Armed(told);
@@ -50,7 +50,7 @@ public class ShellFolderWatcherTests
     [TestMethod]
     public void ABurstOfChanges_IsToldOnce() => UiThread.Run(() =>
     {
-        using var watcher = new ShellFolderWatcher(Dispatcher.CurrentDispatcher);
+        using var watcher = new ShellFolderWatcher(new WpfUiThread(Dispatcher.CurrentDispatcher));
         var told = new List<FolderChange>();
         using var watch = watcher.Watch(_folder, told.Add);
         Armed(told);
@@ -67,7 +67,7 @@ public class ShellFolderWatcherTests
     [TestMethod]
     public void AWatchLetGo_IsToldNothingMore() => UiThread.Run(() =>
     {
-        using var watcher = new ShellFolderWatcher(Dispatcher.CurrentDispatcher);
+        using var watcher = new ShellFolderWatcher(new WpfUiThread(Dispatcher.CurrentDispatcher));
         var told = new List<FolderChange>();
         var watch = watcher.Watch(_folder, told.Add);
         Armed(told);
@@ -82,7 +82,7 @@ public class ShellFolderWatcherTests
     [TestMethod]
     public void TwoWatchesOnOneFolder_AreBothTold() => UiThread.Run(() =>
     {
-        using var watcher = new ShellFolderWatcher(Dispatcher.CurrentDispatcher);
+        using var watcher = new ShellFolderWatcher(new WpfUiThread(Dispatcher.CurrentDispatcher));
         var first = new List<FolderChange>();
         var second = new List<FolderChange>();
         using var one = watcher.Watch(_folder, first.Add);
@@ -98,7 +98,7 @@ public class ShellFolderWatcherTests
     [TestMethod]
     public void TheWatchedFolderDeleted_IsToldWhole() => UiThread.Run(() =>
     {
-        using var watcher = new ShellFolderWatcher(Dispatcher.CurrentDispatcher);
+        using var watcher = new ShellFolderWatcher(new WpfUiThread(Dispatcher.CurrentDispatcher));
         var told = new List<FolderChange>();
         using var watch = watcher.Watch(_folder, told.Add);
         Armed(told);
