@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Terminal.Shells;
+namespace Nexaflow.IO.Terminal.Shells;
 
 /// <summary>
 /// How a terminal speaks to the shell it runs: the commands it phrases for it, the words it knows as its own, how its

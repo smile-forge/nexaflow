@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Localization;
 using System;
 
-namespace Nexaflow.Visuals.Common.Dialogs;
+namespace Nexaflow.Interaction;
 
 /// <summary>
 /// The one yes/no model. The shell's window-modal confirmation renders it: a feature asks through
@@ -26,8 +26,8 @@ public sealed partial class ConfirmationRequest : ObservableObject
     {
         Title          = title;
         Prompt         = prompt;
-        ConfirmLabel   = string.IsNullOrWhiteSpace(confirmLabel) ? Str.Get("Common.Confirm.Confirm") : confirmLabel;
-        CancelLabel    = string.IsNullOrWhiteSpace(cancelLabel)  ? Str.Get("Common.Confirm.Cancel")  : cancelLabel;
+        ConfirmLabel   = string.IsNullOrWhiteSpace(confirmLabel) ? Str.Get("Interaction.Confirm.Confirm") : confirmLabel;
+        CancelLabel    = string.IsNullOrWhiteSpace(cancelLabel)  ? Str.Get("Interaction.Confirm.Cancel")  : cancelLabel;
         AlternateLabel = alternateLabel ?? string.Empty;
         _onConfirm     = onConfirm;
         _onCancel      = onCancel;

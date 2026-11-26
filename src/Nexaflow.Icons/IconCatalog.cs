@@ -1,9 +1,4 @@
-using System.IO;
-using System.Text.Json;
-using System.Windows.Media;
-using Nexaflow.Icons;
-
-namespace Nexaflow.Visuals.Icons;
+namespace Nexaflow.Icons;
 
 /// <summary>An icon a picker offers: what it is, the words it is shown and found by, and the text that draws it.</summary>
 public sealed record IconEntry(IconRef Icon, string Name, string Keywords, string Glyph);
@@ -11,7 +6,7 @@ public sealed record IconEntry(IconRef Icon, string Name, string Keywords, strin
 /// <summary>
 /// Every icon there is to pick: the curated emoji and both faces of the bundled Fluent UI System Icons font (MIT —
 /// <c>Assets/Fonts/LICENSE</c>). The Fluent names come from the font's own name map (<see cref="FluentGlyphs"/>), so a
-/// font update is a file swap.
+/// font update is a file swap. It names no UI toolkit: the font a toolkit draws a Fluent glyph in is that toolkit's.
 /// <para>
 /// Drawing and picking cost differently, and drawing is what every window does: <see cref="GlyphFor"/> needs only the
 /// name → glyph lookup, streamed out of the map the first time a Fluent icon is drawn (never, for an all-emoji
@@ -23,19 +18,10 @@ public static class IconCatalog
     /// <summary>Drawn in place of a Fluent icon the bundled font no longer names.</summary>
     public const string MissingGlyph = "▢";
 
-    private static readonly Lazy<FontFamily> Font = new(LoadFluentFont);
     private static readonly Lazy<FluentEntries> Entries = new(BuildEntries);
 
-    /// <summary>The bundled Fluent font, read from the <c>IconFonts</c> folder beside this assembly. Both faces share
-    /// it; regular and filled are separate glyphs within it.</summary>
-    public static FontFamily FluentFont => Font.Value;
-
-    /// <summary>The font an icon draws with — null for an emoji, which takes the surrounding text's font and its
-    /// fallback, as ribbon icons always have.</summary>
-    public static FontFamily? FontFor(IconRef icon) => icon.IsFluent ? Font.Value : null;
-
-    /// <summary>The text that draws <paramref name="icon"/> in <see cref="FontFor"/>: the emoji itself, the Fluent
-    /// glyph, or <see cref="MissingGlyph"/> for a Fluent name the font lacks.</summary>
+    /// <summary>The text that draws <paramref name="icon"/>: the emoji itself, the Fluent glyph, or
+    /// <see cref="MissingGlyph"/> for a Fluent name the font lacks.</summary>
     public static string GlyphFor(IconRef icon)
     {
         if (icon.IsEmpty) return string.Empty;
@@ -98,16 +84,6 @@ public static class IconCatalog
     private static string Normalise(string? text)
         => string.Join(' ', (text ?? string.Empty).Trim().ToLowerInvariant().Replace('_', ' ')
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
-
-    // ── Loading ──────────────────────────────────────────────────────────────
-
-    private static FontFamily LoadFluentFont()
-    {
-        // Base URI must be the folder (trailing slash); "./#Family" selects the family by name — as Smufl loads Bravura.
-        var dir = Path.Combine(Path.GetDirectoryName(typeof(IconCatalog).Assembly.Location) ?? AppContext.BaseDirectory,
-            "IconFonts") + Path.DirectorySeparatorChar;
-        return new FontFamily(new Uri(dir), "./#" + FluentGlyphs.Family);
-    }
 
     private sealed record FluentEntries(
         IReadOnlyList<IconEntry> Regular,

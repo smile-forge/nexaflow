@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Nexaflow.Visuals.Common.Collections;
+namespace Nexaflow.IO.Common;
 
 public sealed record HydratedRow(int AbsoluteIndex, string[] Cells);
 

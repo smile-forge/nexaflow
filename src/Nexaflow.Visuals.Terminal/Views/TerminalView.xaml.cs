@@ -7,7 +7,7 @@ using System.Windows.Threading;
 using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Viewing;
-using Nexaflow.Visuals.Terminal.Models;
+using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
 namespace Nexaflow.Visuals.Terminal.Views;

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace Nexaflow.Visuals.Common.Collections;
+namespace Nexaflow.Interaction;
 
 /// <summary>
 /// Brings a bound collection to a new list by changing only what differs.

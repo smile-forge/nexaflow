@@ -1,9 +1,9 @@
 using System.IO;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
-using Nexaflow.Visuals.Terminal.Models;
 
-namespace Nexaflow.Visuals.Terminal;
+
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>
 /// What the terminal's Files panel lists for a folder: files first, then folders, each alphabetical, read through the file

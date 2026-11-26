@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Common.Previews;
+namespace Nexaflow.Media;
 
 /// <summary>
 /// The picture files Windows' imaging decodes, by extension: what a feature offers to open, or accepts dropped, as a

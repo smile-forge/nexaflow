@@ -8,12 +8,6 @@ using Nexaflow.Visuals.Common.Dropping;
 
 namespace Nexaflow.Visuals.Common.Behaviors;
 
-/// <summary>What a row puts on the clipboard when it is copied out of a list: the row as a line of text.</summary>
-public interface IClipboardText
-{
-    string ClipboardText { get; }
-}
-
 /// <summary>
 /// Lets a list or tree be copied: Ctrl+C and a right-click Copy put the selected rows on the clipboard, one line each,
 /// in the order the list shows them. A row says what it copies as through <see cref="IClipboardText"/>; anything else

@@ -1,7 +1,7 @@
 using Nexaflow.Interaction;
 using System.Buffers;
 
-namespace Nexaflow.Visuals.Terminal;
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>
 /// Shared helper for turning a file drop into the words of a command line: each path one word, space-joined, suitable for

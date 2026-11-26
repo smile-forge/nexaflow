@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Icons;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common.Stores;
 using Nexaflow.Visuals.Common.Behaviors;
 

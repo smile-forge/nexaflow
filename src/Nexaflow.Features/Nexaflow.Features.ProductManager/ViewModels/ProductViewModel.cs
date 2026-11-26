@@ -14,7 +14,6 @@ using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Store;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
-using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Localization;
 

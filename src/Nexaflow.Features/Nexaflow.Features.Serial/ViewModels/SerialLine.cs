@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Behaviors;
 
 namespace Nexaflow.Features.Serial.ViewModels;

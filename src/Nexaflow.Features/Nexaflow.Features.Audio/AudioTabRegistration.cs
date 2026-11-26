@@ -7,6 +7,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Audio;
 

@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using System.Windows;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Visuals.Common.Drafts;
 

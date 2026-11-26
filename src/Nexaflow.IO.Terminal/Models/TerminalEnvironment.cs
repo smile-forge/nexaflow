@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Terminal.Models;
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>
 /// A named terminal configuration: what it runs on entry plus optional environment-variable overrides.

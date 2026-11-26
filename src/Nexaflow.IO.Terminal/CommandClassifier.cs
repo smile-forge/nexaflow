@@ -1,7 +1,7 @@
 using System.IO;
 using Nexaflow.IO.Common;
 
-namespace Nexaflow.Visuals.Terminal;
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>What a line typed in the AI bar is, with a console showing.</summary>
 public enum ConsoleLineVerdict

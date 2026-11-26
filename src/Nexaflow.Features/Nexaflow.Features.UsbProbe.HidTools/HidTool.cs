@@ -14,6 +14,7 @@ using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Icons;
 using System.Text.Json.Nodes;
 using Nexaflow.IO.Usb.Diagnostics;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.UsbProbe.HidTools;
 

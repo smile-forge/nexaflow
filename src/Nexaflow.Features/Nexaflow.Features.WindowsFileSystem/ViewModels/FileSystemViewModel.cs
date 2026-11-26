@@ -12,7 +12,6 @@ using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Collections;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;

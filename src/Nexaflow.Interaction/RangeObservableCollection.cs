@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 
-namespace Nexaflow.Visuals.Common.Collections;
+namespace Nexaflow.Interaction;
 
 /// <summary>
 /// ObservableCollection with bulk operations that fire a single Reset notification

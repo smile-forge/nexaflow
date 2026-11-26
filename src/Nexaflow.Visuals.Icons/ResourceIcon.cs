@@ -107,6 +107,6 @@ public sealed class ResourceIcon : FrameworkElement
 
     private FormattedText Glyph() => new(
         IconCatalog.GlyphFor(Icon), CultureInfo.CurrentUICulture, FlowDirection,
-        new Typeface(IconCatalog.FontFor(Icon) ?? FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+        new Typeface(IconFonts.FontFor(Icon) ?? FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
         FontSize, Foreground, VisualTreeHelper.GetDpi(this).PixelsPerDip);
 }

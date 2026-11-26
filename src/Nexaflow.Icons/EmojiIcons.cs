@@ -1,6 +1,4 @@
-using Nexaflow.Icons;
-
-namespace Nexaflow.Visuals.Icons;
+namespace Nexaflow.Icons;
 
 /// <summary>
 /// The emoji offered as icons, each with the name it is shown by and the extra words it is found by. Names and

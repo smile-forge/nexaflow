@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Terminal.Models;
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>Where an environment-variable edit is written.</summary>
 public enum EnvScope

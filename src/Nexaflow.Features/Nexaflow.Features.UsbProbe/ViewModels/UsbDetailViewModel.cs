@@ -6,6 +6,7 @@ using Nexaflow.IO.Usb.Descriptors.Layout;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.UsbProbe.ViewModels;
 

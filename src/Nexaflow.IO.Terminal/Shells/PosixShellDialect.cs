@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 
-namespace Nexaflow.Visuals.Terminal.Shells;
+namespace Nexaflow.IO.Terminal.Shells;
 
 /// <summary>
 /// A POSIX shell on a location — bash or zsh in a WSL distro, a shell over SSH: <c>cd -- '…'</c> and

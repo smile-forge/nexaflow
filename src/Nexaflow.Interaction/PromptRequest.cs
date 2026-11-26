@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
 
-namespace Nexaflow.Visuals.Common.Dialogs;
+namespace Nexaflow.Interaction;
 
 /// <summary>
 /// The text-input sibling of <see cref="ConfirmationRequest"/>: a title, a label, an editable

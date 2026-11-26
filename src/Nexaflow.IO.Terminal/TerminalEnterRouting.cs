@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Terminal;
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>What pressing Enter in a terminal does with the line that was typed. Either way the Enter is the shell's.</summary>
 public enum TerminalEnterAction

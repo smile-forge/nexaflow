@@ -10,7 +10,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsRegistry.ClientTools;
 using Nexaflow.Features.WindowsRegistry.Services;
-using Nexaflow.Visuals.Common.Dialogs;
+using Nexaflow.Interaction;
 using Nexaflow.Localization;
 
 namespace Nexaflow.Features.WindowsRegistry.ViewModels;

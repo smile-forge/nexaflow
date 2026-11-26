@@ -2,7 +2,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace Nexaflow.Visuals.Common.Drafts;
+namespace Nexaflow.Interaction;
 
 /// <summary>
 /// A draft's Save as: a file made for the user and kept in a temp folder — a picture drawn, a recording, a clip, a cut-out —

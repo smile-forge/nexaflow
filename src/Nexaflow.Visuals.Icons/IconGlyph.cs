@@ -23,7 +23,7 @@ public class IconGlyph : TextBlock
     private void Apply()
     {
         var icon = Icon;
-        if (IconCatalog.FontFor(icon) is { } font) FontFamily = font;
+        if (IconFonts.FontFor(icon) is { } font) FontFamily = font;
         else ClearValue(FontFamilyProperty);
         Text = IconCatalog.GlyphFor(icon);
     }

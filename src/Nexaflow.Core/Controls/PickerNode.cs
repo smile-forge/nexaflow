@@ -1,5 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Nexaflow.Visuals.Common.Collections;
+using Nexaflow.Interaction;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;

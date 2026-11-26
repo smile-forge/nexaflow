@@ -1,6 +1,6 @@
 using Nexaflow.Features.Common;
-using Nexaflow.Visuals.Terminal.Models;
-using Nexaflow.Visuals.Terminal.Shells;
+using Nexaflow.IO.Terminal;
+using Nexaflow.IO.Terminal.Shells;
 using Nexaflow.Visuals.Terminal.ViewModels;
 
 namespace Nexaflow.Features.Wsl.ViewModels;

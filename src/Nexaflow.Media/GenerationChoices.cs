@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 
-namespace Nexaflow.Visuals.Common.Generation;
+namespace Nexaflow.Media;
 
 /// <summary>One choice in a list of what a picture or clip model offers: what it says, and what it asks for — null for the model's own.</summary>
 public sealed record GenerationChoice(string Label, string? Value)

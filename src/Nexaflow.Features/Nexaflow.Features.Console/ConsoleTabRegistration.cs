@@ -3,8 +3,7 @@ using Nexaflow.Features.Console.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Terminal.Models;
-using Nexaflow.Visuals.Terminal.Shells;
+using Nexaflow.IO.Terminal.Shells;
 
 namespace Nexaflow.Features.Console;
 

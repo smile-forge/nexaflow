@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Nexaflow.Visuals.Terminal.Models;
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>A name/value pair from the environment, shown in the terminal's Environment sub-tab.</summary>
 public partial class EnvVar : ObservableObject

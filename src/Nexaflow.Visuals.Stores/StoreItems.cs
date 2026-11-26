@@ -4,6 +4,7 @@ using Nexaflow.Icons;
 using Nexaflow.IO.Common.Stores;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Localization.Formatting;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Visuals.Stores;
 

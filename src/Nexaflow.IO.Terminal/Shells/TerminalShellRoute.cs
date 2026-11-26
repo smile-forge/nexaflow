@@ -2,7 +2,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Common.Terminal;
 
-namespace Nexaflow.Visuals.Terminal.Shells;
+namespace Nexaflow.IO.Terminal.Shells;
 
 /// <summary>
 /// The shell a terminal runs: what starts it, how to speak to it, and the folder it starts in — named as its dialect names

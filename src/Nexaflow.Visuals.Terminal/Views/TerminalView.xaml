@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
-             xmlns:m="clr-namespace:Nexaflow.Visuals.Terminal.Models"
+             xmlns:m="clr-namespace:Nexaflow.IO.Terminal;assembly=Nexaflow.IO.Terminal"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
                           xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
                           xmlns:tc="clr-namespace:Nexaflow.Visuals.Terminal.Converters"

@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Nexaflow.IO.Common;
 
-namespace Nexaflow.Visuals.Terminal.Shells;
+namespace Nexaflow.IO.Terminal.Shells;
 
 /// <summary>
 /// cmd.exe on this computer: <c>cd /d "…"</c>, <c>set "NAME=value"</c>, Ctrl+End and Ctrl+Home to clear the line, and a prompt ending in

@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace Nexaflow.Visuals.Terminal.Models;
+namespace Nexaflow.IO.Terminal;
 
 /// <summary>One entry in the terminal's Files panel — a folder or file in the shell's folder. Folders can be double-clicked
 /// to navigate; entries are a drag source (their path is dropped onto the bar/console).</summary>

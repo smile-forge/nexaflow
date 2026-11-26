@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Common.Drafts;
 using Nexaflow.Localization;
 using System.Collections.Generic;
 using System.IO;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Images;
 

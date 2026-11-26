@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Common.Editing;
+namespace Nexaflow.Interaction;
 
 /// <summary>
 /// Undo and redo as a stack of whole snapshots: each step keeps the state as it stood, not the change that led to it,

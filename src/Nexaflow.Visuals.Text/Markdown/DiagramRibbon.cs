@@ -553,7 +553,7 @@ internal sealed class DiagramRibbon : UserControl
     /// the control is named instead: how a language draws a control of its own as an icon. Each is made once.
     /// </summary>
     internal static Geometry? Drawn(IconRef icon) => Shapes.GetOrAdd(icon, static icon =>
-        icon.IsEmpty || !IconCatalog.Contains(icon) || IconCatalog.FontFor(icon) is not { } font ? null : Outlined(IconCatalog.GlyphFor(icon), font));
+        icon.IsEmpty || !IconCatalog.Contains(icon) || IconFonts.FontFor(icon) is not { } font ? null : Outlined(IconCatalog.GlyphFor(icon), font));
 
     /// <summary>Every icon drawn so far.</summary>
     private static readonly ConcurrentDictionary<IconRef, Geometry?> Shapes = new();
