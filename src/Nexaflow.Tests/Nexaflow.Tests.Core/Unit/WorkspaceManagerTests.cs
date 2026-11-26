@@ -57,8 +57,8 @@ public class WorkspaceManagerTests
 
     // Skips disk-loading of shared services so a workspace's hand-set AiConfig/Persona survive into CloneWorkspace.
     private static void StubSharedServices(Workspace p)
-        => typeof(Workspace).GetProperty(nameof(Workspace.RibbonService))!
-            .SetValue(p, new RibbonLayoutService(p.Dir));
+        => typeof(Workspace).GetProperty(nameof(Workspace.Ribbon))!
+        .SetValue(p, new WorkspaceRibbon(p.Dir));
 
     // ── UniqueWorkspaceName ──
 

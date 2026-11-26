@@ -11,7 +11,7 @@ namespace Nexaflow.Session.Models;
 /// A saved, shared workspace configuration — the thing listed in the context dropdown. Owns
 /// identity (<see cref="Name"/>/<see cref="Color"/>/<see cref="Icon"/>) AND the shared per-workspace
 /// config: the AI ability grid (<see cref="AiConfig"/>), the ribbon layout
-/// (<see cref="RibbonService"/>), the provider configs (API keys etc.), and the conversations
+/// (<see cref="Ribbon"/>), the provider configs (API keys etc.), and the conversations
 /// directory. One Workspace can back many <see cref="WorkspaceRuntime"/> runtimes; its shared config is
 /// loaded once and seen live by all of them.
 /// </summary>
@@ -76,8 +76,8 @@ public sealed partial class Workspace : ObservableObject
     /// <summary>Assistant persona (name + system prompt). Persisted to <c>Contexts/&lt;name&gt;/ai-persona</c>.</summary>
     [JsonIgnore] public AiPersonaConfig Persona { get; } = new();
 
-    /// <summary>Stateless disk layer for this workspace's ribbon layout.</summary>
-    [JsonIgnore] public RibbonLayoutService? RibbonService { get; private set; }
+    /// <summary>This workspace's ribbon, shared by every window on it; null until its shared services are loaded.</summary>
+    [JsonIgnore] public WorkspaceRibbon? Ribbon { get; private set; }
 
     /// <summary>Provider configs (API keys etc.) — one instance per discovered config type.</summary>
     [JsonIgnore] public IReadOnlyList<IProviderConfig> ProviderConfigs { get; private set; } = [];
@@ -152,13 +152,7 @@ public sealed partial class Workspace : ObservableObject
     /// <summary>What whole-document work in this workspace has worked out and keeps — gists, summaries, translations.</summary>
     [JsonIgnore] public string DocumentNotesDir => Path.Combine(LocalDir, "DocumentNotes");
 
-    // ── Live shared-ribbon sync ──
-    /// <summary>
-    /// Raised after any <see cref="WorkspaceRuntime"/>'s ribbon is persisted, so every other window/Workspace
-    /// bound to this workspace reloads its ribbon items live. See RibbonViewModel.
-    /// </summary>
-    public event EventHandler? RibbonChanged;
-    public void RaiseRibbonChanged() => RibbonChanged?.Invoke(this, EventArgs.Empty);
+
 
     /// <summary>
     /// Idempotently loads this workspace's shared services from its folder, its provider configs those
@@ -167,12 +161,12 @@ public sealed partial class Workspace : ObservableObject
     /// </summary>
     internal void EnsureSharedServicesLoaded(ProviderManager providers)
     {
-        if (RibbonService is not null) return;
+        if (Ribbon is not null) return;
         Configuration.LoadFrom(Dir, AiConfig, AiConfig.ConfigName);
         if (AiConfig.BringUpToDate())
             SaveAiConfig();
         Configuration.LoadFrom(Dir, Persona, Persona.ConfigName);
-        RibbonService    = new RibbonLayoutService(Dir);
+        Ribbon           = new WorkspaceRibbon(Dir);
         ProviderConfigs  = providers.LoadProviderConfigs(Dir);
         Connections      = new WorkspaceConnections(Dir, Configuration, CredentialManagerStore.Default);
         // Scoped feature configs are materialized lazily (see FindWorkspaceConfig) so a feature whose only
