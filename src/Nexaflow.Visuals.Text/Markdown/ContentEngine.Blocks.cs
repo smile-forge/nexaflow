@@ -477,10 +477,10 @@ public sealed partial class ContentEngine
         LayoutVerbs.Navigate => Followed(act),
 
         LayoutVerbs.Copy when act.Intent.Target is { Length: > 0 } what =>
-            this.Events?.OnCopy(MarkdownClipboard.Copied(what)) == true,
+            this.Events?.OnCopy(MarkdownClipboard.Copied(what)) is not null,
 
         LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block =>
-            this.Events?.OnCopy(CopyOf(block)) == true,
+            this.Events?.OnCopy(CopyOf(block)) is not null,
 
         LayoutVerbs.Save when act.Node is { } block => this.Events?.OnBlockSave(block) == true,
 

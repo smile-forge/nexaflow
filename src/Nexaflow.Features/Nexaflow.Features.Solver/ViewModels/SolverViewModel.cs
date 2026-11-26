@@ -671,7 +671,7 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
         var input = CurrentInput;
 
         var cell = new SolverResultViewModel(
-            chip.Label, input.Trimmed, input.Mode, RemoveResult, UseAsDefinition, CopyToClipboard);
+            chip.Label, input.Trimmed, input.Mode, RemoveResult, UseAsDefinition, CopyToClipboardAsync);
 
         Results.Add(cell);
         OnPropertyChanged(nameof(HasResults));
@@ -719,10 +719,10 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
         DefinitionReplaced?.Invoke(text);
     }
 
-    private void CopyToClipboard(string text)
+    private async Task CopyToClipboardAsync(string text)
     {
         // Another application can hold the clipboard for a moment; losing a copy is not worth an error dialog.
-        if (_shell.Clipboard.Write(ComposedPayload.OfText(text))) _shell.ShowNotification(Str.Get("Solver.Result.Copied"));
+        if (await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(text))) _shell.ShowNotification(Str.Get("Solver.Result.Copied"));
     }
 
     /// <summary>Pulls the LaTeX body out of a <c>$$…$$</c> block.</summary>

@@ -82,12 +82,12 @@ public partial class StoreBrowserView : UserControl, IDropTarget
             : DropOffer.Refused;
     }
 
-    public void AcceptDrop(DropRequest request)
+    public async Task AcceptDropAsync(DropRequest request)
     {
         if (Browser is not { } browser) return;
 
         var folder = FolderUnder(this.ElementUnder(request.At));
-        if (request.Payload.FilesOnDisk() is { Count: > 0 } paths) _ = browser.DropAsync(paths, folder);
+        if (request.Payload.FilesOnDisk() is { Count: > 0 } paths) await browser.DropAsync(paths, folder);
     }
 
     object? FolderUnder(DependencyObject? hit)

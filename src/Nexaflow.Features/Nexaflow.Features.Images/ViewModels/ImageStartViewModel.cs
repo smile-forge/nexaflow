@@ -51,6 +51,7 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
         _editing = editing;
         _config  = config;
         Setup.PropertyChanged += OnSetupChanged;
+        _shell.Clipboard.KindsChanged += OnClipboardChanged;
         if (ai is not null)
         {
             Generation = new GenerateImageOptions(ai, DraftLocation.Root);
@@ -85,7 +86,7 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
     /// <summary>Looks again at what may have changed while the screen was away: the clipboard, the canvases still there, the models.</summary>
     public async Task RefreshAsync()
     {
-        ClipboardHoldsPicture = _shell.Clipboard.Read().Contains(DragKinds.Image);
+        ClipboardHoldsPicture = _shell.Clipboard.Kinds.Contains(DragKinds.Image);
         OnPropertyChanged(nameof(OffersGeneration));
         var recent = new List<RecentCanvas>();
         foreach (var path in _config.RecentCanvases)
@@ -98,6 +99,9 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
         Recent.Clear();
         foreach (var canvas in recent) Recent.Add(canvas);
     }
+
+    /// <summary>Paste offers itself the moment the clipboard holds a picture, copied here or anywhere else.</summary>
+    private void OnClipboardChanged(object? sender, EventArgs e) => ClipboardHoldsPicture = _shell.Clipboard.Kinds.Contains(DragKinds.Image);
 
     private static bool IsDraft(string path) => path.StartsWith(DraftLocation.Root, StringComparison.OrdinalIgnoreCase);
 
@@ -166,7 +170,7 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanPaste))]
     private async Task Paste()
     {
-        if (_shell.Clipboard.Read().Image() is not { } png) return;
+        if ((await _shell.Clipboard.ReadAsync([DragKinds.Image])).Image() is not { } png) return;
         using var bitmap = SKBitmap.Decode(png);
         if (bitmap is null || bitmap.Width > LayeredPicture.MaxSide || bitmap.Height > LayeredPicture.MaxSide) return;
         var canvas = LayeredPicture.Blank(bitmap.Width, bitmap.Height, LayerBackground.Transparent, Str.Get("Images.Layers.PastedName"));
@@ -261,6 +265,7 @@ public sealed partial class ImageStartViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         Setup.PropertyChanged -= OnSetupChanged;
+        _shell.Clipboard.KindsChanged -= OnClipboardChanged;
         if (Generation is null) return;
         Generation.PropertyChanged -= OnGenerationChanged;
         Generation.Dispose();

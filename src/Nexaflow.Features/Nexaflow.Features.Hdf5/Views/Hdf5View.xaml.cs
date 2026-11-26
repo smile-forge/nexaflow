@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Features.Hdf5.ViewModels;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Viewing;
 
 namespace Nexaflow.Features.Hdf5.Views;
@@ -78,16 +80,16 @@ public partial class Hdf5View : UserControl
 
     private void OnCopyAttributeValue(object sender, RoutedEventArgs e)
     {
-        if (AttributeOf(sender) is { } a) Clipboard.SetText(a.Value);
+        if (AttributeOf(sender) is { } a) _ = ClipboardRouter.Write(this, ComposedPayload.OfText(a.Value));
     }
 
     private void OnCopyAttributeName(object sender, RoutedEventArgs e)
     {
-        if (AttributeOf(sender) is { } a) Clipboard.SetText(a.Name);
+        if (AttributeOf(sender) is { } a) _ = ClipboardRouter.Write(this, ComposedPayload.OfText(a.Name));
     }
 
     private void OnCopyAttributeRow(object sender, RoutedEventArgs e)
     {
-        if (AttributeOf(sender) is { } a) Clipboard.SetText($"{a.Name}\t{a.TypeText}\t{a.Value}");
+        if (AttributeOf(sender) is { } a) _ = ClipboardRouter.Write(this, ComposedPayload.OfText($"{a.Name}\t{a.TypeText}\t{a.Value}"));
     }
 }

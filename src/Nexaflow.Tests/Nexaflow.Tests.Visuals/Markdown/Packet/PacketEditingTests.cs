@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Nexaflow.Interaction;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
@@ -390,7 +391,7 @@ public class PacketEditingTests
         InADocument((editor, packet) =>
         {
             packet.TakeCaret(packet.Source.IndexOf("Flags", packet.Start, StringComparison.Ordinal) + "Flags".Length);
-            MarkdownEditorHarness.Clipboard = new DataObject(DataFormats.UnicodeText, " say \"hi\"");
+            MarkdownEditorHarness.Clipboard = ComposedPayload.OfText(" say \"hi\"");
 
             var ribbon = Ribbon(editor, Label(packet, "Flags"));
             CollectionAssert.Contains(ribbon.Controls.Select(control => control.Id).ToArray(), LayoutVerbs.Paste);

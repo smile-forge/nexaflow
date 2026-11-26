@@ -486,11 +486,10 @@ public sealed partial class StoreBrowser : ObservableObject, IDisposable
     bool CanCopyPath(object? target) => PathTextOf(target) is not null;
 
     [RelayCommand(CanExecute = nameof(CanCopyPath))]
-    private void CopyPath(object? target)
+    private async Task CopyPath(object? target)
     {
         if (PathTextOf(target) is not { } text) return;
-        try { Clipboard.SetText(text); }
-        catch (System.Runtime.InteropServices.ExternalException) { LastResult = Str.Get("Stores.Result.ClipboardBusy"); }
+        if (!await _host.CopyTextAsync(text)) LastResult = Str.Get("Stores.Result.ClipboardBusy");
     }
 
     /// <summary>Makes one change to the store, says how it went, and shows the folder it happened in.</summary>

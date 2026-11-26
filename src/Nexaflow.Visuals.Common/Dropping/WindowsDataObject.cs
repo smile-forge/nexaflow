@@ -9,7 +9,8 @@ namespace Nexaflow.Visuals.Common.Dropping;
 /// <summary>
 /// An <see cref="IDragPayload"/> as a Windows data object: the one place <see cref="DragKinds"/> are written in the formats
 /// other applications read, as <see cref="WindowsDragPayload"/> is the one place they are read back. It writes words,
-/// HTML, a picture and files; a kind of the app's own is not offered to other applications.
+/// HTML, a picture and files; a kind of the app's own that is words — the markdown a document copies — goes under its own
+/// name, for the app's own paste to find, and other applications pass over a format they do not know.
 /// </summary>
 public static class WindowsDataObject
 {
@@ -41,6 +42,11 @@ public static class WindowsDataObject
             var effect = payload.Contains(DragKinds.FilesCut) ? DragDropEffects.Move : DragDropEffects.Copy;
             data.SetData(WindowsDragPayload.PreferredDropEffect, new MemoryStream(BitConverter.GetBytes((int)effect)));
         }
+
+        if (payload is ComposedPayload composed)
+            foreach (var kind in composed.Kinds)
+                if (!DragKinds.Shared.Contains(kind) && kind != DragKinds.FilesCut && composed.Read(kind) is string words)
+                    data.SetData(kind, words);
 
         return data;
     }

@@ -19,6 +19,14 @@ public static class DragKinds
     /// Explorer shows: an <c>IReadOnlyList&lt;<see cref="CarriedFile"/>&gt;</c>.</summary>
     public const string FileContents = "FileContents";
 
+    /// <summary>
+    /// Files that came as content (<see cref="FileContents"/>), written to the staging folder when the drop or paste carrying
+    /// them was taken (<see cref="DragPayloadReading.Take"/>): a <c>string[]</c> of their paths there, the top of what was
+    /// carried. Only a taken payload holds it, in place of the content, so what takes it can still tell files that were
+    /// somewhere from content that had nowhere of its own.
+    /// </summary>
+    public const string StagedFiles = "StagedFiles";
+
     /// <summary>One web address: an http(s) address as a <c>string</c>.</summary>
     public const string Link = "Link";
 

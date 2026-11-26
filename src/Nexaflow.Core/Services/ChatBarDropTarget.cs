@@ -20,15 +20,16 @@ internal sealed class ChatBarDropTarget(
             ? new DropOffer(DropEffect.Copy, Str.Get("Shell.Drop.InsertInBar"))
             : null;
 
-    public void AcceptDrop(DropRequest request)
+    public Task AcceptDropAsync(DropRequest request)
     {
         var page = activePage();
         foreach (var handler in Takers(request.Payload))
         {
             if (handler.BuildInsertText(request.Payload, page) is not { Length: > 0 } text) continue;
             insert(text);
-            return;
+            break;
         }
+        return Task.CompletedTask;
     }
 
     private IEnumerable<IChatDropHandler> Takers(IDragPayload payload)

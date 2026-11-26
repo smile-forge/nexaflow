@@ -2,7 +2,9 @@ using System.Collections;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Nexaflow.Interaction;
 using Nexaflow.Localization;
+using Nexaflow.Visuals.Common.Dropping;
 
 namespace Nexaflow.Visuals.Common.Behaviors;
 
@@ -60,7 +62,7 @@ public static class ListCopy
     static void OnCopy(object sender, ExecutedRoutedEventArgs e)
     {
         if (SelectionText(sender) is not { } text) return;
-        Clipboard.SetText(text);
+        _ = ClipboardRouter.Write((DependencyObject)sender, ComposedPayload.OfText(text));
         e.Handled = true;
     }
 

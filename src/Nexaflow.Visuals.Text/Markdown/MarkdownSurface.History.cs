@@ -1,10 +1,13 @@
 using System;
+using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 
 using System.Windows.Media.Imaging;
 using Nexaflow.Interaction;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -19,10 +22,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </para>
 /// <para>
 /// <strong>The clipboard is the application's, and what goes on it is the engine's.</strong> The engine says what a copy
-/// holds, because what is picked out and the language it was written in are both its; this control only asks for that copy
-/// to be put somewhere (<see cref="CopyingEvent"/>), and asks for what is on a clipboard to paste (<see cref="PastingEvent"/>).
-/// Both bubble, so the application answers them once for every document in the window — and a host that has something to say
-/// about what may leave it, or arrive, answers first.
+/// holds, because what is picked out and the language it was written in are both its. This control asks for that copy to be
+/// put somewhere (<see cref="CopyingEvent"/>), and where no host with something to say about what may leave it answers, puts it
+/// on the clipboard its window offers (<see cref="ClipboardRouter"/>). A paste reads that clipboard — or is handed what was
+/// pasted, as an <see cref="IPasteTarget"/> — and asks what it comes to (<see cref="PastingEvent"/>), a host that makes
+/// something of what arrived answering first.
 /// </para>
 /// </summary>
 public sealed partial class MarkdownSurface
@@ -59,13 +63,17 @@ public sealed partial class MarkdownSurface
     // ── The clipboard ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// Raised to put something on the clipboard: what was chosen, as markdown, as plain words and as marked-up text. Whoever
-    /// answers — the application, once for the window — marks it handled; a cut only takes the words away once it has.
+    /// Raised to put something on the clipboard: what was chosen, as markdown, as plain words and as marked-up text. A host
+    /// with its own say over what may leave marks it handled; otherwise it goes on the clipboard the window offers. A cut only
+    /// takes the words away once the copy is there.
     /// </summary>
     public static readonly RoutedEvent CopyingEvent = EventManager.RegisterRoutedEvent(
         "Copying", RoutingStrategy.Bubble, typeof(EventHandler<ContentCopyingEventArgs>), typeof(MarkdownSurface));
 
-    /// <summary>Raised to be handed what is on the clipboard, to paste it. Whoever answers sets what it holds.</summary>
+    /// <summary>
+    /// Raised with what was pasted, to be told what it comes to. A host that makes something of it — a picture, a file — says so
+    /// and marks it handled; otherwise the words and markdown in it are written.
+    /// </summary>
     public static readonly RoutedEvent PastingEvent = EventManager.RegisterRoutedEvent(
         "Pasting", RoutingStrategy.Bubble, typeof(EventHandler<ContentPastingEventArgs>), typeof(MarkdownSurface));
 
@@ -123,21 +131,49 @@ public sealed partial class MarkdownSurface
     // ── What the engine asks of this ────────────────────────────────────────
 
     /// <inheritdoc/>
-    bool IContentEvents.OnCopy(MarkdownClipboard.ContentCopy copy)
+    Task<bool>? IContentEvents.OnCopy(MarkdownClipboard.ContentCopy copy)
     {
         var asked = new ContentCopyingEventArgs(CopyingEvent, copy);
         RaiseEvent(asked);
 
-        return asked.Handled;
+        return asked.Handled ? Task.FromResult(true) : ClipboardRouter.ClipboardFor(this)?.WriteAsync(MarkdownClipboard.Payload(copy));
     }
 
     /// <inheritdoc/>
-    (string Words, string Markdown)? IContentEvents.OnPaste()
+    bool IContentEvents.OnPaste()
     {
-        var asked = new ContentPastingEventArgs(PastingEvent);
+        // Shown nowhere that offers a clipboard, a host may still answer from what it holds.
+        if (ClipboardRouter.ClipboardFor(this) is not { } clipboard) return PasteTaken(ComposedPayload.Empty);
+
+        _ = PasteFromAsync(clipboard);
+        return true;
+    }
+
+    /// <summary>What the clipboard holds of <see cref="PasteKinds"/>, read and written here. A copied file that cannot be written out is nothing to paste.</summary>
+    private async Task PasteFromAsync(IShellClipboard clipboard)
+    {
+        IDragPayload pasted;
+        try { pasted = await clipboard.ReadAsync([.. PasteKinds]); }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { return; }
+
+        PasteTaken(pasted);
+    }
+
+    /// <summary>
+    /// What was pasted, said as words and markdown — by a host that makes something of it (<see cref="PastingEvent"/>), or else
+    /// read from it here — and written at the caret. False where it came to nothing.
+    /// </summary>
+    private bool PasteTaken(IDragPayload pasted)
+    {
+        var asked = new ContentPastingEventArgs(PastingEvent, pasted);
         RaiseEvent(asked);
 
-        return asked.Handled ? (asked.Words ?? string.Empty, asked.Markdown ?? string.Empty) : null;
+        var words    = asked.Handled ? asked.Words    : MarkdownClipboard.ReadPlainText(pasted);
+        var markdown = asked.Handled ? asked.Markdown : MarkdownClipboard.ReadBestMarkdown(pasted);
+        if (!asked.Handled && string.IsNullOrEmpty(words) && string.IsNullOrEmpty(markdown)) return false;
+
+        _engine.WritePasted(words ?? string.Empty, markdown ?? string.Empty);
+        return true;
     }
 
     /// <inheritdoc/>
@@ -176,14 +212,17 @@ public sealed class ContentCopyingEventArgs(RoutedEvent routed, MarkdownClipboar
 }
 
 /// <summary>
-/// Asked for what is on the clipboard, to paste it. Whoever answers takes it off the clipboard and says what it comes to in
-/// words and in markdown — a clipboard holds whatever a machine put there, and turning that into something a document can be
-/// written from is the host's, not the content's. Answering with neither, having dealt with it another way, still marks it
-/// handled.
+/// Asked what a paste comes to. <see cref="Payload"/> is what was pasted, taken off the clipboard; a host that makes something
+/// of it says what in words and in markdown and marks it handled — a clipboard holds whatever a machine put there, and turning
+/// that into something a document can be written from is the host's when it is more than words. Answering with neither, having
+/// dealt with it another way, still marks it handled.
 /// </summary>
-public sealed class ContentPastingEventArgs(RoutedEvent routed) : RoutedEventArgs(routed)
+public sealed class ContentPastingEventArgs(RoutedEvent routed, IDragPayload payload) : RoutedEventArgs(routed)
 {
-    /// <summary>What was on it as plain words.</summary>
+    /// <summary>What was pasted.</summary>
+    public IDragPayload Payload { get; } = payload;
+
+    /// <summary>What it comes to as plain words.</summary>
     public string? Words { get; set; }
 
     /// <summary>The same as markdown, where what was on it was marked up.</summary>

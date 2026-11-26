@@ -539,10 +539,11 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
         SelectedLineCount = _selectedLineNumbers.Count;
         OnPropertyChanged(nameof(SelectedLineNumbers));
-        AutoCopySelectedLines();
+        // Each click copies what is now selected; the copy lands when the clipboard takes it, and a busy one keeps the last.
+        _ = AutoCopySelectedLinesAsync();
     }
 
-    private void AutoCopySelectedLines()
+    private async Task AutoCopySelectedLinesAsync()
     {
         if (_selectedLineNumbers.Count == 0) return;
 
@@ -559,11 +560,11 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             })
             .Where(l => l.Length > 0);
 
-        _shell.Clipboard.Write(ComposedPayload.OfText(string.Join(Environment.NewLine, lines)));
+        await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(string.Join(Environment.NewLine, lines)));
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedLines))]
-    private void CopySelectedLines()
+    private async Task CopySelectedLines()
     {
         var lines = _selectedLineNumbers
             .OrderBy(n => n)
@@ -578,7 +579,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             })
             .Where(l => l.Length > 0);
 
-        _shell.Clipboard.Write(ComposedPayload.OfText(string.Join(Environment.NewLine, lines)));
+        await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(string.Join(Environment.NewLine, lines)));
     }
 
     private bool HasSelectedLines() => SelectedLineCount > 0;

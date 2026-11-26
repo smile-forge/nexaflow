@@ -15,6 +15,7 @@ using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -712,7 +713,7 @@ public class PieEditingTests
 
     /// <summary>Has <paramref name="editor"/> handed <paramref name="words"/> to paste, as the clipboard would.</summary>
     private static void Holding(MarkdownSurface editor, string words) =>
-        MarkdownEditorHarness.Clipboard = new DataObject(DataFormats.UnicodeText, words);
+        MarkdownEditorHarness.Clipboard = ComposedPayload.OfText(words);
 
     /// <summary>The legend's row for the slice labelled <paramref name="name"/>.</summary>
     private static LayoutPiece Row(DocumentBlock pie, string name)

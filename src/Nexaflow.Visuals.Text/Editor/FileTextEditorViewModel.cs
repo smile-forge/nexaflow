@@ -192,11 +192,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             Eol              = SelectedEol.Eol,
             ReplaceDocument  = t => Document.Text = t,
             ReplaceSelection = t => area.Selection.ReplaceSelectionWithText(t),
-            ShowResult       = (label, value) =>
-            {
-                Shell.Clipboard.Write(ComposedPayload.OfText(value));
-                Shell.ShowNotification(Str.Format("Text.Editor.Copied", label, value)); // toasts via the notification service
-            },
+            ShowResult       = (label, value) => _ = CopyResultAsync(label, value),
             ShowError        = Shell.ShowError,
         };
 
@@ -210,6 +206,13 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
         cmd.Execute(ctx);
         RecomputeLineEndingLabel(); // an EOL-conversion command may have changed the terminator
+    }
+
+    /// <summary>A command's result, put on the clipboard and told — through the notification service's toast — once it is there.</summary>
+    private async Task CopyResultAsync(string label, string value)
+    {
+        if (await Shell.Clipboard.WriteAsync(ComposedPayload.OfText(value)))
+            Shell.ShowNotification(Str.Format("Text.Editor.Copied", label, value));
     }
 
     private void OnDocumentTextChanged(object? sender, EventArgs e) => LineCount = Document.LineCount;

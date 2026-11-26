@@ -24,7 +24,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// sentence.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface : IDropTarget
+public sealed partial class MarkdownSurface : IDropTarget, IPasteTarget
 {
     /// <summary>Puts the caret at the end of what is written and takes the keyboard — for a note just made, to be written in.</summary>
     public void BeginEdit()
@@ -78,6 +78,27 @@ public sealed partial class MarkdownSurface : IDropTarget
 
     // ── Something dropped ───────────────────────────────────────────────────
 
+    // ── Something pasted ────────────────────────────────────────────────────
+
+    private IReadOnlyList<string> _pasteKinds = WrittenKinds;
+
+    /// <summary>
+    /// The kinds a paste here is handed: words, marked-up words and markdown — none while it cannot be written in. A host that
+    /// makes something of more, a picture or a file, widens it and says what that comes to when it answers <see cref="Pasting"/>.
+    /// </summary>
+    public IReadOnlyList<string> PasteKinds
+    {
+        get => IsReadOnly ? [] : _pasteKinds;
+        set => _pasteKinds = value;
+    }
+
+    /// <inheritdoc/>
+    public Task PasteAsync(IDragPayload pasted)
+    {
+        if (!IsReadOnly) PasteTaken(pasted);
+        return Task.CompletedTask;
+    }
+
     private static readonly string[] WrittenKinds = [DragKinds.Text, DragKinds.Html, MarkdownClipboard.MarkdownFormat];
 
     /// <inheritdoc/>
@@ -89,7 +110,11 @@ public sealed partial class MarkdownSurface : IDropTarget
         => IsReadOnly || request.Payload.CarriesFiles() ? null : new DropOffer(DropEffect.Copy);
 
     /// <inheritdoc/>
-    public void AcceptDrop(DropRequest request) => DropContent(request.Payload, new Point(request.At.X, request.At.Y));
+    public Task AcceptDropAsync(DropRequest request)
+    {
+        DropContent(request.Payload, new Point(request.At.X, request.At.Y));
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// What was dragged in from somewhere else, written where it was let go — at the end, where that was past the last of

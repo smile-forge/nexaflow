@@ -4,20 +4,21 @@ using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Localization;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
 {
     /// <summary>
-    /// Pastes files from the clipboard into the current folder.
+        /// Pastes files from the clipboard into the current folder — by path, or files that were copied as their content.
     /// The path passed to <see cref="PerformAction(string)"/> is the destination directory.
     /// <see cref="CanPerformAction"/> gates visibility: the action is excluded
     /// from the strip entirely when the clipboard holds no pasteable files.
     /// <para>
-    /// The clipboard is read here, on the UI thread where it is legal to touch, and the transfer is
-    /// queued — so pasting a large folder no longer freezes the window, and it resolves name clashes
-    /// the same way a drag-drop does because both go through the same planner.
+    /// The clipboard is read when the paste is asked for, and the transfer is queued — so pasting a
+    /// large folder never freezes the window, and it resolves name clashes the same way a drag-drop
+    /// does because both go through the same planner.
     /// </para>
     /// </summary>
     public class PasteFiles(IShellServices shell, Operations.FileOperationQueue queue) : IFolderAction, ICacheable
@@ -30,24 +31,30 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public bool   AppliesToRoot         => true;   // visible even with no list selection
         public bool   AppliesToDrives       => true;   // can paste into a drive root
 
+        /// <summary>The kinds a paste of files is read in: files by path, and files that are only their content.</summary>
+        internal static readonly string[] PastedKinds = [DragKinds.Files, DragKinds.FileContents];
+
         /// <summary>
-        /// Re-evaluated each time the action strip is rebuilt so the button
-        /// disappears the moment the clipboard no longer contains files.
+        /// Re-evaluated each time the action strip is rebuilt — which the file view does when the
+        /// clipboard's kinds change — so the button comes and goes with files on the clipboard.
         /// </summary>
-        public bool CanPerformAction => shell.Clipboard.Read().Contains(DragKinds.Files);
+        public bool CanPerformAction => PastedKinds.Any(shell.Clipboard.Kinds.Contains);
 
-        public Task<bool> PerformActionAsync(string destinationFolder, CancellationToken ct = default)
+        public async Task<bool> PerformActionAsync(string destinationFolder, CancellationToken ct = default)
+            => Paste(await shell.Clipboard.ReadAsync(PastedKinds, ct), destinationFolder, queue, shell.Clipboard);
+
+        /// <summary>
+        /// Queues what <paramref name="held"/> carries into <paramref name="destinationFolder"/>: files by path moved where they were
+        /// cut — the clipboard emptied only once they have landed, so a failed move can be fixed and pasted again — and copied
+        /// otherwise; files that came as content copied from where they were staged. False where there was nothing to paste.
+        /// </summary>
+        internal static bool Paste(IDragPayload held, string destinationFolder, Operations.FileOperationQueue queue, IShellClipboard clipboard)
         {
-            var held = shell.Clipboard.Read();
-            var paths = held.Files();
-            if (paths.Count == 0) return Task.FromResult(false);
+            var paths = held.FilesOnDisk();
+            if (paths.Count == 0) return false;
+
             var isCut = held.Contains(DragKinds.FilesCut);
-
-            // The clipboard is only consumed once the cut has actually landed — a failed one is left in
-            // place so the cause can be fixed and the paste repeated.
-            var op = queue.EnqueuePaste(paths, destinationFolder, isCut, onCutSucceeded: () => shell.Clipboard.Clear());
-
-            return Task.FromResult(op is not null);
+            return queue.EnqueuePaste(paths, destinationFolder, isCut, onCutSucceeded: () => _ = clipboard.ClearAsync()) is not null;
         }
 
         public Task<bool> PerformActionAsync(IEnumerable<string> folderPaths, CancellationToken ct = default)

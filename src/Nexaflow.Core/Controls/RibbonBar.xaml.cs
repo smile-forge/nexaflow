@@ -364,7 +364,7 @@ public partial class RibbonBar : UserControl, IDropTarget
         return new DropOffer(effect, Str.Get("Shell.Drop.PinToRibbon"));
     }
 
-    public void AcceptDrop(DropRequest request)
+    public Task AcceptDropAsync(DropRequest request)
     {
         int insertAt = ComputeInsertIndex(TranslatePoint(new Point(request.At.X, request.At.Y), ItemsPanel));
 
@@ -372,6 +372,7 @@ public partial class RibbonBar : UserControl, IDropTarget
             PinTabToRibbonCommand?.Execute(new TabPinRequest(tab, insertAt));
         else
             PinFromHandlerCommand?.Execute(new RibbonPinRequest(request.Payload, insertAt));
+        return Task.CompletedTask;
     }
 
     private int ComputeInsertIndex(Point posInPanel)

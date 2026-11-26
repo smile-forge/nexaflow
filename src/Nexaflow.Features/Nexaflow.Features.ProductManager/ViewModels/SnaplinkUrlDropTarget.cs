@@ -15,8 +15,9 @@ internal sealed class SnaplinkUrlDropTarget(Action<string> setUrl) : IDropTarget
     public DropOffer? OfferDrop(DropRequest request)
         => new(DropEffect.Copy, Str.Get("ProductManager.Snaplinks.DropSetsUrl"));
 
-    public void AcceptDrop(DropRequest request)
+    public Task AcceptDropAsync(DropRequest request)
     {
         if ((request.Payload.Link() ?? request.Payload.Text()) is { } url) setUrl(url);
+        return Task.CompletedTask;
     }
 }

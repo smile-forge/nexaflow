@@ -13,6 +13,7 @@ using Nexaflow.IO.Usb.Naming;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Plugins;
 using Nexaflow.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.UsbProbe.ViewModels;
 
@@ -510,6 +511,8 @@ public sealed partial class UsbDeviceViewModel : ObservableObject, IPageViewMode
         public IUsbDeviceBroker DriverBroker => page._broker;
 
         public Task RunOnUiAsync(Action action) => page._shell.RunOnUiAsync(action);
+
+        public Task<bool> CopyTextAsync(string text) => page._shell.Clipboard.WriteAsync(ComposedPayload.OfText(text));
 
         public Task<bool> ConfirmAsync(string title, string message, CancellationToken ct, string? confirmLabel = null) =>
             page._shell.ConfirmAsync(title, message, confirmLabel, null, ct);

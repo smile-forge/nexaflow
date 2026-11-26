@@ -10,6 +10,7 @@ using Nexaflow.Core.Services;
 
 
 using Nexaflow.Core.ViewModels;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Viewing;
@@ -85,7 +86,7 @@ internal static class TestRuntimes
             Config, shell, security,
             Providers, savedWorkspaces ?? SavedListOf(), Features, tasks, notify, VirtualFileSystem.Instance, locations,
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
-            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), new ShellClipboard(), new WpfFilePickers(),
+            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), Substitute.For<IShellClipboard>(), new WpfFilePickers(),
             dependencies, new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load, LoggerFor<LanguageManager>()),
             PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), NewAssistant: new WorkspaceAssistants(Features, Providers, shell, security, [], new WpfPictureFitting(), tasks, notify).Create, Logs: Logging.Factory));
     }

@@ -21,7 +21,7 @@ namespace Nexaflow.Features.Scratchpad.Views;
 /// The board. Anything dropped on it that no note took becomes a note where it was let go.
 /// </summary>
 [ViewFor(typeof(ScratchpadViewModel))]
-public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget
+public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyboardHandler, IDropTarget, IPasteTarget
 {
     private ScratchpadViewModel Vm => (ScratchpadViewModel)DataContext;
 
@@ -96,7 +96,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     public bool CanProcessKey(ConsoleKey key, KeyModifiers modifiers)
         => modifiers == KeyModifiers.Control
-        && key is ConsoleKey.V or ConsoleKey.Add or ConsoleKey.Subtract or ConsoleKey.D0;
+        && key is ConsoleKey.Add or ConsoleKey.Subtract or ConsoleKey.D0;
 
     public bool ProcessKey(ConsoleKey key, KeyModifiers modifiers)
     {
@@ -104,10 +104,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
         switch (key)
         {
-            case ConsoleKey.V:
-                // Same classification as a drop, so pasting an image / file / URL behaves consistently.
-                PasteAsNotes(ViewportCenter());
-                break;
+
             case ConsoleKey.Add:      Surface.ZoomBy(1.15);         break;
             case ConsoleKey.Subtract: Surface.ZoomBy(1 / 1.15);     break;
             case ConsoleKey.D0:       Surface.RestoreView(1, 0, 0); break;
@@ -122,7 +119,11 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     public DropOffer? OfferDrop(DropRequest request)
         => new(DropEffect.Copy, Str.Get("Scratchpad.Drop.CreatePostIt"));
 
-    public void AcceptDrop(DropRequest request) => AddAsNotes(request.Payload, CanvasPointOf(request.At));
+    public Task AcceptDropAsync(DropRequest request)
+    {
+        AddAsNotes(request.Payload, CanvasPointOf(request.At));
+        return Task.CompletedTask;
+    }
 
     /// <summary>Where on the board a drop on this page is: under the pointer, or the middle of what shows for one let
     /// go over the toolbar or status bar.</summary>
@@ -173,18 +174,18 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
             Vm.AddNoteWithContent(content, canvasPt);
     }
 
-    /// <summary>What the clipboard holds, as notes at <paramref name="canvasPt"/>.</summary>
-    private void PasteAsNotes(Point canvasPt)
+    /// <summary>Where the next paste lands: the point a "Paste here" was asked at, or else the middle of the view.</summary>
+    private Point? _pasteAt;
+
+    public IReadOnlyList<string> PasteKinds => DroppedMedia.Kinds;
+
+    /// <summary>Pasted content becomes notes as a drop does, so an image, a file or a link behaves the same either way.</summary>
+    public Task PasteAsync(IDragPayload pasted)
     {
-        try
-        {
-            if (Clipboard.GetDataObject() is { } held) AddAsNotes(new WindowsDragPayload(held), canvasPt);
-        }
-        catch (System.Runtime.InteropServices.ExternalException) { /* another application has the clipboard open */ }
-        catch (Exception failure) when (failure is System.IO.IOException or UnauthorizedAccessException)
-        {
-            // A copied attachment could not be written out, so there is nothing to make a note of.
-        }
+        var at = _pasteAt ?? ViewportCenter();
+        _pasteAt = null;
+        AddAsNotes(pasted, at);
+        return Task.CompletedTask;
     }
 
     // ── Note mini-ribbon (rendered at ScratchpadView level, never rotated) ─
@@ -271,18 +272,16 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     private void Surface_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         _newNoteCanvasPt = ScreenToCanvas(Mouse.GetPosition(Surface));
-        CanvasPasteItem.IsEnabled = ClipboardHasContent();
+        CanvasPasteItem.IsEnabled = ApplicationCommands.Paste.CanExecute(null, Surface);
     }
 
     private void NewNoteHere_Click(object sender, RoutedEventArgs e)
         => Vm.AddNote(_newNoteCanvasPt);
 
-    private void PasteHere_Click(object sender, RoutedEventArgs e) => PasteAsNotes(_newNoteCanvasPt);
-
-    private static bool ClipboardHasContent()
+    private void PasteHere_Click(object sender, RoutedEventArgs e)
     {
-        try { return Clipboard.ContainsText() || Clipboard.ContainsImage() || Clipboard.ContainsFileDropList(); }
-        catch { return false; }
+        _pasteAt = _newNoteCanvasPt;
+        ApplicationCommands.Paste.Execute(null, Surface);
     }
 
     // ── Toolbar button handlers ───────────────────────────────────────────

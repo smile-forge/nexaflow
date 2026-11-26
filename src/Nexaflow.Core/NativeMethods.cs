@@ -119,38 +119,7 @@ namespace Nexaflow.Core
             return ShellExecuteEx(ref info);
         }
 
-        // ── Clipboard file operations ─────────────────────────────────────────
-        // Windows uses CF_HDROP + "Preferred DropEffect" to distinguish cut vs copy.
-        // DragDropEffects.Move (2) = cut, DragDropEffects.Copy (1) = copy.
 
-        private const string PreferredDropEffect = "Preferred DropEffect";
-
-        /// <summary>Places <paramref name="paths"/> on the clipboard as a copy operation.</summary>
-        public static void ClipboardCopyFiles(IReadOnlyList<string> paths)
-            => SetClipboardFiles(paths, DragDropEffects.Copy);
-
-        /// <summary>Places <paramref name="paths"/> on the clipboard as a cut (move) operation.</summary>
-        public static void ClipboardCutFiles(IReadOnlyList<string> paths)
-            => SetClipboardFiles(paths, DragDropEffects.Move);
-
-        private static void SetClipboardFiles(IReadOnlyList<string> paths, DragDropEffects effect)
-        {
-            var list = new StringCollection();
-            list.AddRange([.. paths]);
-
-            var data = new DataObject();
-            data.SetFileDropList(list);
-            // Encode the preferred drop effect as a 4-byte little-endian stream
-            data.SetData(PreferredDropEffect, new MemoryStream(BitConverter.GetBytes((int)effect)));
-            Clipboard.SetDataObject(data, copy: true);
-        }
-
-        /// <summary>
-        /// Returns <c>true</c> when the clipboard contains a file-drop list
-        /// that can be pasted into the file system.
-        /// </summary>
-        public static bool ClipboardHasFiles()
-            => Clipboard.ContainsFileDropList();
 
         // ── Helpers ───────────────────────────────────────────────────────────
 

@@ -15,14 +15,12 @@ public partial class ConversationViewModel : IDropTarget
     public DropOffer? OfferDrop(DropRequest request)
         => new(DropEffect.Copy, Str.Get("AIChat.Conversation.Context.DropAdds"));
 
-    public void AcceptDrop(DropRequest request)
+    public Task AcceptDropAsync(DropRequest request)
     {
         if (request.Payload.Read(Page.DragKind) is Page page)
-        {
             AddContextItem(page);
-            return;
-        }
-
-        foreach (var file in request.Payload.FilesOnDisk()) AddAttachment(file);
+        else
+            foreach (var file in request.Payload.FilesOnDisk()) AddAttachment(file);
+        return Task.CompletedTask;
     }
 }

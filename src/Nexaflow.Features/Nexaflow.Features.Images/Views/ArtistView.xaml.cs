@@ -96,10 +96,7 @@ public partial class ArtistView : UserControl
             case Key.X when ctrl && ViewModel.IsLayered:
                 ViewModel.Layers.CutCommand.Execute(null);
                 break;
-            case Key.V when ctrl:
-                if (ViewModel.IsLayered) ViewModel.Layers.PasteCommand.Execute(null);
-                else ViewModel.PasteAsLayerCommand.Execute(null);
-                break;
+
             case Key.Delete when editor.IsMarkupTool:
                 editor.DeleteSelectedCommand.Execute(null);
                 break;

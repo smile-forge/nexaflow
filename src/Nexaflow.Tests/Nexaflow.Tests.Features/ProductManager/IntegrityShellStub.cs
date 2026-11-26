@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Nexaflow.Elevation.Contracts;
 using Nexaflow.Features.Common;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 

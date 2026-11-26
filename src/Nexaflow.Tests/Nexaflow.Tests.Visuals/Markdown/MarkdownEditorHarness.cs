@@ -17,6 +17,9 @@ using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Markdown.Layout.Maths;
+using Nexaflow.Interaction;
+using Nexaflow.Visuals.Common.Dropping;
+using Nexaflow.Tests.Visuals.Dropping;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -67,23 +70,11 @@ internal static class MarkdownEditorHarness
 
         // What the application does for every window, done for this one with a clipboard of its own — so a test that
         // copies does not reach into the machine's.
-        window.AddHandler(MarkdownSurface.CopyingEvent, new EventHandler<ContentCopyingEventArgs>((_, e) =>
-        {
-            Clipboard = MarkdownClipboard.Data(e.Copy);
-            e.Handled = true;
-        }));
-        window.AddHandler(MarkdownSurface.PastingEvent, new EventHandler<ContentPastingEventArgs>((_, e) =>
-        {
-            if (Clipboard is not { } data) return;
-
-            e.Words = MarkdownClipboard.ReadPlainText(data);
-            e.Markdown = MarkdownClipboard.ReadBestMarkdown(data);
-            e.Handled = true;
-        }));
+        ClipboardRouter.SetClipboard(window, Memory);
 
         try
         {
-            Clipboard = null;
+            Memory.Hold(null);
             window.Show();
             editor.UpdateLayout();
             editor.Document.Load(markdown);
@@ -97,8 +88,15 @@ internal static class MarkdownEditorHarness
         finally { window.Close(); }
     }
 
-    /// <summary>What a test's window was last asked to put on the clipboard, and hands back when asked to paste.</summary>
-    public static IDataObject? Clipboard { get; set; }
+    /// <summary>The harness's own clipboard, which every editor it shows copies to and pastes from.</summary>
+    private static readonly MemoryClipboard Memory = new();
+
+    /// <summary>What the harness's clipboard holds — set to have something to paste.</summary>
+    public static IDragPayload? Clipboard
+    {
+        get => Memory.Held;
+        set => Memory.Hold(value);
+    }
 
     /// <summary>Raises a genuine keystroke's worth of text on the editor.</summary>
     public static void RaiseTextInput(MarkdownSurface editor, string text)

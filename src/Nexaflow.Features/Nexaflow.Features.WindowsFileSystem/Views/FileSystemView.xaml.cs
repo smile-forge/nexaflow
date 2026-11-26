@@ -1113,24 +1113,25 @@ public partial class FileSystemView : UserControl, IDropTarget, ISelectionProvid
     private static bool IsMove(DropRequest request)
         => request.Modifiers.HasFlag(KeyModifiers.Shift) && request.Payload.Contains(DragKinds.Files);
 
-    public void AcceptDrop(DropRequest request)
+    public Task AcceptDropAsync(DropRequest request)
     {
-        if (DropPlaceAt(request.At) is not { } place) return;
+        if (DropPlaceAt(request.At) is not { } place) return Task.CompletedTask;
 
         if (request.AsksChoice)
         {
-            // Captured now, asked later. The payload dies with this callback, and a menu opened inside it would block
-            // the OLE drop on a thread with no message pump. The destination wash is deliberately left up: with the
-            // folder name out of the menu's labels it is the only thing saying where "here" is, so it comes down when
-            // the menu is answered, not when the menu appears.
-            if (_dropTarget.Capture(request.Payload, place.Destination) is not { } plan) return;
+            // Planned now, asked once Windows' drop has returned: a menu opened inside its callback would block the drop on a
+            // thread with no message pump. The destination wash is deliberately left up: with the folder name out of the menu's
+            // labels it is the only thing saying where "here" is, so it comes down when the menu is answered, not when the menu
+            // appears.
+            if (_dropTarget.Capture(request.Payload, place.Destination) is not { } plan) return Task.CompletedTask;
 
             _pendingChoice = plan;
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, AskPendingChoice);
-            return;
+            return Task.CompletedTask;
         }
 
         _dropTarget.Drop(request.Payload, place.Destination, IsMove(request));
+        return Task.CompletedTask;
     }
 
     public void EndDropHover()

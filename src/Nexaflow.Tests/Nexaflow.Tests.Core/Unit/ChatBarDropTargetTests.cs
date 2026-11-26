@@ -24,13 +24,13 @@ public class ChatBarDropTargetTests
     }
 
     [TestMethod]
-    public void TheFirstHandlerWithWords_IsTheOneInserted()
+    public async Task TheFirstHandlerWithWords_IsTheOneInserted()
     {
         var inserted = new List<string>();
         var target = new ChatBarDropTarget(() => [Handler(null), Handler("first"), Handler("second")], () => null, inserted.Add);
 
         Assert.IsNotNull(target.OfferDrop(File));
-        target.AcceptDrop(File);
+        await target.AcceptDropAsync(File);
 
         CollectionAssert.AreEqual(new[] { "first" }, inserted);
     }

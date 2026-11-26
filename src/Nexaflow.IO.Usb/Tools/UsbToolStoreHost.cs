@@ -11,6 +11,8 @@ public sealed class UsbToolStoreHost(IUsbTool tool, IUsbToolHost host) : IStoreB
     public Task<IReadOnlyList<string>> PickOpenFilesAsync() => host.PickOpenFilesAsync(null);
     public bool OpenFile(string path) => host.OpenFile(path);
 
+    public Task<bool> CopyTextAsync(string text) => host.CopyTextAsync(text);
+
     public string FetchedFilesFolder => host.FetchedFilesFolder;
     public void Log(string message) => host.Log(tool, message);
     public Task RunOnUiAsync(Action action) => host.RunOnUiAsync(action);

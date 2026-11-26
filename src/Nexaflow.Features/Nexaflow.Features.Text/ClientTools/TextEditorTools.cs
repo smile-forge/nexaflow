@@ -21,12 +21,9 @@ internal static class TextEditorTools
             "Copy the text currently visible in the editor to the clipboard.",
             [],
             ToolSafety.SafeOperation,
-            (_, _) =>
-            {
-                return Task.FromResult(vm.CopyVisibleText()
-                    ? ToolResult.Ok("copied", "Copied the visible text to the clipboard.")
-                    : ToolResult.Error("clipboard busy", "Another application held the clipboard open, so nothing was copied."));
-            }),
+            async (_, _) => await vm.CopyVisibleTextAsync()
+                ? ToolResult.Ok("copied", "Copied the visible text to the clipboard.")
+                : ToolResult.Error("clipboard busy", "Another application held the clipboard open, so nothing was copied.")),
 
         new DelegateClientTool(
             "read_lines",

@@ -188,6 +188,7 @@ public partial class MainWindow : Window
 
         WireAiBarChatHandlers();
         RouteDrops();
+        RouteClipboard();
     }
 
     // ── AI input bar: feature key/drop handlers + insert requests ─────────
@@ -214,6 +215,14 @@ public partial class MainWindow : Window
             this,
             failed: failure => _shellServices.ShowError(Str.Format("Shell.Drop.FailedFormat", failure.Message)),
             targetOf: element => ViewRegistry.ModelOf(element) as IDropTarget);
+
+    private void RouteClipboard()
+        => ClipboardRouter.Attach(
+            this,
+            _shellServices.Clipboard,
+            failed: failure => _shellServices.ShowError(Str.Format("Shell.Paste.FailedFormat", failure.Message)),
+            targetOf: element => ViewRegistry.ModelOf(element) as IPasteTarget,
+            pageTarget: () => _vm.ActivePageView as IPasteTarget ?? _vm.ActivePageViewModel as IPasteTarget);
 
     // Opening a tab moves focus to the AI bar (so the user can type a request straight away). Deferred to
     // Background priority — below Loaded/Input — so it runs after the tab's own content has realized and

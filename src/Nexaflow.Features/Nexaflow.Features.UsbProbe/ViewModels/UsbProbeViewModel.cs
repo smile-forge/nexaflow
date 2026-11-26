@@ -263,18 +263,18 @@ public sealed partial class UsbProbeViewModel : ObservableObject, IPageViewModel
     bool CanCopyIds(object? target) => CopyTextOf(target, UsbCopyKind.Ids) is not null;
 
     [RelayCommand(CanExecute = nameof(CanCopyPath))]
-    private void CopyPath(object? target) => ToClipboard(CopyTextOf(target, UsbCopyKind.Path));
+    private Task CopyPath(object? target) => ToClipboardAsync(CopyTextOf(target, UsbCopyKind.Path));
 
     [RelayCommand(CanExecute = nameof(CanCopyInstanceId))]
-    private void CopyInstanceId(object? target) => ToClipboard(CopyTextOf(target, UsbCopyKind.InstanceId));
+    private Task CopyInstanceId(object? target) => ToClipboardAsync(CopyTextOf(target, UsbCopyKind.InstanceId));
 
     [RelayCommand(CanExecute = nameof(CanCopyIds))]
-    private void CopyIds(object? target) => ToClipboard(CopyTextOf(target, UsbCopyKind.Ids));
+    private Task CopyIds(object? target) => ToClipboardAsync(CopyTextOf(target, UsbCopyKind.Ids));
 
-    void ToClipboard(string? text)
+    private async Task ToClipboardAsync(string? text)
     {
         if (text is null) return;
-        if (!_shell.Clipboard.Write(ComposedPayload.OfText(text))) Status = Str.Get("UsbProbe.Status.ClipboardBusy");
+        if (!await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(text))) Status = Str.Get("UsbProbe.Status.ClipboardBusy");
     }
 
     /// <summary>Copies a device's debug details — for the developers, see <see cref="UsbDebugCollector"/>; each tool the

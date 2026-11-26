@@ -1355,5 +1355,5 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     }
 
     /// <summary>Puts the text the editor shows on the clipboard; false while another application holds it open.</summary>
-    public bool CopyVisibleText() => _shell.Clipboard.Write(ComposedPayload.OfText(GetVisibleText()));
+    public Task<bool> CopyVisibleTextAsync() => _shell.Clipboard.WriteAsync(ComposedPayload.OfText(GetVisibleText()));
 }

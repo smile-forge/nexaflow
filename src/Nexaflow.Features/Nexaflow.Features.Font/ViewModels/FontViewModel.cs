@@ -100,22 +100,22 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
     }
 
     [RelayCommand]
-    private void CopyName()
+    private async Task CopyName()
     {
-        if (SelectedFont is { } f) TrySetClipboard(f.DisplayName);
+        if (SelectedFont is { } f) await TrySetClipboardAsync(f.DisplayName);
     }
 
     [RelayCommand]
-    private void CopyPath()
+    private async Task CopyPath()
     {
-        if (SelectedFont?.SourcePath is { } p) TrySetClipboard(p);
+        if (SelectedFont?.SourcePath is { } p) await TrySetClipboardAsync(p);
     }
 
     /// <summary>Copies one cell of the selected face's glyph map; an empty cell has nothing to copy.</summary>
     [RelayCommand]
-    private void CopyGlyph(string? glyph)
+    private async Task CopyGlyph(string? glyph)
     {
-        if (!string.IsNullOrEmpty(glyph)) TrySetClipboard(glyph);
+        if (!string.IsNullOrEmpty(glyph)) await TrySetClipboardAsync(glyph);
     }
 
     // ── Loading ──────────────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
         return item;
     }
 
-    private void TrySetClipboard(string text) => _shell.Clipboard.Write(ComposedPayload.OfText(text));
+    private Task TrySetClipboardAsync(string text) => _shell.Clipboard.WriteAsync(ComposedPayload.OfText(text));
 
     // ── AI resolution ────────────────────────────────────────────────────────
 

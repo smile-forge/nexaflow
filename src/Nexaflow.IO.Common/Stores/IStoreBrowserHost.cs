@@ -17,6 +17,9 @@ public interface IStoreBrowserHost
     /// <summary>Opens a file on this PC in the app's viewer for it; false when nothing in the app opens it.</summary>
     bool OpenFile(string path);
 
+    /// <summary>Puts <paramref name="text"/> on the clipboard; false when another application held it open.</summary>
+    Task<bool> CopyTextAsync(string text);
+
     /// <summary>
     /// Where a file with no path on this PC — one on a phone — is fetched to be opened: copied there, read back like any copy,
     /// and opened from there.
