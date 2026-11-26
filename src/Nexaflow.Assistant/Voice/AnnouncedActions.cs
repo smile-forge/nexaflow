@@ -27,7 +27,7 @@ public interface IVoiceConfirmations
 /// unchanged." While it runs it is "Deleting file test.zip". A tool that does not say how it is announced is named by
 /// its name.
 /// </summary>
-internal sealed record AnnouncedActions(string Announcement, string Action, string Doing, string Done, string Unchanged,
+public sealed record AnnouncedActions(string Announcement, string Action, string Doing, string Done, string Unchanged,
                                         IReadOnlyList<ToolCallAnnouncement> Calls)
 {
     public static AnnouncedActions Of(IReadOnlyList<ToolCall> batch)

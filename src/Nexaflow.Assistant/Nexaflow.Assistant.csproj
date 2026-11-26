@@ -19,7 +19,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Host" />
-    <InternalsVisibleTo Include="Nexaflow" />
     <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
   </ItemGroup>
 

@@ -137,7 +137,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// windows — every <see cref="MainWindow"/> binds this one collection, mirroring the activity ticker — so a
     /// torn-off window shows the control with no replay logic and a workspace switch clears it as tabs dispose.
     /// </summary>
-    internal ObservableCollection<MediatedTaskRegistration> MediatedTasks { get; } = [];
+    public ObservableCollection<MediatedTaskRegistration> MediatedTasks { get; } = [];
 
     public IDisposable RegisterMediatedTask(MediatedTaskRegistration registration)
     {
@@ -171,7 +171,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// </summary>
     internal Func<IWindowHost>? CreateWindowFactory { get; set; }
 
-    internal bool HasWindows => _windows.Count > 0;
+    public bool HasWindows => _windows.Count > 0;
 
     /// <summary>The focused window, or the first open one (null when window-less).</summary>
     internal IWindowHost? FocusedWindow => _focused ?? _windows.FirstOrDefault();
@@ -179,13 +179,13 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// <summary>Raised when a window attaches to this runtime or leaves it.</summary>
     internal event EventHandler? WindowsChanged;
 
-    internal void RegisterWindow(IWindowHost host)
+    public void RegisterWindow(IWindowHost host)
     {
         _windows.Add(host);
         WindowsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    internal void UnregisterWindow(IWindowHost host)
+    public void UnregisterWindow(IWindowHost host)
     {
         // The workspace's last window closing on a genuine user close (programmatic teardown goes through
         // CloseAllWindows, which suppresses this): record the visible tabs as the restorable last session.
@@ -223,7 +223,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         }
     }
 
-    internal void SetFocused(IWindowHost host)
+    public void SetFocused(IWindowHost host)
     {
         _focused = host;
         foreach (var w in _windows)
@@ -234,7 +234,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// Replaces <paramref name="current"/> with a fresh window where it is meant to be, holding the same tabs in the same panes: how a
     /// theme or a language, which no window re-reads once drawn, reaches a window already open. The caller has applied them.
     /// </summary>
-    internal void ReplaceWindow(IWindowHost current)
+    public void ReplaceWindow(IWindowHost current)
     {
         if (CreateWindowFactory is null) return;
 
@@ -253,7 +253,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         RestoreTabLayout(layout);
     }
 
-    internal void ClearFocused(IWindowHost host)
+    public void ClearFocused(IWindowHost host)
     {
         if (_focused == host)
             _focused = _windows.FirstOrDefault(w => w != host);
@@ -325,7 +325,7 @@ public sealed class ShellServices : IShellServices, IDisposable
 
     /// <summary>Creates a fresh <paramref name="pageKind"/> tab and adds it to <paramref name="target"/>'s focused pane —
     /// no search for an existing tab to reuse. Backs "open in the right pane" and the Help pane.</summary>
-    internal Page? AddFreshTab(IWindowHost target, string pageKind, Dictionary<string, string>? pageParams)
+    public Page? AddFreshTab(IWindowHost target, string pageKind, Dictionary<string, string>? pageParams)
     {
         var fresh = CreateTab(pageKind, pageParams);
         if (fresh is null) return null;
@@ -343,7 +343,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     private IReadOnlyList<DefaultTabDescriptor>? _pendingDefaultTabs;
 
     /// <summary>Raised once the tabs <see cref="OpenDefaultTabs"/> deferred have opened.</summary>
-    internal event EventHandler? DefaultTabsOpened;
+    public event EventHandler? DefaultTabsOpened;
 
     /// <summary>
     /// Opens <paramref name="tabs"/> — the workspace's saved startup layout — into the focused window, on a
@@ -367,7 +367,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// The tabs a window opening on this workspace shows: the session the workspace left, at once, when the window is resuming it
     /// from dormancy; its startup tabs otherwise (<see cref="OpenDefaultTabs"/>).
     /// </summary>
-    internal void OpenWorkspaceTabs()
+    public void OpenWorkspaceTabs()
     {
         if (_workspace.TakeResumedSession() is { Count: > 0 } session) OpenLayout(session);
         else OpenDefaultTabs(_workspace.Workspace.DefaultTabs);
@@ -635,7 +635,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// Creates and shows a new shell window, making it the focused window.
     /// Returns null if no factory is registered.
     /// </summary>
-    internal IWindowHost? CreateAndShowNewWindow()
+    public IWindowHost? CreateAndShowNewWindow()
     {
         if (CreateWindowFactory is null) return null;
         var newHost = CreateWindowFactory();
@@ -643,7 +643,7 @@ public sealed class ShellServices : IShellServices, IDisposable
         return newHost;
     }
 
-    internal void MoveTab(Page tab, IWindowHost targetHost)
+    public void MoveTab(Page tab, IWindowHost targetHost)
     {
         if (!_tabToWindow.TryGetValue(tab, out var sourceHost)) return;
         if (sourceHost == targetHost) { targetHost.SetActiveTab(tab); return; }
@@ -1007,7 +1007,7 @@ public sealed class ShellServices : IShellServices, IDisposable
     /// opens in is restored first when minimised, so the item is seen; a path nothing can open is reported there
     /// instead. False when it was not opened.
     /// </summary>
-    internal bool OpenFromOutside(string path)
+    public bool OpenFromOutside(string path)
     {
         FocusedWindow?.Restore();
 

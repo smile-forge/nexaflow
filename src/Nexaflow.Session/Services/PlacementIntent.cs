@@ -9,9 +9,9 @@ namespace Nexaflow.Session.Services;
 /// made during a display transition or while the intended monitor is missing replace it, and says when the window
 /// should go back. Pure: <see cref="WindowPlacementTracker"/> feeds it from window messages, the tests directly.
 /// </summary>
-internal sealed class PlacementIntent
+public sealed class PlacementIntent
 {
-    internal enum Phase
+    public enum Phase
     {
         /// <summary>The displays are steady and the intended monitor attached: every change is the user's.</summary>
         Settled,
@@ -26,13 +26,13 @@ internal sealed class PlacementIntent
     }
 
     /// <summary>Where the user means the window to be; null until it is opened at a placement or first observed.</summary>
-    internal WindowPlacement? Intended { get; private set; }
+    public WindowPlacement? Intended { get; private set; }
 
-    internal Phase State { get; private set; }
+    public Phase State { get; private set; }
 
     /// <summary>The window opens at <paramref name="intended"/>: returns the placement to apply, fitted to the
     /// monitors <paramref name="attached"/> now, and waits for the intended monitor when it is missing.</summary>
-    internal WindowPlacement Open(WindowPlacement intended, IReadOnlyList<MonitorArea> attached)
+    public WindowPlacement Open(WindowPlacement intended, IReadOnlyList<MonitorArea> attached)
     {
         Intended = intended;
         var fitted = intended.FitTo(attached, out bool onOwnMonitor);
@@ -46,7 +46,7 @@ internal sealed class PlacementIntent
     /// Any other becomes it only while settled with the intended monitor still attached: a change that comes after
     /// that monitor went is Windows moving the window off it, whichever order the display messages arrive in.
     /// </summary>
-    internal void Observed(WindowPlacement live, IReadOnlyList<MonitorArea> attached, bool byUser)
+    public void Observed(WindowPlacement live, IReadOnlyList<MonitorArea> attached, bool byUser)
     {
         if (byUser)
         {
@@ -67,14 +67,14 @@ internal sealed class PlacementIntent
     }
 
     /// <summary>A display transition has begun: until the monitors are read again, nothing that moves the window is the user's.</summary>
-    internal void TopologyChanging() => State = Phase.InTransition;
+    public void TopologyChanging() => State = Phase.InTransition;
 
     /// <summary>
     /// The monitors read <paramref name="attached"/> after a transition. With the intended monitor there, returns
     /// the placement to put the window back at — null when <paramref name="live"/> is already that (Windows may
     /// have moved it back itself); without it, waits for the monitor.
     /// </summary>
-    internal WindowPlacement? TopologySettled(IReadOnlyList<MonitorArea> attached, WindowPlacement? live)
+    public WindowPlacement? TopologySettled(IReadOnlyList<MonitorArea> attached, WindowPlacement? live)
     {
         if (State == Phase.Settled) return null;
 

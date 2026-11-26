@@ -9,7 +9,7 @@ namespace Nexaflow.Session.Services;
 /// Instead the fault is recorded, the guard released before anything can block, the user told why and where the
 /// details are (unless no one is watching the launch), and the process exits non-zero.
 /// </summary>
-internal sealed class StartupFailure
+public sealed class StartupFailure
 {
     /// <summary>The exit code of a launch that could not start.</summary>
     public const int ExitCode = 1;

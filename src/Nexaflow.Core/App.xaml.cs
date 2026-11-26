@@ -246,17 +246,13 @@ public partial class App : Application
             _standby = standby;
         }
 
-        // Feature warm-up — the remaining feature assemblies load and activate off the UI thread now that the first window is up.
+        // The session's background work now that the first window is up: the remaining feature assemblies load and activate off the UI
+        // thread, and the sweep of the app's own drafts starts.
         var warmUp = _host!.StartBackground();
         if (_standby is { } ready)
             warmUp.ContinueWith(_ => ready.Schedule(TimeSpan.Zero), TaskScheduler.FromCurrentSynchronizationContext());
 
-        // Drafts are the app's to clear, never Windows': a little after start-up, and daily while the app runs, every draft no tab
-        // shows or would open again that has gone untouched too long, or is past the drafts' budget. What the tabs name is asked
-        // only once the window has nothing else to do, and the sweep itself is off the UI thread.
-        _draftSweeping = new DraftSweeping(() => Dispatcher.InvokeAsync(() => _host!.SavedWorkspaces.TabPaths(_host!.Workspaces.OpenTabs()), DispatcherPriority.ApplicationIdle).Task,
-                                           paths => DraftLocation.Sweep(paths), TimeProvider.System);
-        _draftSweeping.Start();
+
 
 
 
@@ -328,13 +324,10 @@ public partial class App : Application
 
     /// <summary>The views the session's pages are drawn with, made for it as it opens and handed to every window.</summary>
     private static PageViews? _pageViews;
-    /// <summary>The app's sweep of its own drafts, at start and daily while it runs.</summary>
-    private DraftSweeping? _draftSweeping;
-
     protected override void OnExit(ExitEventArgs e)
     {
         _log.LogInformation("shutdown begun (exit code {ExitCode})", e.ApplicationExitCode);
-        _draftSweeping?.Dispose();
+        
 
         // The session ends: every workspace still running, the watches, the models held ahead, the AI host — each wait bounded.
         _host?.DisposeAsync().AsTask().Wait();

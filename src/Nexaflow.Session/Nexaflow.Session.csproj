@@ -40,10 +40,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The composition root and the assistant build on the session's own wiring; the WPF app adapts it; Core's tests build it. -->
+    <!-- The composition root and the assistant build on the session's own wiring, and Core's tests build it. The app does not:
+         it uses the session's public surface, as another toolkit's shell would (SessionAssemblyRulesTests). -->
     <InternalsVisibleTo Include="Nexaflow.Host" />
     <InternalsVisibleTo Include="Nexaflow.Assistant" />
-    <InternalsVisibleTo Include="Nexaflow" />
     <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
   </ItemGroup>
 

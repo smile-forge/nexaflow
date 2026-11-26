@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Core.Models;
 
+using Nexaflow.Core.Services;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
@@ -27,10 +28,10 @@ public class WindowPlacementTests
     [TestMethod]
     public void Maximised_AndMinimisedFromMaximised_AreMaximised_AnyOtherMinimisedIsNormal()
     {
-        var maximized = WindowPlacement.FromNative(WindowPlacement.SW_SHOWMAXIMIZED, 0, Restore, null, TopTaskbar);
-        var restoresToMax = WindowPlacement.FromNative(WindowPlacement.SW_SHOWMINIMIZED, WindowPlacement.WPF_RESTORETOMAXIMIZED,
+        var maximized = WindowPlacementTracker.FromNative(WindowPlacementTracker.SW_SHOWMAXIMIZED, 0, Restore, null, TopTaskbar);
+        var restoresToMax = WindowPlacementTracker.FromNative(WindowPlacementTracker.SW_SHOWMINIMIZED, WindowPlacementTracker.WPF_RESTORETOMAXIMIZED,
                                                        Restore, new PixelRect(-32000, -32000, -31840, -31972), TopTaskbar);
-        var minimized = WindowPlacement.FromNative(WindowPlacement.SW_SHOWMINIMIZED, 0, Restore,
+        var minimized = WindowPlacementTracker.FromNative(WindowPlacementTracker.SW_SHOWMINIMIZED, 0, Restore,
                                                    new PixelRect(-32000, -32000, -31840, -31972), TopTaskbar);
 
         Assert.IsTrue(maximized.Maximized);
@@ -43,7 +44,7 @@ public class WindowPlacementTests
     public void ASnappedWindow_IsPlacedWhereItShows_InWorkspaceCoordinates()
     {
         // Snapped to the left half below the top taskbar: on screen (0,40)-(960,1080), restore rect elsewhere.
-        var snapped = WindowPlacement.FromNative(WindowPlacement.SW_SHOWNORMAL, 0, Restore,
+        var snapped = WindowPlacementTracker.FromNative(WindowPlacementTracker.SW_SHOWNORMAL, 0, Restore,
                                                  new PixelRect(0, 40, 960, 1080), TopTaskbar);
 
         Assert.AreEqual(new PixelRect(0, 0, 960, 1040), snapped.Normal);
