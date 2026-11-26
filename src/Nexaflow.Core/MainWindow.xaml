@@ -26,6 +26,7 @@
 
     <Window.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
+        <cvn:StarShareConverter              x:Key="StarShare"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
         <cv:CountToVisibilityConverter       x:Key="CountVis"/>
         <cv:ZeroCountToVisibilityConverter   x:Key="ZeroCountVis"/>
@@ -559,8 +560,8 @@
                         <Grid DockPanel.Dock="Bottom" Height="1.5" Margin="6,2,6,0" ToolTip="{Binding AiContextUse.Text}"
                               Visibility="{Binding AiContextUse, Converter={StaticResource NullToVis}}">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="{Binding AiContextUse.Used}"/>
-                                <ColumnDefinition Width="{Binding AiContextUse.Left}"/>
+                                <ColumnDefinition Width="{Binding AiContextUse.Fill, Converter={StaticResource StarShare}}"/>
+                                <ColumnDefinition Width="{Binding AiContextUse.Rest, Converter={StaticResource StarShare}}"/>
                             </Grid.ColumnDefinitions>
                             <Rectangle Grid.Column="0">
                                 <Rectangle.Style>

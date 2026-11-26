@@ -21,7 +21,7 @@ using Nexaflow.Assistant.Requests;
 
 namespace Nexaflow.Core.ViewModels;
 
-public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHost, IAssistantBar
+public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHost, IAssistantBar, IBarReplyHost
 {
     // ── IWindowHost ───────────────────────────────────────────────────────
 
@@ -726,7 +726,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
             if (e.PropertyName == nameof(WorkspaceBackgroundTasks.IsOpen)) RefreshOverlayCoverage();
             if (e.PropertyName == nameof(WorkspaceBackgroundTasks.Any))    RecheckAiLine();
         };
-        Ai = new ShellAIResponseHandler(this);
+        Ai = new ShellAIResponseHandler(new BarReply(new WpfUiThread(_ui), this));
         _requests = new AssistantRequests(() => CurrentRuntime.AiService, this);
         _requests.BusyChanged += (_, _) => AiIsBusy = _requests.IsBusy;
         _requests.Failed      += ex => ShowError(Str.Get("Shell.Errors.Ai"), ex.Message);
@@ -1309,6 +1309,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>The focused pane's page view-model, made if the page has not been shown yet.</summary>
     internal IPageViewModel? ActivePageViewModel => FocusedPane.ActivePage?.GetOrCreateViewModel();
 
+    IPageViewModel? IBarReplyHost.ActivePageViewModel => ActivePageViewModel;
+
     /// <summary>
     /// What was dropped on a pane's tabs — files, or a link — each opened in a tab of its own. This window is made the
     /// focused one first: a drag from another application lands on a window that has not got the focus, and tabs open in
@@ -1354,13 +1356,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     public Task ContinueAfterBackgroundJobAsync(IPageViewModel context, string about, string outcome)
         => _requests.PickUpAsync(context, about, outcome);
 
-    IAIResponseHandler IAssistantBar.Surface => Ai;
+    IAIResponseHandler IAssistantBar.Surface => Ai.Reply;
 
-    AgentRunOptions IAssistantBar.RunOptions() => Ai.BarRun();
+    AgentRunOptions IAssistantBar.RunOptions() => Ai.Reply.Run();
 
     Task IAssistantBar.PrefillAsync(string text) => AnimatePrefillAsync(text);
 
-    void IAssistantBar.Touched(IReadOnlyList<string> paths) => Ai.AgentContextPaths = paths;
+    void IAssistantBar.Touched(IReadOnlyList<string> paths) => Ai.Reply.AgentContextPaths = paths;
 
     private async Task AnimatePrefillAsync(string prefill)
     {
