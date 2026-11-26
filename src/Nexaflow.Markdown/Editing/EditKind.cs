@@ -47,4 +47,10 @@ public enum EditKind
 
     /// <summary>Page Down: a step down of the same.</summary>
     Lowering,
+
+    /// <summary>Ctrl+B: what is picked out made strong, or a pair of marks to write strongly between — where the language has a way to say it.</summary>
+    Emboldening,
+
+    /// <summary>Ctrl+I: what is picked out emphasised, or a pair of marks to write so between — where the language has a way to say it.</summary>
+    Emphasising,
 }

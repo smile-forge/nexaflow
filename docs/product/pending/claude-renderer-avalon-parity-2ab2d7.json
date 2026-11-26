@@ -690,12 +690,50 @@
           }
         ]
       }
+    },
+    "content-editor": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentEditor.cs",
+          "class": "ContentEditor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentAnchor.cs",
+          "class": "ContentAnchors"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentWordEdges.cs",
+          "class": "ContentWordEdges"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentChange.cs",
+          "class": "ContentChange",
+          "method": "Carried"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Caret.cs",
+          "class": "NexaTextSurface",
+          "method": "Commanding"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Keys.cs",
+          "class": "ContentEngine",
+          "method": "Commanded"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 31,
+  "changed_sets": 32,
   "touched_nodes": [
     "barcode-editing",
+    "content-editor",
     "content-margins",
     "executable-dependency-viewport",
     "markdown-block-model",

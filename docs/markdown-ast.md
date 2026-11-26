@@ -543,10 +543,14 @@ stays one (`EditKind.Dropping`, `ContentEngine.Brought`).
 
 **The rest is shared and comes with the element.** Shift chooses from where the choosing started and Ctrl adds or takes
 back what is pressed (`ContentElement.BeginPointerSelect`); up and down go to the nearest line with somewhere to stand,
-at the place nearest the column (`LayoutQuery.StepVertical`); undo takes back a stretch of writing, each step the change it
+at the place nearest the column (`LayoutQuery.StepVertical`); Ctrl+Left and Ctrl+Right go to the next start of a word, a run
+of punctuation or a line, and Ctrl+Backspace and Ctrl+Delete take that much out, each a step of its own (`ContentWordEdges`);
+Shift+Delete and Shift+Insert cut and paste; undo takes back a stretch of writing, each step the change it
 wrote and the change that takes it back (`EditHistory`); the pointer is a bar only over what can be written in
 (`LayoutQuery.Writable`). A block's corner offers what its language says (`Editing.Corner`): code no
-picture of itself, prose no corner at all. A language that implements any of these itself is off-spec.
+picture of itself, prose no corner at all. A language that implements any of these itself is off-spec. Ctrl+B and Ctrl+I are
+the other way round: strong and emphasised are a language's to say (`EditKind.Emboldening`, `EditKind.Emphasising`), so
+markdown wraps what is picked out in its marks and code and plain text, which have no way to say either, write nothing.
 
 ## 10. The element and the surface
 
@@ -575,6 +579,19 @@ through it; another view of the same document — the raw half beside a rendered
 object, so what is written in either is taken up by both and taken back from either, with one history between them, and the
 text is held once. Being a plain object, the document, its history and whether it was saved stay where they
 are when what draws them does not.
+
+**So is a view of it.** Where the caret is, what is picked out and which lines are on the page are a `ContentEditor`, as
+plain an object as the document, which a page holds beside it and hands the surface (`NexaTextSurface.Editor`) — or the
+surface makes one of its own. The engine showing it is its view (`IContentEditorView`): what the page asks — put the caret
+there, pick that out, write this over it, bring line forty half way down — goes to the engine and is made as a key is made,
+and the engine says back where it now stands (`ContentEditor.Stood`), so the editor stands wherever the engine does and says
+so once (`CaretMoved`, `SelectionChanged`, `Scrolled`). With nothing showing it the editor makes what it is asked itself, and
+a line asked for waits for something to show it, so a view-model drives it, and is tested, with no control at all. A place
+held in the document — a fold's ends, a mark, a bookmark — is a `ContentAnchor` (`EditedDocument.Anchor`), carried through
+every change and every step taken back before the change is said, by the one rule every place is carried by
+(`ContentChange.Carried`): what is written in front of it pushes it along, and a stretch written over that holds it leaves it
+at the start of what took its place, or at its end where it leans after. The document keeps its anchors in blocks of a few
+dozen, each with a shift of its own, so a write moves the ones it touches one by one and every block after it by one sum.
 
 What happened is the engine's to say, and the surface says it again to the page as routed events: `SourceChanged` (what
 changed, and whether it was written, taken back, put there or loaded), `Selected` (what is picked out — words, a note, a box in

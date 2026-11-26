@@ -36,6 +36,9 @@ public sealed class EditedDocument : INotifyPropertyChanged
 
     private bool _dirty;
 
+    /// <summary>The places held in it, carried through every change before the change is said.</summary>
+    private readonly ContentAnchors _anchors = new();
+
     /// <summary>A document holding <paramref name="text"/>, saved as it is.</summary>
     public EditedDocument(string? text = null)
     {
@@ -115,6 +118,12 @@ public sealed class EditedDocument : INotifyPropertyChanged
     /// <summary>Writes what it holds to <paramref name="writer"/> — what saving it is, without a copy of it being made to hand over.</summary>
     public void WriteTo(TextWriter writer) => _current.WriteTo(writer);
 
+    /// <summary>
+    /// A place at <paramref name="offset"/> that stays with the characters round it as the document is written in, until it is disposed
+    /// (<see cref="ContentAnchor"/>) — in front of what is written exactly there, or after it where <paramref name="leansAfter"/> says.
+    /// </summary>
+    public ContentAnchor Anchor(int offset, bool leansAfter = false) => _anchors.Add(Math.Clamp(offset, 0, _current.Length), leansAfter);
+
     /// <summary>What it holds, all of it.</summary>
     public override string ToString() => _current.ToString();
 
@@ -152,10 +161,25 @@ public sealed class EditedDocument : INotifyPropertyChanged
 
     private void Told(EditState before, EditState after, ContentChangeKind kind)
     {
+        if (_anchors.Any)
+        {
+            if (kind == ContentChangeKind.Loaded) _anchors.Clamp(after.Document.Length);
+            else _anchors.Carry(Between(before.Document, after.Document));
+        }
+
         this.Restated();
         this.Changed?.Invoke(this, new ContentSourceChange(before, after, kind));
         this.Said(nameof(this.Current));
     }
+
+    /// <summary>
+    /// The change that makes <paramref name="after"/> from <paramref name="before"/>: the one it was made by, or — for a step taken back to
+    /// the version it came from — the one that undoes what made <paramref name="before"/>; found by comparing the two only where neither says.
+    /// </summary>
+    private static ContentChange Between(ContentDocument before, ContentDocument after) =>
+        after.MadeFrom(before) ? after.Change!
+        : before.MadeFrom(after) ? before.Inverse!
+        : after.ChangesFrom(before).Forward;
 
     /// <summary>What the history now says about taking back and about what was saved, said to whoever is listening where it moved.</summary>
     private void Restated()

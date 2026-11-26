@@ -78,6 +78,10 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         _engine.Shifted += (_, by) => Shift(by);
         _engine.Revealing += (_, _) => PageMoving(scrolling: false);
 
+        // What the view of the document asks of the page, done here.
+        _engine.LineAsked += (_, asked) => ScrollToLine(asked.Line, asked.Place);
+        Commanding();
+
         // And everything it asks of whatever shows the content, which is this: see IContentEvents.
         _engine.Events = this;
 
@@ -104,6 +108,7 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
             Shows(_shown);
             Moved();
             Remargined();
+            Reported();
         };
 
         _shown = Made(string.Empty);

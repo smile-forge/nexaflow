@@ -121,6 +121,7 @@ public sealed partial class NexaTextSurface
     {
         Refound();
         Remargined();
+        Reported();
         RaiseEvent(new RoutedEventArgs(PreRenderEvent, this));
     }
 

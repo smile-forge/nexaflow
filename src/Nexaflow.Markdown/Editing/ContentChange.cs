@@ -118,6 +118,26 @@ public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret
         other is not null && this.Writes.Count == other.Writes.Count
         && this.Writes.Zip(other.Writes).All(pair => pair.First.Start == pair.Second.Start && pair.First.Length == pair.Second.Length
                                                      && string.Equals(pair.First.Text, pair.Second.Text, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Where <paramref name="offset"/>, a place in the document as it stood, stands once this change is written round it: moved along by
+    /// what is written in front of it, and — for a place inside a stretch written over — at the start of what took its place, or at its end
+    /// where <paramref name="leansAfter"/> says. What is written exactly at the place goes in front of it only where it leans after.
+    /// The one rule every place carried through an edit moves by: a caret, an anchor, what is picked out.
+    /// </summary>
+    public int Carried(int offset, bool leansAfter = false)
+    {
+        var moved = offset;
+
+        foreach (var write in this.Writes.OrderBy(write => write.Start))
+        {
+            if (write.End < offset || (write.End == offset && (write.Length > 0 || leansAfter))) moved += write.Text.Length - write.Length;
+            else if (write.Start < offset) return Math.Max(0, write.Start + (moved - offset)) + (leansAfter ? write.Text.Length : 0);
+            else break;
+        }
+
+        return moved;
+    }
 }
 
 /// <summary>

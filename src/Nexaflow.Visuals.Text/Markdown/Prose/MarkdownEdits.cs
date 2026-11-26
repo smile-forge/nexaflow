@@ -62,8 +62,28 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
         EditKind.Settling => Typing(edit),
         EditKind.Erasing => Erasing(edit, forward: false),
         EditKind.Deleting => Erasing(edit, forward: true),
+        EditKind.Emboldening => Wrapped(edit.State, "**"),
+        EditKind.Emphasising => Wrapped(edit.State, "*"),
         _ => null,
     };
+
+    /// <summary>
+    /// Each stretch picked out between a pair of <paramref name="mark"/>s — strong for <c>**</c>, emphasised for <c>*</c> — the caret inside
+    /// the last pair; or, with nothing picked out, an empty pair at the caret with the caret between them, ready to be written in.
+    /// </summary>
+    private static ContentChange Wrapped(EditState state, string mark)
+    {
+        if (!state.HasSelection)
+        {
+            var at = Math.Clamp(state.Caret, 0, state.Document.Length);
+            return new ContentChange([new ContentWrite(at, 0, mark + mark)], at + mark.Length);
+        }
+
+        var writes = state.Selection.SelectMany(range => (ContentWrite[])[new(range.Start, 0, mark), new(range.End, 0, mark)]).ToList();
+        var caret = state.Selection[^1].End + ((state.Selection.Count - 1) * 2 * mark.Length) + mark.Length;
+
+        return new ContentChange(writes, caret);
+    }
 
     /// <inheritdoc/>
     public IOnEdit OnEdit => this;

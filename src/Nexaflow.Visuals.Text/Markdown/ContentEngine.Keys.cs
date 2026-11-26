@@ -23,7 +23,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// formula and an edit to a paragraph are the same thing to take back.
 /// </para>
 /// </summary>
-public sealed partial class ContentEngine
+public sealed partial class ContentEngine : IContentEditorView
 {
     /// <summary>
     /// The document this shows and writes in, with what was written so it can be taken back — the page's, where the page handed one
@@ -102,6 +102,10 @@ public sealed partial class ContentEngine
                 Backspace();
                 return true;
 
+            // Shift+Delete and Shift+Insert: the older keys for cutting and pasting.
+            case Key.Delete when shift:
+                return Cut();
+
             case Key.Delete:
                 Delete();
                 return true;
@@ -124,6 +128,9 @@ public sealed partial class ContentEngine
             // Something new where the caret is, where the language has something to put there.
             case Key.Insert when !shift:
                 return Inserted();
+
+            case Key.Insert:
+                return Paste();
 
             default:
                 return false;
@@ -153,6 +160,11 @@ public sealed partial class ContentEngine
                 MoveCaretTo(key == Key.End ? _state.Document.Length : 0, extend: shift);
                 return true;
 
+            // A word along, or back: to the next start of a word, a run of punctuation, or a line.
+            case Key.Left or Key.Right:
+                MoveCaretTo(ContentWordEdges.Next(_state.Document, _state.Caret, forward: key == Key.Right), extend: shift);
+                return true;
+
             // Above the question of writing: what is only being looked at can still be picked out and copied.
             case Key.C or Key.Insert:
                 return Copied();
@@ -171,13 +183,13 @@ public sealed partial class ContentEngine
                 Undo();
                 return true;
 
-            case Key.B:
-                Wrap("**", "**");
-                return true;
+            // Strong and emphasised are the language's to write, where it has a way to say them.
+            case Key.B or Key.I:
+                return Marked(key == Key.B ? EditKind.Emboldening : EditKind.Emphasising);
 
-            case Key.I:
-                Wrap("*", "*");
-                return true;
+            // A word taken out, after the caret or before it.
+            case Key.Back or Key.Delete:
+                return Worded(forward: key == Key.Delete);
 
             case Key.X:
                 return Cut();
@@ -188,6 +200,28 @@ public sealed partial class ContentEngine
             default:
                 return false;
         }
+    }
+
+    /// <summary>What the language the caret is in makes of <paramref name="kind"/> — and false, leaving the key to whatever else wants it, where it makes nothing.</summary>
+    private bool Marked(EditKind kind)
+    {
+        if (Edited(kind, string.Empty, Landing) is not { } marked) return false;
+
+        Apply(marked, notify: true);
+        return true;
+    }
+
+    /// <summary>The word after the caret taken out, or the one before it — what is picked out, where anything is.</summary>
+    private bool Worded(bool forward)
+    {
+        if (this.Editor.Words(forward) is not { } taken) return true;
+
+        // A word at a time is a step at a time to take back, never joined to the typing either side of it.
+        this.History.Break();
+        Apply(taken, notify: true);
+        this.History.Break();
+
+        return true;
     }
 
     /// <summary>Characters typed, written one at a time as the language they land in takes each.</summary>
@@ -296,6 +330,7 @@ public sealed partial class ContentEngine
 
             var before = _state;
             this.Holding(value);
+            this.Unadopted(value);
 
             this.Apply(new EditState(value.Current, 0), notify: false);
             _last = _state;
@@ -312,6 +347,73 @@ public sealed partial class ContentEngine
         return edited;
     }
 
+    /// <summary>The view of the document this shows: a page's, where it handed one over (<see cref="Editor"/>), and otherwise one made here.</summary>
+    private ContentEditor? _editor;
+
+    /// <summary>Whether the view of the document was made here, and so is let go of here.</summary>
+    private bool _ownsEditor;
+
+    /// <summary>Raised when the view of the document asks for a line to be brought onto the page — what moves the page is whatever shows the content.</summary>
+    internal event EventHandler<(int Line, ShownPlace Place)>? LineAsked;
+
+    /// <summary>
+    /// The view of the document this shows — where the caret is, what is picked out, which lines are on the page — which a page holds to read
+    /// and move them. Handed over, it is taken up with the document it is a view of; otherwise one is made the first time it is asked for.
+    /// </summary>
+    internal ContentEditor Editor
+    {
+        get
+        {
+            if (_editor is { } editor && ReferenceEquals(editor.Document, this.EditedDocument)) return editor;
+
+            this.Adopt(new ContentEditor(this.EditedDocument), owned: true);
+            return _editor!;
+        }
+        set
+        {
+            if (ReferenceEquals(value, _editor)) return;
+
+            // Where the page put the caret before anything showed its view, it stays.
+            var stood = value.State;
+
+            this.EditedDocument = value.Document;
+            this.Adopt(value, owned: false);
+
+            if (ReferenceEquals(stood.Document, _state.Document)) this.Apply(stood, notify: false);
+        }
+    }
+
+    /// <summary>The view of the document this shows, where one has been asked for or handed over — null where nothing has.</summary>
+    internal ContentEditor? EditorIfAny => _editor;
+
+    private void Adopt(ContentEditor editor, bool owned)
+    {
+        this.Unadopted(null);
+
+        (_editor, _ownsEditor) = (editor, owned);
+        editor.Attach(this);
+        editor.Stood(_state);
+    }
+
+    /// <summary>Lets go of the view of the document, where it is not a view of <paramref name="document"/>.</summary>
+    private void Unadopted(EditedDocument? document)
+    {
+        if (_editor is not { } editor || ReferenceEquals(editor.Document, document)) return;
+
+        editor.Detach(this);
+        if (_ownsEditor) editor.Dispose();
+
+        _editor = null;
+    }
+
+    void IContentEditorView.Take(EditState next, bool written)
+    {
+        if (written) this.Replace(next);
+        else this.Apply(next, notify: false);
+    }
+
+    void IContentEditorView.ShowLine(int line, ShownPlace place) => this.LineAsked?.Invoke(this, (line, place));
+
     /// <summary>
     /// The page wrote in the document, or loaded another into it: what it wrote is taken up, with the caret carried through the
     /// change, and said again as this engine's change, so whatever shows the content hears it as it hears everything else.
@@ -321,26 +423,12 @@ public sealed partial class ContentEngine
         if (_taking) return;
 
         var before = _state;
-        var caret = change.Kind == ContentChangeKind.Loaded ? 0 : Carried(_state.Caret, change.Change);
+        var caret = change.Kind == ContentChangeKind.Loaded ? 0 : change.Change.Carried(_state.Caret, leansAfter: true);
 
         this.Apply(new EditState(change.After.Document, caret), notify: false);
         _last = _state;
 
         SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, change.Kind));
-    }
-
-    /// <summary>Where a caret at <paramref name="caret"/> stands once <paramref name="change"/> is written round it.</summary>
-    private static int Carried(int caret, ContentChange change)
-    {
-        var moved = caret;
-
-        foreach (var write in change.Writes.OrderBy(write => write.Start))
-        {
-            if (write.End <= caret) moved += write.Text.Length - write.Length;
-            else if (write.Start < caret) return Math.Max(0, write.Start + (moved - caret)) + write.Text.Length;
-        }
-
-        return moved;
     }
 
     /// <summary><paramref name="write"/>, done to the document as this engine's own writing, so the change it raises is not taken up again.</summary>

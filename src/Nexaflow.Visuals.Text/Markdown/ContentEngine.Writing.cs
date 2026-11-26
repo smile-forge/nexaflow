@@ -96,6 +96,7 @@ public sealed partial class ContentEngine
 
         _state = new EditState(this.EditedDocument.Current, this.EditedDocument.Current.Length);
         _at = -1;
+        if (_editor is { } editor && ReferenceEquals(editor.Document, _edited)) editor.Stood(_state);
 
         Begin();
     }
@@ -228,6 +229,9 @@ public sealed partial class ContentEngine
         // What the reader wrote is a step to take back; anything that left what is written alone starts the next one.
         if (notify && changed) Recorded();
         else if (!changed) Stayed();
+
+        // The view of the document stands where this now does.
+        if (_editor is { } editor && ReferenceEquals(editor.Document, _edited)) editor.Stood(_state);
 
         Changed?.Invoke(this, moved || changed);
 
