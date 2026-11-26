@@ -26,7 +26,7 @@ public class SetupAgendaTests
     private string _root = "";
 
     [TestInitialize]
-    public void Init() => _root = Path.Combine(Path.GetTempPath(), "nexaflow-agenda-" + Guid.NewGuid().ToString("N"));
+    public void Init() => _root = TestTemp.CreateSubdirectory("nexaflow-agenda-").FullName;
 
     [TestCleanup]
     public void Done() { if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true); }
