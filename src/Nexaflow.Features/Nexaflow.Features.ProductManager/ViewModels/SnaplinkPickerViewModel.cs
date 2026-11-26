@@ -6,7 +6,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Text.Editor.Highlighting;
+
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -92,7 +92,7 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
     private static bool IsRelevant(string name) =>
         name.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
         || name.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)
-        || HighlightingRegistry.IsStructured(name);
+        || TreeSitterLanguages.ForEdit(name) is not null;
 
     /// <summary>Called (from the view) when the tree selection changes — rebuilds the target list.</summary>
     public void SelectFile(FileNode? node)
@@ -109,7 +109,7 @@ public sealed partial class SnaplinkPickerViewModel : ObservableObject
                          || node.Name.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase);
 
         if (isMarkdown && text is not null) BuildMarkdown(rel, text);
-        else if (HighlightingRegistry.Resolve(node.Name).TreeSitterLanguage is { } grammar && text is not null)
+        else if (TreeSitterLanguages.ForEdit(node.Name) is { } grammar && text is not null)
             BuildCode(rel, grammar, text, Path.GetDirectoryName(node.FullPath));
         else
             Targets.Add(new SnaplinkTarget(Str.Get("ProductManager.Picker.WholeFile"), 0, new Snaplink { Type = isMarkdown ? "markdown" : "code", Doc = rel }));

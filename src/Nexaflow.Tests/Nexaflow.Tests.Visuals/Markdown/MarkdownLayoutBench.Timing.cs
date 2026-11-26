@@ -53,6 +53,76 @@ public partial class MarkdownLayoutBench
         }
     });
 
+    /// <summary>
+    /// What the colour bars cost a keystroke in a code file: the same C# on the code editor's surface, its view with no layer of marks and with
+    /// the layer that bars every colour the source writes — which is asked of on every paint, over what is on screen.
+    /// </summary>
+    [TestMethod]
+    public void WhatTheColourBarsCostACodeKeystroke() => UiThread.Run(() =>
+    {
+        var folder = Environment.GetEnvironmentVariable(Folder);
+        if (string.IsNullOrWhiteSpace(folder)) { Assert.Inconclusive($"set {Folder} to a folder to write the run to"); return; }
+
+        Directory.CreateDirectory(folder!);
+        var file = Path.Combine(folder!, $"code-swatch-timing-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+        var code = GeneratedColouredCode(4000);
+
+        TimedCode(code, barred: false);
+
+        var rows = new List<Dictionary<string, object>>
+        {
+            new() { ["name"] = "no marks", ["engine"] = TimedCode(code, barred: false) },
+            new() { ["name"] = "colour bars", ["engine"] = TimedCode(code, barred: true) },
+        };
+
+        File.WriteAllText(file, JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true }));
+    });
+
+    /// <summary>A keystroke in the middle of <paramref name="code"/>, C#, on the code editor's surface — the colours barred where <paramref name="barred"/> says.</summary>
+    private static Dictionary<string, object> TimedCode(string code, bool barred)
+    {
+        var editor = new ContentEditor(new EditedDocument(code));
+        if (barred) editor.Marks.Add(new Nexaflow.Visuals.Text.Markdown.Code.ColourSwatchMarks("c-sharp"));
+
+        var surface = new NexaTextSurface
+        {
+            IsReadOnly = false,
+            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            Palette = Nexaflow.Visuals.Text.Painting.WpfStyles.Dark,
+            WrittenIn = "c-sharp",
+            Editor = editor,
+        };
+
+        var window = Hosted(surface);
+        window.Show();
+        surface.UpdateLayout();
+        Settle();
+
+        var engine = surface.Engine;
+        var row = new Dictionary<string, object>
+        {
+            ["keyMiddle"] = Keys(surface, () => engine.MoveCaretTo(engine.State.Document.Length / 2), () => engine.Input(new ContentText("x"))),
+        };
+
+        window.Close();
+        Settle();
+        editor.Dispose();
+
+        return row;
+    }
+
+    /// <summary>C# of about <paramref name="lines"/> lines, every few of them writing a colour, as a theme's or a view's code does.</summary>
+    private static string GeneratedColouredCode(int lines)
+    {
+        var code = new System.Text.StringBuilder("namespace Bench;\n\npublic static class Palette\n{\n");
+        for (var line = 0; line < lines; line++)
+            code.Append(line % 3 == 0
+                ? $"    public const string Colour{line} = \"#{line * 2654435761u % 0xFFFFFF:X6}\"; // a colour the bar shows\n"
+                : $"    public static int Value{line}(int a, int b) => a * {line} + b - {line % 17};\n");
+
+        return code.Append("}\n").ToString();
+    }
+
     /// <summary>What each half costs in time over <paramref name="text"/>.</summary>
     private static Dictionary<string, object> TimedHalves(string name, string text) => new()
     {

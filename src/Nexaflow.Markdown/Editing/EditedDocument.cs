@@ -201,6 +201,7 @@ public sealed class EditedDocument : INotifyPropertyChanged
         _saved = _current;
         _savedByHistory = false;
         this.History.MarkSaved();
+        this.Restated();
     }
 
     /// <summary>Writes what it holds to <paramref name="writer"/> — what saving it is, without a copy of it being made to hand over.</summary>

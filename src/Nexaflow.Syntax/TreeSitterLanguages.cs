@@ -6,7 +6,7 @@ namespace Nexaflow.Syntax;
 /// <remarks>
 /// This lives with the syntax engine rather than the editor so headless callers — the Initiatives snaplink
 /// validator and its CLI — can resolve a grammar (and therefore a class/method outline) without dragging in
-/// WPF. The editor's <c>HighlightingRegistry</c> colours a file by what <see cref="ForEdit"/> answers here.
+/// WPF. The editor colours and folds a file by what <see cref="ForEdit"/> answers here, and shows plain text where it answers nothing.
 /// </remarks>
 public static class TreeSitterLanguages
 {

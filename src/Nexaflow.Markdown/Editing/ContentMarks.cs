@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Editing;
 
@@ -27,7 +28,8 @@ public enum ContentMarkKind
 /// <summary>
 /// One mark over the content: what it is drawn as, the characters it names, and the theme token its ink is — resolved when it is drawn,
 /// never a colour, so a theme repaints it. A bar under a colour the source itself writes carries that colour instead
-/// (<see cref="Colour"/>): it shows what the document says, not a choice of the app's.
+/// (<see cref="Colour"/>): it shows what the document says, not a choice of the app's. A bar with no colour of its own is drawn in what
+/// its token names only where the theme names it, so a bar under a resource key the theme does not hold is not drawn at all.
 /// </summary>
 public readonly record struct ContentMark(ContentMarkKind Kind, int Start, int Length, string Token)
 {
@@ -39,7 +41,14 @@ public readonly record struct ContentMark(ContentMarkKind Kind, int Start, int L
 }
 
 /// <summary>The stretch of a document a view is about to draw, which is all a layer of marks is asked about.</summary>
-public sealed record ContentMarkRequest(ContentDocument Document, int Start, int End);
+public sealed record ContentMarkRequest(ContentDocument Document, int Start, int End)
+{
+    /// <summary>
+    /// What the content drawn was read as, where one reading holds all of it — a code file's grammar, with what it has coloured — so a layer
+    /// marking what the source writes asks the reading rather than reading the source again. Null for content read any other way.
+    /// </summary>
+    public IReadingSyntax? Syntax { get; init; }
+}
 
 /// <summary>
 /// One layer of marks a host lays over a view of a document (<see cref="ContentEditor.Marks"/>) — what it found, what a filter leaves out,

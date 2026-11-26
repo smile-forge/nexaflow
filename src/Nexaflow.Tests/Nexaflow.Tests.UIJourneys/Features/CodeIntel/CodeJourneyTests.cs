@@ -64,6 +64,8 @@ public class CodeJourneyTests : UiJourneyTestBase
         CheckPresent("Line-ending selector", "Editor_Eol");
         CheckInvoke("Line-numbers toggle", "Editor_LineNumbers");   // view-only, safe to flip
         CheckInvoke("Line-numbers toggle (back)", "Editor_LineNumbers");
+        CheckInvoke("Whitespace toggle", "Editor_Whitespace");             // view-only, safe to flip
+        CheckInvoke("Whitespace toggle (back)", "Editor_Whitespace");
 
         // Save is disabled on a freshly-opened, unmodified buffer — assert that rather than clicking it,
         // so the journey never writes to the shared sample file.

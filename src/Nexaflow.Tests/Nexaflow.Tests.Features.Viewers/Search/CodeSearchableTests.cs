@@ -54,7 +54,7 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
     protected override string Snapshot(ISearchable page)
     {
         var vm = (CodeViewModel)page;
-        return $"{vm.SearchMatchCount}|{vm.IsSearchActive}|{vm.CurrentSearchTerm}|{vm.SearchHighlights.Count}";
+        return $"{vm.SearchMatchCount}|{vm.IsSearchActive}|{vm.CurrentSearchTerm}|{vm.Editor.Found.Places.Count}";
     }
 
     // ── Code-specific behaviour beyond the shared contract ────────────────────
@@ -77,7 +77,8 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
 
         Assert.AreEqual(2, vm.SearchMatchCount, "two lines mention alpha42");
         Assert.IsTrue(vm.IsSearchActive);
-        Assert.AreEqual(2, vm.SearchHighlights.Count, "each occurrence is painted, not just counted");
+        Assert.AreEqual(2, vm.Editor.Found.Places.Count, "each occurrence is marked, not just counted");
+        Assert.AreEqual(0, vm.Editor.Found.At, "the first is the one looked at");
         Assert.AreEqual(LiteralTermInContent, vm.CurrentSearchTerm);
     });
 
@@ -90,8 +91,8 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
 
         // An offset that isn't the match is the failure this catches: the highlight would sit beside the
         // word, which looks like a rendering bug rather than a search one.
-        foreach (var (offset, length) in vm.SearchHighlights)
-            Assert.AreEqual(LiteralTermInContent, vm.Document.GetText(offset, length));
+        foreach (var (offset, length) in vm.Editor.Found.Places)
+            Assert.AreEqual(LiteralTermInContent, vm.Document.Current.Slice(offset, length));
     });
 
     [TestMethod]
@@ -117,8 +118,26 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
 
         Assert.IsTrue(rendered);
         Assert.AreEqual(1, vm.SearchMatchCount, "only the agent's chosen line stays in the match set");
-        Assert.AreEqual(1, vm.SearchHighlights.Count,
+        Assert.AreEqual(1, vm.Editor.Found.Places.Count,
             "the highlights must follow the narrowed set, not keep painting the discarded match");
+    });
+
+    [TestMethod]
+    public void SteppingThroughMatches_MovesTheCaretAndWhichIsLookedAt() => WithPage(async page =>
+    {
+        var vm = (CodeViewModel)page;
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+        var lines = vm.Editor.Found.Places.Select(place => vm.Document.Current.LineOf(place.Start)).ToArray();
+
+        Assert.AreEqual(lines[0], vm.Document.Current.LineOf(vm.Editor.Caret), "the caret goes to the first match's line");
+
+        vm.FindNextMatchCommand.Execute(null);
+
+        Assert.AreEqual(1, vm.Editor.Found.At);
+        Assert.AreEqual(lines[1], vm.Document.Current.LineOf(vm.Editor.Caret));
+
+        vm.ClearSearchCommand.Execute(null);
+        Assert.IsTrue(vm.Editor.Found.IsEmpty, "clearing a search takes its marks away");
     });
 
     [TestMethod]

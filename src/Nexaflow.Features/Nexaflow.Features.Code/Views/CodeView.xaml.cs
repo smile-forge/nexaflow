@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Nexaflow.Features.Code.ViewModels;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Editor;
 
@@ -33,14 +34,14 @@ public partial class CodeView : UserControl
 
         DataContext = vm;
 
-        // Host the shared editor directly. It subscribes to the VM's ScrollToLineRequested, so member-link
-        // navigation works without this view touching the AvalonEdit control.
+        // Host the shared editor directly. Member-link navigation moves the view-model's editor, so it works without this view
+        // touching the surface.
         EditorHost.Content = new FileTextEditorView(vm);
 
         _genTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _genTimer.Tick += OnGenTick;
 
-        vm.Document.TextChanged += OnDocumentTextChanged;
+        vm.Document.Changed += OnDocumentChanged;
         vm.PropertyChanged      += OnVmPropertyChanged;
 
         ApplyPanelState();
@@ -55,12 +56,12 @@ public partial class CodeView : UserControl
     {
         _genTimer.Stop();
         _genTimer.Tick           -= OnGenTick;
-        _vm.Document.TextChanged -= OnDocumentTextChanged;
+        _vm.Document.Changed -= OnDocumentChanged;
         _vm.PropertyChanged      -= OnVmPropertyChanged;
         // The inner FileTextEditorView owns disposal of the shared view-model (one tab = one VM).
     }
 
-    private void OnDocumentTextChanged(object? sender, EventArgs e) => RestartGenTimer();
+    private void OnDocumentChanged(object? sender, ContentSourceChange e) => RestartGenTimer();
 
     private void RestartGenTimer()
     {

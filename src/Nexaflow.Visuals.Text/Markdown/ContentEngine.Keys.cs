@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Input;
 
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Lines;
@@ -399,7 +400,10 @@ public sealed partial class ContentEngine : IContentEditorView
     /// folds nothing, or before anything is laid.
     /// </summary>
     internal IReadOnlyList<(int Start, int End)> Foldable() =>
-        _shown?.LaidSyntax is Code.CodeSyntax syntax ? syntax.Folds() : [];
+        ShownSyntax is Code.CodeSyntax syntax ? syntax.Folds() : [];
+
+    /// <summary>What the shown content was last read as, where one reading holds all of it — what the marks over it ask of it.</summary>
+    internal IReadingSyntax? ShownSyntax => _shown?.LaidSyntax;
 
     IReadOnlyList<(int Start, int End)> IContentEditorView.Foldable() => this.Foldable();
 

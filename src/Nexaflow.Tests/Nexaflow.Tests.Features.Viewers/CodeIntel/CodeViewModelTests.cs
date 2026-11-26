@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Features.CodeIntel;
 /// visibility gate, grammar resolution, and the buffer-driven intelligence rebuild. Distinct from
 /// <see cref="CodeIntelligenceTests"/> (which covers the extractor / markdown-builder / file actions):
 /// this exercises the <see cref="CodeViewModel"/> orchestration around them. No editor control is
-/// touched — the buffer is seeded via <c>Document.Text</c> and the tree-sitter parse runs in-process.
+/// touched — the document is loaded directly and the tree-sitter parse runs in-process.
 /// </summary>
 [TestClass]
 [CoversNode("code-map")]
@@ -63,7 +63,7 @@ public class CodeViewModelTests
         var vm = Make(@"C:\proj\calc.cs");
         Assert.IsFalse(vm.PanelVisible, "open but no intelligence yet ⇒ nothing to show");
 
-        vm.Document.Text = CSharp;
+        vm.Document.Load(CSharp);
         vm.RegenerateIntelligence();
         Assert.IsTrue(vm.HasIntelligence);
         Assert.IsTrue(vm.PanelVisible, "intelligence present + panel open ⇒ visible");
@@ -79,7 +79,7 @@ public class CodeViewModelTests
         var raised = new List<string?>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
-        vm.Document.Text = CSharp;
+        vm.Document.Load(CSharp);
         vm.RegenerateIntelligence();            // HasIntelligence flips → PanelVisible notifies
         vm.TogglePanelCommand.Execute(null);    // IsPanelOpen flips → PanelVisible notifies
 
@@ -92,7 +92,7 @@ public class CodeViewModelTests
     public void RegenerateIntelligence_BuildsMarkdown_ForCode()
     {
         var vm = Make(@"C:\proj\calc.cs");
-        vm.Document.Text = CSharp;
+        vm.Document.Load(CSharp);
 
         vm.RegenerateIntelligence();
 
@@ -105,7 +105,7 @@ public class CodeViewModelTests
     public void RegenerateIntelligence_NoGrammar_StaysHidden()
     {
         var vm = Make(@"C:\proj\notes.bin");
-        vm.Document.Text = CSharp;   // content is irrelevant — there is no grammar for .bin
+        vm.Document.Load(CSharp);   // content is irrelevant — there is no grammar for .bin
 
         vm.RegenerateIntelligence();
 
@@ -117,11 +117,11 @@ public class CodeViewModelTests
     public void RegenerateIntelligence_EmptyBuffer_ClearsIntelligence()
     {
         var vm = Make(@"C:\proj\calc.cs");
-        vm.Document.Text = CSharp;
+        vm.Document.Load(CSharp);
         vm.RegenerateIntelligence();
         Assert.IsTrue(vm.HasIntelligence);
 
-        vm.Document.Text = string.Empty;   // no types/members left
+        vm.Document.Load(string.Empty);   // no types/members left
         vm.RegenerateIntelligence();
 
         Assert.IsFalse(vm.HasIntelligence, "an empty outline hides the panel again");
@@ -132,30 +132,28 @@ public class CodeViewModelTests
 
     [TestMethod]
     [CoversNode("code-map-nav")]
-    public void NavigateToAst_RaisesScrollRequest_ForKnownMember()
+    public void NavigateToAst_PutsTheCaretOnTheMembersLine()
     {
         var vm = Make(@"C:\proj\calc.cs");
-        vm.Document.Text = CSharp;
-        int? scrolledTo = null;
-        vm.ScrollToLineRequested += line => scrolledTo = line;
+        vm.Document.Load(CSharp);
 
         vm.NavigateToAst("T:Calculator/M:Reset");
 
-        Assert.IsTrue(scrolledTo is > 0, "resolves the member to its 1-based line and asks the view to scroll");
+        var line = vm.Document.Current.LineOf(vm.Editor.Caret);
+        StringAssert.Contains(CSharp.Split('\n')[line], "Reset", "the member's line, wherever the editor is shown");
     }
 
     [TestMethod]
     [CoversNode("code-map-nav")]
-    public void NavigateToAst_UnknownMember_DoesNotScroll()
+    public void NavigateToAst_UnknownMember_LeavesTheCaretWhereItWas()
     {
         var vm = Make(@"C:\proj\calc.cs");
-        vm.Document.Text = CSharp;
-        bool scrolled = false;
-        vm.ScrollToLineRequested += _ => scrolled = true;
+        vm.Document.Load(CSharp);
+        vm.Editor.MoveCaretTo(10);
 
         vm.NavigateToAst("T:Calculator/M:DoesNotExist");
 
-        Assert.IsFalse(scrolled, "an unresolved path is a no-op, not a scroll to line 0");
+        Assert.AreEqual(10, vm.Editor.Caret, "an unresolved path is a no-op, not a jump to line 0");
     }
 
     // ── Cross-file open ───────────────────────────────────────────────────────

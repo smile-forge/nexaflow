@@ -2,25 +2,18 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Media;
-using ICSharpCode.AvalonEdit;
-using Nexaflow.Syntax;
-using Nexaflow.Visuals.Text.Editor.Highlighting;
+
 
 namespace Nexaflow.Visuals.Text.Editor;
 
 /// <summary>
-/// The shared read-write editor control. Thin: it binds the AvalonEdit document to the view-model, themes
-/// the line-number gutter, and exposes <see cref="OnEditorReady"/> so a structured/code editor subclass can
-/// attach colorizers/renderers without the base knowing about them.
+/// The shared read-write editor control. Thin: the surface draws the view-model's document through the view-model's
+/// <see cref="Markdown.Editing.ContentEditor"/>, so the caret, what is picked out and what a search found are the page's, and this only
+/// shows or hides the line numbers, hands the minimap its ticks, and opens the command popups.
 /// </summary>
 public partial class FileTextEditorView : UserControl
 {
     private readonly FileTextEditorViewModel _vm;
-
-    /// <summary>Paints the search matches. Shared with the Text viewer, so a search looks the same wherever
-    /// it lands.</summary>
-    private readonly SearchHighlightRenderer _searchHighlights = new();
 
     public FileTextEditorView(FileTextEditorViewModel vm)
     {
@@ -29,48 +22,38 @@ public partial class FileTextEditorView : UserControl
         _vm = vm;
         DataContext = vm;
 
-        Editor.Document = vm.Document;
-        vm.EditorAccess = () => Editor.TextArea; // lets commands read the live selection
-        if (TryFindResource("TextMutedBrush") is Brush gutter)
-            Editor.LineNumbersForeground = gutter;
-
-        ApplyHighlighting(vm.FileName);
-        Editor.TextArea.TextView.BackgroundRenderers.Add(_searchHighlights);
-        OnEditorReady(Editor);
-
-        vm.ScrollToLineRequested += ScrollEditorToLine;
-        vm.PropertyChanged += OnViewModelPropertyChanged;         // search highlights
-        Editor.TextArea.SelectionChanged += OnEditorSelectionChanged; // drives selection-only commands
+        ShowLineNumbers();
+        vm.PropertyChanged += OnViewModelPropertyChanged;
 
         Loaded   += async (_, _) => await _vm.LoadAsync();
         Unloaded += (_, _) =>
         {
-            _treeSitter?.Dispose();
-            _vm.ScrollToLineRequested -= ScrollEditorToLine;
             _vm.PropertyChanged -= OnViewModelPropertyChanged;
-            Editor.TextArea.SelectionChanged -= OnEditorSelectionChanged;
             _vm.Dispose();
         };
     }
 
-    // The highlight spans are a plain list rather than a bindable collection, so the renderer is refreshed
-    // from the change notification — the same shape the Text viewer uses.
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
         {
-            case nameof(FileTextEditorViewModel.SearchHighlights):
-                _searchHighlights.Highlights = _vm.SearchHighlights;
-                Editor.TextArea.TextView.InvalidateLayer(_searchHighlights.Layer);
-                break;
             case nameof(FileTextEditorViewModel.MiniMapMarks):
                 MiniMapCanvas.Marks = _vm.MiniMapMarks;
+                break;
+            case nameof(FileTextEditorViewModel.ShowLineNumbers):
+                ShowLineNumbers();
                 break;
         }
     }
 
-    private void OnEditorSelectionChanged(object? sender, EventArgs e)
-        => _vm.OnSelectionChanged(!Editor.TextArea.Selection.IsEmpty);
+    /// <summary>The line numbers in the surface's margin, or not, as the toolbar's toggle says — the margin is the surface's, not bound.</summary>
+    private void ShowLineNumbers()
+    {
+        var shown = Surface.LeadingMargins.Contains(LineNumbers);
+
+        if (_vm.ShowLineNumbers && !shown) Surface.LeadingMargins.Add(LineNumbers);
+        else if (!_vm.ShowLineNumbers && shown) Surface.LeadingMargins.Remove(LineNumbers);
+    }
 
     // Opens the footer's "Lines" command popup above the status-bar button.
     private void LineCommandsButton_Click(object sender, RoutedEventArgs e)
@@ -80,43 +63,6 @@ public partial class FileTextEditorView : UserControl
             menu.PlacementTarget = button;
             menu.Placement = PlacementMode.Top;
             menu.IsOpen = true;
-        }
-    }
-
-    /// <summary>Moves the caret to <paramref name="line"/> (1-based) and scrolls it into view. Driven by the
-    /// view-model's <see cref="FileTextEditorViewModel.ScrollToLineRequested"/> (e.g. the As Code structure panel).</summary>
-    private void ScrollEditorToLine(int line)
-    {
-        if (Editor.Document is null || line < 1 || line > Editor.Document.LineCount) return;
-        Editor.CaretOffset = Editor.Document.GetLineByNumber(line).Offset;
-        Dispatcher.InvokeAsync(() =>
-        {
-            Editor.ScrollToLine(line);
-            Editor.TextArea.Caret.BringCaretToView();
-        }, System.Windows.Threading.DispatcherPriority.Render);
-    }
-
-    private TreeSitterController? _treeSitter;
-
-    /// <summary>Override to attach background renderers / line transformers (syntax highlighting,
-    /// spell-check) to the editor. Called once after the document is wired.</summary>
-    protected virtual void OnEditorReady(TextEditor editor) { }
-
-    private void ApplyHighlighting(string fileName)
-    {
-        var resolution = HighlightingRegistry.Resolve(fileName);
-        switch (resolution.Mode)
-        {
-            case HighlightMode.TreeSitter:
-                var highlighter = CodeHighlighter.TryCreate(resolution.TreeSitterLanguage!);
-                if (highlighter is not null)
-                    _treeSitter = new TreeSitterController(Editor, highlighter);
-                else
-                    Editor.SyntaxHighlighting = null; // native/query unavailable — degrade to plain text
-                break;
-            default:
-                Editor.SyntaxHighlighting = null;
-                break;
         }
     }
 

@@ -2,7 +2,7 @@ using ICSharpCode.AvalonEdit.Rendering;
 using System.Windows;
 using System.Windows.Media;
 
-namespace Nexaflow.Visuals.Text.Editor;
+namespace Nexaflow.Features.Text.Rendering;
 
 /// <summary>
 /// AvalonEdit background renderer that draws highlights behind search matches.

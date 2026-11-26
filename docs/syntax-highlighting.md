@@ -1,13 +1,13 @@
 # Syntax Highlighting
 
-Code and markup are coloured by **tree-sitter**, chosen per file name by `HighlightingRegistry`
-(`src/Nexaflow.Visuals.Text/Editor/Highlighting/HighlightingRegistry.cs`), which asks
-`TreeSitterLanguages.ForEdit`:
+Code and markup are coloured by **tree-sitter**, chosen per file name by `TreeSitterLanguages.ForEdit`
+(`src/Nexaflow.Syntax/TreeSitterLanguages.cs`). The editor hands the grammar it names to the shared surface
+(`WrittenIn`), which reads, colours and folds the file in it:
 
 | Engine | Used for | What you get |
 |--------|----------|--------------|
 | **tree-sitter** | every language with a grammar — code, markup, scripts, the XML family, project files | A full parse tree → colouring, **code folding** (block-like nodes), the class/method outline snaplinks resolve against, and structure for AI / graphify (`get_syntax_tree`) |
-| *(none)* | everything else | Plain text — the Windows spell-checker is eligible to attach |
+| *(none)* | everything else | Plain text — and the line-reordering commands, which mean something only for prose and data |
 
 Colours never come from literals: every role resolves to a **`TextSwatch.*`** theme token (see
 [theming.md](theming.md)), so each theme art-directs code colours. `SyntaxTokenMap` maps tree-sitter capture
@@ -154,7 +154,6 @@ Add a new role only if an existing one doesn't fit: add the token to `Tokens.xam
    (`src/Nexaflow.Syntax/TreeSitterLanguages.cs`): `Register("<id>", ".ext", …);`. The map lives there
    rather than in the editor so headless callers — the snaplink validator and its CLI — can resolve a
    grammar, and therefore an outline, without dragging in WPF.
-   `HighlightingRegistry.RegisterTreeSitter` still exists and forwards here, as the editor-side entry point.
 
 4. **Add reference fixtures + run the consistency test.** Drop a source file and its ANSI-highlighted
    reference under `src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/syntax-tests/{source,highlighted}/<Lang>/`
@@ -189,9 +188,9 @@ so verify a file of that language actually colours after adding a grammar.
 | `src/Nexaflow.Syntax/HighlightQueries.cs` | Per-grammar tree-sitter highlight queries |
 | `src/Nexaflow.Syntax/CodeHighlighter.cs` | Wraps a grammar + query; `Highlight` → spans, `GetParseTree`; recurses into embedded languages |
 | `src/Nexaflow.Syntax/LanguageInjections.cs` | Finds embedded-language sub-ranges per host grammar |
-| `src/Nexaflow.Visuals.Text/Editor/Highlighting/HighlightingRegistry.cs` | File name → grammar, or plain text |
 | `src/Nexaflow.Visuals.Text/Editor/Highlighting/SyntaxTokenMap.cs` | Capture → `TextSwatch.*` — the role palette |
-| `src/Nexaflow.Visuals.Text/Editor/Highlighting/TreeSitterColorizer.cs` | Paints captures onto AvalonEdit |
+| `src/Nexaflow.Visuals.Text/Markdown/Code/CodeSyntax.cs` | The surface's reading of a code file: parses what is on screen, colours it, carries the tree through each edit, and answers its folds |
+| `src/Nexaflow.Visuals.Text/Markdown/Code/ColourSwatchMarks.cs` | A bar under each colour the source writes, from the spans the grammar coloured on the stretch drawn |
 | `src/Nexaflow.Core/Themes/Tokens.xaml`, `Theme.<name>.xaml` | `TextSwatch.*` defaults + per-theme overrides |
 | `src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/SyntaxHighlightConsistencyTests.cs` | Reference-corpus consistency test |
 | `src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/CodeHighlighterTests.cs` | Grammar/capture assertions (the engine's own suite — no WPF) |

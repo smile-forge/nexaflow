@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Search;
 
 namespace Nexaflow.Visuals.Text.Editor;
@@ -15,15 +16,16 @@ namespace Nexaflow.Visuals.Text.Editor;
 /// The editor surface as a searchable page. Declaring <see cref="ISearchable"/> here rather than on
 /// <c>CodeViewModel</c> is deliberate: the plain editor and the "As Code" editor are the same buffer with a
 /// different panel beside it, so they should answer <c>?</c> identically and neither should own a private
-/// copy of the scan.
+/// copy of the scan. What it finds is shown by the editor's own marks (<see cref="ContentEditor.Found"/>), the match
+/// being looked at outlined.
 /// </summary>
 public partial class FileTextEditorViewModel : ISearchable
 {
     /// <summary>Hits handed to the agent in one call — enough to reason over without flooding its context.</summary>
     private const int SearchHitCap = 200;
 
-    /// <summary>Ceiling on painted highlight spans. A one-character pattern over a large buffer produces
-    /// tens of thousands of geometries; past a screenful they cost render time and tell the user nothing.</summary>
+    /// <summary>Ceiling on the matches marked. A one-character pattern over a large file finds tens of thousands; past a
+    /// screenful they tell the reader nothing.</summary>
     private const int HighlightCap = 5000;
 
     // ── Visible search state (the status-bar chip binds these) ────────────────
@@ -32,22 +34,18 @@ public partial class FileTextEditorViewModel : ISearchable
     [ObservableProperty] private int    _searchMatchCount;
     [ObservableProperty] private string _currentSearchTerm = string.Empty;
 
+    /// <summary>The lines with a match, counting from nought, in order.</summary>
     private int[] _matchLines = [];
-    private int   _currentMatchIndex = -1;
 
-    private IReadOnlyList<(int Offset, int Length)> _searchHighlights = [];
+    /// <summary>For each of <see cref="_matchLines"/>, which of the places marked is its first — -1 for a line past the ceiling.</summary>
+    private int[] _matchPlaces = [];
 
-    /// <summary>Spans the view paints behind matches. Watched via <c>PropertyChanged</c>, like the Text viewer.</summary>
-    public IReadOnlyList<(int Offset, int Length)> SearchHighlights
-    {
-        get => _searchHighlights;
-        private set { _searchHighlights = value; OnPropertyChanged(); }
-    }
+    private int _currentMatchIndex = -1;
 
     private IReadOnlyList<double> _miniMapMarks = [];
 
     /// <summary>Normalised (0–1) vertical positions of the matches, for the minimap tick strip. Watched via
-    /// <c>PropertyChanged</c>, like <see cref="SearchHighlights"/>.</summary>
+    /// <c>PropertyChanged</c>.</summary>
     public IReadOnlyList<double> MiniMapMarks
     {
         get => _miniMapMarks;
@@ -79,90 +77,96 @@ public partial class FileTextEditorViewModel : ISearchable
         _ => 0f,
     };
 
-    public Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
+    public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
         if (!TextSearchMatcher.TryCreate(request, out var matcher, out var error))
-            return Task.FromResult(SearchOutcome.Unsupported(error));
+            return SearchOutcome.Unsupported(error);
 
-        var body  = Document.Text;
-        var lines = new List<int>();
-        var hits  = new List<SearchHit>();
-        var spans = new List<(int Offset, int Length)>();
-
-        foreach (var line in matcher.ScanLines(body))
-        {
-            ct.ThrowIfCancellationRequested();
-            lines.Add(line.Index);
-
-            if (hits.Count < SearchHitCap)
-                hits.Add(HitFor(line.Index, line.Text));
-
-            if (display && spans.Count < HighlightCap)
-                foreach (var (index, length) in matcher.Occurrences(line.Text))
-                {
-                    if (spans.Count >= HighlightCap) break;
-                    spans.Add((line.Offset + index, length));
-                }
-        }
+        // A line at a time over the version shown, off this thread: nothing is made one string, so a file read over its blocks is searched
+        // as one held whole is.
+        var document = Document.Current;
+        var scan = await Task.Run(() => Scanned(document, matcher, display, ct), ct);
 
         // Agent-side read: the matches are data, so nothing on screen may move.
-        if (!display)
-            return Task.FromResult(lines.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, lines.Count));
+        if (display) Apply(scan.Lines, scan.Firsts, scan.Places, SearchSyntax.Format(request));
 
-        Apply(lines, spans, SearchSyntax.Format(request));
-        return Task.FromResult(lines.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, lines.Count));
+        return scan.Lines.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(scan.Hits, scan.Lines.Count);
     }
 
     /// <summary>
-    /// Narrows the match set to the agent's chosen lines — the count, the highlights and next/previous
+    /// Every line of <paramref name="document"/> <paramref name="matcher"/> matches — every term of the query on it — with a hit for the
+    /// first of them, and, where they are to be shown, where each match on them stands and which of those is each line's first.
+    /// </summary>
+    private static (List<int> Lines, List<int> Firsts, List<SearchHit> Hits, List<(int Start, int Length)> Places) Scanned(
+        ContentDocument document, TextSearchMatcher matcher, bool display, CancellationToken ct)
+    {
+        var lines  = new List<int>();
+        var firsts = new List<int>();
+        var hits   = new List<SearchHit>();
+        var places = new List<(int Start, int Length)>();
+
+        for (var line = 0; line < document.LineCount; line++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var (start, end) = document.LineAt(document.OffsetOf(line));
+            var text = document.Slice(start, end - start).TrimEnd('\r', '\n');
+            if (!matcher.Matches(text)) continue;
+
+            lines.Add(line);
+            firsts.Add(display && places.Count < HighlightCap ? places.Count : -1);
+            if (hits.Count < SearchHitCap) hits.Add(HitFor(line, text));
+
+            if (display)
+                foreach (var (index, length) in matcher.Occurrences(text))
+                {
+                    if (places.Count >= HighlightCap) break;
+                    places.Add((start + index, length));
+                }
+        }
+
+        return (lines, firsts, hits, places);
+    }
+
+    /// <summary>
+    /// Narrows the match set to the agent's chosen lines — the count, the marks and next/previous
     /// navigation all follow it, so "show me only the ones about auth" really does filter the view.
     /// </summary>
     public Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct)
     {
-        var lines = hits.Select(h => int.TryParse(h.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : -1)
-                        .Where(l => l >= 0)
-                        .Distinct()
-                        .OrderBy(l => l)
-                        .ToList();
-        if (lines.Count == 0) return Task.FromResult(false);
+        var chosen = hits.Select(h => int.TryParse(h.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : -1)
+                         .Where(l => l >= 0)
+                         .ToHashSet();
+        if (chosen.Count == 0) return Task.FromResult(false);
 
-        // Re-derive the spans for exactly these lines: the highlights must agree with the narrowed set,
-        // not keep painting the matches the agent discarded.
-        var kept = new HashSet<int>(lines);
-        List<(int Offset, int Length)> spans = _searchHighlights.Count == 0 ? [] : SpansOn(kept);
+        // The marks are narrowed to exactly these lines: they must agree with the narrowed set, not keep marking the matches the
+        // agent discarded.
+        var document = Document.Current;
+        var lines  = chosen.Order().ToList();
+        var places = Editor.Found.Places.Where(place => chosen.Contains(document.LineOf(place.Start))).ToList();
+        var firsts = lines.Select(line => places.FindIndex(place => document.LineOf(place.Start) == line)).ToList();
 
-        Apply(lines, spans, CurrentSearchTerm);
+        Apply(lines, firsts, places, CurrentSearchTerm);
         return Task.FromResult(true);
     }
 
     // ── Shared display path ───────────────────────────────────────────────────
 
-    private void Apply(IReadOnlyList<int> lines, IReadOnlyList<(int Offset, int Length)> spans, string term)
+    private void Apply(IReadOnlyList<int> lines, IReadOnlyList<int> firsts, IReadOnlyList<(int Start, int Length)> places, string term)
     {
         _matchLines        = [.. lines];
+        _matchPlaces       = [.. firsts];
         _currentMatchIndex = lines.Count > 0 ? 0 : -1;
-        SearchHighlights   = spans;
+        Editor.Found.Show(places, _currentMatchIndex >= 0 ? _matchPlaces[0] : -1);
         MiniMapMarks       = MarksFor(lines);
         SearchMatchCount   = lines.Count;
         CurrentSearchTerm  = term;
         IsSearchActive     = true;   // true even at zero matches: "no matches for X" is a result to show
-        if (lines.Count > 0) RequestScrollToLine(lines[0] + 1);
-    }
-
-    /// <summary>The already-computed highlight spans that fall on <paramref name="lines"/>.</summary>
-    private List<(int Offset, int Length)> SpansOn(HashSet<int> lines)
-    {
-        var kept = new List<(int Offset, int Length)>();
-        foreach (var span in _searchHighlights)
-        {
-            var line = Document.GetLineByOffset(Math.Clamp(span.Offset, 0, Document.TextLength)).LineNumber - 1;
-            if (lines.Contains(line)) kept.Add(span);
-        }
-        return kept;
+        if (lines.Count > 0) MoveCaretToLine(lines[0] + 1);
     }
 
     private static SearchHit HitFor(int line, string text) =>
-        new(line.ToString(CultureInfo.InvariantCulture), $"line {line + 1}", text.TrimEnd('\r'));
+        new(line.ToString(CultureInfo.InvariantCulture), $"line {line + 1}", text);
 
     // ── Navigation / dismissal (the status-bar chip) ──────────────────────────
 
@@ -180,15 +184,17 @@ public partial class FileTextEditorViewModel : ISearchable
     {
         if (_matchLines.Length == 0) return;
         _currentMatchIndex = (_currentMatchIndex + delta + _matchLines.Length) % _matchLines.Length;
-        RequestScrollToLine(_matchLines[_currentMatchIndex] + 1);
+        Editor.Found.Show(Editor.Found.Places, _matchPlaces[_currentMatchIndex]);
+        MoveCaretToLine(_matchLines[_currentMatchIndex] + 1);
     }
 
     [RelayCommand]
     private void ClearSearch()
     {
         _matchLines        = [];
+        _matchPlaces       = [];
         _currentMatchIndex = -1;
-        SearchHighlights   = [];
+        Editor.Found.Show([], -1);
         MiniMapMarks       = [];
         SearchMatchCount   = 0;
         CurrentSearchTerm  = string.Empty;

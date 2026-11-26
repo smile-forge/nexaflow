@@ -10,30 +10,39 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using ICSharpCode.AvalonEdit.Document;
-using ICSharpCode.AvalonEdit.Editing;
+using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.PlainText;
+using Nexaflow.Syntax;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Localization.Formatting;
 using Nexaflow.Visuals.Text.Editor.Commands;
-using Nexaflow.Visuals.Text.Editor.Highlighting;
+using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Localization;
 using Nexaflow.Interaction;
 
 namespace Nexaflow.Visuals.Text.Editor;
 
 /// <summary>
-/// Shared view-model for the read-write code/text editor surface: a full-file load into AvalonEdit's in-memory
-/// document, with encoding/EOL-aware save, F5 reload, and a file watcher that reloads on external change
-/// (prompting first when there are unsaved edits) while ignoring the editor's own writes.
+/// Shared view-model for the read-write code/text editor: the file held as an <see cref="EditedDocument"/> and shown through one
+/// <see cref="ContentEditor"/> — the caret, what is picked out, what a search found and which lines are on screen are this page's, whatever
+/// draws them — with encoding/EOL-aware save, F5 reload, and a file watcher that reloads on external change (prompting first when there are
+/// unsaved edits) while ignoring the editor's own writes. A file past the editable ceiling is shown read-only over its blocks on disk
+/// (<see cref="ContentFile"/>), never read whole.
 ///
 /// Concrete and unsealed (not abstract) so the generic editor uses it directly, and the "As Code" editor
 /// subclasses it (see <c>CodeViewModel</c>) to add its structure panel.
 /// </summary>
 public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
+    /// <summary>
+    /// How much of a file read over its blocks its line endings are judged by: its start — reading all of it to say is what reading it over
+    /// its blocks is for not doing.
+    /// </summary>
+    private const int LineEndingSample = 64 * 1024;
+
     protected readonly IShellServices Shell;
 
     /// <summary>The runtime's file system the file is read and saved through — on disk, in an archive or on a location.</summary>
@@ -41,11 +50,24 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
     private readonly long _maxEditableBytes;
 
+    /// <summary>The grammar the file is read in, or null for plain text.</summary>
+    private readonly string? _grammar;
+
     private IFileWatch? _watch;
     private bool _applyingEncoding;     // true while syncing the encoding selector to the detected encoding
-    private bool _hasSelection;         // mirrors the editor's live selection (drives selection-only commands)
+    private bool _hasSelection;         // mirrors the editor's selection (drives selection-only commands)
 
-    public TextDocument Document { get; } = new();
+    /// <summary>The file a document past the editable ceiling is read over, block by block — null while the document is held whole.</summary>
+    private ContentFile? _file;
+
+    /// <summary>The file as it is written in: what is shown, saved, searched and handed to the assistant.</summary>
+    public EditedDocument Document { get; } = new();
+
+    /// <summary>This page's view of <see cref="Document"/>: its caret, what is picked out, what a search found, and which lines are on screen.</summary>
+    public ContentEditor Editor { get; }
+
+    /// <summary>What the file is written in, as the surface reads it: its grammar, or plain text where no grammar reads it.</summary>
+    public string WrittenIn => _grammar ?? TextParser.Language;
 
     /// <summary>False until the initial file load finishes (success OR failure). Gates the AI send so the
     /// model is never handed an empty pre-load document.</summary>
@@ -67,6 +89,9 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     [ObservableProperty] private string _readOnlyReason = string.Empty;
 
     [ObservableProperty] private bool _showLineNumbers = true;
+
+    /// <summary>Whether spaces, tabs and line ends are shown as faint marks.</summary>
+    [ObservableProperty] private bool _showWhitespace;
 
     /// <summary>The document's detected line terminator, shown in the footer (e.g. "LF", "CRLF", "Mixed").</summary>
     [ObservableProperty] private string _lineEndingLabel = string.Empty;
@@ -106,14 +131,23 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         _selectedEol = AvailableEols[0];
         FilePath = filePath;
         FileName = Path.GetFileName(filePath);
-        IsPlainText = !HighlightingRegistry.IsStructured(FileName); // structured ⇒ highlighted; plain ⇒ spell-check eligible
-        Document.TextChanged += OnDocumentTextChanged;
-        Document.UndoStack.PropertyChanged += OnUndoStackChanged; // dirty = "differs from the saved state"
+        _grammar = TreeSitterLanguages.ForEdit(FileName);
+        IsPlainText = _grammar is null;
+
+        Editor = new ContentEditor(Document);
+        if (_grammar is not null) Editor.Marks.Add(new ColourSwatchMarks(_grammar));
+
+        Document.Changed += OnDocumentChanged;
+        Document.PropertyChanged += OnDocumentPropertyChanged; // dirty = "differs from the saved state"
+        Editor.SelectionChanged += OnEditorSelectionChanged;
         BuildCommands();
     }
 
-    /// <summary>True when the file has no syntax highlighting (so the Windows spell-checker may attach).</summary>
+    /// <summary>True when no grammar reads the file: prose or data, where the line-reordering commands mean something.</summary>
     public bool IsPlainText { get; }
+
+    /// <summary>The whole document as one string — null for a file read over its blocks, which is never made one.</summary>
+    protected string? WholeText() => _file is null ? Document.ToString() : null;
 
     // ── Command groups (Checksum / Encode / Decode + per-subclass extras; Lines lives in the footer) ──
 
@@ -122,31 +156,37 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     public ObservableCollection<EditorCommandGroupVm> CommandGroups { get; } = [];
 
     /// <summary>The "Lines" group, surfaced from the footer's line-ending indicator (EOL conversions, plus
-    /// prose line ops for plain text). Built once — its membership doesn't depend on the selection.</summary>
+    /// prose line ops for plain text). Built again only when the file comes to be held whole or not.</summary>
     public IReadOnlyList<EditorCommandVm> LineCommands { get; private set; } = [];
 
-    /// <summary>Set by the view so commands can read the live selection. The only editor-control coupling.</summary>
-    internal Func<TextArea>? EditorAccess { get; set; }
+    /// <summary>
+    /// Puts the caret at the start of <paramref name="line"/> (1-based) and brings it onto the page — the structure panel's jump to a member,
+    /// a search's step to its next match. Nothing, for a line the document does not have.
+    /// </summary>
+    public void MoveCaretToLine(int line)
+    {
+        var document = Document.Current;
+        if (line < 1 || line > document.LineCount) return;
 
-    /// <summary>Raised to ask the hosting view to scroll the editor to a 1-based line and place the caret there.
-    /// Used by the "As Code" structure panel to jump to a member; harmless for the plain editor.</summary>
-    public event Action<int>? ScrollToLineRequested;
-
-    /// <summary>Requests the view scroll the editor to <paramref name="line"/> (1-based).</summary>
-    public void RequestScrollToLine(int line) => ScrollToLineRequested?.Invoke(line);
+        Editor.MoveCaretTo(document.OffsetOf(line - 1));
+        Editor.ScrollToLine(line - 1);
+    }
 
     /// <summary>Override to contribute viewer-specific commands; merged with the built-ins.</summary>
     protected virtual IEnumerable<ITextEditorCommand> ProvideCommands() => [];
 
-    /// <summary>The commands available for this file: built-ins + subclass extras, minus line-reordering/munging
-    /// for code/markup (only meaningful on prose/data).</summary>
+    /// <summary>
+    /// The commands available for this file: built-ins + subclass extras, minus line-reordering/munging for code/markup (only meaningful on
+    /// prose/data) — and none for a file read over its blocks, which every command would first have to make one string.
+    /// </summary>
     private IEnumerable<ITextEditorCommand> AvailableCommands =>
-        BuiltInTextEditorCommands.All.Concat(ProvideCommands()).Where(c => IsPlainText || !c.PlainTextOnly);
+        _file is not null ? [] : BuiltInTextEditorCommands.All.Concat(ProvideCommands()).Where(c => IsPlainText || !c.PlainTextOnly);
 
     private void BuildCommands()
     {
         LineCommands = AvailableCommands.Where(c => c.Group == "Lines")
             .Select(c => new EditorCommandVm(c, this)).ToList();
+        OnPropertyChanged(nameof(LineCommands));
         RebuildCommandGroups();
     }
 
@@ -167,31 +207,28 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 group.Select(c => new EditorCommandVm(c, this)).ToList()));
     }
 
-    /// <summary>Called by the view when the editor selection changes; rebuilds the panel only when the
-    /// has-selection state actually flips, so dragging within a selection doesn't churn the menu.</summary>
-    public void OnSelectionChanged(bool hasSelection)
+    /// <summary>The panel is rebuilt only when whether anything is picked out flips, so dragging within a selection doesn't churn the menu.</summary>
+    private void OnEditorSelectionChanged(object? sender, EventArgs e)
     {
-        if (hasSelection == _hasSelection) return;
-        _hasSelection = hasSelection;
+        if (Editor.HasSelection == _hasSelection) return;
+        _hasSelection = Editor.HasSelection;
         RebuildCommandGroups();
     }
 
     internal void RunEditorCommand(ITextEditorCommand cmd)
     {
-        var area = EditorAccess?.Invoke();
-        if (area is null) return;
+        if (WholeText() is not { } text) return;
 
-        var selection = area.Selection;
         var ctx = new TextEditorContext
         {
-            DocumentText     = Document.Text,
-            SelectedText     = selection.GetText(),
-            HasSelection     = !selection.IsEmpty,
+            DocumentText     = text,
+            SelectedText     = Editor.SelectedText(),
+            HasSelection     = Editor.HasSelection,
             CanEdit          = !IsReadOnlyMode,
             Encoding         = SelectedEncoding.Encoding,
             Eol              = SelectedEol.Eol,
-            ReplaceDocument  = t => Document.Text = t,
-            ReplaceSelection = t => area.Selection.ReplaceSelectionWithText(t),
+            ReplaceDocument  = ReplaceAll,
+            ReplaceSelection = Editor.ReplaceSelection,
             ShowResult       = (label, value) => _ = CopyResultAsync(label, value),
             ShowError        = Shell.ShowError,
         };
@@ -208,6 +245,9 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         RecomputeLineEndingLabel(); // an EOL-conversion command may have changed the terminator
     }
 
+    /// <summary>Writes <paramref name="text"/> in place of everything, as one step that can be taken back.</summary>
+    private void ReplaceAll(string text) => Document.Write(ContentChange.Write(0, Document.Current.Length, text));
+
     /// <summary>A command's result, put on the clipboard and told — through the notification service's toast — once it is there.</summary>
     private async Task CopyResultAsync(string label, string value)
     {
@@ -215,25 +255,31 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             Shell.ShowNotification(Str.Format("Text.Editor.Copied", label, value));
     }
 
-    private void OnDocumentTextChanged(object? sender, EventArgs e) => LineCount = Document.LineCount;
+    private void OnDocumentChanged(object? sender, ContentSourceChange change) => LineCount = Document.Current.LineCount;
 
-    // Dirty follows AvalonEdit's undo-stack "original file" marker, so undoing every edit back to the saved
-    // state clears the unsaved flag (a plain "any edit ⇒ dirty" flag would stay stuck on after such an undo).
-    private void OnUndoStackChanged(object? sender, PropertyChangedEventArgs e)
+    // Dirty follows the document, which compares what it holds with what was saved — so undoing every edit back to the saved state clears
+    // the unsaved flag, where a plain "any edit ⇒ dirty" flag would stay stuck on.
+    private void OnDocumentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is null or nameof(UndoStack.IsOriginalFile))
-            IsDirty = !Document.UndoStack.IsOriginalFile;
+        if (e.PropertyName is null or nameof(EditedDocument.IsDirty))
+            IsDirty = Document.IsDirty;
     }
 
-    /// <summary>Recomputes the footer line-ending indicator from the current buffer.</summary>
-    private void RecomputeLineEndingLabel() => LineEndingLabel = TextTransforms.DetectLineEnding(Document.Text) switch
+    /// <summary>Recomputes the footer line-ending indicator from the document — from its start, for a file read over its blocks.</summary>
+    private void RecomputeLineEndingLabel()
     {
-        LineEndingKind.Lf    => "LF",
-        LineEndingKind.CrLf  => "CRLF",
-        LineEndingKind.Cr    => "CR",
-        LineEndingKind.Mixed => Str.Get("Text.Editor.Eol.Mixed"),
-        _                    => "—",
-    };
+        var document = Document.Current;
+        var text = WholeText() ?? document.Slice(0, Math.Min(document.Length, LineEndingSample));
+
+        LineEndingLabel = TextTransforms.DetectLineEnding(text) switch
+        {
+            LineEndingKind.Lf    => "LF",
+            LineEndingKind.CrLf  => "CRLF",
+            LineEndingKind.Cr    => "CR",
+            LineEndingKind.Mixed => Str.Get("Text.Editor.Eol.Mixed"),
+            _                    => "—",
+        };
+    }
 
     // ── Loading ──────────────────────────────────────────────────────────────────
 
@@ -244,8 +290,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             // A not-yet-existing path is a new/blank file — start empty, editable, watched once saved.
             if (string.IsNullOrEmpty(FilePath) || await Vfs.GetEntryAsync(FilePath, ct) is not { IsDirectory: false } entry)
             {
-                SetDocumentText(string.Empty);
-                IsDirty = false;
+                Show(ContentDocument.Of(string.Empty));
                 return;
             }
 
@@ -256,7 +301,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             {
                 IsReadOnlyMode = true;
                 ReadOnlyReason = Str.Format("Text.Editor.TooLarge", SizeFormatter.FormatBytes(length));
-                SetDocumentText(string.Empty);
+                await ShowOverItsBlocksAsync(ct);
+                StartWatching();
                 return;
             }
 
@@ -271,8 +317,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             using (var rs = new MemoryStream(bytes, writable: false))
             using (var sr = new StreamReader(rs, SelectedEncoding.Encoding))
                 text = await sr.ReadToEndAsync(ct);
-            SetDocumentText(text);
-            IsDirty = false;
+            Show(ContentDocument.Of(text));
             StartWatching();
         }
         catch (OperationCanceledException) { }
@@ -280,20 +325,64 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         {
             IsReadOnlyMode = true;
             ReadOnlyReason = Str.Format("Text.Editor.CouldNotOpen", ex.Message);
-            SetDocumentText(string.Empty);
+            Show(ContentDocument.Of(string.Empty));
         }
         finally { IsLoaded = true; }
     }
 
-    private void SetDocumentText(string text)
+    [LocalDiskOnly("the file as it is on this disk - MaterializeFileAsync copies an archive's entry or a location's file here first, and a file on this disk is itself")]
+
+    /// <summary>
+    /// Shows the file read over its blocks on disk — a copy on disk first, for an archive's entry or a location's file — its blocks found off
+    /// this thread, so a file of any length opens holding a screen's worth of it. One longer than a document can hold is not shown.
+    /// </summary>
+    private async Task ShowOverItsBlocksAsync(CancellationToken ct)
     {
-        Document.Text = text;
-        LineCount = Document.LineCount;
-        // A programmatic (re)load is the new saved baseline: clear the undo history and mark it original so the
-        // buffer is clean and the user can't undo past the loaded content.
-        Document.UndoStack.ClearAll();
-        Document.UndoStack.MarkAsOriginalFile();
-        IsDirty = false;
+        var onDisk = await Vfs.MaterializeFileAsync(FilePath, ct);
+
+        EncodingProbe probe;
+        await using (var head = new FileStream(onDisk, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            probe = EncodingDetector.Detect(head);
+        SyncEncodingSelection(probe);
+
+        var encoding = SelectedEncoding.Encoding;
+        var file = ContentFile.Open(onDisk, encoding, probe.HadBom ? encoding.GetPreamble().Length : 0, ContentFileAccess.ReadOnly);
+
+        try
+        {
+            await Task.Run(() => file.Scan(cancel: ct), ct);
+        }
+        catch
+        {
+            file.Dispose();
+            throw;
+        }
+
+        if (file.Characters > int.MaxValue)
+        {
+            file.Dispose();
+            ReadOnlyReason = Str.Format("Text.Editor.TooLong", FileSizeText);
+            Show(ContentDocument.Of(string.Empty));
+            return;
+        }
+
+        Show(ContentDocument.Of(file), file);
+    }
+
+    /// <summary>
+    /// Shows <paramref name="document"/> as the file's new saved baseline, nothing before it to take back — over <paramref name="file"/>,
+    /// where it is read over its blocks — and lets go of the file the document before it was read over.
+    /// </summary>
+    private void Show(ContentDocument document, ContentFile? file = null)
+    {
+        var before = _file;
+        _file = file;
+
+        Document.Load(document);
+        before?.Dispose();
+
+        IsDirty = Document.IsDirty;
+        if ((before is null) != (file is null)) BuildCommands(); // the commands come and go with whether the file is held whole
         RecomputeLineEndingLabel();
     }
 
@@ -336,14 +425,14 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync()
     {
-        if (IsReadOnlyMode || string.IsNullOrEmpty(FilePath)) return;
+        if (IsReadOnlyMode || string.IsNullOrEmpty(FilePath) || WholeText() is not { } written) return;
         try
         {
-            var text = TextTransforms.NormalizeLineEndings(Document.Text, SelectedEol.Eol);
+            var text = TextTransforms.NormalizeLineEndings(written, SelectedEol.Eol);
             var enc  = SelectedEncoding.Encoding;
             // A plain file write for real paths, an archive rewrite for an in-archive entry, a whole-file write on a location.
             await Vfs.WriteAllTextAsync(FilePath, text, enc);
-            Document.UndoStack.MarkAsOriginalFile(); // current buffer is now the saved state ⇒ clean
+            Document.MarkSaved(); // what it holds is now the saved state ⇒ clean
             if (await Vfs.GetEntryAsync(FilePath) is { } saved) FileSizeText = SizeFormatter.FormatBytes(saved.Size);
             StartWatching(); // a brand-new file now exists to watch
         }
@@ -378,20 +467,33 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     // Invoked by the shell on the workspace UI thread when the watched file changes. We compare on-disk
     // content to the buffer rather than toggling the watcher, so our own saves (which leave them equal)
     // are ignored regardless of debounce timing, while real external edits reload (with a dirty prompt).
+    // A file read over its blocks is read-only, so nothing here wrote it: it is read again, never compared whole.
     private async void OnFileChanged()
     {
+        if (_file is not null)
+        {
+            await LoadAsync();
+            await AnnounceReloadAsync();
+            return;
+        }
+
         string onDisk;
         try { onDisk = await Vfs.ReadAllTextAsync(FilePath, SelectedEncoding.Encoding); }
         catch { return; } // file briefly locked/removed — ignore this burst
-        if (onDisk == Document.Text) return; // our own write, or a no-op change
+        if (onDisk == Document.ToString()) return; // our own write, or a no-op change
 
         if (IsDirty && !await Shell.ConfirmAsync(Str.Get("Text.Editor.ChangedOnDisk"),
                 Str.Get("Text.Editor.ChangedOnDiskAsk")))
             return;
 
-        SetDocumentText(onDisk);
-        IsDirty = false;
+        Show(ContentDocument.Of(onDisk));
         try { if (await Vfs.GetEntryAsync(FilePath) is { } changed) FileSizeText = SizeFormatter.FormatBytes(changed.Size); } catch { }
+        await AnnounceReloadAsync();
+    }
+
+    /// <summary>Says, for a few seconds, that the file was read again because it changed on disk.</summary>
+    private async Task AnnounceReloadAsync()
+    {
         BannerMessage = Str.Get("Text.Editor.Reloaded");
         BannerVisible = true;
         await Task.Delay(3000);
@@ -403,10 +505,14 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     public virtual string GetContext()
     {
         var name = string.IsNullOrEmpty(FileName) ? "Untitled" : FileName;
-        var sample = Document.Text;
-        if (sample.Length > 4000) sample = sample[..4000] + "\n…(truncated)";
+        var document = Document.Current;
+        var sample = document.Length > 4000 ? document.Slice(0, 4000) + "\n…(truncated)" : document.ToString();
         return $"Editing text file '{name}' at '{FilePath}'.\n{sample}";
     }
+
+    /// <summary>What a tool that reads the whole file answers for one read over its blocks: there is no whole of it to hand over.</summary>
+    private static ToolResult TooLongToRead() =>
+        ToolResult.Error("This file is too large to read whole. Search it for what you need instead.");
 
     public virtual IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -416,7 +522,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             "Return the full current text of the open editor document.",
             [],
             ToolSafety.SafeOperation,
-            (_, _) => Task.FromResult(ToolResult.Ok(Document.Text, "Read the editor contents."))),
+            (_, _) => Task.FromResult(WholeText() is { } text ? ToolResult.Ok(text, "Read the editor contents.") : TooLongToRead())),
 
         new DelegateClientTool(
             "get_syntax_tree",
@@ -425,11 +531,11 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             ToolSafety.SafeOperation,
             (_, _) =>
             {
-                var grammar = HighlightingRegistry.Resolve(FileName).TreeSitterLanguage;
-                if (grammar is null)
+                if (_grammar is not { } grammar)
                     return Task.FromResult(ToolResult.Ok(string.Empty, "This file has no code grammar."));
+                if (WholeText() is not { } text) return Task.FromResult(TooLongToRead());
                 using var highlighter = Nexaflow.Syntax.CodeHighlighter.TryCreate(grammar);
-                var tree = highlighter?.GetParseTree(Document.Text);
+                var tree = highlighter?.GetParseTree(text);
                 return Task.FromResult(ToolResult.Ok(tree ?? string.Empty, "Parsed the document."));
             }),
 
@@ -442,10 +548,11 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             ToolSafety.SafeOperation,
             (_, _) =>
             {
-                if (EditorGrammar is not { } grammar)
+                if (_grammar is not { } grammar)
                     return Task.FromResult(ToolResult.Ok(string.Empty, "This file has no code grammar."));
+                if (WholeText() is not { } text) return Task.FromResult(TooLongToRead());
 
-                var found = Nexaflow.Syntax.StructuralEdit.Declarations(grammar, Document.Text);
+                var found = Nexaflow.Syntax.StructuralEdit.Declarations(grammar, text);
                 if (found.Count == 0)
                     return Task.FromResult(ToolResult.Ok("none", "This file declares nothing the parser recognises."));
 
@@ -454,7 +561,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 return Task.FromResult(ToolResult.Ok($"{found.Count} declaration(s)", listing));
             }),
 
-        // ── Edit / save (approval-gated) — mutate the live AvalonEdit document ──
+        // ── Edit / save (approval-gated) — write in the live document ──
         new DelegateClientTool(
             "edit_declaration",
             "Change ONE declaration — replace it, delete it, change its signature without touching its body "
@@ -498,8 +605,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             ToolSafety.RequiresApproval,
             (args, _) =>
             {
-                if (IsReadOnlyMode) return Task.FromResult(ToolResult.Error("This file can't be edited."));
-                if (EditorGrammar is not { } grammar)
+                if (IsReadOnlyMode || WholeText() is not { } source) return Task.FromResult(ToolResult.Error("This file can't be edited."));
+                if (_grammar is not { } grammar)
                     return Task.FromResult(ToolResult.Error(
                         "This file has no code grammar, so it has no declarations to edit structurally. Use "
                       + "replace_all or set_editor_text."));
@@ -532,18 +639,18 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 // reflow whatever the caller wrote.
                 var text   = ToolArgs.Raw(args, "text", "content", "new_text");
                 var result = op is Nexaflow.Syntax.StructuralEdit.Op.Import
-                    ? Nexaflow.Syntax.StructuralEdit.AddImport(grammar, Document.Text, text ?? "")
+                    ? Nexaflow.Syntax.StructuralEdit.AddImport(grammar, source, text ?? "")
                     : !string.IsNullOrEmpty(at)
-                        ? Nexaflow.Syntax.StructuralEdit.ApplyAt(grammar, Document.Text, op, text, options, ToolArgs.Str(args, "to"))
-                        : Nexaflow.Syntax.StructuralEdit.Apply(grammar, Document.Text, path!, op, text,
+                        ? Nexaflow.Syntax.StructuralEdit.ApplyAt(grammar, source, op, text, options, ToolArgs.Str(args, "to"))
+                        : Nexaflow.Syntax.StructuralEdit.Apply(grammar, source, path!, op, text,
                                                                options, ToolArgs.Str(args, "to"));
 
                 if (!result.Ok || result.Change is not { } change)
                     return Task.FromResult(ToolResult.Error(result.Message));
 
-                // One splice rather than a whole-document assignment: a single undo step, and the caret and
-                // scroll position survive.
-                Document.Replace(change.Offset, change.Length, change.Inserted);
+                // One write rather than the whole document again: a single step to take back, and the caret and
+                // the page stay where they were.
+                Document.Write(ContentChange.Write(change.Offset, change.Length, change.Inserted));
 
                 var report = string.Join("\n",
                     [$"--- line {result.Hunk!.Line}",
@@ -562,9 +669,9 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             (args, _) =>
             {
                 if (IsReadOnlyMode) return Task.FromResult(ToolResult.Error("This file can't be edited."));
-                Document.Text = ToolArgs.Raw(args, "text", "content", "new_text") ?? string.Empty;
+                ReplaceAll(ToolArgs.Raw(args, "text", "content", "new_text") ?? string.Empty);
                 return Task.FromResult(ToolResult.Ok("document replaced",
-                    $"Replaced the document ({Document.LineCount} lines). Unsaved — call save_file to persist."));
+                    $"Replaced the document ({Document.Current.LineCount} lines). Unsaved — call save_file to persist."));
             }),
 
         new DelegateClientTool(
@@ -579,7 +686,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             ToolSafety.RequiresApproval,
             (args, _) =>
             {
-                if (IsReadOnlyMode) return Task.FromResult(ToolResult.Error("This file can't be edited."));
+                if (IsReadOnlyMode || WholeText() is not { } original) return Task.FromResult(ToolResult.Error("This file can't be edited."));
                 var find = ToolArgs.Str(args, "find", "pattern", "search");
                 if (string.IsNullOrEmpty(find)) return Task.FromResult(ToolResult.Error("No 'find' provided."));
                 var repl = ToolArgs.Str(args, "replace", "replacement", "to") ?? string.Empty;
@@ -588,9 +695,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 try
                 {
                     var re = new Regex(rx ? find : Regex.Escape(find), cs ? RegexOptions.None : RegexOptions.IgnoreCase);
-                    var original = Document.Text;
                     var count = re.Matches(original).Count;
-                    if (count > 0) Document.Text = re.Replace(original, rx ? repl : repl.Replace("$", "$$"));
+                    if (count > 0) ReplaceAll(re.Replace(original, rx ? repl : repl.Replace("$", "$$")));
                     return Task.FromResult(ToolResult.Ok($"replaced {count}",
                         $"Replaced {count} occurrence(s). Unsaved — call save_file to persist."));
                 }
@@ -610,20 +716,6 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 return ToolResult.Ok("saved", $"Saved {FileName}.");
             }),
     ];
-
-    /// <summary>The tree-sitter grammar for the open file, or null when no grammar covers it — which is the
-    /// line between "this file has declarations to address" and "this file is just text".</summary>
-    private string? EditorGrammar
-    {
-        get
-        {
-            // The highlighting grammar first; a project or solution file has none, but it is XML to an edit, so an
-            // element path and the attribute ops still reach it.
-            var grammar = HighlightingRegistry.Resolve(FileName).TreeSitterLanguage
-                       ?? Nexaflow.Syntax.TreeSitterLanguages.ForEdit(FileName);
-            return string.IsNullOrEmpty(grammar) ? null : grammar;
-        }
-    }
 
     private static Nexaflow.Syntax.StructuralEdit.Op? ParseEditOp(string? op) =>
         op?.Replace('-', '_').ToLowerInvariant() switch
@@ -670,8 +762,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                  + (IsDirty ? " · unsaved edits" : string.Empty)
                  + (IsReadOnlyMode ? " · read-only" : string.Empty);
         const int cap = 8000;
-        var text = Document.Text;
-        var body = text.Length > cap ? text[..cap] + "\n… (preview truncated)" : text;
+        var document = Document.Current;
+        var body = document.Length > cap ? document.Slice(0, cap) + "\n… (preview truncated)" : document.ToString();
         return new TextContextPreview(meta, body);
     }
 
@@ -679,9 +771,12 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
 
     public void Dispose()
     {
-        Document.TextChanged -= OnDocumentTextChanged;
-        Document.UndoStack.PropertyChanged -= OnUndoStackChanged;
+        Document.Changed -= OnDocumentChanged;
+        Document.PropertyChanged -= OnDocumentPropertyChanged;
+        Editor.SelectionChanged -= OnEditorSelectionChanged;
+        Editor.Dispose();
         _watch?.Dispose();
+        _file?.Dispose();
         GC.SuppressFinalize(this);
     }
 }

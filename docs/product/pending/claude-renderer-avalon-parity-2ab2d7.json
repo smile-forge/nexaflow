@@ -785,13 +785,6 @@
         {
           "type": "code",
           "status": "done",
-          "doc": "src/Nexaflow.Visuals.Text/Editor/Highlighting/TreeSitterController.cs",
-          "class": "TreeSitterController",
-          "method": "Reparse"
-        },
-        {
-          "type": "code",
-          "status": "done",
           "doc": "src/Nexaflow.Syntax/CodeHighlighter.cs",
           "class": "CodeHighlighter",
           "method": "GetFolds"
@@ -1241,13 +1234,276 @@
           "class": "JsonInlineContentDisplayItem"
         }
       ]
+    },
+    "vtext-highlighting": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/syntax-highlighting.md",
+          "title_path": [
+            "Syntax Highlighting"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/TreeSitterLanguages.cs",
+          "class": "TreeSitterLanguages",
+          "method": "ForEdit"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/TreeSitterLanguagesTests.cs",
+            "class": "TreeSitterLanguagesTests"
+          }
+        ]
+      }
+    },
+    "vtext-color-swatch": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/ColourSwatchMarks.cs",
+          "class": "ColourSwatchMarks"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/ColorLiteralTests.cs",
+            "class": "ColorLiteralTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/ColourSwatchMarksTests.cs",
+            "class": "ColourSwatchMarksTests"
+          }
+        ]
+      }
+    },
+    "code-highlighting": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/syntax-highlighting.md",
+          "title_path": [
+            "Syntax Highlighting"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/TreeSitterLanguages.cs",
+          "class": "TreeSitterLanguages",
+          "method": "ForEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorViewModel.cs",
+          "class": "FileTextEditorViewModel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/TreeSitterLanguagesTests.cs",
+            "class": "TreeSitterLanguagesTests"
+          }
+        ]
+      }
+    },
+    "code-treesitter": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/CodeHighlighter.cs",
+          "class": "CodeHighlighter",
+          "method": "Highlight"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/syntax-highlighting.md",
+          "title_path": [
+            "Syntax Highlighting",
+            "Currently supported"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSyntax.cs",
+          "class": "CodeSyntax",
+          "method": "Find"
+        }
+      ]
+    },
+    "code-find": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorViewModel.Search.cs",
+          "class": "FileTextEditorViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Code/ViewModels/CodeViewModel.cs",
+          "class": "CodeViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Search/TextSearchMatcher.cs",
+          "class": "TextSearchMatcher"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
+          "class": "FoundMarks"
+        }
+      ]
+    },
+    "code-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Editing.cs",
+          "class": "ContentEngine",
+          "method": "Clipboarding"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ClipboardOffersTests.cs",
+            "class": "ClipboardOffersTests",
+            "method": "InCode_WhatIsPickedOutIsOfferedToCutCopyAndPaste"
+          }
+        ]
+      }
+    },
+    "code-too-large": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/FileTextEditorViewModelTests.cs",
+            "class": "FileTextEditorViewModelTests",
+            "method": "OverSizeLimit_IsShownReadOnlyOverItsBlocks_AndCannotSave"
+          }
+        ]
+      }
+    },
+    "code-map-nav": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/CodeIntel/CodeViewModelTests.cs",
+            "class": "CodeViewModelTests",
+            "method": "OpenCode_OpensCodeTab_WithPathAndAst"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/CodeIntel/CodeViewModelTests.cs",
+            "class": "CodeViewModelTests",
+            "method": "OpenCode_OmitsAst_WhenNull"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/CodeIntel/CodeViewModelTests.cs",
+            "class": "CodeViewModelTests",
+            "method": "NavigateToAst_PutsTheCaretOnTheMembersLine"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/CodeIntel/CodeViewModelTests.cs",
+            "class": "CodeViewModelTests",
+            "method": "NavigateToAst_UnknownMember_LeavesTheCaretWhereItWas"
+          }
+        ]
+      }
+    },
+    "parsers": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/CodeStructureExtractor.cs",
+          "class": "CodeStructureExtractor",
+          "method": "Build"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/syntax-highlighting.md",
+          "title_path": [
+            "Syntax Highlighting",
+            "Add a tree-sitter language"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/TreeSitterLanguages.cs",
+          "class": "TreeSitterLanguages"
+        }
+      ]
+    },
+    "theme-textswatch-palette": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Themes/Tokens.xaml",
+          "ast": "K:TextSwatch.Keyword"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/syntax-highlighting.md",
+          "title_path": [
+            "Syntax Highlighting",
+            "The role palette (\u0060TextSwatch.*\u0060)"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/Highlighting/SyntaxTokenMap.cs",
+          "class": "SyntaxTokenMap"
+        }
+      ]
+    },
+    "code-status-state": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorViewModel.cs",
+          "class": "FileTextEditorViewModel",
+          "method": "OnDocumentPropertyChanged"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 55,
+  "changed_sets": 70,
   "touched_nodes": [
     "barcode-editing",
+    "code-context-menu",
+    "code-find",
     "code-folding",
+    "code-highlighting",
+    "code-map-nav",
+    "code-status-state",
+    "code-too-large",
+    "code-treesitter",
     "content-column-selection",
     "content-editor",
     "content-file",
@@ -1286,9 +1542,13 @@
     "parser-latex",
     "parser-powershell",
     "parser-sql",
+    "parsers",
     "solver-latex-fence",
     "solver-source-toggle",
+    "theme-textswatch-palette",
     "visuals-text",
+    "vtext-color-swatch",
+    "vtext-highlighting",
     "vtext-selectable-markdown",
     "windowed-reading"
   ]

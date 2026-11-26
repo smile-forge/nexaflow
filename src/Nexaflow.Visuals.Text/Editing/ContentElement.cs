@@ -979,7 +979,9 @@ public class ContentElement : FrameworkElement
 
         if (marks is null || marks.Count == 0) return;
 
-        foreach (var mark in marks.Mark(new ContentMarkRequest(document, start, end)))
+        Pen? hairline = null;
+
+        foreach (var mark in marks.Mark(new ContentMarkRequest(document, start, end) { Syntax = _engine.ShownSyntax }))
         {
             switch (mark.Kind)
             {
@@ -995,11 +997,14 @@ public class ContentElement : FrameworkElement
                     break;
 
                 case ContentMarkKind.Underbar:
-                    var bar = mark.Colour is { } colour ? Colour(colour) : Ink(inks, mark.Token, Palette.Accent);
-                    var thick = Math.Max(2, Palette.TextSize / 6.75);
-                    foreach (var run in laid.Root.RangeRects(mark.Start, mark.Length))
-                        dc.DrawRectangle(bar, null, new Rect(run.X, run.Y + run.Height - thick, run.Width, thick));
-                    break;
+                if ((mark.Colour is { } colour ? Colour(colour) : Named(inks, mark.Token)) is not { } bar) break;
+
+                // Edged by a hairline, so a white or nearly clear colour is still a mark rather than nothing.
+                hairline ??= Hairline(Ink(inks, "BorderBrush", Palette.TextMuted));
+                var thick = Math.Max(2, Palette.TextSize / 6.75);
+                foreach (var run in laid.Root.RangeRects(mark.Start, mark.Length))
+                    dc.DrawRectangle(bar, hairline, new Rect(run.X, run.Y + run.Height - thick, run.Width, thick));
+                break;
 
                 case ContentMarkKind.LineWash or ContentMarkKind.Veil:
                     var ground = Ink(inks, mark.Token, Palette.TextMuted);
@@ -1063,6 +1068,31 @@ public class ContentElement : FrameworkElement
         brush.Freeze();
 
         return brush;
+    }
+
+    /// <summary>What the theme names <paramref name="token"/> — a brush, or a colour — or null where it names nothing so.</summary>
+    private Brush? Named(Dictionary<string, Brush> found, string token)
+    {
+        if (found.TryGetValue(token, out var known)) return known;
+
+        var named = TryFindResource(token) switch
+        {
+            Brush brush => brush,
+            Color colour => Colour((uint)((colour.A << 24) | (colour.R << 16) | (colour.G << 8) | colour.B)),
+            _ => null,
+        };
+
+        if (named is not null) found[token] = named;
+        return named;
+    }
+
+    /// <summary>A hairline in <paramref name="ink"/>.</summary>
+    private static Pen Hairline(Brush ink)
+    {
+        var pen = new Pen(ink, 0.6);
+        pen.Freeze();
+
+        return pen;
     }
 
     /// <summary>
