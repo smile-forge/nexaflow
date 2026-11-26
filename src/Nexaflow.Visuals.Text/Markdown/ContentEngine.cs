@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
-using System.Linq.Expressions;
+
 using System.Reflection;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -308,7 +308,10 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <summary>What makes each builder a language names, found once.</summary>
     private static readonly ConcurrentDictionary<Type, Make> Makers = new();
 
-    /// <summary>What makes a <paramref name="builder"/>: its one constructor, taking the six things every builder is made from.</summary>
+    /// <summary>
+    /// What makes a <paramref name="builder"/>: its one constructor, taking the six things every builder is made from, called through an invoker
+    /// .NET makes for it — no expression tree compiled, so laying content out loads no compiler of them.
+    /// </summary>
     private static Make Maker(Type builder)
     {
         Type[] shape = [typeof(ContentReading), typeof(EditState), typeof(LayoutStyle), typeof(bool), typeof(ILayoutMedium), typeof(LayoutHost)];
@@ -318,8 +321,10 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             throw new InvalidOperationException(
                 $"{builder.FullName} is not a builder made from ({string.Join(", ", shape.Select(type => type.Name))}).");
 
-        var given = shape.Select(type => Expression.Parameter(type)).ToArray();
-        return Expression.Lambda<Make>(Expression.New(made, given), given).Compile();
+        var invoker = ConstructorInvoker.Create(made);
+
+        return (reading, state, style, isReadOnly, medium, host) =>
+            (ContentBuilder)invoker.Invoke([reading, state, style, isReadOnly, medium, host]);
     }
 
     /// <summary>
