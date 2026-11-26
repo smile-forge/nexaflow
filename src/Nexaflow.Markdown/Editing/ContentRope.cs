@@ -21,6 +21,12 @@ namespace Nexaflow.Markdown.Editing;
 /// <see cref="From"/>) and joining what is left is all an edit is.
 /// </para>
 /// <para>
+/// <strong>Held, or left in the file.</strong> A leaf holds its characters as a string, or names where they stand in a block of a
+/// <see cref="ContentFile"/>, read only when they are asked for (<see cref="OfFile"/>). A leaf over a whole block may hold more than
+/// <see cref="LeafMost"/>; cutting one names a stretch of the same block, and what is written beside a short stretch of one is held.
+/// So a document over a file the size of the disk costs its block table until it is read, and an edit costs the paths it cuts.
+/// </para>
+/// <para>
 /// <strong>A line break is <c>\n</c>, <c>\r\n</c> or a <c>\r</c> alone</strong>, as markdown and every editor read one. A node
 /// counts the breaks in its own characters, a <c>\r</c> at its end counted as one; where a <c>\r</c> ending one node meets a
 /// <c>\n</c> starting the next, the node holding both counts the pair once (<see cref="Breaks"/>).
@@ -82,10 +88,33 @@ internal abstract class ContentRope
         for (var (at, from) = (0, 0); at < count; at++)
         {
             var length = (text.Length - from) / (count - at);
-            level[at] = new Leaf(text.Substring(from, length));
+            level[at] = new HeldLeaf(text.Substring(from, length));
             from += length;
         }
 
+        return Built(level);
+    }
+
+    /// <summary>
+    /// Blocks <paramref name="first"/> up to <paramref name="last"/> (one past the last) of <paramref name="file"/> as a tree, a leaf a block naming
+    /// where its characters stand — nothing read — or null for none.
+    /// </summary>
+    public static ContentRope? OfFile(ContentFile file, int first, int last)
+    {
+        var leaves = new List<ContentRope>(Math.Max(last - first, 0));
+
+        for (var block = first; block < last; block++)
+        {
+            var said = file.Said(block);
+            leaves.Add(new FileLeaf(file, block, 0, said.Chars, (said.Breaks, said.CrLfs), said.First, said.Last));
+        }
+
+        return leaves.Count == 0 ? null : Built([.. leaves]);
+    }
+
+    /// <summary>Leaves as deep as each other gathered under nodes as evenly filled as they go, up to the one node over all of them.</summary>
+    private static ContentRope Built(ContentRope[] level)
+    {
         while (level.Length > 1)
         {
             var parents = new ContentRope[(level.Length + Most - 1) / Most];
@@ -124,7 +153,7 @@ internal abstract class ContentRope
                     offset -= child.Length;
                 }
 
-            return ((Leaf)node).Text[offset];
+            return ((Leaf)node).Chars.Span[offset];
         }
     }
 
@@ -135,7 +164,7 @@ internal abstract class ContentRope
 
         if (this is Leaf leaf)
         {
-            leaf.Text.AsSpan(start, into.Length).CopyTo(into);
+            leaf.Chars.Span.Slice(start, into.Length).CopyTo(into);
             return;
         }
 
@@ -166,7 +195,7 @@ internal abstract class ContentRope
             if (node is Leaf leaf)
             {
                 var (low, high) = (Math.Max(start - from, 0), Math.Min(end - from, leaf.Length));
-                yield return leaf.Text.AsMemory(low, high - low);
+                yield return leaf.Chars.Slice(low, high - low);
                 continue;
             }
 
@@ -187,7 +216,7 @@ internal abstract class ContentRope
         if (length <= 0) return 0;
         if (length >= this.Length) return this.Breaks;
 
-        if (this is Leaf leaf) return Counted(leaf.Text.AsSpan(0, length)).Breaks;
+        if (this is Leaf leaf) return Counted(leaf.Chars.Span[..length]).Breaks;
 
         var (counted, from) = (0, 0);
         ContentRope? before = null;
@@ -215,7 +244,7 @@ internal abstract class ContentRope
     {
         if (this is Leaf leaf)
         {
-            var text = leaf.Text;
+            var text = leaf.Chars.Span;
 
             for (var (at, counted) = (0, 0); at < text.Length; at++)
             {
@@ -278,12 +307,12 @@ internal abstract class ContentRope
 
         if (left is Leaf first && right is Leaf second)
         {
-            var text = string.Concat(first.Text, second.Text);
-            if (text.Length <= LeafMost) return new Leaf(text);
+            var text = string.Concat(first.Chars.Span, second.Chars.Span);
+            if (text.Length <= LeafMost) return new HeldLeaf(text);
 
             var half = text.Length / 2;
 
-            return new Branch([new Leaf(text[..half]), new Leaf(text[half..])]);
+            return new Branch([new HeldLeaf(text[..half]), new HeldLeaf(text[half..])]);
         }
 
         return Merged(((Branch)left).Children, ((Branch)right).Children);
@@ -294,7 +323,7 @@ internal abstract class ContentRope
     {
         if (length <= 0) return null;
         if (length >= rope.Length) return rope;
-        if (rope is Leaf leaf) return new Leaf(leaf.Text[..length]);
+        if (rope is Leaf leaf) return leaf.Cut(0, length);
 
         var children = ((Branch)rope).Children;
         var (whole, from) = (0, 0);
@@ -309,7 +338,7 @@ internal abstract class ContentRope
     {
         if (start <= 0) return rope;
         if (start >= rope.Length) return null;
-        if (rope is Leaf leaf) return new Leaf(leaf.Text[start..]);
+        if (rope is Leaf leaf) return leaf.Cut(start, leaf.Length - start);
 
         var children = ((Branch)rope).Children;
         var (cut, from) = (0, 0);
@@ -347,7 +376,7 @@ internal abstract class ContentRope
     }
 
     /// <summary>The line breaks <paramref name="text"/> holds, and how many are <c>\r\n</c> — a <c>\r</c> ending it counted as a break.</summary>
-    private static (int Breaks, int CrLfs) Counted(ReadOnlySpan<char> text)
+    internal static (int Breaks, int CrLfs) Counted(ReadOnlySpan<char> text)
     {
         var (breaks, crLfs) = (0, 0);
 
@@ -364,17 +393,52 @@ internal abstract class ContentRope
         return (breaks, crLfs);
     }
 
-    /// <summary>A few thousand characters of the document.</summary>
-    private sealed class Leaf : ContentRope
+    /// <summary>A stretch of the document's characters, held or left where they stand.</summary>
+    private abstract class Leaf : ContentRope
     {
-        public Leaf(string text) : this(text, Counted(text)) { }
+        protected Leaf(int length, (int Breaks, int CrLfs) counted, char first, char last)
+            : base(length, counted.Breaks, counted.CrLfs, 0, first, last) { }
 
-        private Leaf(string text, (int Breaks, int CrLfs) counted)
-            : base(text.Length, counted.Breaks, counted.CrLfs, 0, text[0], text[^1]) => this.Text = text;
+        /// <summary>Its characters — for a leaf left in a file, read from it, or from the blocks last read.</summary>
+        public abstract ReadOnlyMemory<char> Chars { get; }
+
+        protected override bool Filled => this.Length >= LeafLeast;
+
+        /// <summary>Its characters from <paramref name="start"/> over <paramref name="length"/>, as a leaf held the way it is.</summary>
+        public abstract Leaf Cut(int start, int length);
+    }
+
+    /// <summary>A few thousand characters of the document, held as a string.</summary>
+    private sealed class HeldLeaf : Leaf
+    {
+        public HeldLeaf(string text) : base(text.Length, Counted(text), text[0], text[^1]) => this.Text = text;
 
         public string Text { get; }
 
-        protected override bool Filled => this.Text.Length >= LeafLeast;
+        public override ReadOnlyMemory<char> Chars => this.Text.AsMemory();
+
+        public override Leaf Cut(int start, int length) => new HeldLeaf(this.Text.Substring(start, length));
+    }
+
+    /// <summary>Characters left where they stand in a block of a file: its block, and where in the block they start.</summary>
+    private sealed class FileLeaf : Leaf
+    {
+        private readonly ContentFile _file;
+        private readonly int _block;
+        private readonly int _start;
+
+        public FileLeaf(ContentFile file, int block, int start, int length, (int Breaks, int CrLfs) counted, char first, char last)
+            : base(length, counted, first, last) => (_file, _block, _start) = (file, block, start);
+
+        public override ReadOnlyMemory<char> Chars => _file.Block(_block).AsMemory(_start, this.Length);
+
+        /// <summary>A stretch of the same block, its breaks counted from the block read — what an edit inside a block costs.</summary>
+        public override Leaf Cut(int start, int length)
+        {
+            var chars = this.Chars.Span.Slice(start, length);
+
+            return new FileLeaf(_file, _block, _start + start, length, Counted(chars), chars[0], chars[^1]);
+        }
     }
 
     /// <summary>The nodes under one, every one as deep as the others.</summary>

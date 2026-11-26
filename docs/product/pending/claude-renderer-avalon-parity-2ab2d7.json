@@ -1037,15 +1037,40 @@
           }
         ]
       }
+    },
+    "content-file": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentFile.cs",
+          "class": "ContentFile"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentRope.cs",
+          "class": "ContentRope",
+          "method": "OfFile"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentFileTests.cs",
+            "class": "ContentFileTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 48,
+  "changed_sets": 50,
   "touched_nodes": [
     "barcode-editing",
     "code-folding",
     "content-column-selection",
     "content-editor",
+    "content-file",
     "content-line-setting",
     "content-margins",
     "content-marks",

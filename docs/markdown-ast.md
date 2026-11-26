@@ -611,6 +611,16 @@ object, so what is written in either is taken up by both and taken back from eit
 text is held once. Being a plain object, the document, its history and whether it was saved stay where they
 are when what draws them does not.
 
+**A file the size of the disk costs its table of blocks.** A document can stand over a file rather than hold it
+(`ContentDocument.Of(ContentFile)`): a `ContentFile` is scanned into blocks of about 64 KB, each cut where a character starts,
+keeping for each where it lies and how many characters and line breaks it decodes to — so the document's rope is made of leaves
+that name blocks, and nothing is read to make it. Reading decodes only the blocks read and keeps the last few dozen; an edit
+cuts a leaf into a stretch of the same block, and what is written is held beside it. The file is opened to be read and shared
+with writers — a log goes on growing under it, and `Scan` takes up what was added — and an `Editable` one is held against
+other writers on its first edit (`HoldForEdit`), once it is known to be what was scanned; a `ReadOnly` one, a log, never is.
+Encodings whose characters can be found the start of from their bytes alone — UTF-8, UTF-16, UTF-32 and the single-byte ones
+(`ContentFile.Reads`) — are read this way; a file in any other is read whole.
+
 **So is a view of it.** Where the caret is, what is picked out and which lines are on the page are a `ContentEditor`, as
 plain an object as the document, which a page holds beside it and hands the surface (`NexaTextSurface.Editor`) — or the
 surface makes one of its own. The engine showing it is its view (`IContentEditorView`): what the page asks — put the caret

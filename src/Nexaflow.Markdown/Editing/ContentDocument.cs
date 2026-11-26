@@ -77,6 +77,25 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
     /// <summary>A version of <paramref name="text"/> made from no other: loaded, or handed in whole.</summary>
     public static ContentDocument Of(string? text) => Holding(text ?? string.Empty, 0, null, null);
 
+    /// <summary>
+    /// A version of blocks <paramref name="first"/> up to <paramref name="last"/> (one past the last) of <paramref name="file"/> — every block it has
+    /// scanned, where nothing says — made from no other: a rope whose leaves name where the characters stand, so nothing is read to make it. A
+    /// stretch shorter than <see cref="RopeFrom"/> is read and held as one string, as any short document is.
+    /// </summary>
+    public static ContentDocument Of(ContentFile file, int first = 0, int? last = null)
+    {
+        var to = last ?? file.BlockCount;
+        var (_, length) = file.CharactersOf(first, to);
+
+        if (length > int.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(last), $"blocks {first} to {to} hold {length} characters, more than one document can");
+
+        if (ContentRope.OfFile(file, first, to) is not { } rope) return Of(string.Empty);
+        if (rope.Length < RopeFrom) return Of(string.Create(rope.Length, rope, static (into, held) => held.CopyTo(0, into)));
+
+        return new(null, rope, 0, null, null);
+    }
+
     /// <summary>Nothing written.</summary>
     public static ContentDocument Empty { get; } = Of(string.Empty);
 
