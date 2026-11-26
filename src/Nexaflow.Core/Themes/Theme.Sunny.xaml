@@ -74,6 +74,7 @@
     <SolidColorBrush x:Key="TextSwatch.Function"  Color="#9A6700"/>
     <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#44403C"/>
     <SolidColorBrush x:Key="TextSwatch.Whitespace" Color="#806B7488"/>
+    <SolidColorBrush x:Key="TextSwatch.CurrentLine" Color="#10000000"/>
     <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#1E3A8A"/>
     <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#9D174D"/>
     <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#C2410C"/>

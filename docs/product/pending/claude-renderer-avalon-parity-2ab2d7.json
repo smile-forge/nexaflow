@@ -754,15 +754,41 @@
           "method": "Sliding"
         }
       ]
+    },
+    "content-marks": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
+          "class": "ContentMarkLayer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
+          "class": "RangeMarks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
+          "class": "FoundMarks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
+          "class": "ContentElement",
+          "method": "PaintMarks"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 33,
+  "changed_sets": 34,
   "touched_nodes": [
     "barcode-editing",
     "content-editor",
     "content-line-setting",
     "content-margins",
+    "content-marks",
     "executable-dependency-viewport",
     "markdown-block-model",
     "markdown-block-picture",

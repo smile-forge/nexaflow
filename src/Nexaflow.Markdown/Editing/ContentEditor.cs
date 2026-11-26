@@ -63,6 +63,7 @@ public sealed class ContentEditor : IDisposable
         this.Document = document ?? new EditedDocument();
         _state = new EditState(this.Document.Current, 0);
 
+        this.Marks.Add(this.Found);
         this.Document.Changed += this.Elsewhere;
     }
 
@@ -86,6 +87,15 @@ public sealed class ContentEditor : IDisposable
 
     /// <summary>Whether something shows it now.</summary>
     public bool IsShown => _view is not null;
+
+    /// <summary>
+    /// The layers of marks laid over this view — what a search found, what a filter leaves out, each level a log line is at — carried
+    /// through every change to the document, and drawn by whatever shows it over the stretch it draws.
+    /// </summary>
+    public ContentMarkLayers Marks { get; } = new();
+
+    /// <summary>What a search turned up in this view, and which is being looked at: one of <see cref="Marks"/>, always there.</summary>
+    public FoundMarks Found { get; } = new();
 
     /// <summary>Raised when the caret moves.</summary>
     public event EventHandler? CaretMoved;
@@ -245,6 +255,9 @@ public sealed class ContentEditor : IDisposable
     /// </summary>
     private void Elsewhere(object? sender, ContentSourceChange change)
     {
+        // The marks over the view stay over what they named, whoever wrote: this view, another, or the page.
+        this.Marks.Carry(change);
+
         if (_view is not null || _taking) return;
 
         if (change.Kind == ContentChangeKind.Loaded)

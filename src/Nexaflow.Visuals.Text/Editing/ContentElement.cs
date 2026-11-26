@@ -76,6 +76,7 @@ public class ContentElement : FrameworkElement
         _engine.Changed += OnChanged;
         _engine.PreRender += OnLaid;
         _engine.CaretTaken += OnCaretTaken;
+        _engine.Remarked += OnRemarked;
         _engine.CaretMoved += OnCaretMoved;
         _engine.SelectionChanged += OnSelectionChanged;
         _engine.SourceChanged += OnSourceChanged;
@@ -111,6 +112,7 @@ public class ContentElement : FrameworkElement
         _engine.Changed -= OnChanged;
         _engine.PreRender -= OnLaid;
         _engine.CaretTaken -= OnCaretTaken;
+        _engine.Remarked -= OnRemarked;
         _engine.CaretMoved -= OnCaretMoved;
         _engine.SelectionChanged -= OnSelectionChanged;
         _engine.SourceChanged -= OnSourceChanged;
@@ -171,6 +173,8 @@ public class ContentElement : FrameworkElement
         if (HasCaret) StartBlinking();
         InvalidateVisual();
     }
+
+    private void OnRemarked(object? sender, EventArgs args) => InvalidateVisual();
 
     private void OnCaretMoved(object? sender, EventArgs args) => CaretMoved?.Invoke(this, EventArgs.Empty);
 
@@ -910,6 +914,7 @@ public class ContentElement : FrameworkElement
         Waves(dc, laid, _painted);
 
         PaintOver(dc);
+        PaintMarks(dc, laid, state);
 
         // What a carry would go into, outlined on the content as it stands: the drop is chosen against what is on screen.
         if (_engine.Marking is { } marked)
@@ -925,6 +930,131 @@ public class ContentElement : FrameworkElement
             : laid.Places[_engine.At].CaretRect();
 
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
+    }
+
+    /// <summary>The theme token the line the caret is on is washed in.</summary>
+    private const string CaretLineToken = "TextSwatch.CurrentLine";
+
+    /// <summary>Whether the line the caret is on is washed across the page's width, as a code editor shows where it is writing.</summary>
+    internal bool HighlightsCaretLine
+    {
+        get => _highlightsCaretLine;
+        set
+        {
+            if (_highlightsCaretLine == value) return;
+
+            _highlightsCaretLine = value;
+            InvalidateVisual();
+        }
+    }
+
+    private bool _highlightsCaretLine;
+
+    /// <summary>
+    /// The marks laid over the view of the document (<see cref="ContentEditor.Marks"/>), each drawn as it says in the ink its token is in the
+    /// theme — asked only about the stretch near the screen — and, first, the line the caret is on where that is washed.
+    /// </summary>
+    private void PaintMarks(DrawingContext dc, Laid laid, EditState state)
+    {
+        var marks = _engine.EditorIfAny?.Marks is { } layers && layers.Any(layer => !layer.IsEmpty) ? layers : null;
+        var caretLine = HighlightsCaretLine && !state.HasSelection;
+        if ((marks is null || marks.Count == 0) && !caretLine) return;
+
+        var document = state.Document;
+        var (start, end) = NearScreen(laid, document.Length);
+        var width = Math.Max(RenderSize.Width / Scale, laid.Size.Width);
+        var inks = new Dictionary<string, Brush>(StringComparer.Ordinal);
+
+        if (caretLine)
+            foreach (var (top, tall) in Rows(laid, document, state.Caret, state.Caret, start, end))
+                dc.DrawRectangle(Ink(inks, CaretLineToken, Palette.TextMuted), null, new Rect(0, top, width, tall));
+
+        if (marks is null || marks.Count == 0) return;
+
+        foreach (var mark in marks.Mark(new ContentMarkRequest(document, start, end)))
+        {
+            switch (mark.Kind)
+            {
+                case ContentMarkKind.Wash:
+                    foreach (var run in LayoutQuery.Clusters(laid.Root.RangeRects(mark.Start, mark.Length), 0))
+                        dc.DrawRectangle(Ink(inks, mark.Token, Palette.Marked), null, run.ToWpf());
+                    break;
+
+                case ContentMarkKind.Outline:
+                    var pen = new Pen(Ink(inks, mark.Token, Palette.Accent), Math.Max(1, Palette.TextSize / 13.5));
+                    pen.Freeze();
+                    foreach (var run in LayoutQuery.Clusters(laid.Root.RangeRects(mark.Start, mark.Length), 0)) dc.DrawRectangle(null, pen, run.ToWpf());
+                    break;
+
+                case ContentMarkKind.Underbar:
+                    var bar = mark.Colour is { } colour ? Colour(colour) : Ink(inks, mark.Token, Palette.Accent);
+                    var thick = Math.Max(2, Palette.TextSize / 6.75);
+                    foreach (var run in laid.Root.RangeRects(mark.Start, mark.Length))
+                        dc.DrawRectangle(bar, null, new Rect(run.X, run.Y + run.Height - thick, run.Width, thick));
+                    break;
+
+                case ContentMarkKind.LineWash or ContentMarkKind.Veil:
+                    var ground = Ink(inks, mark.Token, Palette.TextMuted);
+                    foreach (var (top, tall) in Rows(laid, document, mark.Start, mark.End, start, end))
+                        dc.DrawRectangle(ground, null, new Rect(0, top, width, tall));
+                    break;
+            }
+        }
+    }
+
+    /// <summary>The stretch of the document laid near the screen — all of it, where nothing says which part of it is on screen.</summary>
+    private (int Start, int End) NearScreen(Laid laid, int length)
+    {
+        if (_painted is not { } near) return (0, length);
+
+        var from = laid.Root.StopBelow(near.Y);
+        var to = laid.Root.StopBelow(near.Y + near.Height);
+
+        return (from < 0 ? length : from, to < 0 ? length : to);
+    }
+
+    /// <summary>
+    /// Where the rows of every line from the one holding <paramref name="from"/> to the one holding <paramref name="to"/> stand — only those
+    /// between <paramref name="low"/> and <paramref name="high"/>, the stretch near the screen: each line's top and how tall its rows come to,
+    /// a line with nothing on it as tall as a caret standing in it.
+    /// </summary>
+    private static IEnumerable<(double Top, double Tall)> Rows(Laid laid, ContentDocument document, int from, int to, int low, int high)
+    {
+        var (first, last) = (document.LineOf(Math.Max(from, low)), document.LineOf(Math.Min(Math.Max(to, from), high)));
+        if (Math.Max(to, from) < low || from > high) yield break;
+
+        for (var line = first; line <= last; line++)
+        {
+            var (start, end) = document.LineAt(document.OffsetOf(line));
+            var rects = end > start ? laid.Root.RangeRects(start, end - start) : [];
+
+            if (rects.Count == 0)
+            {
+                var caret = laid.Root.CaretRect(start);
+                if (!caret.IsEmpty) yield return (caret.Y, caret.Height);
+                continue;
+            }
+
+            var (top, bottom) = (rects.Min(rect => rect.Y), rects.Max(rect => rect.Y + rect.Height));
+            yield return (top, bottom - top);
+        }
+    }
+
+    /// <summary>The brush <paramref name="token"/> names in the theme — <paramref name="fallback"/> where it names none — found once a paint.</summary>
+    private Brush Ink(Dictionary<string, Brush> found, string token, LayoutInk fallback)
+    {
+        if (found.TryGetValue(token, out var known)) return known;
+
+        return found[token] = TryFindResource(token) as Brush ?? fallback.Brush();
+    }
+
+    /// <summary>A colour the document names, as a brush.</summary>
+    private static Brush Colour(uint argb)
+    {
+        var brush = new SolidColorBrush(Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb));
+        brush.Freeze();
+
+        return brush;
     }
 
     /// <summary>

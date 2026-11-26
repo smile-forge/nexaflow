@@ -536,6 +536,7 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
             IsReadOnly = IsReadOnly,
             UnlimitedWidth = UnlimitedWidth,
             SlidingRoom = SlidingRoom(),
+            HighlightsCaretLine = HighlightsCaretLine,
             Margin = ContentPadding,
         };
 

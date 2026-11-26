@@ -356,6 +356,11 @@ public sealed partial class ContentEngine : IContentEditorView
     /// <summary>Raised when the view of the document asks for a line to be brought onto the page — what moves the page is whatever shows the content.</summary>
     internal event EventHandler<(int Line, ShownPlace Place)>? LineAsked;
 
+    /// <summary>Raised when what is marked over the view of the document has changed, so it is drawn again.</summary>
+    internal event EventHandler? Remarked;
+
+    private void OnRemarked(object? sender, EventArgs args) => this.Remarked?.Invoke(this, EventArgs.Empty);
+
     /// <summary>
     /// The view of the document this shows — where the caret is, what is picked out, which lines are on the page — which a page holds to read
     /// and move them. Handed over, it is taken up with the document it is a view of; otherwise one is made the first time it is asked for.
@@ -392,6 +397,7 @@ public sealed partial class ContentEngine : IContentEditorView
 
         (_editor, _ownsEditor) = (editor, owned);
         editor.Attach(this);
+        editor.Marks.Changed += this.OnRemarked;
         editor.Stood(_state);
     }
 
@@ -401,6 +407,7 @@ public sealed partial class ContentEngine : IContentEditorView
         if (_editor is not { } editor || ReferenceEquals(editor.Document, document)) return;
 
         editor.Detach(this);
+        editor.Marks.Changed -= this.OnRemarked;
         if (_ownsEditor) editor.Dispose();
 
         _editor = null;

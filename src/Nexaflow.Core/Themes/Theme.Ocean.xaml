@@ -70,6 +70,7 @@
     <SolidColorBrush x:Key="TextSwatch.Function"  Color="#E6DE8E"/>
     <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#AECDD6"/>
     <SolidColorBrush x:Key="TextSwatch.Whitespace" Color="#809DCEDA"/>
+    <SolidColorBrush x:Key="TextSwatch.CurrentLine" Color="#14FFFFFF"/>
     <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#BFE9FF"/>
     <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#56C8E8"/>
     <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#9FE9FF"/>

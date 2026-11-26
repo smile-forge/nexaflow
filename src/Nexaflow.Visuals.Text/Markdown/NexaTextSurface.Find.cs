@@ -74,7 +74,7 @@ public sealed partial class NexaTextSurface
         Found = looking();
         At = -1;
 
-        _shown.Showing = (Found, At);
+        Washed();
 
         if (Found.Count > 0) Goes(FirstAtOrAfter(from));
 
@@ -109,7 +109,7 @@ public sealed partial class NexaTextSurface
         Found = looking();
         At = Found.Count == 0 ? -1 : FirstAtOrAfter(was);
 
-        _shown.Showing = (Found, At);
+        Washed();
     }
 
     /// <summary>The first place found at or after <paramref name="from"/> in the source, or the first of them all where none is.</summary>
@@ -133,7 +133,7 @@ public sealed partial class NexaTextSurface
         Found = kept;
         At = kept.Count > 0 ? 0 : -1;
 
-        _shown.Showing = (Found, At);
+        Washed();
 
         if (At >= 0) _shown.Show(Found[At]);
 
@@ -151,7 +151,7 @@ public sealed partial class NexaTextSurface
         Found = places;
         At = places.Count == 0 ? -1 : Math.Clamp(at, -1, places.Count - 1);
 
-        _shown.Showing = (Found, At);
+        Washed();
     }
 
     /// <summary>Picks out <paramref name="place"/> and brings it onto the page, as going to a place found does.</summary>
@@ -229,8 +229,11 @@ public sealed partial class NexaTextSurface
         Found = [];
         At = -1;
 
-        _shown.Showing = ([], -1);
+        Washed();
     }
+
+    /// <summary>What was found washed over the view of the document, the one looked at outlined — a repaint, and nothing written.</summary>
+    private void Washed() => _engine.Editor.Found.Show(Found, At);
 
     /// <summary>The same, as a host that has finished searching says it.</summary>
     public void ClearSearch() => Stop();
@@ -244,7 +247,7 @@ public sealed partial class NexaTextSurface
 
         At = (to + Found.Count) % Found.Count;
 
-        _shown.Showing = (Found, At);
+        Washed();
         _shown.Show(Found[At]);
 
         return true;

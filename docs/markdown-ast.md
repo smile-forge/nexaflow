@@ -603,6 +603,16 @@ every change and every step taken back before the change is said, by the one rul
 at the start of what took its place, or at its end where it leans after. The document keeps its anchors in blocks of a few
 dozen, each with a shift of its own, so a write moves the ones it touches one by one and every block after it by one sum.
 
+**What a host draws over the content is marks, never ink in it.** A view holds layers of marks (`ContentEditor.Marks`,
+`ContentMarkLayer`): what a search found (`FoundMarks`, a layer every view has), the stretches a host names (`RangeMarks`), each
+level a log line is at. A mark is a wash or a line round characters, a wash or a veil across every row of a line, or a bar under
+them, and names the theme token it is inked in, resolved when it is drawn — never a colour, except a bar under a colour the
+document itself writes. A layer is asked only about the stretch near the screen (`ContentElement.PaintMarks`), so marking every
+line of a long file costs a screen's worth; it is carried through every change before the change is drawn, so a mark stays over
+what it named; and it says when it changes, which is a repaint and nothing else. The line the caret is on can be washed too
+(`NexaTextSurface.HighlightsCaretLine`). Nothing marked changes what is laid: recolouring the characters themselves is the
+language's, from its stages.
+
 What happened is the engine's to say, and the surface says it again to the page as routed events: `SourceChanged` (what
 changed, and whether it was written, taken back, put there or loaded), `Selected` (what is picked out — words, a note, a box in
 a flowchart, each with the language it is written in and the name the drawing knows it by), `DoubleClicked` (the same,

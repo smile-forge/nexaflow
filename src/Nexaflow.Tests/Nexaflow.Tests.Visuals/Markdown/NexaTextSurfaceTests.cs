@@ -88,7 +88,7 @@ public class NexaTextSurfaceTests
 
         Assert.AreEqual(0, surface.Found.Count);
         Assert.AreEqual(-1, surface.At);
-        Assert.AreEqual(0, surface.Shown.Showing.Places.Count);
+        Assert.AreEqual(0, surface.Editor.Found.Places.Count);
     });
 
     [TestMethod]

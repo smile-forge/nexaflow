@@ -85,4 +85,15 @@ public sealed partial class NexaTextSurface
         _shown.SlidingRoom = room;
         _shown.InvalidateMeasure();
     }
+
+    /// <summary>Whether the line the caret is on is washed across the page's width, as a code editor shows where it is writing.</summary>
+    public static readonly DependencyProperty HighlightsCaretLineProperty = DependencyProperty.Register(
+        nameof(HighlightsCaretLine), typeof(bool), typeof(NexaTextSurface),
+        new PropertyMetadata(false, (surface, args) => ((NexaTextSurface)surface)._shown.HighlightsCaretLine = (bool)args.NewValue));
+
+    public bool HighlightsCaretLine
+    {
+        get => (bool)GetValue(HighlightsCaretLineProperty);
+        set => SetValue(HighlightsCaretLineProperty, value);
+    }
 }

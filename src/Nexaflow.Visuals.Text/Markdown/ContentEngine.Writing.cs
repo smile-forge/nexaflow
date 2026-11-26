@@ -133,6 +133,9 @@ public sealed partial class ContentEngine
     internal void Relay()
     {
         _laid = LaidOut(_state);
+
+        // Which place the caret stood at is only true of the tree it was taken from: in this one it is found again from its offset.
+        _at = _laid.Root.StopAt(_state.Caret);
         Repick();
         Recornered();
 

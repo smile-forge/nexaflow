@@ -71,58 +71,6 @@ public sealed class MarkdownElement : LinkedElement
     public void Restore(EditState state) => Apply(state, notify: false);
 
     /// <summary>
-    /// The places a search turned up, and which of them is the one being looked at.
-    ///
-    /// <para>
-    /// <strong>Drawn over, never written into.</strong> A found word is washed at paint time from the offsets
-    /// it was found at; nothing in the tree is changed to mark it, so clearing a search costs a repaint and
-    /// there is no state to get out of step with the document. It is the same bargain the selection makes.
-    /// </para>
-    /// </summary>
-    public (IReadOnlyList<(int Start, int Length)> Places, int At) Showing
-    {
-        get => _showing;
-        set
-        {
-            _showing = (value.Places ?? [], value.At);
-
-            InvalidateVisual();
-        }
-    }
-
-    private (IReadOnlyList<(int Start, int Length)> Places, int At) _showing = ([], -1);
-
-    /// <inheritdoc/>
-    protected override void PaintOver(DrawingContext dc)
-    {
-        base.PaintOver(dc);
-
-        for (var at = 0; at < _showing.Places.Count; at++)
-        {
-            var (start, length) = _showing.Places[at];
-            var runs = LayoutQuery.Clusters(Laid.Root.RangeRects(start, length), 0);
-
-            foreach (var run in runs)
-                dc.DrawRectangle(Palette.Marked.Brush(), Edge(at == _showing.At), run.ToWpf());
-        }
-    }
-
-    /// <summary>
-    /// What is drawn round a found word. The one being looked at is outlined as well as washed, because a
-    /// wash alone cannot say which of several is the one — and the glyphs are already down by the time this
-    /// paints, so their colour is not ours to change.
-    /// </summary>
-    private Pen? Edge(bool looking)
-    {
-        if (!looking) return null;
-
-        var pen = new Pen(Palette.Accent.Brush(), Math.Max(1, Palette.TextSize / 13.5));
-        pen.Freeze();
-
-        return pen;
-    }
-
-    /// <summary>
     /// Brings a stretch of the source into view and picks it out.
     ///
     /// <para>
