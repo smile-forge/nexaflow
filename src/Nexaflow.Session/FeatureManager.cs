@@ -261,5 +261,10 @@ public sealed class FeatureManager
                 pageKinds.Add(reg.PageKind);
         return pageKinds;
     }
+
+    /// <summary>The page kinds in <paramref name="runtime"/> built with any of <paramref name="configTypes"/>, each once: the pages a
+    /// change to those configs reopens.</summary>
+    public IReadOnlyList<string> PageKindsChangedBy(IEnumerable<Type> configTypes, WorkspaceRuntime runtime)
+        => [.. configTypes.SelectMany(type => GetPageKindsForConfig(type, runtime)).Distinct()];
 }
 

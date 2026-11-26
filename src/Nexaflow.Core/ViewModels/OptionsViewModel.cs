@@ -481,10 +481,7 @@ public partial class OptionsViewModel : ObservableObject
         // A refresh closes and reopens the tab, so reopening every feature's tabs on any save threw away
         // pages whose settings nobody touched — a Network sweep in flight among them.
         var activeCtx = _runtimes.FirstWithWindows;
-        var pageKindsToRefresh = activeCtx is null ? [] : changed
-            .SelectMany(type => _features.GetPageKindsForConfig(type, activeCtx))
-            .Distinct()
-            .ToList();
+        var pageKindsToRefresh = activeCtx is null ? [] : _features.PageKindsChangedBy(changed, activeCtx);
 
         if (pageKindsToRefresh.Count > 0)
             TabRefreshRequested?.Invoke(pageKindsToRefresh);
