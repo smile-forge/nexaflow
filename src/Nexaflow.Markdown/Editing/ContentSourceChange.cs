@@ -65,4 +65,10 @@ public enum ContentChangeKind
     /// that could be taken back is lost.
     /// </summary>
     Rebased,
+
+    /// <summary>
+    /// The window onto a file too long for one document moved: what left it at one end was cut away and what came into it written in at the
+    /// other (<see cref="ContentFileWindow"/>). Nothing written, and nothing that could be taken back is lost.
+    /// </summary>
+    Moved,
 }

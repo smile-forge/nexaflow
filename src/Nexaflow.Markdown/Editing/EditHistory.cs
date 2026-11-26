@@ -67,6 +67,19 @@ public sealed class EditHistory
     public bool IsAtSaved => _saved == _undo.Count;
 
     /// <summary>
+    /// Where, in the whole of what is written, the document the history last left starts: nought, except for the window onto a file too long
+    /// for one document, where it is where the window starts. Every step is kept with where it was written, so a step written before the
+    /// window moved is taken back where it was written.
+    /// </summary>
+    public long Origin { get; private set; }
+
+    /// <summary>Where, in the whole of what is written, the step the next undo takes back writes — or null where there is none.</summary>
+    public (long Start, long End)? UndoSpan => _undo.Count == 0 ? null : Span(_undo[^1].Backward, _undo[^1].Origin);
+
+    /// <summary>Where, in the whole of what is written, the step the next redo writes again writes — or null where there is none.</summary>
+    public (long Start, long End)? RedoSpan => _redo.Count == 0 ? null : Span(_redo[^1].Forward, _redo[^1].Origin);
+
+    /// <summary>
     /// Says that the document went from <paramref name="before"/> to <paramref name="after"/> because somebody wrote in it
     /// — joining the step being written where it carries on from where that step left the caret.
     /// </summary>
@@ -80,14 +93,14 @@ public sealed class EditHistory
         _redo.Clear();
         if (_saved > _undo.Count) _saved = -1;
 
-        if (_open is { } open && ReferenceEquals(_left, before.Document) && open.After.Caret == before.Caret
+        if (_open is { } open && open.Origin == this.Origin && ReferenceEquals(_left, before.Document) && open.After.Caret == before.Caret
             && Joined(open, forward, before) is { } joined)
         {
             _undo[^1] = _open = joined with { After = Placed(after) };
         }
         else
         {
-            _undo.Add(_open = new EditStep(forward, backward, Placed(before), Placed(after)));
+            _undo.Add(_open = new EditStep(forward, backward, Placed(before), Placed(after), this.Origin));
         }
 
         _left = after.Document;
@@ -96,31 +109,61 @@ public sealed class EditHistory
     }
 
     /// <summary>
-    /// The state to go back to from <paramref name="now"/>, or null where there is nothing to take back. Whatever was
-    /// being written is finished: the next edit is a step of its own.
+    /// The state to go back to from <paramref name="now"/>, or null where there is nothing to take back — or the step to take back lies outside
+    /// the window onto a file the document is (<see cref="EditedDocument.ReachUndo"/> moves it there first). Whatever was being written is
+    /// finished: the next edit is a step of its own.
     /// </summary>
     public EditState? Undo(EditState now)
     {
         if (_undo.Count == 0 || !Applies(now)) return null;
 
         var step = _undo[^1];
+        if (!Inside(step.Backward, step.Origin, now.Document.Length)) return null;
+
         _undo.RemoveAt(_undo.Count - 1);
         _redo.Add(step);
 
-        return Taken(now.Document.Apply(step.Backward), step.Before);
+        var by = (int)(step.Origin - this.Origin);
+        return Taken(now.Document.Apply(Shifted(step.Backward, by)), Shifted(step.Before, by));
     }
 
-    /// <summary>The state to go forward to again from <paramref name="now"/>, or null where nothing was taken back.</summary>
+    /// <summary>The state to go forward to again from <paramref name="now"/>, or null where nothing was taken back — or what was lies outside the window.</summary>
     public EditState? Redo(EditState now)
     {
         if (_redo.Count == 0 || !Applies(now)) return null;
 
         var step = _redo[^1];
+        if (!Inside(step.Forward, step.Origin, now.Document.Length)) return null;
+
         _redo.RemoveAt(_redo.Count - 1);
         _undo.Add(step);
 
-        return Taken(now.Document.Apply(step.Forward), step.After);
+        var by = (int)(step.Origin - this.Origin);
+        return Taken(now.Document.Apply(Shifted(step.Forward, by)), Shifted(step.After, by));
     }
+
+    /// <summary>Where <paramref name="change"/>, written where a window starting at <paramref name="origin"/> stood, writes in the whole of what is written.</summary>
+    private static (long Start, long End) Span(ContentChange change, long origin) =>
+        change.Writes.Count == 0 ? (origin + change.Caret, origin + change.Caret)
+            : (origin + change.Writes.Min(write => write.Start), origin + change.Writes.Max(write => write.End));
+
+    /// <summary>Whether <paramref name="change"/>, written where a window starting at <paramref name="origin"/> stood, writes inside the document as long as <paramref name="length"/> the history now leaves.</summary>
+    private bool Inside(ContentChange change, long origin, int length)
+    {
+        var (start, end) = Span(change, origin);
+        return start >= this.Origin && end <= this.Origin + length;
+    }
+
+    /// <summary><paramref name="change"/> with every offset moved <paramref name="by"/>.</summary>
+    private static ContentChange Shifted(ContentChange change, int by) =>
+        by == 0 ? change : new ContentChange([.. change.Writes.Select(write => write with { Start = write.Start + by })], change.Caret + by);
+
+    /// <summary><paramref name="place"/> with every offset moved <paramref name="by"/>.</summary>
+    private static EditPlace Shifted(EditPlace place, int by) =>
+        by == 0 ? place : new EditPlace(
+            place.Caret + by,
+            place.Selected?.Select(range => new EditRange(range.Start + by, range.Length)).ToList(),
+            place.Raw is { } raw ? new RawZone(raw.Start + by, raw.End + by) : null);
 
     /// <summary>
     /// The document as it stood before the step <paramref name="now"/> is part of — what taking that step back would put back — and the one
@@ -130,7 +173,7 @@ public sealed class EditHistory
     /// </summary>
     public (ContentDocument Before, ContentWrite Written)? Begun(EditState last, EditState now)
     {
-        var open = _open is { } step && ReferenceEquals(_left, last.Document) && _undo.Count > 0 && ReferenceEquals(_undo[^1], step) ? step : null;
+        var open = _open is { } step && step.Origin == this.Origin && ReferenceEquals(_left, last.Document) && _undo.Count > 0 && ReferenceEquals(_undo[^1], step) ? step : null;
 
         var forward = ReferenceEquals(last.Document, now.Document) ? null
                     : now.Document.MadeFrom(last.Document) ? now.Document.Change!
@@ -164,6 +207,18 @@ public sealed class EditHistory
     public void Restate(ContentDocument from, ContentDocument now)
     {
         if (ReferenceEquals(_left, from)) _left = now;
+    }
+
+    /// <summary>
+    /// Says the window onto a file the history is kept for moved <paramref name="by"/> characters through the file, the document it last left,
+    /// <paramref name="from"/>, becoming <paramref name="now"/>: every step is still taken back where in the file it was written, and what is
+    /// written next is a step of its own.
+    /// </summary>
+    public void Moved(ContentDocument from, ContentDocument now, long by)
+    {
+        this.Origin += by;
+        this.Restate(from, now);
+        _open = null;
     }
 
     /// <summary>Says that what is written now has been saved, so <see cref="IsAtSaved"/> is true here and until something else is written.</summary>
@@ -292,8 +347,11 @@ public sealed class EditHistory
     /// <summary>Where the caret was, what was picked out and what was shown as written — a state without its document.</summary>
     private readonly record struct EditPlace(int Caret, IReadOnlyList<EditRange>? Selected, RawZone? Raw);
 
-    /// <summary>One step: the change written and the change that takes it back, and the state either side of it without its document.</summary>
-    private sealed record EditStep(ContentChange Forward, ContentChange Backward, EditPlace Before, EditPlace After)
+    /// <summary>
+    /// One step: the change written and the change that takes it back, and the state either side of it without its document — all in the
+    /// offsets of the document it was written in, which started at <paramref name="Origin"/> in the whole of what is written.
+    /// </summary>
+    private sealed record EditStep(ContentChange Forward, ContentChange Backward, EditPlace Before, EditPlace After, long Origin)
     {
         /// <summary>
         /// How many characters it holds in memory, written and written over — a stretch kept as a document's leaves counting only those

@@ -491,10 +491,19 @@ public sealed partial class ContentEngine : IContentEditorView
     }
 
     /// <summary>Takes back the last thing written.</summary>
-    internal void Undo() => Back(this.Taking(() => this.EditedDocument.Undo(_state)), ContentChangeKind.Undone);
+    internal void Undo()
+    {
+        // A step outside the window onto a file is brought into it first, which is taken up as any change made elsewhere.
+        this.EditedDocument.ReachUndo();
+        Back(this.Taking(() => this.EditedDocument.Undo(_state)), ContentChangeKind.Undone);
+    }
 
     /// <summary>Writes again what was last taken back.</summary>
-    internal void Redo() => Back(this.Taking(() => this.EditedDocument.Redo(_state)), ContentChangeKind.Redone);
+    internal void Redo()
+    {
+        this.EditedDocument.ReachRedo();
+        Back(this.Taking(() => this.EditedDocument.Redo(_state)), ContentChangeKind.Redone);
+    }
 
     private void Back(EditState? state, ContentChangeKind kind)
     {

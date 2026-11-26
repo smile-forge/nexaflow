@@ -1117,16 +1117,41 @@
           }
         ]
       }
+    },
+    "content-file-window": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentFileWindow.cs",
+          "class": "ContentFileWindow"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/EditHistory.cs",
+          "class": "EditHistory",
+          "method": "Moved"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentFileWindowTests.cs",
+            "class": "ContentFileWindowTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 51,
+  "changed_sets": 53,
   "touched_nodes": [
     "barcode-editing",
     "code-folding",
     "content-column-selection",
     "content-editor",
     "content-file",
+    "content-file-window",
     "content-line-setting",
     "content-margins",
     "content-marks",

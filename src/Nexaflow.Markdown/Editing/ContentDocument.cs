@@ -174,6 +174,24 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         return new ContentDocument(same._flat, same._rope, this.Version, new ContentChange([], 0), new ContentChange([], 0));
     }
 
+    /// <summary>
+    /// <paramref name="parts"/>, one after another, as one version made from no other — the leaves of each held as they are, so joining stretches
+    /// over a file reads none of them.
+    /// </summary>
+    internal static ContentDocument Joined(IReadOnlyList<ContentDocument> parts)
+    {
+        if (parts.Count == 1) return parts[0];
+
+        var length = parts.Sum(part => (long)part.Length);
+        if (length > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(parts), $"{length} characters are more than one document can hold");
+        if (length < RopeFrom) return Of(string.Concat(parts.Select(part => part.ToString())));
+
+        ContentRope? rope = null;
+        foreach (var part in parts) rope = ContentRope.Joined(rope, part._rope ?? ContentRope.Of(part._flat!));
+
+        return new ContentDocument(null, rope, 0, null, null);
+    }
+
     /// <summary>The characters from <paramref name="start"/> on, as many as <paramref name="into"/> holds.</summary>
     public void CopyTo(int start, Span<char> into)
     {

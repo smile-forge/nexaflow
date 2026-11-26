@@ -243,6 +243,24 @@ public sealed class ContentFile : IDisposable
     public static ContentFile Save(EditedDocument document, string path, Encoding encoding, bool preamble,
                                    ContentFileAccess access = ContentFileAccess.Editable, bool hold = true)
     {
+        var full = Replace(path, encoding, preamble, document.WriteTo);
+
+        var saved = Open(full, encoding, preamble ? encoding.GetPreamble().Length : 0, access);
+        saved.Scan();
+        if (hold) saved.HoldForEdit();
+
+        document.Rebase(ContentDocument.Of(saved));
+        document.MarkSaved();
+
+        return saved;
+    }
+
+    /// <summary>
+    /// Writes, through <paramref name="write"/>, a file in <paramref name="encoding"/> — with its mark where <paramref name="preamble"/> says —
+    /// beside <paramref name="path"/>, then puts it in its place, so a save that fails leaves the file as it was; and says where it is.
+    /// </summary>
+    internal static string Replace(string path, Encoding encoding, bool preamble, Action<TextWriter> write)
+    {
         var full = System.IO.Path.GetFullPath(path);
         var beside = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(full)!, $".{System.IO.Path.GetFileName(full)}.{Guid.NewGuid():N}.saving");
 
@@ -250,7 +268,7 @@ public sealed class ContentFile : IDisposable
         {
             using (var stream = new FileStream(beside, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16))
             using (var writer = new StreamWriter(stream, preamble ? encoding : Unmarked(encoding), 1 << 16))
-                document.WriteTo(writer);
+                write(writer);
 
             if (File.Exists(full)) File.Replace(beside, full, destinationBackupFileName: null, ignoreMetadataErrors: true);
             else File.Move(beside, full);
@@ -263,15 +281,45 @@ public sealed class ContentFile : IDisposable
             throw;
         }
 
-        var saved = Open(full, encoding, preamble ? encoding.GetPreamble().Length : 0, access);
-        saved.Scan();
-        if (hold) saved.HoldForEdit();
-
-        document.Rebase(ContentDocument.Of(saved));
-        document.MarkSaved();
-
-        return saved;
+        return full;
     }
+
+    /// <summary>
+    /// The blocks holding the characters from <paramref name="start"/> over <paramref name="length"/> — counted from the file's first — the first and
+    /// one past the last, and how far into the first they start.
+    /// </summary>
+    internal (int First, int Last, int Skip) BlocksOf(long start, long length)
+    {
+        var starts = this.Starts;
+        var found = Array.BinarySearch(starts, start);
+        var first = Math.Max(0, found >= 0 ? Math.Min(found, starts.Length - 2) : ~found - 1);
+        var end = start + length;
+        var last = first;
+
+        while (last < starts.Length - 1 && starts[last] < end) last++;
+
+        return (first, Math.Max(last, first + 1), (int)(start - starts[first]));
+    }
+
+    /// <summary>Where each block's characters start, counted from the file's first — and, one past the last, where the last ends.</summary>
+    private long[] Starts
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_starts is { } kept && kept.Length == _blocks.Count + 1) return kept;
+
+                var starts = new long[_blocks.Count + 1];
+                for (var block = 0; block < _blocks.Count; block++) starts[block + 1] = starts[block] + _blocks[block].Chars;
+
+                return _starts = starts;
+            }
+        }
+    }
+
+    /// <summary>What <see cref="Starts"/> came to, for the blocks scanned when it was asked.</summary>
+    private long[]? _starts;
 
     /// <summary><paramref name="encoding"/> writing no mark at the start of what it writes.</summary>
     private static Encoding Unmarked(Encoding encoding) => encoding switch

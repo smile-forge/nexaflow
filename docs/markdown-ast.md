@@ -639,6 +639,16 @@ tall as its lines, counted from the document without reading them (`ContentLangu
 those farthest from the screen are let go of again (`ContentEngine.LetFarGo`); and a change into a stretch skipped reads nothing. So a
 file the size of the disk costs what is near the reader, a jump to its end reads its end, and the background has nothing to read.
 
+**A file longer than one document is shown through a window** (`ContentFileWindow`): a document over at most half a billion
+characters of it, which moves as the reader does (`MoveTo`, `Reach`). Before and after the window lie stretches — the file's own,
+only where they lie in it, or what was written while the window was over them, as the document it came to — and moving the window
+is one change to its document (told as `Moved`): what leaves it cut away and kept, what comes into it written in as the leaves it
+was held in, so views, marks and anchors carry through it and nothing written is lost. There is one history, in the file's offsets:
+every step keeps where the window started when it was written (`EditHistory.Origin`) and is shifted by however far the window has
+moved since, and taking back or writing again a step outside the window first moves the window to it (`EditedDocument.ReachUndo`,
+which the engine asks before it takes a step back). Saving writes every stretch in order — the file's own a block at a time —
+beside the file, and the window then stands over the file just written with every step kept.
+
 **So is a view of it.** Where the caret is, what is picked out and which lines are on the page are a `ContentEditor`, as
 plain an object as the document, which a page holds beside it and hands the surface (`NexaTextSurface.Editor`) — or the
 surface makes one of its own. The engine showing it is its view (`IContentEditorView`): what the page asks — put the caret

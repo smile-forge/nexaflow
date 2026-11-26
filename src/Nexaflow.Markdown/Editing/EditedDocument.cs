@@ -39,6 +39,12 @@ public sealed class EditedDocument : INotifyPropertyChanged
     /// <summary>The places held in it, carried through every change before the change is said.</summary>
     private readonly ContentAnchors _anchors = new();
 
+    /// <summary>
+    /// Whether what was saved is known only by the history — once the window onto a file it is has moved, what was saved is no one version of
+    /// what it holds — rather than also by comparing characters.
+    /// </summary>
+    private bool _savedByHistory;
+
     /// <summary>A document holding <paramref name="text"/>, saved as it is.</summary>
     public EditedDocument(string? text = null) : this(ContentDocument.Of(text))
     {
@@ -134,6 +140,41 @@ public sealed class EditedDocument : INotifyPropertyChanged
         this.Told(before, new EditState(restated, 0), ContentChangeKind.Rebased);
     }
 
+    /// <summary>The window onto a file too long for one document that this is the document of — or null for a document of its own.</summary>
+    public ContentFileWindow? Window { get; internal set; }
+
+    /// <summary>
+    /// Brings the step the next undo takes back inside the window onto a file this is the document of, moving the window there where it is
+    /// outside it — what whatever takes a step back asks first, so the move is a change it takes up like any other. Nothing, for a document of
+    /// its own.
+    /// </summary>
+    public void ReachUndo()
+    {
+        if (this.Window is { } window && this.History.UndoSpan is var (start, end)) window.Reach(start, end);
+    }
+
+    /// <summary>Brings the step the next redo writes again inside the window onto a file, as <see cref="ReachUndo"/> does for an undo.</summary>
+    public void ReachRedo()
+    {
+        if (this.Window is { } window && this.History.RedoSpan is var (start, end)) window.Reach(start, end);
+    }
+
+    /// <summary>
+    /// Moves the window onto a file this is the document of <paramref name="by"/> characters through the file, by <paramref name="change"/>:
+    /// what leaves it cut away and what comes into it written in. Nothing to take back, nothing lost that could be.
+    /// </summary>
+    internal void Move(ContentChange change, long by)
+    {
+        var before = new EditState(_current, 0);
+        var after = before.Made(change);
+
+        this.History.Moved(_current, after.Document, by);
+        _current = after.Document;
+        _savedByHistory = true;
+
+        this.Told(before, after, ContentChangeKind.Moved);
+    }
+
     /// <summary>
     /// Writes <paramref name="change"/> on the reader's behalf — an edit an assistant made, a block a page put in — as a step of its
     /// own that can be taken back. Whatever shows the document takes it up, carrying the caret through it.
@@ -158,6 +199,7 @@ public sealed class EditedDocument : INotifyPropertyChanged
     public void MarkSaved()
     {
         _saved = _current;
+        _savedByHistory = false;
         this.History.MarkSaved();
     }
 
@@ -228,7 +270,7 @@ public sealed class EditedDocument : INotifyPropertyChanged
     /// <summary>What the history now says about taking back and about what was saved, said to whoever is listening where it moved.</summary>
     private void Restated()
     {
-        var dirty = !this.History.IsAtSaved && (_current.Length != _saved.Length || !_current.Equals(_saved));
+        var dirty = !this.History.IsAtSaved && (_savedByHistory || _current.Length != _saved.Length || !_current.Equals(_saved));
 
         if (dirty != _dirty)
         {
