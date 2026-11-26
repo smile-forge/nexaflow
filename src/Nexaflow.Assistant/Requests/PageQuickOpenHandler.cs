@@ -1,8 +1,4 @@
-using System.Threading.Tasks;
-using Nexaflow.Core.ViewModels;
-using Nexaflow.Features.Common;
-
-namespace Nexaflow.Core.Services;
+namespace Nexaflow.Assistant.Requests;
 
 /// <summary>
 /// AI-input query handler that opens a page or ribbon shortcut by name — the standard symbol dot + ghost

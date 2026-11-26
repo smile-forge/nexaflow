@@ -22,7 +22,6 @@ namespace Nexaflow.Core.Help;
 internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, ISearchable
 {
     private const int SearchHitCap = 200;
-    private const int ContextCap   = 16_000;
     private static readonly TimeSpan TypingPause = TimeSpan.FromMilliseconds(250);
 
     private readonly HelpLibrary _library;
@@ -324,16 +323,14 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
         await _library.Index.EnsureBuiltAsync();
         ct.ThrowIfCancellationRequested();
 
-        // Ids are "<topic>#<ordinal>": which help page, and which match on it in reading order.
         var hits = _library.Index.Hits(matcher, Topic, SearchHitCap, out var total);
         if (total == 0) return SearchOutcome.None();
-        return SearchOutcome.Found(
-            hits.Select(h => new SearchHit($"{h.Topic.Topic}#{h.Ordinal}", h.Topic.Title, h.Preview)).ToList(), total);
+        return SearchOutcome.Found(hits.Select(h => new SearchHit(h.Id, h.Topic.Title, h.Preview)).ToList(), total);
     }
 
     public async Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct)
     {
-        if (hits.Count == 0 || ParseHitId(hits[0].Id) is not { } target) return false;
+        if (hits.Count == 0 || HelpHit.ParseId(hits[0].Id) is not { } target) return false;
         await _shell.RunOnUiAsync(() =>
         {
             _pendingStep = target.Ordinal;
@@ -350,21 +347,9 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
         return true;
     }
 
-    private static (string Topic, int Ordinal)? ParseHitId(string id)
-    {
-        var hash = id.LastIndexOf('#');
-        return hash > 0 && int.TryParse(id[(hash + 1)..], out var ordinal) ? (id[..hash], ordinal) : null;
-    }
-
     // ── IPageViewModel ────────────────────────────────────────────────────
 
-    public string GetContext()
-    {
-        var text = _library.PlainText(_doc.Markdown);
-        if (text.Length > ContextCap) text = text[..ContextCap] + "\n…";
-        var standIn = _doc.MissingTopic is { } missing ? $" (there is no help for '{missing}' yet, so this is the list of help pages)" : "";
-        return $"Nexaflow help, page '{Title}'{standIn}. It reads:\n{text}";
-    }
+    public string GetContext() => _library.AssistantContext(_doc);
 
     public string? GetAiSystemPromptGuidance() =>
         "This pane is Nexaflow's built-in help, open beside the page it explains. Answer questions about what that page " +

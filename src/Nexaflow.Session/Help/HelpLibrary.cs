@@ -63,6 +63,17 @@ public sealed partial class HelpLibrary
     /// <summary>A help page as the text a reader sees (<see cref="HelpPlainText"/>): what the search finds and the assistant reads.</summary>
     public string PlainText(string? markdown) => HelpPlainText.Extract(markdown, _fenceDrawn);
 
+    /// <summary>What the assistant reads of the help page <paramref name="doc"/>: which page it is, and its text as a reader sees
+    /// it, up to 16,000 characters. Standing in for a page kind with no help, it says this is the list of help pages.</summary>
+    public string AssistantContext(HelpDocument doc)
+    {
+        const int cap = 16_000;
+        var text = PlainText(doc.Markdown);
+        if (text.Length > cap) text = text[..cap] + "\n…";
+        var standIn = doc.MissingTopic is { } missing ? $" (there is no help for '{missing}' yet, so this is the list of help pages)" : "";
+        return $"Nexaflow help, page '{doc.Topic.Title}'{standIn}. It reads:\n{text}";
+    }
+
     /// <summary>The help page for <paramref name="topic"/> (a page kind), if there is one.</summary>
     public HelpTopic? Find(string? topic)
         => string.IsNullOrWhiteSpace(topic)

@@ -218,7 +218,7 @@ public sealed class WorkspaceRuntimes : IDisposable
     /// <summary>The last window of <paramref name="runtime"/> went: it turns dormant once its background work is done.</summary>
     private void Rest(WorkspaceRuntime runtime)
     {
-        var running = _factory.RunningJobsOf(runtime);
+        var running = _factory.Session.Tasks?.RunningJobsOf(runtime) ?? [];
         if (running.Count > 0)
         {
             _finishingWork[runtime] = running;

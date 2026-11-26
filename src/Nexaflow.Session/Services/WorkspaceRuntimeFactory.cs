@@ -77,10 +77,6 @@ public sealed class WorkspaceRuntimeFactory(RuntimeSessionServices session)
     /// <summary>Stops <paramref name="runtime"/>'s background jobs: the models they run on are going.</summary>
     internal void StopJobsOf(WorkspaceRuntime runtime) => Session.Tasks?.StopJobsOf(runtime);
 
-    /// <summary><paramref name="runtime"/>'s background jobs still running.</summary>
-    internal List<BackgroundTask> RunningJobsOf(WorkspaceRuntime runtime)
-        => Session.Tasks?.Tasks.Where(task => ReferenceEquals(task.Workspace, runtime) && task.Status == Models.TaskStatus.Running).ToList() ?? [];
-
     /// <summary>
     /// Lets the session's first look for locations finish before a runtime mounts — a registry read for WSL — so the tabs it
     /// reopens find a saved distro's folder mounted. A look slower than <see cref="DiscoveryPatience"/> is mounted when it

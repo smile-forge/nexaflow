@@ -584,8 +584,6 @@
   "Shell.AiBar.Spell.IgnoreAll": "Ignore All",
   "Shell.Text.Cut": "Cut",
   "Shell.Text.Paste": "Paste",
-  "Shell.AiBar.Search.Unsupported": "This page doesn't support searching.",
-  "Shell.AiBar.Search.Nothing": "Nothing to search for.",
   "Shell.AiResponse.Considering": "Considering",
   "Shell.AiResponse.Working": "Working",
   "Shell.AiResponse.DeclinedFormat": "Declined — asking {0}",
