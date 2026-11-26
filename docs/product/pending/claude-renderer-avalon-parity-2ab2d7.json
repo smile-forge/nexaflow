@@ -779,12 +779,53 @@
           "method": "PaintMarks"
         }
       ]
+    },
+    "code-folding": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/Highlighting/TreeSitterController.cs",
+          "class": "TreeSitterController",
+          "method": "Reparse"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/CodeHighlighter.cs",
+          "class": "CodeHighlighter",
+          "method": "GetFolds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentFolds.cs",
+          "class": "ContentFolds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/FoldMargin.cs",
+          "class": "FoldMargin"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/CodeHighlighter.cs",
+          "class": "CodeHighlighter",
+          "method": "FoldsIn"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Lines/LinedBuilder.cs",
+          "class": "LinedBuilder",
+          "method": "FoldedAfter"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 34,
+  "changed_sets": 35,
   "touched_nodes": [
     "barcode-editing",
+    "code-folding",
     "content-editor",
     "content-line-setting",
     "content-margins",

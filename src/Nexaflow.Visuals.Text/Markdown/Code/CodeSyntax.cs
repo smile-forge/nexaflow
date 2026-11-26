@@ -90,6 +90,9 @@ internal sealed class CodeSyntax : IReadingSyntax
     /// </summary>
     public IReadOnlyList<HighlightSpan> Known(int start, int end) => _history.Known(this.Version, start, end);
 
+    /// <summary>What can be folded in this version, as last parsed and carried here, in order — quick: no parse, nothing native.</summary>
+    public IReadOnlyList<(int Start, int End)> Folds() => _history.Folds(this.Version);
+
     /// <summary>The stretches <paramref name="changed"/>, found in <paramref name="version"/>, where they stand in this version — none, where this does not follow from it.</summary>
     public IEnumerable<(int Start, int End)> Since(int version, IReadOnlyList<(int Start, int End)> changed) => _history.Mapped(version, this.Version, changed);
 
@@ -121,6 +124,12 @@ internal sealed class CodeSyntax : IReadingSyntax
 
         /// <summary>The last tree parsed, and which version it is — the one the next parse starts from.</summary>
         private (Tree Tree, int Version)? _parsed;
+
+        /// <summary>What the last tree parsed says can be folded, and which version that is — read on the pass that parsed it.</summary>
+        private (int Version, IReadOnlyList<FoldRange> Folds)? _folds;
+
+        /// <summary>How long a reading may be and still have what folds in it read: past it, as past colouring, the code is shown as written.</summary>
+        private const int FoldsUpTo = 16 * 1024 * 1024;
 
         /// <summary>The newest version made.</summary>
         public int Latest { get; private set; }
@@ -184,6 +193,10 @@ internal sealed class CodeSyntax : IReadingSyntax
                 }
 
                 tree = made;
+
+                // What folds in it is read now, on this pass, from the tree just made — never on the thread that lays content out.
+                var folds = syntax.Characters.Length <= FoldsUpTo ? reader.FoldsIn(made, made.Source) : [];
+                lock (_gate) _folds = (syntax.Version, folds);
             }
 
             var spans = reader.Highlight(tree, tree.Source, start, end);
@@ -229,6 +242,29 @@ internal sealed class CodeSyntax : IReadingSyntax
 
             // In the order found, so the later of two spans over the same characters still wins.
             return spans;
+        }
+
+        /// <summary>
+        /// What can be folded in <paramref name="version"/>: what the last tree parsed said, carried through every change since — what a change
+        /// took the whole of left out; nothing, where nothing has been parsed yet or this does not follow from it.
+        /// </summary>
+        public IReadOnlyList<(int Start, int End)> Folds(int version)
+        {
+            lock (_gate)
+            {
+                if (_folds is not var (parsed, folds)) return [];
+                if (parsed == version) return [.. folds.Select(fold => (fold.Start, fold.End))];
+                if (parsed > version || this.Edits(parsed, version) is not { } edits) return [];
+
+                var carried = new List<(int Start, int End)>(folds.Count);
+                foreach (var fold in folds)
+                {
+                    var (start, end) = (Through(fold.Start, edits, before: true), Through(fold.End, edits, before: false));
+                    if (end > start) carried.Add((start, end));
+                }
+
+                return carried;
+            }
         }
 
         /// <summary>Whether a newer finding already said what the stretch from <paramref name="start"/> to <paramref name="end"/> is.</summary>

@@ -545,6 +545,9 @@ public sealed partial class ContentEngine
     /// </summary>
     internal bool Unfolded(int offset)
     {
+        // A fold in code hiding the place opens first: it is the view's, and laying again follows from it.
+        if (_editor is { } viewed && ReferenceEquals(viewed.Document, _edited) && viewed.Folds.Reveal(offset)) return true;
+
         if (PartHolding(offset) is not { } block) return false;
 
         var opened = false;

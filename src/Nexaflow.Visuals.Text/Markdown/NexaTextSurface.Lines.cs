@@ -86,6 +86,9 @@ public sealed partial class NexaTextSurface
         _shown.InvalidateMeasure();
     }
 
+    /// <summary>What the content says can be folded, in order — for what stands beside its lines (<see cref="FoldMargin"/>).</summary>
+    internal IReadOnlyList<(int Start, int End)> FoldsOffered() => _engine.Foldable();
+
     /// <summary>Whether the line the caret is on is washed across the page's width, as a code editor shows where it is writing.</summary>
     public static readonly DependencyProperty HighlightsCaretLineProperty = DependencyProperty.Register(
         nameof(HighlightsCaretLine), typeof(bool), typeof(NexaTextSurface),

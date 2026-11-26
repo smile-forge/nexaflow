@@ -29,6 +29,9 @@ public interface IContentEditorView
 
     /// <summary>Moves the page so line <paramref name="line"/>, counting from nought, stands where <paramref name="place"/> says.</summary>
     void ShowLine(int line, ShownPlace place);
+
+    /// <summary>What the content says can be folded, in order: each stretch's start and end — nothing, for content that folds nothing.</summary>
+    IReadOnlyList<(int Start, int End)> Foldable();
 }
 
 /// <summary>
@@ -64,6 +67,7 @@ public sealed class ContentEditor : IDisposable
         _state = new EditState(this.Document.Current, 0);
 
         this.Marks.Add(this.Found);
+        this.Folds = new ContentFolds(this.Document);
         this.Document.Changed += this.Elsewhere;
     }
 
@@ -96,6 +100,9 @@ public sealed class ContentEditor : IDisposable
 
     /// <summary>What a search turned up in this view, and which is being looked at: one of <see cref="Marks"/>, always there.</summary>
     public FoundMarks Found { get; } = new();
+
+    /// <summary>What this view has folded away, held through every change to the document.</summary>
+    public ContentFolds Folds { get; private set; } = null!;
 
     /// <summary>Raised when the caret moves.</summary>
     public event EventHandler? CaretMoved;
@@ -166,6 +173,12 @@ public sealed class ContentEditor : IDisposable
         else _asked = (line, place);
     }
 
+    /// <summary>Folds away everything the content says can be folded — nothing, where nothing shows it to say.</summary>
+    public void FoldAll() => this.Folds.FoldAll(_view?.Foldable() ?? []);
+
+    /// <summary>Opens everything folded.</summary>
+    public void UnfoldAll() => this.Folds.UnfoldAll();
+
     // ── What shows it says ──────────────────────────────────────────────────
 
     /// <summary>Shown by <paramref name="view"/> from now on — which is handed any line asked for meanwhile.</summary>
@@ -204,7 +217,11 @@ public sealed class ContentEditor : IDisposable
         this.Scrolled?.Invoke(this, EventArgs.Empty);
     }
 
-    public void Dispose() => this.Document.Changed -= this.Elsewhere;
+    public void Dispose()
+    {
+        this.Document.Changed -= this.Elsewhere;
+        this.Folds.Dispose();
+    }
 
     // ── Mechanics ───────────────────────────────────────────────────────────
 

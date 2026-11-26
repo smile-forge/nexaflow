@@ -54,4 +54,17 @@ public abstract class ContentMargin : FrameworkElement
 
     /// <summary>What it draws for <paramref name="lines"/>, the lines on the page, each line's top in this margin's own frame.</summary>
     protected abstract void Draw(DrawingContext drawing, IReadOnlyList<ShownLine> lines);
+
+    /// <summary>The line on the page standing at <paramref name="y"/> in this margin's own frame, its top in that frame — or null where none does.</summary>
+    protected ShownLine? LineAt(double y)
+    {
+        if (Surface is not { } surface) return null;
+
+        var shift = surface.TranslatePoint(default, this).Y;
+
+        foreach (var line in surface.LinesShown())
+            if (y >= line.Top + shift && y < line.Top + shift + line.Height) return line with { Top = line.Top + shift };
+
+        return null;
+    }
 }

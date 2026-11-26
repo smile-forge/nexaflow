@@ -80,6 +80,10 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
             var line = Reading.Root.Children[at];
             if (line.Kind != LineKind) continue;
 
+            // A line a fold hides is not laid and takes no room; the line a fold starts on is laid with a mark after it.
+            var fold = FoldOf(line);
+            if (fold.Hidden) continue;
+
             // A line takes the room its rows do, laid or not: one, where lines are kept, and where they wrap, as many as it breaks onto.
             var kept = this.Kept(laid?.For(at));
             var wrapped = WrapsLines && kept is null ? this.Breaks(line) : ((List<int> Starts, double Indent)?)null;
@@ -90,6 +94,8 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
                 var (mount, reach) = kept is not null ? (new LayoutMount(kept.Tree, kept.Part, line), kept.Reach) : this.Line(line, laid?.For(at), height, wrapped);
                 into.Mount(mount, new LayoutPoint(0, y));
                 wide = Math.Max(wide, reach);
+
+                if (fold.Folded is not null) this.FoldedAfter(into, new LayoutPoint(reach, y));
                 lines.Add(new LaidLine(line.Start, y, tall));
 
                 if (stretches is not null)
@@ -256,6 +262,19 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
         apart.Open(LinedSetting.WhitespaceKind, null, at, LayoutStops.None, gathers: false);
         apart.Draw(new TextMark(Medium.Shape(marks, Characters.Face, Characters.Size, ink), default, ink));
         apart.Close();
+    }
+
+    /// <summary>
+    /// The mark after a line a fold starts on, saying more is folded away behind it: standing for nothing written, where no caret stands, and
+    /// taking no room of the line's.
+    /// </summary>
+    private void FoldedAfter(LayoutBuilder into, LayoutPoint at)
+    {
+        var ink = Style.TextMuted;
+
+        into.Open(LinedSetting.FoldKind, null, at, LayoutStops.None, gathers: false);
+        into.Draw(new TextMark(Medium.Shape(" ⋯ ", Characters.Face, Characters.Size, ink), default, ink));
+        into.Close();
     }
 
     /// <summary>

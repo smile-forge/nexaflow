@@ -32,6 +32,9 @@ public static class LinedSetting
     /// <summary>What a mark standing for a space, a tab or a line end is called, and the ink it is drawn in is asked by.</summary>
     public const string WhitespaceKind = "whitespace";
 
+    /// <summary>What the mark after a line a fold starts on is called.</summary>
+    public const string FoldKind = "fold";
+
     /// <summary>
     /// How far a tab standing <paramref name="along"/> across a line reaches: to the next tab stop, the stops standing
     /// <paramref name="tabWidth"/> characters of <paramref name="advance"/> apart from the line's start.

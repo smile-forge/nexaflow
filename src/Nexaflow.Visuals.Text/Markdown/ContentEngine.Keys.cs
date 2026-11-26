@@ -361,6 +361,18 @@ public sealed partial class ContentEngine : IContentEditorView
 
     private void OnRemarked(object? sender, EventArgs args) => this.Remarked?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Something was folded away or opened in the view of the document: laid again, without what is folded.</summary>
+    private void OnFolded(object? sender, EventArgs args) => this.Relay();
+
+    /// <summary>
+    /// What the content says can be folded — a code reading's own syntax, as last parsed and carried here — in order; nothing for content that
+    /// folds nothing, or before anything is laid.
+    /// </summary>
+    internal IReadOnlyList<(int Start, int End)> Foldable() =>
+        _shown?.LaidSyntax is Code.CodeSyntax syntax ? syntax.Folds() : [];
+
+    IReadOnlyList<(int Start, int End)> IContentEditorView.Foldable() => this.Foldable();
+
     /// <summary>
     /// The view of the document this shows — where the caret is, what is picked out, which lines are on the page — which a page holds to read
     /// and move them. Handed over, it is taken up with the document it is a view of; otherwise one is made the first time it is asked for.
@@ -398,6 +410,7 @@ public sealed partial class ContentEngine : IContentEditorView
         (_editor, _ownsEditor) = (editor, owned);
         editor.Attach(this);
         editor.Marks.Changed += this.OnRemarked;
+        editor.Folds.Changed += this.OnFolded;
         editor.Stood(_state);
     }
 
@@ -408,6 +421,7 @@ public sealed partial class ContentEngine : IContentEditorView
 
         editor.Detach(this);
         editor.Marks.Changed -= this.OnRemarked;
+        editor.Folds.Changed -= this.OnFolded;
         if (_ownsEditor) editor.Dispose();
 
         _editor = null;

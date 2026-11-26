@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout.Lines;
+using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Layout;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -250,11 +253,57 @@ public sealed partial class ContentEngine
             if (!open && _outline.Named(name) is { } named && _outline.Section(named.Unit, named.Entry) is { Holds: true } section)
                 folded.Add(section);
 
+        // What the view of the document folded away in code, as whole lines, stands beside the sections the reader folded.
+        if (_editor is { } view && ReferenceEquals(view.Document, _edited))
+            foreach (var (start, end) in view.Folds.Ranges)
+                if (CodeFold(_state.Document, start, end) is { } lines) folded.Add(lines);
+
         folded.Sort(static (a, b) => a.Start.CompareTo(b.Start));
 
         _folded = [];
         foreach (var section in folded)
             if (_folded.Count == 0 || section.Start >= _folded[^1].End) _folded.Add(section);
+    }
+
+    /// <summary>What a fold the view of the document holds is called among the sections folded: no heading can be called it.</summary>
+    private const string CodeFoldName = "\u0001fold:";
+
+    /// <summary>
+    /// A fold from <paramref name="start"/> to <paramref name="end"/> as the lines it hides: from the start of the line its start is on, which
+    /// stays, to the end of the line its end is on — or null where it is all on one line and hides nothing.
+    /// </summary>
+    private static OutlineSection? CodeFold(ContentDocument document, int start, int end)
+    {
+        var (head, last) = (document.LineOf(start), document.LineOf(end));
+        if (last <= head) return null;
+
+        var from = document.OffsetOf(head);
+        return new OutlineSection($"{CodeFoldName}{from}", 0, from, document.LineAt(document.OffsetOf(last)).End, last - head);
+    }
+
+    /// <summary>
+    /// How much shorter the unit at <paramref name="index"/> of <paramref name="window"/> stands than its lines say, for the lines of it a fold
+    /// in code hides — what an estimate of a unit not laid takes off, so the page is as tall as what shows of it.
+    /// </summary>
+    private double HiddenHeight(ContentWindow window, int index, LayoutStyle style)
+    {
+        if (_folded.Count == 0 || window.Placing is not null) return 0;
+
+        var (unit, start) = window.Listed[index];
+        var end = start + unit.Width;
+        var document = window.ListedIn;
+        var lines = 0;
+
+        foreach (var section in _folded)
+        {
+            if (!section.Name.StartsWith(CodeFoldName, StringComparison.Ordinal) || section.End < start || section.Start >= end) continue;
+
+            var first = document.OffsetOf(document.LineOf(section.Start) + 1);
+            var (low, high) = (Math.Max(first, start), Math.Min(section.End, end - 1));
+            if (high >= low) lines += document.LineOf(high) - document.LineOf(low) + 1;
+        }
+
+        return lines == 0 ? 0 : lines * LinedSetting.LineHeight(LinedSetting.Typed(style), _medium);
     }
 
     /// <summary>What the reader's folding says of the block <paramref name="block"/> of the content laid.</summary>

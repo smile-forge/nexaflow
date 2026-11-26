@@ -235,13 +235,34 @@ public sealed class CodeHighlighter : IDisposable
         using var tree = _parser.Parse(text);
         if (tree is null) return;
 
+        this.FoldsFrom(tree.RootNode, text, offset, budget, folds);
+    }
+
+    /// <summary>
+    /// The folds of a tree already parsed — the code reading's own, read on the background pass that parsed it, so nothing is parsed again to
+    /// say what folds — with what is written in another language inside it, and each pulled back off the line ending it closes on.
+    /// </summary>
+    public IReadOnlyList<FoldRange> FoldsIn(Tree tree, string text)
+    {
+        var folds = new List<FoldRange>();
+        if (string.IsNullOrEmpty(text)) return folds;
+
+        this.FoldsFrom(tree.RootNode, text, 0, new InjectionBudget(), folds);
+        TrimToContent(folds, text);
+
+        return folds;
+    }
+
+    /// <summary>The folds under <paramref name="root"/>, read from <paramref name="text"/>, set <paramref name="offset"/> along, into <paramref name="folds"/>.</summary>
+    private void FoldsFrom(Node root, string text, int offset, InjectionBudget budget, List<FoldRange> folds)
+    {
         var local = new List<FoldRange>();
         var comments = new List<CommentSpan>();
-        CollectFolds(tree.RootNode, local, comments);
+        CollectFolds(root, local, comments);
         AddCommentFolds(comments, text, local);
         foreach (var f in local) folds.Add(new FoldRange(f.Start + offset, f.End + offset));
 
-        ForEachInjection(text, tree.RootNode, offset, budget,
+        ForEachInjection(text, root, offset, budget,
             (child, t, o, inc) => child.GetFoldsInto(folds, t, o, inc, budget));
     }
 

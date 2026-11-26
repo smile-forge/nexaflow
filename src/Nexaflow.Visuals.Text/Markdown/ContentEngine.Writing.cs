@@ -219,6 +219,9 @@ public sealed partial class ContentEngine
 
         // A caret, or what is picked out, gone past what a long document has laid yet is laid out to — which is how a search
         // found further down, a jump to the end or a line, and choosing everything all come to be on the page.
+        // A caret come onto a line a fold hides opens what hid it, which lays the content out again.
+        if (_editor is { } viewed && ReferenceEquals(viewed.Document, _edited)) viewed.Folds.Reveal(_state.Caret);
+
         var relaid = resized || Reaches(next);
         if (relaid) Relay();
 
@@ -355,6 +358,9 @@ public sealed partial class ContentEngine
     private int Snap(int offset)
     {
         var clamped = Math.Clamp(offset, 0, _state.Document.Length);
+
+        // Sent onto a line a fold hides, it goes there as it is: what hid it opens, and the line is laid.
+        if (_editor is { } viewed && ReferenceEquals(viewed.Document, _edited) && viewed.Folds.Hides(clamped)) return clamped;
 
         // Sent somewhere not laid — the end of a long document — it goes there as it is: the content is laid there, and the place brought
         // onto the page, as it is for a caret put anywhere not laid. What is laid is no guide to where in it a caret may rest.

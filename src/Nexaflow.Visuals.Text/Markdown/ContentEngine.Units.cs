@@ -260,7 +260,7 @@ public sealed partial class ContentEngine
             if (laid[index] is not { } standing)
             {
                 var (unit, _) = window.Listed[index];
-                y += language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, showing.WrapsLines ? room : null, saying)
+                y += language.UnitHeight is { } saying ? this.HeightSaid(unit.Tree, showing.Style, showing.WrapsLines ? room : null, saying) - this.HiddenHeight(window, index, showing.Style)
                    : window.Staged.TryGetValue(unit.Tree, out var staged) && staged.Laid is { } was ? was.Laid.Height
                    : unit.Width * perCharacter;
                 above = null;

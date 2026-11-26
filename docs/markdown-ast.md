@@ -236,6 +236,16 @@ standing for nothing written and taking no room, so a caret, a selection, a copy
 Both are the style's, so a line kept under other settings is laid again (`KeptLaying`), and only content laid line by line has
 either: prose, formulas and diagrams set their own space.
 
+**Code folds whole lines, the same way a document folds its sections.** What can be folded is the code reading's own syntax: the
+background pass that parses a version reads its folds from the tree it just made (`CodeHighlighter.FoldsIn`), and a later version
+carries them through the edits since (`CodeSyntax.Folds`), so nothing is parsed on the thread that lays content out. What is folded
+is the view's (`ContentEditor.Folds`, `ContentFolds`), held by anchors: a fold keeps the line its start is on and hides every line
+after it up to the one its end is on, standing in the engine's folded sections as those lines (`ContentEngine.CodeFold`), so a line
+a fold hides is answered hidden as a block under a folded heading is, is not laid and takes no room, the line it starts on carries a
+mark (`LinedSetting.FoldKind`), and a unit not laid is estimated without the lines folded in it. A caret, a found match or a jump
+sent onto a hidden line opens what hid it. Beside the lines a `FoldMargin` draws a handle on each line a fold starts on, and a press
+folds or opens it through the view.
+
 **What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
 where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and
 their numbers, from the document's line index (`ContentEngine.LinesBetween`), laid whole or a unit at a time; and the

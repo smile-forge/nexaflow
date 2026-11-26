@@ -273,5 +273,7 @@ public class ContentEditorTests
         }
 
         public void ShowLine(int line, ShownPlace place) => this.Shown.Add((line, place));
+
+        public IReadOnlyList<(int Start, int End)> Foldable() => [];
     }
 }
