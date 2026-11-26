@@ -12,6 +12,7 @@ using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Painting;
+using Nexaflow.Markdown.Layout.Lines;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -30,6 +31,9 @@ public sealed partial class ContentEngine
     private LayoutPiece _anchorNode;
     private LayoutPoint _pressedAt;
     private bool _dragging;
+
+    /// <summary>Where a block of columns being dragged out was begun — its line and column — or null where none is.</summary>
+    private (int Line, int Column)? _column;
 
     private bool _moving;
     private int _dropAt;
@@ -142,6 +146,16 @@ public sealed partial class ContentEngine
         // A piece that answers to a press means what it answers with, and not a place to put the caret. Only a plain press:
         // Ctrl and Shift are adding to a selection, which is not what a press on a node means.
         if (modifiers == ModifierKeys.None && Offered(at, LayoutGesture.Click) is { } act && Meant(act)) return true;
+
+        // Alt and a press begins a block of columns, in content laid line by line, which a drag stretches.
+        _column = null;
+        if (modifiers.HasFlag(ModifierKeys.Alt) && this.Lined)
+        {
+            _dragging = true;
+            _column = this.PlaceAt(at);
+            Apply(ColumnSelection.Between(_state, _column.Value, _column.Value, _style.TabWidth), notify: false);
+            return true;
+        }
 
         // Several things chosen at once: what Ctrl presses is added to what is chosen, or taken back out of it.
         if (modifiers.HasFlag(ModifierKeys.Control))
@@ -355,6 +369,12 @@ public sealed partial class ContentEngine
     {
         if (DraggedThumb(at) || !_dragging) return;
 
+        if (_column is { } begun)
+        {
+            Apply(ColumnSelection.Between(_state, begun, this.PlaceAt(at), _style.TabWidth), notify: false);
+            return;
+        }
+
         // Carrying something: the content is shown as it would read if it were let go here, with the carried part marked out,
         // so the reader is choosing between finished results.
         if (_moving)
@@ -376,6 +396,18 @@ public sealed partial class ContentEngine
         }
 
         ChooseTo(at);
+    }
+
+    /// <summary>
+    /// The line and column <paramref name="at"/> stands at, for a block of columns: the line under it, and how many characters of the face lines
+    /// are set in fit before it — past a line's end as well, so a block reaches columns a short line does not.
+    /// </summary>
+    private (int Line, int Column) PlaceAt(LayoutPoint at)
+    {
+        var characters = LinedSetting.Typed(_style);
+        var advance = Math.Max(_medium.Measuring(characters.Face, characters.Size).Of(" ").Advance, 1);
+
+        return (_state.Document.LineOf(_laid.OffsetAt(at)), Math.Max(0, (int)Math.Round(at.X / advance)));
     }
 
     /// <summary>Chooses from the anchor to <paramref name="at"/>: what a drag there chooses, and what Shift and a press there choose.</summary>
@@ -458,6 +490,7 @@ public sealed partial class ContentEngine
     private void Release()
     {
         _dragging = false;
+        _column = null;
         if (ReleasedThumb() || !_moving) return;
 
         _moving = false;

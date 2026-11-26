@@ -246,6 +246,17 @@ mark (`LinedSetting.FoldKind`), and a unit not laid is estimated without the lin
 sent onto a hidden line opens what hid it. Beside the lines a `FoldMargin` draws a handle on each line a fold starts on, and a press
 folds or opens it through the view.
 
+Alt with a drag, or Alt with Shift and the arrows, picks out a block of columns in content laid line by line: the same columns of
+every line from one to another (`ColumnSelection.Between`), carried as what is picked out (`ColumnRanges`, one stretch a line, with
+the corners it was stretched between) so every edit knows to write on each. Columns are counted as the line is set, a tab reaching
+its next stop, so a block picks out what stands in a column on the page however each line's indent was written. Typing, Backspace,
+Delete and a paste write on every line as one change (`ColumnSelection.Written`, `Erased`); a line too short to reach the block is
+filled out with spaces only where something is written there, and a paste with as many lines as the block puts one on each. Typing
+on joins the step being written on every line at once, as it does at one caret (`EditHistory`). Each line of the block draws its
+own caret, and a copy is its lines, marked on the clipboard as a block (`MarkdownClipboard.ColumnFormat`). Code past the colouring
+ceiling (`CodeSyntax.ColoursUpTo`) is laid as written, uncoloured and unfolded, which the surface says (`ColoursWithheld`) for a
+page to show.
+
 **What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
 where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and
 their numbers, from the document's line index (`ContentEngine.LinesBetween`), laid whole or a unit at a time; and the

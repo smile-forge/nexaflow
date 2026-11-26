@@ -18,8 +18,9 @@ namespace Nexaflow.Markdown.Editing;
 /// </para>
 /// <para>
 /// <strong>A step is a stretch of writing in one place.</strong> Typing a sentence is one thing done, not forty, so an
-/// edit that carries on from where the last one left the caret joins it. Putting the caret anywhere else and writing
-/// there starts the next step — which is what a reader means by "the last thing I did".
+/// edit that carries on from where the last one left the caret joins it — on every line at once, for a block of columns
+/// (<see cref="ColumnRanges"/>). Putting the caret anywhere else and writing there starts the next step — which is what a
+/// reader means by "the last thing I did".
 /// </para>
 /// <para>
 /// <strong>The changes are true only of the document they were left at.</strong> Taking a step back is asked of the document as
@@ -139,7 +140,7 @@ public sealed class EditHistory
             return open is null ? null : (last.Document.Apply(open.Backward), Spanned(open.Forward, last.Document));
 
         if (open is not null && open.After.Caret == last.Caret && Joined(open, forward, last) is { } joined)
-            return (last.Document.Apply(open.Backward), joined.Forward.Writes[0]);
+            return (last.Document.Apply(open.Backward), Spanned(joined.Forward, now.Document));
 
         return (last.Document, Spanned(forward, now.Document));
     }
@@ -223,30 +224,54 @@ public sealed class EditHistory
 
     /// <summary>
     /// <paramref name="open"/> carried on by <paramref name="forward"/>, written at <paramref name="before"/> — or null where the
-    /// two are not one stretch of writing: each is one write, and the second is written at the caret, against or inside what the
-    /// first wrote. The step that comes of it writes the whole stretch the two touched, from what it was before the first.
+    /// two are not one stretch of writing: they write as many stretches as each other, the caret is at one of the second's, and each
+    /// of the second's is written against or inside what its counterpart in the first wrote — one stretch, as typing does, or one on
+    /// every line of a block of columns. The step that comes of it writes each whole stretch the two touched, from what it was before
+    /// the first.
     /// </summary>
     private static EditStep? Joined(EditStep open, ContentChange forward, EditState before)
     {
-        if (open.Forward.Writes is not [var first] || open.Backward.Writes is not [var undone] || forward.Writes is not [var next]) return null;
-
-        // What the open step wrote, where it stands in the document the next write is made to.
-        var (wroteFrom, wroteTo) = (first.Start, first.Start + first.Text.Length);
-        if (before.Caret < next.Start || before.Caret > next.End || next.End < wroteFrom || next.Start > wroteTo) return null;
+        var (wrote, undone, next) = (open.Forward.Writes, open.Backward.Writes, forward.Writes);
+        if (wrote.Count == 0 || undone.Count != wrote.Count || next.Count != wrote.Count) return null;
+        if (!next.Any(write => before.Caret >= write.Start && before.Caret <= write.End)) return null;
 
         var written = before.Document;
-        var (from, to) = (Math.Min(wroteFrom, next.Start), Math.Max(wroteTo, next.End));
+        var forwards = new ContentWrite[wrote.Count];
+        var backwards = new ContentWrite[wrote.Count];
 
-        // Outside what the open step wrote, the document it was written to reads as the one before it did; inside, as what it
-        // wrote over.
-        var was = written.Slice(from, wroteFrom - from) + undone.Text + written.Slice(wroteTo, to - wroteTo);
-        var now = written.Slice(from, next.Start - from) + next.Text + written.Slice(next.End, to - next.End);
-        var reached = to - first.Text.Length + first.Length;
+        // How far the open step moved what follows each stretch, how far the joined one does, and where the last stretch joined ended.
+        var (shifted, grown, reached) = (0, 0, 0);
+
+        for (var at = 0; at < wrote.Count; at++)
+        {
+            var (first, then) = (wrote[at], next[at]);
+            if (undone[at].Text.Length != first.Length) return null;
+
+            // What the open step wrote here, where it stands in the document the next write is made to.
+            var (wroteFrom, wroteTo) = (first.Start + shifted, first.Start + shifted + first.Text.Length);
+            if (then.End < wroteFrom || then.Start > wroteTo) return null;
+
+            var (from, to) = (Math.Min(wroteFrom, then.Start), Math.Max(wroteTo, then.End));
+
+            // Outside what the open step wrote, the document it was written to reads as the one before it did; inside, as what it
+            // wrote over.
+            var was = written.Slice(from, wroteFrom - from) + undone[at].Text + written.Slice(wroteTo, to - wroteTo);
+            var now = written.Slice(from, then.Start - from) + then.Text + written.Slice(then.End, to - then.End);
+            var start = from - shifted;
+            if (start < reached) return null;
+
+            forwards[at] = new ContentWrite(start, was.Length, now);
+            backwards[at] = new ContentWrite(start + grown, now.Length, was);
+
+            shifted += first.Text.Length - first.Length;
+            grown += now.Length - was.Length;
+            reached = start + was.Length;
+        }
 
         return open with
         {
-            Forward = new ContentChange([new ContentWrite(from, reached - from, now)], forward.Caret),
-            Backward = new ContentChange([new ContentWrite(from, now.Length, was)], from + was.Length),
+            Forward = new ContentChange(forwards, forward.Caret),
+            Backward = new ContentChange(backwards, backwards[0].Start + backwards[0].Text.Length),
         };
     }
 

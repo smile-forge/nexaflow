@@ -4,6 +4,7 @@ using System.Windows.Input;
 
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Lines;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -65,6 +66,13 @@ public sealed partial class ContentEngine : IContentEditorView
 
         var shift = (modifiers & ModifierKeys.Shift) != 0;
         var ctrl = (modifiers & ModifierKeys.Control) != 0;
+
+        // Alt with Shift and an arrow picks out a block of columns, in content laid line by line.
+        if ((modifiers & ModifierKeys.Alt) != 0 && shift && key is Key.Left or Key.Right or Key.Up or Key.Down && this.Lined)
+        {
+            this.ColumnStep(key);
+            return true;
+        }
 
         if (ctrl) return Commanded(key, shift);
 
@@ -222,6 +230,28 @@ public sealed partial class ContentEngine : IContentEditorView
         this.History.Break();
 
         return true;
+    }
+
+    /// <summary>Whether the content is laid line by line — code, or text shown as typed — where a block of columns can be picked out.</summary>
+    private bool Lined => Language(_named).Builder.IsSubclassOf(typeof(LinedBuilder));
+
+    /// <summary>The block of columns picked out stretched a column across or a line up or down — begun at the caret, where none is picked out.</summary>
+    private void ColumnStep(Key key)
+    {
+        var tab = _style.TabWidth;
+        var (anchor, caret) = _state.Selected is ColumnRanges block
+            ? (block.Anchor, block.Caret)
+            : (ColumnSelection.Place(_state.Document, _state.Caret, tab), ColumnSelection.Place(_state.Document, _state.Caret, tab));
+
+        caret = key switch
+        {
+            Key.Left => (caret.Line, Math.Max(0, caret.Column - 1)),
+            Key.Right => (caret.Line, caret.Column + 1),
+            Key.Up => (caret.Line - 1, caret.Column),
+            _ => (caret.Line + 1, caret.Column),
+        };
+
+        Apply(ColumnSelection.Between(_state, anchor, caret, tab), notify: false);
     }
 
     /// <summary>Characters typed, written one at a time as the language they land in takes each.</summary>

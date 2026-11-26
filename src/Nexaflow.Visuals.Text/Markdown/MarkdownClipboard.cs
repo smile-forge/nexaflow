@@ -44,7 +44,11 @@ public static class MarkdownClipboard
     /// <param name="Markdown">The source, as written.</param>
     /// <param name="Text">The words a reader sees, with the marks taken off.</param>
     /// <param name="Html">The same, marked up — empty where it could not be.</param>
-    public sealed record ContentCopy(string Markdown, string Text, string Html, BitmapSource? Picture = null);
+    public sealed record ContentCopy(string Markdown, string Text, string Html, BitmapSource? Picture = null)
+    {
+        /// <summary>Whether it is a block of columns, a line of it a line — put on the clipboard so said, for a paste to put it back as one.</summary>
+        public bool Column { get; init; }
+    }
 
     /// <summary>
     /// What copying <paramref name="chosen"/> out of <paramref name="source"/> would put on a clipboard —
@@ -226,6 +230,9 @@ public static class MarkdownClipboard
         return text;
     }
 
+    /// <summary>What a copy that is a block of columns is marked with, as editors that pick out columns mark theirs.</summary>
+    public const string ColumnFormat = "MSDEVColumnSelect";
+
     /// <summary>
     /// <paramref name="copy"/> as what goes on a clipboard: its words, its markdown as the app's own kind, its marked-up text, and
     /// — for a block that draws a picture — the picture, as PNG. Whatever it is pasted into takes the one it can use: a document
@@ -236,6 +243,7 @@ public static class MarkdownClipboard
         var payload = ComposedPayload.OfText(copy.Text).With(MarkdownFormat, copy.Markdown);
         if (copy.Html.Length > 0) payload = payload.With(DragKinds.Html, copy.Html);
         if (copy.Picture is { } picture) payload = payload.With(DragKinds.Image, Png(picture));
+        if (copy.Column) payload = payload.With(ColumnFormat, string.Empty);
         return payload;
     }
 

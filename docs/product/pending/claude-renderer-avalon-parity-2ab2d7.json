@@ -170,12 +170,6 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
-          "class": "MarkdownElement",
-          "method": "PaintOver"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/ShowBlocksAsWritten.cs",
           "class": "ShowBlocksAsWritten"
         },
@@ -189,6 +183,12 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Links.cs",
           "class": "ContentEngine",
           "method": "LaidLinks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
+          "class": "ContentElement",
+          "method": "PaintMarks"
         }
       ],
       "concerns": {
@@ -909,13 +909,60 @@
           "class": "TextSource"
         }
       ]
+    },
+    "content-column-selection": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ColumnSelection.cs",
+          "class": "ColumnSelection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ColumnSelection.cs",
+          "class": "ColumnRanges"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Keys.cs",
+          "class": "ContentEngine",
+          "method": "ColumnStep"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Pointer.cs",
+          "class": "ContentEngine",
+          "method": "PlaceAt"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Lines.cs",
+          "class": "NexaTextSurface",
+          "method": "ColoursWithheld"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ColumnSelectionTests.cs",
+            "class": "ColumnSelectionTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Code/ColumnKeysTests.cs",
+            "class": "ColumnKeysTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 38,
+  "changed_sets": 40,
   "touched_nodes": [
     "barcode-editing",
     "code-folding",
+    "content-column-selection",
     "content-editor",
     "content-line-setting",
     "content-margins",

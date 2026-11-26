@@ -393,6 +393,13 @@ public sealed partial class ContentEngine
     {
         if (Unwritable) return;
 
+        // Over a block of columns, on every line of it, whatever the language would make of a key at one place.
+        if (_state.Selected is ColumnRanges)
+        {
+            Apply(_state.Write(text), notify: true);
+            return;
+        }
+
         Apply(Edited(EditKind.Typing, text, Landing) ?? _state.Write(text), notify: true);
     }
 
@@ -473,6 +480,12 @@ public sealed partial class ContentEngine
     internal bool Backspace()
     {
         if (Unwritable) return false;
+
+        if (_state.Selected is ColumnRanges)
+        {
+            Apply(_state.Backspace(), notify: true);
+            return true;
+        }
         if (Edited(EditKind.Erasing, string.Empty, Landing) is { } erased) { Apply(erased, notify: true); return true; }
         if (_state is { Caret: 0, SelectionLength: 0 }) return false;
 
@@ -510,6 +523,12 @@ public sealed partial class ContentEngine
     {
         if (Unwritable) return false;
 
+        if (_state.Selected is ColumnRanges)
+        {
+            Apply(_state.Delete(), notify: true);
+            return true;
+        }
+
         // Asked before the end of the source is: past the last thing written in a diagram is its end, and a delete handed back to
         // the document from there takes whatever the document has next.
         if (Edited(EditKind.Deleting, string.Empty, Landing) is { } erased) { Apply(erased, notify: true); return true; }
@@ -523,6 +542,18 @@ public sealed partial class ContentEngine
     internal void Settle(string separator)
     {
         if (Unwritable) return;
+
+        // A space goes on every line of a block of columns; a line break lets go of the block and breaks the line the caret is on.
+        if (_state.Selected is ColumnRanges)
+        {
+            if (separator != "\n")
+            {
+                Apply(_state.Write(separator), notify: true);
+                return;
+            }
+
+            Apply(_state.MoveCaretTo(_state.Caret), notify: false);
+        }
 
         Apply(Edited(EditKind.Settling, separator, Landing) ?? _state.Write(separator), notify: true);
     }
@@ -554,6 +585,12 @@ public sealed partial class ContentEngine
     /// <summary>Moves on to the next place to write in, or back to the one before, where the language says where that is.</summary>
     private bool Tabbed(bool forward)
     {
+        if (forward && _state.Selected is ColumnRanges)
+        {
+            Apply(_state.Write("\t"), notify: true);
+            return true;
+        }
+
         if (Edited(forward ? EditKind.Tabbing : EditKind.TabbingBack, string.Empty, Landing) is not { } tabbed) return false;
 
         Apply(tabbed, notify: true);

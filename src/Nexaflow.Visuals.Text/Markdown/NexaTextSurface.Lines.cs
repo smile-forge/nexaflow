@@ -99,4 +99,10 @@ public sealed partial class NexaTextSurface
         get => (bool)GetValue(HighlightsCaretLineProperty);
         set => SetValue(HighlightsCaretLineProperty, value);
     }
+
+    /// <summary>
+    /// Whether the code shown is too long to be coloured, folded and read as code at the pace of typing, and is shown as written instead — for
+    /// a host to say so where the reader would otherwise wonder where its colours went.
+    /// </summary>
+    public bool ColoursWithheld => Lined && ContentEngine.Language(Named).Syntax is not null && Document.Current.Length > Code.CodeSyntax.ColoursUpTo;
 }

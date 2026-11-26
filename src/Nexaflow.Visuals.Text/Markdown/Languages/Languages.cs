@@ -1744,6 +1744,6 @@ internal static class Shipped
             BoxedAsWritten = true,
             Windowed = () => CodeParser.Windowed(grammar ?? string.Empty),
             UnitHeight = CodeSetting.HeightOf,
-            Syntax = grammar is null ? null : characters => CodeSyntax.Of(grammar, characters),
+            Syntax = grammar is null ? null : characters => characters.Length > CodeSyntax.ColoursUpTo ? null : CodeSyntax.Of(grammar, characters),
         };
 }

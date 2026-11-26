@@ -37,6 +37,12 @@ internal sealed class CodeSyntax : IReadingSyntax
     /// <summary>How long typing has to pause before a long reading is parsed again.</summary>
     private static readonly TimeSpan Pause = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>
+    /// How long a reading may be and still be coloured, folded and read as code: past it, as a code editor withholds them on a file too long to
+    /// parse at the pace of typing, it is shown as written (<see cref="NexaTextSurface.ColoursWithheld"/>).
+    /// </summary>
+    internal const int ColoursUpTo = 16 * 1024 * 1024;
+
     private readonly CodeHistory _history;
 
     private CodeSyntax(CodeHistory history, int version, IContentCharacters characters) =>
@@ -129,9 +135,6 @@ internal sealed class CodeSyntax : IReadingSyntax
         /// <summary>What the last tree parsed says can be folded, and which version that is — read on the pass that parsed it.</summary>
         private (int Version, IReadOnlyList<FoldRange> Folds)? _folds;
 
-        /// <summary>How long a reading may be and still have what folds in it read: past it, as past colouring, the code is shown as written.</summary>
-        private const int FoldsUpTo = 16 * 1024 * 1024;
-
         /// <summary>The newest version made.</summary>
         public int Latest { get; private set; }
 
@@ -197,7 +200,7 @@ internal sealed class CodeSyntax : IReadingSyntax
                 tree = made;
 
                 // What folds in it is read now, on this pass, from the tree just made — never on the thread that lays content out.
-                var folds = syntax.Characters.Length <= FoldsUpTo ? reader.FoldsIn(made) : [];
+                var folds = reader.FoldsIn(made);
                 lock (_gate) _folds = (syntax.Version, folds);
             }
 

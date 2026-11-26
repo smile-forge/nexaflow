@@ -930,6 +930,14 @@ public class ContentElement : FrameworkElement
             : laid.Places[_engine.At].CaretRect();
 
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
+
+        // A block of columns has a caret on every line of it, where typing writes.
+        if (state.Selected is ColumnRanges block)
+            foreach (var row in block)
+            {
+                var at = laid.Root.CaretRect(block.Caret.Column == block.Low ? row.Start : row.End);
+                if (!at.IsEmpty) DrawCaret(dc, at.X, at.Y, at.Height);
+            }
     }
 
     /// <summary>The theme token the line the caret is on is washed in.</summary>

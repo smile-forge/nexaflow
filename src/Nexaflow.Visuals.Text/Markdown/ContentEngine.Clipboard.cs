@@ -40,6 +40,13 @@ public sealed partial class ContentEngine
     {
         if (this.PickedText is { } drawn) return new MarkdownClipboard.ContentCopy(drawn, drawn, string.Empty);
 
+        // A block of columns is its lines, said to be a block, so pasting it back puts it back as one.
+        if (_state.Selected is ColumnRanges columns)
+        {
+            var lines = ColumnSelection.Text(_state.Document, columns);
+            return new MarkdownClipboard.ContentCopy(lines, lines, string.Empty) { Column = true };
+        }
+
         // Where the source is formatting nobody reads, a copy is the words the reader picked out, not the formatting round them.
         if (ReadsAsDrawn)
         {
@@ -95,7 +102,8 @@ public sealed partial class ContentEngine
     internal bool Cut()
     {
         if (_readOnly || Stretch() is not { } chosen) return false;
-        if (this.Events?.OnCopy(MarkdownClipboard.Copied(_state.Document, chosen)) is not { } copied) return false;
+        var copy = _state.Selected is ColumnRanges ? Copy() : MarkdownClipboard.Copied(_state.Document, chosen);
+        if (this.Events?.OnCopy(copy) is not { } copied) return false;
 
         _ = TakeAwayOnceCopiedAsync(copied, _state);
         return true;
@@ -120,6 +128,13 @@ public sealed partial class ContentEngine
     internal void WritePasted(string words, string markdown)
     {
         if (_readOnly) return;
+
+        // Over a block of columns: on every line of it, a line of what was pasted on each line where it has as many.
+        if (_state.Selected is ColumnRanges)
+        {
+            Replace(_state.Write((words.Length > 0 ? words : markdown).ReplaceLineEndings("\n")));
+            return;
+        }
 
         if (words.Length > 0 && Pasted(words.ReplaceLineEndings("\n"))) return;
         if (markdown.Length > 0) Replace(_state.Insert(markdown.ReplaceLineEndings("\n")));
