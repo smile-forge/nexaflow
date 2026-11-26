@@ -123,6 +123,11 @@ public sealed class LocalModelDownloads
     {
         public void Report(AssetProgress value) => report(value);
     }
+
+    /// <summary>Downloads what each of <paramref name="options"/> needs, as <see cref="Fetch"/> does one — a model whose own files are
+    /// all here but whose runtime is not among them — each with its download.</summary>
+    public IReadOnlyDictionary<LocalModelOption, LocalDownload> FetchAll(IEnumerable<LocalModelOption> options)
+        => options.Distinct().ToDictionary(o => o, Fetch);
 }
 
 /// <summary>

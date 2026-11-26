@@ -50,7 +50,7 @@ internal static class TestRuntimes
     public static ShellLogging Logging => _logging.Value;
 
     private static readonly Lazy<ShellLogging> _logging =
-        new(() => ShellLogging.Open(AppDataFolders.ForThisProcess(), SetupWizardViewModel.CurrentVersion(), uiTest: false, profileStartup: false));
+        new(() => ShellLogging.Open(AppDataFolders.ForThisProcess(), App.Version, uiTest: false, profileStartup: false));
 
     /// <summary>A logger in the suite's logs (<see cref="Logging"/>), for what a test builds that takes one.</summary>
     public static ILogger<T> LoggerFor<T>() => Logging.Factory.CreateLogger<T>();
@@ -59,7 +59,7 @@ internal static class TestRuntimes
     public static IUiThread CurrentUi() => new WpfUiThread(Dispatcher.CurrentDispatcher);
 
     /// <summary>A catalogue of the features beside the tests, indexing WPF's views as the app's does.</summary>
-    public static FeatureCatalog NewCatalog() => new(Config.BaseDir, SetupWizardViewModel.CurrentVersion(), typeof(ViewForAttribute),
+    public static FeatureCatalog NewCatalog() => new(Config.BaseDir, App.Version, typeof(ViewForAttribute),
         [typeof(SetupWizardViewModel).Assembly, typeof(FeatureCatalog).Assembly, typeof(AIService).Assembly], LoggerFor<FeatureCatalog>());
 
     /// <summary>Pages for no config: every section a test builds shows its settings as rows.</summary>

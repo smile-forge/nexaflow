@@ -117,32 +117,6 @@ public sealed partial class WizardModelKindsContent : ObservableObject
 
 // ── Shared state for the first-workspace sub-flow ────────────────────────────────
 
-internal sealed class WorkspaceSetupContext
-{
-    public required Workspace Workspace;
-
-    /// <summary>The session's provider pool, which the providers offered and the models on this machine are read from.</summary>
-    public required ProviderManager Providers;
-
-    /// <summary>The saved workspaces, written back as each step commits.</summary>
-    public required WorkspaceManager SavedWorkspaces;
-
-    /// <summary>What rules on a setting a step edits — the session's configuration — so one it rules on shows as it rules.</summary>
-    public required IConfigRulings Rulings;
-
-    /// <summary>The page a step's config is edited on where it has one of its own.</summary>
-    public required ConfigPageModels Pages;
-    public IReadOnlyList<IProviderConfig> AvailableProviders = [];
-    public IProviderConfig? ChosenProvider;
-    public ProviderSet?     ProviderSet;   // acquired after the provider config is saved (for model listing)
-
-    /// <summary>Who runs the workspace's AI; bridged unless the machine can run Nexaflow's own model and the user chose it.</summary>
-    public WorkspaceHarness Harness = WorkspaceHarness.Bridged;
-
-    /// <summary>Nexaflow's own model, when the machine can run one.</summary>
-    public OwnedModelOffer? Owned;
-}
-
 // ── Steps ────────────────────────────────────────────────────────────────────
 
 /// <summary>A read-only markdown page (What's New). Always complete.</summary>
@@ -190,19 +164,18 @@ internal sealed class ConfigEditStep : ObservableObject, IWizardStep
 
 /// <summary>
 /// Who runs the workspace's AI: Nexaflow's own models, or a cloud provider the user chooses. Asked only where the machine
-/// can run Nexaflow's own model; choosing it skips the provider steps and sets the grid here, and the Download models step
-/// follows. The two together are set up later, per ability, in the workspace's AI settings.
+/// can run Nexaflow's own model on a GPU; choosing it skips the provider steps and sets the grid here, and the Download models
+/// step follows. The two together are set up later, per ability, in the workspace's AI settings.
 /// </summary>
 internal sealed class HarnessStep : ObservableObject, IWizardStep
 {
-    private readonly WorkspaceSetupContext _ctx;
+    private readonly WorkspaceAiSetup _setup;
     private readonly WizardHarnessContent? _content;
 
-    public HarnessStep(WorkspaceSetupContext ctx)
+    public HarnessStep(WorkspaceAiSetup setup)
     {
-        _ctx = ctx;
-        // Offered where Nexaflow's own model has a GPU to run on: on the CPU alone it answers too slowly to be the choice.
-        if (ctx.Owned is not { OnGpu: { } chat } offer) return;
+        _setup = setup;
+        if (!setup.OffersOwned || setup.Owned is not { OnGpu: { } chat } offer) return;
 
         var gpu = offer.Placement.Gpus.First(g => g.Device == chat.Device);
         var context = chat.ContextTokens.ToString("N0");
@@ -221,28 +194,19 @@ internal sealed class HarnessStep : ObservableObject, IWizardStep
     public bool   IsComplete => true;
     public bool   Applies    => _content is not null;
     public void   OnEnter() { }
-
-    public void Commit()
-    {
-        _ctx.Harness = _content!.Choice;
-        if (_ctx.Harness != WorkspaceHarness.Owned) return;
-
-        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, bridged: null, _ctx.Owned!.Columns());
-        _ctx.SavedWorkspaces.SaveWorkspaceAiConfig(_ctx.Workspace);
-        _ctx.SavedWorkspaces.SaveWorkspaces();
-    }
+    public void   Commit()  => _setup.ChooseHarness(_content!.Choice);
 }
 
 /// <summary>Pick which provider to set up first.</summary>
 internal sealed class ProviderPickStep : ObservableObject, IWizardStep
 {
-    private readonly WorkspaceSetupContext _ctx;
+    private readonly WorkspaceAiSetup _setup;
     private readonly WizardProviderPickContent _content = new();
 
-    public ProviderPickStep(WorkspaceSetupContext ctx)
+    public ProviderPickStep(WorkspaceAiSetup setup)
     {
-        _ctx = ctx;
-        foreach (var name in ctx.AvailableProviders
+        _setup = setup;
+        foreach (var name in setup.Providers
                      .Select(c => c.FriendlyName)
                      .OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
             _content.Providers.Add(name);
@@ -250,40 +214,34 @@ internal sealed class ProviderPickStep : ObservableObject, IWizardStep
         _content.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(WizardProviderPickContent.SelectedProvider)) return;
-            _ctx.ChosenProvider = _ctx.AvailableProviders
-                .FirstOrDefault(c => c.FriendlyName == _content.SelectedProvider);
+            _setup.ChooseProvider(_setup.Providers.FirstOrDefault(c => c.FriendlyName == _content.SelectedProvider));
             OnPropertyChanged(nameof(IsComplete));
         };
     }
 
     public string Title      => Str.Get("Shell.Wizard.Provider.Title");
-    public bool   Applies    => _ctx.Harness != WorkspaceHarness.Owned;
-    public object Content     => _content;
-    public bool   IsComplete  => _ctx.ChosenProvider is not null;
+    public bool   Applies    => _setup.Harness != WorkspaceHarness.Owned;
+    public object Content    => _content;
+    public bool   IsComplete => _setup.Provider is not null;
     public void   OnEnter() { }
     public void   Commit() { }
 }
 
-/// <summary>Enter the chosen provider's config (API key etc.), then acquire a provider set so the
-/// next step can list models.</summary>
-internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
+/// <summary>Enter the chosen provider's config (API key etc.); saving it lets the next steps list the provider's models.</summary>
+internal sealed partial class ProviderConfigStep(WorkspaceAiSetup setup, IConfigRulings rulings, ConfigPageModels pages) : ObservableObject, IWizardStep
 {
-    private readonly WorkspaceSetupContext _ctx;
     [ObservableProperty] private object? _content;
     private ConfigEditViewModel? _editor;
 
-    public ProviderConfigStep(WorkspaceSetupContext ctx) => _ctx = ctx;
+    public string Title   => Str.Get("Shell.Wizard.ProviderConfig.Title");
+    public bool   Applies => setup.Harness != WorkspaceHarness.Owned;
 
-    public string Title => Str.Get("Shell.Wizard.ProviderConfig.Title");
-    public bool Applies => _ctx.Harness != WorkspaceHarness.Owned;
-
-    public bool IsComplete =>
-        _editor is not null && ConfigRequirements.IsComplete(_editor.EditingClone);
+    public bool IsComplete => _editor is not null && ConfigRequirements.IsComplete(_editor.EditingClone);
 
     public void OnEnter()
     {
-        if (_ctx.ChosenProvider is null) { Content = null; _editor = null; return; }
-        _editor = new ConfigEditViewModel(_ctx.ChosenProvider, _ctx.ChosenProvider.ConfigName, _ctx.ChosenProvider.FriendlyName, _ctx.Rulings, _ctx.Pages);
+        if (setup.Provider is not { } provider) { Content = null; _editor = null; return; }
+        _editor = new ConfigEditViewModel(provider, provider.ConfigName, provider.FriendlyName, rulings, pages);
         _editor.PropertyChanged += (_, _) => OnPropertyChanged(nameof(IsComplete));
         Content = _editor;
         OnPropertyChanged(nameof(IsComplete));
@@ -291,26 +249,21 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
 
     public void Commit()
     {
-        if (_editor is null || _ctx.ChosenProvider is null) return;
+        if (_editor is null) return;
         _editor.ApplyToReal();
-        _ctx.SavedWorkspaces.SaveWorkspaceProviderConfig(_ctx.Workspace, _ctx.ChosenProvider);
-
-        // (Re)acquire a provider set from the now-saved configs so the model step can enumerate models.
-        if (_ctx.ProviderSet is not null) _ctx.Providers.ReleaseProviderSet(_ctx.ProviderSet);
-        _ctx.ProviderSet = _ctx.Providers.AcquireProviderSet(_ctx.Workspace.ProviderConfigs, []);
+        setup.SaveProviderConfig();
     }
 }
 
 /// <summary>Pick a language model, then put it in every reasoning row of the ability grid.</summary>
 internal sealed class ModelPickStep : ObservableObject, IWizardStep
 {
-    private readonly WorkspaceSetupContext _ctx;
+    private readonly WorkspaceAiSetup _setup;
     private readonly WizardModelPickContent _content = new();
-    private string? _providerName;   // resolved ILlmProvider.Name (the key columns resolve against)
 
-    public ModelPickStep(WorkspaceSetupContext ctx)
+    public ModelPickStep(WorkspaceAiSetup setup)
     {
-        _ctx = ctx;
+        _setup = setup;
         _content.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(WizardModelPickContent.SelectedModel))
@@ -319,9 +272,9 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
     }
 
     public string Title      => Str.Get("Shell.Wizard.Model.Title");
-    public bool   Applies    => _ctx.Harness != WorkspaceHarness.Owned;
-    public object Content     => _content;
-    public bool   IsComplete  => !string.IsNullOrEmpty(_content.SelectedModel);
+    public bool   Applies    => _setup.Harness != WorkspaceHarness.Owned;
+    public object Content    => _content;
+    public bool   IsComplete => !string.IsNullOrEmpty(_content.SelectedModel);
 
     public void OnEnter()
     {
@@ -332,42 +285,18 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
 
     private async Task LoadModelsAsync()
     {
-        var name = _ctx.ChosenProvider?.FriendlyName;
-        if (name is null || _ctx.ProviderSet?.Find(name, ModelKind.Language) is not { } provider)
-            return;
-
-        // The provider's own Name is exactly the key the ability grid / AcquireProviderSet resolve
-        // columns against — capture it so the saved column matches (FriendlyName usually equals it).
-        _providerName = provider.Name;
-
         _content.IsLoading = true;
         try
         {
-            var models = await provider.GetAvailableModelsAsync();
-            foreach (var m in models) _content.Models.Add(m);
+            foreach (var model in await _setup.ListModelsAsync(ModelKind.Language)) _content.Models.Add(model);
             if (_content.Models.Count > 0) _content.SelectedModel = _content.Models[0];
         }
-        catch { }
         finally { _content.IsLoading = false; }
     }
 
     public void Commit()
     {
-        if (_ctx.ChosenProvider is null || string.IsNullOrEmpty(_content.SelectedModel)) return;
-
-        var name = _providerName ?? _ctx.ChosenProvider.FriendlyName;
-        var pair = new ProviderModelPair
-        {
-            ProviderName     = name,
-            Model            = _content.SelectedModel!,
-            AssemblyFileName = _ctx.ProviderSet?.GetAssemblyFileName(name) ?? string.Empty,
-        };
-
-        // The chosen language model serves every reasoning role; abilities of other kinds need models of their own.
-        WorkspaceAiDefaults.Assign(_ctx.Workspace.AiConfig, pair, null);
-
-        _ctx.SavedWorkspaces.SaveWorkspaceAiConfig(_ctx.Workspace);
-        _ctx.SavedWorkspaces.SaveWorkspaces();
+        if (!string.IsNullOrEmpty(_content.SelectedModel)) _setup.UseLanguageModel(_content.SelectedModel);
     }
 }
 
@@ -376,21 +305,12 @@ internal sealed class ModelPickStep : ObservableObject, IWizardStep
 /// for each or none, and each put in the rows of the ability grid that take its kind. Applies where the provider offers
 /// any beside language.
 /// </summary>
-internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObject, IWizardStep
+internal sealed class ModelKindsStep(WorkspaceAiSetup setup) : ObservableObject, IWizardStep
 {
-    /// <summary>The kinds asked for, in the order they are shown, and the rows each fills.</summary>
-    private static readonly (ModelKind Kind, AiAbility[] Rows)[] OtherKinds =
-    [
-        (ModelKind.SpeechToText,    [AiAbility.SpeechIn]),
-        (ModelKind.TextToSpeech,    [AiAbility.SpeechOut]),
-        (ModelKind.ImageGeneration, [AiAbility.ImageGeneration, AiAbility.HighQualityImageGeneration, AiAbility.ImageEditing]),
-        (ModelKind.VideoGeneration, [AiAbility.VideoGeneration, AiAbility.HighQualityVideoGeneration]),
-    ];
-
     private readonly WizardModelKindsContent _content = new();
 
     public string Title      => Str.Get("Shell.Wizard.Kinds.Title");
-    public bool   Applies    => ctx.Harness != WorkspaceHarness.Owned && Offered().Any();
+    public bool   Applies    => setup.Harness != WorkspaceHarness.Owned && setup.KindsOffered().Count > 0;
     public object Content    => _content;
     public bool   IsComplete => !_content.IsLoading;
 
@@ -400,29 +320,17 @@ internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObje
         _ = LoadModelsAsync();
     }
 
-    /// <summary>The provider's own instance for each other kind it offers.</summary>
-    private IEnumerable<(ModelKind Kind, AiAbility[] Rows, IAiProvider Provider)> Offered()
-    {
-        if (ctx.ChosenProvider?.FriendlyName is not { } name || ctx.ProviderSet is not { } set) yield break;
-        foreach (var (kind, rows) in OtherKinds)
-            if (set.Find(name, kind) is { } provider) yield return (kind, rows, provider);
-    }
-
     private async Task LoadModelsAsync()
     {
         _content.IsLoading = true;
         OnPropertyChanged(nameof(IsComplete));
         try
         {
-            foreach (var (kind, rows, provider) in Offered().ToList())
+            foreach (var (kind, rows) in setup.KindsOffered())
             {
                 var choice = new WizardModelKindChoice(kind, string.Join(" · ", rows.Select(AiAbilityNames.Friendly)));
-                try
-                {
-                    foreach (var model in await provider.GetAvailableModelsAsync()) choice.Models.Add(model);
-                }
-                catch (Exception) { /* a kind whose models cannot be listed is not offered */ }
-                if (choice.Models.Count > 1) _content.Kinds.Add(choice);
+                foreach (var model in await setup.ListModelsAsync(kind)) choice.Models.Add(model);
+                if (choice.Models.Count > 1) _content.Kinds.Add(choice);   // a kind whose models cannot be listed is not offered
             }
         }
         finally
@@ -433,22 +341,7 @@ internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObje
     }
 
     public void Commit()
-    {
-        if (ctx.ProviderSet is not { } set || ctx.ChosenProvider?.FriendlyName is not { } name) return;
-        var chosen = _content.Kinds.Where(k => k.Chosen is not null).Select(k =>
-        {
-            var provider = set.Find(name, k.Kind)!;
-            return new ProviderModelPair
-            {
-                ProviderName = provider.Name, Model = k.Chosen!, Kind = k.Kind, AssemblyFileName = set.GetAssemblyFileName(provider.Name),
-            };
-        }).ToList();
-        if (chosen.Count == 0) return;
-
-        WorkspaceAiDefaults.AssignKinds(ctx.Workspace.AiConfig, set, chosen);
-        ctx.SavedWorkspaces.SaveWorkspaceAiConfig(ctx.Workspace);
-        ctx.SavedWorkspaces.SaveWorkspaces();
-    }
+        => setup.UseModels([.. _content.Kinds.Where(k => k.Chosen is not null).Select(k => (k.Kind, k.Chosen!))]);
 }
 
 // ── Wizard view model ────────────────────────────────────────────────────────
@@ -456,7 +349,8 @@ internal sealed class ModelKindsStep(WorkspaceSetupContext ctx) : ObservableObje
 public partial class SetupWizardViewModel : ObservableObject
 {
     private readonly IReadOnlyList<IWizardStep> _steps;
-    private readonly WorkspaceSetupContext? _ctx;
+    /// <summary>The workspace being set up, which holds a provider set while a provider is; null where no workspace is.</summary>
+    private readonly WorkspaceAiSetup? _setup;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentStep))]
@@ -492,10 +386,10 @@ public partial class SetupWizardViewModel : ObservableObject
         return null;
     }
 
-    internal SetupWizardViewModel(IReadOnlyList<IWizardStep> steps, WorkspaceSetupContext? ctx)
+    internal SetupWizardViewModel(IReadOnlyList<IWizardStep> steps, WorkspaceAiSetup? setup)
     {
         _steps = steps;
-        _ctx   = ctx;
+        _setup = setup;
         _currentIndex = NextApplying(-1) ?? 0;
         CurrentStep.PropertyChanged += OnStepPropertyChanged;
         CurrentStep.OnEnter();
@@ -547,87 +441,52 @@ public partial class SetupWizardViewModel : ObservableObject
         Finished?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Releases the temporary provider set acquired during the workspace sub-flow.</summary>
-    public void ReleaseResources()
-    {
-        if (_ctx?.ProviderSet is not null)
-        {
-            _ctx.Providers.ReleaseProviderSet(_ctx.ProviderSet);
-            _ctx.ProviderSet = null;
-        }
-    }
+    /// <summary>Lets go of what the workspace's setup holds: the provider set it lists models from.</summary>
+    public void ReleaseResources() => _setup?.Dispose();
 
     // ── Build ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The first-run / post-update wizard, or null when there is nothing to ask. Steps are added only where
-    /// information is genuinely missing — see each numbered block — with one exception: a config that could
-    /// not be read at all takes the wizard through the workspace's AI setup again, because what that file
-    /// held is gone and the user is being asked to confirm what replaced it.
+    /// The first-run / post-update wizard, or null when there is nothing to ask: a step for each item of the
+    /// <see cref="SetupAgenda"/> — what was lost, what is new, the app-wide configs to fill, the startup workspace's AI, and the models
+    /// to download.
     /// </summary>
     /// <param name="startupWorkspace">The workspace the first window opens on, whose AI setup is asked for when it has none.</param>
     /// <param name="pages">The page a step's config is edited on where it has one of its own.</param>
-    /// <param name="config">The session's configuration: which configs are new, were carried forward or could not be read, each
-    /// step's config saved back through it, and what rules on a setting shown as it rules.</param>
-    /// <param name="shell">The shell's settings: the version Nexaflow last ran as, which tells an update.</param>
+    /// <param name="config">The session's configuration: each step's config saved back through it, and what rules on a setting shown
+    /// as it rules.</param>
+    /// <param name="runs">This run against the one before: a first run or an update.</param>
     /// <param name="features">The session's feature system, whose workspace-scoped configs the workspace's setup asks for.</param>
     /// <param name="providers">The session's provider pool, which the providers offered and the models on this machine are read
     /// from.</param>
     /// <param name="savedWorkspaces">The saved workspaces: each step writes back, and after an update each one's Local column is
     /// offered its models.</param>
-    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages, ConfigManager config, ShellConfig shell,
+    public static SetupWizardViewModel? Build(Workspace startupWorkspace, ConfigPageModels pages, ConfigManager config, AppRuns runs,
                                               FeatureManager features, ProviderManager providers, WorkspaceManager savedWorkspaces)
     {
-        var steps = new List<IWizardStep>();
+        var agenda = SetupAgenda.Of(startupWorkspace, config, runs, providers, savedWorkspaces);
+        var steps  = new List<IWizardStep>();
 
-        // A config whose file was present but unreadable: its settings are back at their defaults. Lead with
-        // what happened and what was recovered, so the steps that follow read as re-verification.
-        var unreadable = config.GetUnreadableConfigs();
-        if (unreadable.Count > 0)
-            steps.Add(new MarkdownStep(Str.Get("Shell.Wizard.Recovered.Title"), RecoveryNotes(unreadable)));
+        // Lead with what was lost and what was recovered, so the steps that follow read as re-verification.
+        if (agenda.Unreadable.Count > 0)
+            steps.Add(new MarkdownStep(Str.Get("Shell.Wizard.Recovered.Title"), RecoveryNotes(agenda.Unreadable)));
 
-        // 1. What's New — only after a version bump (not on a brand-new install).
-        if (TryLoadWhatsNew(config, shell, out var whatsNew))
+        if (agenda.Welcomes && TryLoadWhatsNew(out var whatsNew))
             steps.Add(new MarkdownStep(Str.Get("Shell.Wizard.WhatsNew.Title"), whatsNew));
 
-        // 2. GLOBAL feature configs that opt into the wizard via [MandatorySetup], excluding the
-        //    Workspaces list. Show one when it is brand-new (defaulted — first run / new feature, which
-        //    an unreadable config is also listed as) OR it was migrated from an older version but is now
-        //    missing genuinely-new required info; a migrated config whose required fields all carried over
-        //    is left alone (no re-ask). The step is prefilled with the migrated values (the editor binds
-        //    the live config).
-        var defaulted = config.GetDefaultedConfigs()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var migrated = config.GetMigratedConfigs()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var cfg in config.GetAll().OfType<IFeatureConfig>())
-        {
-            if (cfg is WorkspacesConfig || !ConfigRequirements.IsMandatory(cfg)) continue;
-            bool isNew        = defaulted.Contains(cfg.ConfigName);
-            bool needsNewInfo = migrated.Contains(cfg.ConfigName)
-                                && !ConfigRequirements.IsComplete(cfg);
-            if (!isNew && !needsNewInfo) continue;
-            var editor = new ConfigEditViewModel(cfg, cfg.ConfigName, cfg.FriendlyName, config, pages);
-            steps.Add(new ConfigEditStep(cfg.FriendlyName, editor,
-                e => config.Save(e.RealConfig, e.ConfigName)));
-        }
+        // Each prefilled with what the config holds now: the editor binds the live config.
+        foreach (var cfg in agenda.MandatoryConfigs)
+            steps.Add(new ConfigEditStep(cfg.FriendlyName, new ConfigEditViewModel(cfg, cfg.ConfigName, cfg.FriendlyName, config, pages),
+                                         e => config.Save(e.RealConfig, e.ConfigName)));
 
-        // 3. First-workspace setup, if the startup workspace has no usable AI assignment — or if anything
-        //    was unreadable, in which case the assignment that IS there is exactly what needs confirming.
-        startupWorkspace.EnsureSharedServicesLoaded(providers);
-        WorkspaceSetupContext? ctx = null;
-        if (unreadable.Count > 0 || !IsWorkspaceConfigured(startupWorkspace, providers))
-            ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace, config, pages, features, providers, savedWorkspaces);
+        var setup = agenda.SetsUpWorkspace
+            ? AppendWorkspaceSetupSteps(steps, startupWorkspace, config, pages, features, providers, savedWorkspaces)
+            : null;
 
-        // 4. After an update, the models every workspace's Local column holds that are not here yet — a grid from before the
-        //    column has it turned on here, before the workspace first runs — are offered for download in one step, each once
-        //    however many workspaces use it, as they are to a new workspace that chooses Nexaflow's own models, rather than
-        //    found missing on first use. A startup workspace being set up above is offered its own there.
-        if (WasUpdated(shell)
-            && OwnedAwaited(savedWorkspaces.Workspaces.Where(w => ctx is null || !ReferenceEquals(w, startupWorkspace)), providers) is { Count: > 0 } awaited)
-            steps.Add(new ModelDownloadStep(() => true, awaited, providers));
+        if (agenda.AwaitedDownloads.Count > 0)
+            steps.Add(new ModelDownloadStep(() => true, agenda.AwaitedDownloads, providers));
 
-        return steps.Count == 0 ? null : new SetupWizardViewModel(steps, ctx);
+        return steps.Count == 0 ? null : new SetupWizardViewModel(steps, setup);
     }
 
     /// <summary>What the first step of a recovery run says: which settings were lost, that they are on
@@ -637,134 +496,44 @@ public partial class SetupWizardViewModel : ObservableObject
         => Str.Format("Shell.Wizard.Recovered.NotesFormat", string.Join(", ", unreadable.Select(n => $"`{n}`")));
 
     /// <summary>
-    /// Builds a wizard containing ONLY the workspace-setup steps (provider → key → model, plus any
-    /// [MandatorySetup] persona / per-workspace configs) for <paramref name="workspace"/>. Used by the
-    /// Workspaces tab's "Add Workspace" to configure a freshly-created workspace; <paramref name="pages"/> make a step's own page
-    /// where its config has one, <paramref name="rulings"/> rule on the settings
-    /// the app does not decide alone, <paramref name="features"/> knows its per-workspace configs, <paramref name="providers"/> the
-    /// providers offered, and <paramref name="savedWorkspaces"/> is written back as each step commits.
+    /// A wizard of ONLY the workspace-setup steps for <paramref name="workspace"/> — who runs its AI, a provider's key and models, and
+    /// its configs that say <c>[MandatorySetup]</c>. Used by the Workspaces tab's "Add Workspace" to configure a freshly-created
+    /// workspace; <paramref name="pages"/> make a step's own page where its config has one, <paramref name="rulings"/> rule on the
+    /// settings the app does not decide alone, <paramref name="features"/> knows its per-workspace configs, <paramref name="providers"/>
+    /// the providers offered, and <paramref name="savedWorkspaces"/> is written back as each step commits.
     /// </summary>
     public static SetupWizardViewModel BuildWorkspaceSetup(Workspace workspace, ConfigPageModels pages, IConfigRulings rulings, FeatureManager features, ProviderManager providers, WorkspaceManager savedWorkspaces)
     {
-        workspace.EnsureSharedServicesLoaded(providers);
         var steps = new List<IWizardStep>();
-        var ctx   = AppendWorkspaceSetupSteps(steps, workspace, rulings, pages, features, providers, savedWorkspaces);
-        return new SetupWizardViewModel(steps, ctx);
+        var setup = AppendWorkspaceSetupSteps(steps, workspace, rulings, pages, features, providers, savedWorkspaces);
+        return new SetupWizardViewModel(steps, setup);
     }
 
-    /// <summary>Appends provider-pick → provider-config → model-pick (+ mandatory persona/scoped
-    /// configs) for <paramref name="workspace"/>, each config's own page made by <paramref name="pages"/> where it has one, its scoped
-    /// configs those <paramref name="features"/> knows, its providers those
-    /// <paramref name="providers"/> loads, each setting shown as <paramref name="rulings"/> rule on it; returns the shared setup
-    /// context, which writes back to <paramref name="savedWorkspaces"/>.</summary>
-    private static WorkspaceSetupContext AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace, IConfigRulings rulings, ConfigPageModels pages, FeatureManager features, ProviderManager providers, WorkspaceManager savedWorkspaces)
+    /// <summary>Appends the steps that set up <paramref name="workspace"/>'s AI — who runs it, the models to download, a provider and
+    /// its models — and its configs that say <c>[MandatorySetup]</c>, each config's own page made by <paramref name="pages"/> where it
+    /// has one and each setting shown as <paramref name="rulings"/> rule on it; returns the setup they drive.</summary>
+    private static WorkspaceAiSetup AppendWorkspaceSetupSteps(List<IWizardStep> steps, Workspace workspace, IConfigRulings rulings, ConfigPageModels pages, FeatureManager features, ProviderManager providers, WorkspaceManager savedWorkspaces)
     {
-        providers.DiscoverAll();
-        workspace.ReloadProviderConfigs(providers);
-        // Materialize every workspace-scoped config so a [MandatorySetup] one (e.g. Projects) gets a wizard
-        // step. WorkspaceConfigs otherwise returns only configs already lazily materialized, so on first run
-        // the scoped Projects config is absent and its step silently never shows.
-        workspace.MaterializeAllScopedConfigs(features.Configs);
+        var setup = new WorkspaceAiSetup(workspace, providers, savedWorkspaces, features);
 
-        var ctx = new WorkspaceSetupContext
-        {
-            Workspace          = workspace,
-            Providers          = providers,
-            SavedWorkspaces    = savedWorkspaces,
-            Rulings            = rulings,
-            Pages              = pages,
-            AvailableProviders = workspace.ProviderConfigs,
-        };
+        steps.Add(new HarnessStep(setup));
+        steps.Add(new ModelDownloadStep(() => setup.Harness == WorkspaceHarness.Owned, setup.Owned?.Downloads ?? [], providers));
+        steps.Add(new ProviderPickStep(setup));
+        steps.Add(new ProviderConfigStep(setup, rulings, pages));
+        steps.Add(new ModelPickStep(setup));
+        steps.Add(new ModelKindsStep(setup));
 
-        // Who runs the AI — asked only where this machine can run Nexaflow's own model. A provider set is acquired
-        // just long enough to find it among the providers by its harness.
-        var hardware = providers.Service<MachineCards>() ?? MachineCards.Probe();
-        var offers = providers.AcquireProviderSet(workspace.ProviderConfigs, []);
-        try { ctx.Owned = OwnedModelOffer.Find(offers, hardware, providers.Assets); }
-        finally { providers.ReleaseProviderSet(offers); }
-        steps.Add(new HarnessStep(ctx));
-        steps.Add(new ModelDownloadStep(() => ctx.Harness == WorkspaceHarness.Owned, ctx.Owned?.Downloads ?? [], providers));
+        foreach (var (config, configName, friendlyName) in setup.MandatoryConfigs())
+            steps.Add(new ConfigEditStep(friendlyName, new ConfigEditViewModel(config, configName, friendlyName, rulings, pages),
+                                         e => setup.Save(e.RealConfig)));
 
-        // Essential AI bootstrap — unless Nexaflow runs the workspace's AI itself.
-        steps.Add(new ProviderPickStep(ctx));
-        steps.Add(new ProviderConfigStep(ctx));
-        steps.Add(new ModelPickStep(ctx));
-        steps.Add(new ModelKindsStep(ctx));
-
-        // Persona + per-workspace feature configs only when they opt in via [MandatorySetup].
-        var persona = workspace.Persona;
-        if (ConfigRequirements.IsMandatory(persona))
-            steps.Add(new ConfigEditStep(persona.FriendlyName,
-                new ConfigEditViewModel(persona, persona.ConfigName, persona.FriendlyName, rulings, pages),
-                _ => savedWorkspaces.SaveWorkspacePersona(workspace)));
-
-        foreach (var wc in workspace.WorkspaceConfigs)
-            if (ConfigRequirements.IsMandatory(wc))
-                steps.Add(new ConfigEditStep(wc.FriendlyName,
-                    new ConfigEditViewModel(wc, wc.ConfigName, wc.FriendlyName, rulings, pages),
-                    e => savedWorkspaces.SaveWorkspaceScopedConfig(workspace, (IFeatureConfig)e.RealConfig)));
-
-        return ctx;
+        return setup;
     }
 
-    /// <summary>True when the workspace has a language ability assigned to a provider that is ready: one whose required
-    /// config (e.g. API key) is satisfied, or one whose assembly <paramref name="providers"/> has loaded takes no config at all —
-    /// Nexaflow's own model.</summary>
-    public static bool IsWorkspaceConfigured(Workspace p, ProviderManager providers)
-    {
-        var ai = p.AiConfig;
-        var assignedColumnIds = ai.AssignedColumnIds();
-        if (assignedColumnIds.Count == 0) return false;
-        var byName = p.ProviderConfigs.ToDictionary(c => c.FriendlyName);
-        // Configured means a language model is ready to answer; a speech model alone does not make one.
-        return ai.Columns
-            .Where(c => c.Kind == ModelKind.Language && assignedColumnIds.Contains(c.Id))
-            .Any(c => byName.TryGetValue(c.ProviderName, out var cfg)
-                      ? ConfigRequirements.IsComplete(cfg)
-                      : providers.TakesNoConfig(c.AssemblyFileName));
-    }
-
-    /// <summary>The jobs the Download models step offers models for; pictures, video and tools are offered on first use.</summary>
-    private static readonly LocalSlot[] OfferedSlots = [LocalSlot.Language, LocalSlot.SpeechToText, LocalSlot.TextToSpeech];
-
-    /// <summary>
-    /// The models the Local columns of <paramref name="workspaces"/> hold for language and speech that are not here yet, each
-    /// once, after the column is folded into each grid — as opening the workspace would — with a provider set acquired just long
-    /// enough from <paramref name="pool"/> to read the models on this machine.
-    /// </summary>
-    private static IReadOnlyList<LocalModelOption> OwnedAwaited(IEnumerable<Workspace> workspaces, ProviderManager pool)
-    {
-        if (pool.Assets is not { } assets) return [];
-        pool.DiscoverAll();
-        var awaited = new List<LocalModelOption>();
-        foreach (var workspace in workspaces.ToList())
-        {
-            workspace.EnsureSharedServicesLoaded(pool);
-            var providers = pool.AcquireProviderSet(workspace.ProviderConfigs, WorkspaceManager.AssignedColumns(workspace.AiConfig));
-            try
-            {
-                WorkspaceManager.FoldInLocalColumns(workspace, providers, assets);
-                foreach (var option in LocalDownloadPlan.Awaited(workspace.AiConfig, new LocalModelShelf(providers, assets), OfferedSlots))
-                    if (!awaited.Any(a => a.IsIn(option.Column()))) awaited.Add(option);
-            }
-            finally { pool.ReleaseProviderSet(providers); }
-        }
-        return awaited;
-    }
-
-    /// <summary>Whether this run is the first since Nexaflow was updated: the version <paramref name="shell"/> says it last ran as is
-    /// another.</summary>
-    private static bool WasUpdated(ShellConfig shell)
-        => shell.LastRunVersion is { } last && last != CurrentVersion();
-
-    private static bool TryLoadWhatsNew(ConfigManager config, ShellConfig shell, out string markdown)
+    /// <summary>What is new, from the app's own resources: the welcome on a first run, the changes after an update.</summary>
+    private static bool TryLoadWhatsNew(out string markdown)
     {
         markdown = string.Empty;
-
-        // Show on a fresh install (welcome) and after a version bump (changelog); skip on an
-        // unchanged relaunch.
-        if (!config.IsFirstRun && !WasUpdated(shell)) return false;
-
         try
         {
             var info = Application.GetResourceStream(new Uri("Assets/WhatsNew.md", UriKind.Relative));
@@ -776,8 +545,4 @@ public partial class SetupWizardViewModel : ObservableObject
 
         return !string.IsNullOrWhiteSpace(markdown);
     }
-
-    /// <summary>The Core assembly version (matches the version ConfigManager stamps on config files).</summary>
-    public static string CurrentVersion()
-        => (typeof(SetupWizardViewModel).Assembly.GetName().Version ?? new Version(0, 0, 0, 0)).ToString();
 }

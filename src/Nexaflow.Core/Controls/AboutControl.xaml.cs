@@ -41,7 +41,7 @@ public partial class AboutControl : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        VersionText.Text  = Str.Format("Shell.About.VersionFormat", SetupWizardViewModel.CurrentVersion());
+        VersionText.Text  = Str.Format("Shell.About.VersionFormat", App.Version);
         NoticesView.Document = new EditedDocument(LoadNotices());
 
         _model = DataContext as AboutViewModel;

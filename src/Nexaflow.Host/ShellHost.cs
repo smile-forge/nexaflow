@@ -117,6 +117,9 @@ internal sealed class ShellHost : IAsyncDisposable
     /// <summary>The shell's own settings.</summary>
     public ShellConfig Shell { get; }
 
+    /// <summary>This run against the one before: a first run, or the first since an update, until the setup that greets it is done.</summary>
+    public AppRuns Runs { get; }
+
     /// <summary>The security settings: what the assistant may see of the desktop.</summary>
     public SecurityConfig Security { get; }
 
@@ -177,6 +180,7 @@ internal sealed class ShellHost : IAsyncDisposable
         // ── 1. Shell config ──────────────────────────────────────────────────
         Shell = new ShellConfig();
         Config.Register(Shell, Shell.ConfigName);
+        Runs  = new AppRuns(Shell, Config, options.Version);
 
         // From here this session knows whether it keeps a safety log: what startup held so far is written out or dropped.
         options.Logging.Session.Apply(Shell.SafetyLogging);
