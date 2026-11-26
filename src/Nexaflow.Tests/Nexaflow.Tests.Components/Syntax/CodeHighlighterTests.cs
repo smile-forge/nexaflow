@@ -68,6 +68,50 @@ public class CodeHighlighterTests
 
     [TestMethod]
     [CoversNode("syntax-queries")]
+    public void PowerShell_ColoursKeywordsCommandsVariablesAndStrings()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("powershell");
+        const string src = "function Get-One {\n  param($Name)\n  Write-Host \"hi\" $Name\n}\n";
+        var pairs = Captured(highlighter!, src);
+
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "function"));
+        CollectionAssert.Contains(pairs, (cap: "function", text: "Get-One"));
+        CollectionAssert.Contains(pairs, (cap: "function", text: "Write-Host"));
+        CollectionAssert.Contains(pairs, (cap: "variable", text: "$Name"));
+        CollectionAssert.Contains(pairs, (cap: "string", text: "\"hi\""));
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-queries")]
+    public void Sql_ColoursKeywordsTablesAndNumbers()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("sql");
+        const string src = "SELECT name FROM people WHERE age > 42;";
+        var pairs = Captured(highlighter!, src);
+
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "SELECT"));
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "WHERE"));
+        CollectionAssert.Contains(pairs, (cap: "type", text: "people"));
+        CollectionAssert.Contains(pairs, (cap: "number", text: "42"));
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-queries")]
+    public void Diff_ColoursWhatIsAddedAndWhatIsTakenOut()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("diff");
+        const string src = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n";
+        var pairs = Captured(highlighter!, src);
+
+        Assert.IsTrue(pairs.Any(p => p.cap == "deleted" && p.text.StartsWith("-old")), "the line taken out");
+        Assert.IsTrue(pairs.Any(p => p.cap == "inserted" && p.text.StartsWith("+new")), "the line added");
+    }
+
+    private static (string cap, string text)[] Captured(CodeHighlighter highlighter, string src) =>
+        highlighter.Highlight(src).Select(s => (cap: s.Capture, text: src.Substring(s.Start, s.Length))).ToArray();
+
+    [TestMethod]
+    [CoversNode("syntax-queries")]
     public void UnknownGrammar_ReturnsNull()
     {
         Assert.IsNull(CodeHighlighter.TryCreate("nonsense-lang"));
@@ -146,6 +190,9 @@ public class CodeHighlighterTests
         ["json"]              = "{\n  \"a\": {\n    \"b\": 1\n  }\n}\n",
         ["embedded-template"] = "<%# alpha %>\n<%# beta %>\n<div>\n  <p>x</p>\n</div>\n",
         ["razor"]             = "@* alpha *@\n@* beta *@\n<div>\n  <p>x</p>\n</div>\n",
+        ["powershell"]        = "# alpha\n# beta\nfunction Get-One {\n  return 1\n}\n",
+        ["sql"]               = "-- alpha\n-- beta\nCREATE FUNCTION one() RETURNS int AS $$\nBEGIN\n  RETURN 1;\nEND;\n$$ LANGUAGE plpgsql;\n",
+        ["diff"]              = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,2 +1,2 @@\n-old\n+new\n same\n",
     };
 
     public static IEnumerable<object[]> FoldSampleGrammars() =>

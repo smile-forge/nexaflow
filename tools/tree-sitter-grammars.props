@@ -20,8 +20,8 @@
     the runtime binds (tree_sitter_<id>), so it must match what CodeHighlighter passes to `new Language`.
     Aliases (xaml -> xml, jinja -> html) resolve to another id and need no row of their own.
 
-    Root defaults to the bindings submodule's tree-sitter-<id> folder; xml has its own submodule because
-    the bindings repo carries no XML grammar.
+    Root defaults to the bindings submodule's tree-sitter-<id> folder. A grammar the bindings repo does not
+    carry - xml, powershell, sql, diff - is a submodule of its own, which Root names.
   -->
   <ItemGroup>
     <TreeSitterGrammar Include="c"                 SourceDir="src" />
@@ -40,6 +40,9 @@
     <TreeSitterGrammar Include="php"               SourceDir="php/src" />
     <TreeSitterGrammar Include="razor"             SourceDir="src" />
     <TreeSitterGrammar Include="xml"               SourceDir="xml/src" Root="external/tree-sitter-xml" />
+    <TreeSitterGrammar Include="powershell"        SourceDir="src"     Root="external/tree-sitter-powershell" />
+    <TreeSitterGrammar Include="sql"               SourceDir="src"     Root="external/tree-sitter-sql" />
+    <TreeSitterGrammar Include="diff"              SourceDir="src"     Root="external/tree-sitter-diff" />
   </ItemGroup>
 
 </Project>

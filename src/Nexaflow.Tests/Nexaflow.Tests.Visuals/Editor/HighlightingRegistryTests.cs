@@ -11,9 +11,13 @@ public class HighlightingRegistryTests
     [TestMethod]
     public void XmlFamily_ResolvesToTreeSitter()
     {
-        // The xml grammar is built from external/tree-sitter-xml, so the whole family left the .xshd engine
-        // behind: one parser now serves highlighting, folding and the structure outline.
-        foreach (var (name, grammar) in new[] { ("a.xml", "xml"), ("b.xsl", "xml"), ("c.xslt", "xml") })
+        // One parser serves the whole family's highlighting, folding and structure outline — the configuration,
+        // schema, package and resource files as much as .xml, and project files, which are XML to an editor too.
+        foreach (var (name, grammar) in new[]
+                 {
+                     ("a.xml", "xml"), ("b.xsl", "xml"), ("c.xslt", "xml"), ("app.config", "xml"), ("s.xsd", "xml"),
+                     ("p.nuspec", "xml"), ("Strings.resx", "xml"), ("x.ps1xml", "xml"), ("App.csproj", "xml"),
+                 })
         {
             var r = HighlightingRegistry.Resolve(name);
             Assert.AreEqual(HighlightMode.TreeSitter, r.Mode, name);
@@ -82,6 +86,31 @@ public class HighlightingRegistryTests
             var r = HighlightingRegistry.Resolve(name);
             Assert.AreEqual(HighlightMode.TreeSitter, r.Mode, name);
             Assert.AreEqual(grammar, r.TreeSitterLanguage, name);
+        }
+    }
+
+    [TestMethod]
+    public void ScriptsQueriesAndPatches_ResolveToTheirGrammars()
+    {
+        foreach (var (name, grammar) in new[]
+                 {
+                     ("build.ps1", "powershell"), ("Module.psm1", "powershell"), ("Module.psd1", "powershell"),
+                     ("schema.sql", "sql"), ("change.diff", "diff"), ("fix.patch", "diff"),
+                 })
+        {
+            var r = HighlightingRegistry.Resolve(name);
+            Assert.AreEqual(HighlightMode.TreeSitter, r.Mode, name);
+            Assert.AreEqual(grammar, r.TreeSitterLanguage, name);
+        }
+    }
+
+    [TestMethod]
+    public void AFormatNoGrammarReads_IsPlainText_SoSpellCheckCanAttach()
+    {
+        foreach (var name in new[] { "Module.vb", "page.aspx", "script.boo" })
+        {
+            Assert.AreEqual(HighlightMode.PlainText, HighlightingRegistry.Resolve(name).Mode, name);
+            Assert.IsFalse(HighlightingRegistry.IsStructured(name), name);
         }
     }
 

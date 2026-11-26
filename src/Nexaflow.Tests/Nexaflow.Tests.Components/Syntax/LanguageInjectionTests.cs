@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Components.Syntax;
 /// with offsets that still index the original document. A target language we don't ship (SQL) is a no-op.
 /// </summary>
 [TestClass]
-[CoversNode("parser-sql-graphql")]
+[CoversNode("parser-graphql")]
 public class LanguageInjectionTests
 {
     private static (string cap, string text)[] Pairs(string grammar, string src)
@@ -72,16 +72,25 @@ public class LanguageInjectionTests
     [TestMethod]
     public void Ruby_Heredoc_UnknownLanguage_IsNoOp()
     {
-        // SQL has no grammar ⇒ the body keeps whatever the outer ruby gives it (nothing — ruby doesn't
+        // TEXT names no language ⇒ the body keeps whatever the outer ruby gives it (nothing — ruby doesn't
         // capture heredoc bodies), and certainly no foreign tag/keyword/attribute spans appear in it.
+        const string src = "q = <<~TEXT\n  SELECT * FROM t\nTEXT\n";
+
+        int bodyStart = src.IndexOf("SELECT");
+        int bodyEnd = src.IndexOf("\nTEXT");
+        using var hl = CodeHighlighter.TryCreate("ruby");
+        var inBody = hl!.Highlight(src).Where(s => s.Start >= bodyStart && s.Start < bodyEnd).ToList();
+        Assert.AreEqual(0, inBody.Count, "no spans should be produced inside a heredoc body that names no language");
+    }
+
+    [TestMethod]
+    public void Ruby_Heredoc_Sql_IsColouredAsSql()
+    {
         const string src = "q = <<~SQL\n  SELECT * FROM t\nSQL\n";
         var pairs = Pairs("ruby", src);
 
-        int bodyStart = src.IndexOf("SELECT");
-        int bodyEnd = src.IndexOf("\nSQL");
-        using var hl = CodeHighlighter.TryCreate("ruby");
-        var inBody = hl!.Highlight(src).Where(s => s.Start >= bodyStart && s.Start < bodyEnd).ToList();
-        Assert.AreEqual(0, inBody.Count, "no spans should be produced inside an un-injected SQL heredoc body");
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "SELECT"));
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "FROM"));
     }
 
     [TestMethod]

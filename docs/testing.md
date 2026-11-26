@@ -54,8 +54,8 @@ usually a few lines and leaves the control thinner:
 - **Markdown's scroll-to-heading deep link** — the interesting part is matching a `>`-joined heading path
   against the document's outline (so duplicate names under different parents stay distinct), not the scroll, so it
   is `ContentOutline.Titled`, asked through the engine that laid the document (`ContentEngine.Titled`).
-- **Code's `.xshd` theming** — the name→role heuristic is in `SyntaxTokenMap` beside the tree-sitter
-  capture→role map, not in `XshdTheming`. One role palette, both engines, both testable.
+- **Code's colours** — the capture→role map is `SyntaxTokenMap`, not the colourizer that paints with it, so every
+  capture a query names is asked of it without a window.
 - **SysInfo's health colouring** — `StatusToBrushConverter.Convert` exposes the status→`TextSwatch.*` mapping as
   `ResourceKey`, so "every status resolves to a semantic token, and an unknown one paints as plain text rather
   than implying a verdict" is assertable without an `Application`.

@@ -1,17 +1,17 @@
 # Syntax Highlighting
 
-The Edit Text editor colours code and markup with two engines, chosen per file extension by
-`HighlightingRegistry` (`src/Nexaflow.Visuals.Text/Editor/Highlighting/HighlightingRegistry.cs`):
+Code and markup are coloured by **tree-sitter**, chosen per file name by `HighlightingRegistry`
+(`src/Nexaflow.Visuals.Text/Editor/Highlighting/HighlightingRegistry.cs`), which asks
+`TreeSitterLanguages.ForEdit`:
 
 | Engine | Used for | What you get |
 |--------|----------|--------------|
-| **tree-sitter** | every language with a grammar — code *and* markup | A full parse tree → colouring, **code folding** (block-like nodes), the class/method outline snaplinks resolve against, and structure for AI / graphify (`get_syntax_tree`) |
-| **AvalonEdit `.xshd`** | the fallback: a format AvalonEdit knows and no grammar claims | Token colouring only, retinted to the theme. No tree, so no outline, folding or injection |
+| **tree-sitter** | every language with a grammar — code, markup, scripts, the XML family, project files | A full parse tree → colouring, **code folding** (block-like nodes), the class/method outline snaplinks resolve against, and structure for AI / graphify (`get_syntax_tree`) |
 | *(none)* | everything else | Plain text — the Windows spell-checker is eligible to attach |
 
 Colours never come from literals: every role resolves to a **`TextSwatch.*`** theme token (see
-[theming.md](theming.md)), so each theme art-directs code colours. `TreeSitterColorizer` maps tree-sitter
-capture names → `TextSwatch.*`; `XshdTheming` retints AvalonEdit's built-in definitions to the same palette.
+[theming.md](theming.md)), so each theme art-directs code colours. `SyntaxTokenMap` maps tree-sitter capture
+names → `TextSwatch.*`, for every surface that colours code.
 
 ## Currently supported
 
@@ -36,7 +36,10 @@ capture names → `TextSwatch.*`; `XshdTheming` retints AvalonEdit's built-in de
 | PHP        | `php`        | `.php` `.phtml` |
 | Jinja      | `jinja` *(→html native)* | `.j2` `.jinja` `.jinja2` |
 | XAML       | `xaml` *(→xml native)* | `.xaml` |
-| XML        | `xml`        | `.xml` `.xsl` `.xslt` `.wxs` `.wxl` `.props` `.targets` `.manifest` |
+| XML        | `xml`        | `.xml` `.xsl` `.xslt` `.wxs` `.wxl` `.props` `.targets` `.manifest` `.config` `.xsd` `.nuspec` `.wsdl` `.ps1xml` `.proj` `.resx` `.vsixmanifest` |
+| PowerShell | `powershell` | `.ps1` `.psm1` `.psd1` |
+| SQL        | `sql`        | `.sql` |
+| Diff       | `diff`       | `.diff` `.patch` |
 
 Several of these are **injection hosts** — they embed another language (see *Embedded languages* below).
 Two are **aliases**, parsing with another language's native grammar while keeping their own id
@@ -53,21 +56,14 @@ snaplink like any other source. (`.wixproj` reads through the csproj path — it
 > flat source file, so it has its own `Nexaflow.Features.Notebook` feature (cell viewer + per-cell outline).
 > That feature reuses the read-only `CodeBlockView` (in `Nexaflow.Visuals.Text`) to highlight each code cell.
 
-**AvalonEdit `.xshd` (colour only, no tree):** the fallback for the extensions AvalonEdit ships a
-definition for that no tree-sitter grammar claims — PowerShell (`.ps1`), T-SQL (`.sql`), TeX (`.tex`),
-VB (`.vb`), patch files, ASPX, Boo — resolved by extension and retinted by `XshdTheming`.
+Project and solution files (`.csproj`, `.vbproj`, `.slnx`, …) are coloured with the `xml` grammar too, through
+`ForEdit`, without being registered: the graph reads them through its structured layer, and a registered
+extension would be walked as code as well.
 
-It is a fallback rather than a tier: `Resolve` asks `TreeSitterLanguages` first and reaches `.xshd` only
-when nothing matched, so a language leaves this path the moment its grammar is registered. C#, C++, CSS,
-HTML, Java, JavaScript, JSON, PHP, Python and the whole XML family have all already left it — their
-`.xshd` definitions still ship inside the package and are simply never reached.
-
-**Colour is all it gives**, which is the thing to notice about a format that is only here. `.sql` is
-coloured but has no outline, no folding, no injection spans and nothing a snaplink can name, because
-every one of those comes from a parse tree — SQL is detected as an injection site and waits on a grammar
-(`parser-sql-graphql`). `.xshd` also serves the one surface that knows its language **by name rather than
-by file**: `HighlightingRegistry.Themed("XML")`, the PE inspector's manifest pane, which has no extension
-to resolve.
+**Everything else is plain text**, VB (`.vb`), TeX (`.tex`), ASPX and Boo among them: there is no grammar
+for them, and colour without a tree would give none of what the rows above do — outline, folding, injection
+spans, something a snaplink can name. A surface that knows its language **by name rather than by file** — the
+PE inspector's manifest pane — says so to the surface (`WrittenIn="xml"`), and the same grammar colours it.
 
 ## Embedded languages (injection)
 
@@ -79,7 +75,7 @@ parent coordinates), recursing so nesting works (ERB → HTML → `<script>` →
 folding, the spliced AST s-expression (`get_syntax_tree`), and the **class viewer** (each embedded region
 renders as a linked `namespace` sub-graph).
 
-Detection is **decoupled** from rendering: a site for a language we don't ship yet (`sql`, `graphql`) is
+Detection is **decoupled** from rendering: a site for a language we don't ship yet (`graphql`) is
 still detected — it simply produces no spans until that grammar is added, at which point it lights up with
 no code change. To add a missing target language, follow *Add a tree-sitter language* below; the injection
 rule already points at it.
@@ -91,7 +87,7 @@ An injection is either **isolated** (a self-contained block parsed on its own) o
 | Host | Embeds | Rule (`LanguageInjections.Find`) | Mode |
 |------|--------|----------------------------------|------|
 | `html` | `<script>`→`javascript`, `<style>`→`css` | the element's `raw_text` child | isolated |
-| `ruby` | heredoc tag → `html`/`css`/`javascript`/`json`/`embedded-template` (`sql` no-op) | `heredoc_body`, language by `<<~TAG` | isolated |
+| `ruby` | heredoc tag → `html`/`css`/`javascript`/`json`/`sql`/`embedded-template` | `heredoc_body`, language by `<<~TAG` | isolated |
 | `embedded-template` (ERB) | `code`→`ruby`, `content`→`html` | by node type | **combined** |
 | `php` | `text`→`html` | the raw-HTML `text` nodes | **combined** |
 | `razor` | *(none — the grammar unifies C# + markup; coloured directly)* | — | — |
@@ -108,10 +104,11 @@ Capture/role names map to these theme tokens (defaults in `Tokens.xaml`, per-the
 `Theme.<name>.xaml`):
 
 `Comment`, `Keyword`, `String`, `Number`, `Type`, `Constant`, `Function`, `Operator`, `Parameter`
-(also used for `variable`), `Tag`, `Attribute`.
+(also used for `variable`), `Tag`, `Attribute`, `Inserted` and `Deleted` (the lines a diff adds and takes
+out), and `Whitespace` (the faint marks shown over spaces, tabs and line ends).
 
 Add a new role only if an existing one doesn't fit: add the token to `Tokens.xaml` + every
-`Theme.<name>.xaml`, then map the capture name in `TreeSitterColorizer.CaptureToToken`.
+`Theme.<name>.xaml`, then map the capture name in `SyntaxTokenMap.CaptureToToken`.
 
 ## Add a tree-sitter language
 
@@ -123,7 +120,7 @@ Add a new role only if an existing one doesn't fit: add the token to `Tokens.xam
    `tools/build-tree-sitter-natives.ps1` compiles what it lists, and `tools/ensure-submodules.ps1` reads it
    to know which nested submodules a fresh worktree must populate. `SourceDir` is where that grammar's C
    lives (usually `src`); `Root` is needed only when the grammar is its own submodule rather than one
-   nested inside the bindings repo (`xml` is the only one today).
+   nested inside the bindings repo — `xml`, `powershell`, `sql` and `diff` are.
 
    The **id decides two names** — the DLL (`tree-sitter-<id>.dll`) and the export the runtime binds
    (`tree_sitter_<id>`) — so it must match what `CodeHighlighter` passes to `new Language(...)`. An alias
@@ -153,7 +150,7 @@ Add a new role only if an existing one doesn't fit: add the token to `Tokens.xam
 3. **Register the extensions** in the `TreeSitterLanguages` static constructor
    (`src/Nexaflow.Syntax/TreeSitterLanguages.cs`): `Register("<id>", ".ext", …);`. The map lives there
    rather than in the editor so headless callers — the snaplink validator and its CLI — can resolve a
-   grammar, and therefore an outline, without dragging in WPF/AvalonEdit.
+   grammar, and therefore an outline, without dragging in WPF.
    `HighlightingRegistry.RegisterTreeSitter` still exists and forwards here, as the editor-side entry point.
 
 4. **Add reference fixtures + run the consistency test.** Drop a source file and its ANSI-highlighted
@@ -164,12 +161,7 @@ Add a new role only if an existing one doesn't fit: add the token to `Tokens.xam
    **0 violations**. Optionally add a `CodeSamples` entry + a targeted capture assertion in
    `CodeHighlighterTests`.
 
-## Add a basic (`.xshd`) language
 
-AvalonEdit resolves its built-in definitions by extension automatically — nothing to register;
-`XshdTheming` retints them. For a format AvalonEdit doesn't ship, register a custom `.xshd` with
-`HighlightingManager.Instance.RegisterHighlighting(...)` and let the registry fall through to it (do
-**not** add it to `RegisterTreeSitter`).
 
 ## Native packaging
 
@@ -194,9 +186,9 @@ so verify a file of that language actually colours after adding a grammar.
 | `src/Nexaflow.Syntax/HighlightQueries.cs` | Per-grammar tree-sitter highlight queries |
 | `src/Nexaflow.Syntax/CodeHighlighter.cs` | Wraps a grammar + query; `Highlight` → spans, `GetParseTree`; recurses into embedded languages |
 | `src/Nexaflow.Syntax/LanguageInjections.cs` | Finds embedded-language sub-ranges per host grammar |
-| `src/Nexaflow.Visuals.Text/Editor/Highlighting/HighlightingRegistry.cs` | Extension → engine (tree-sitter / xshd / plain) |
-| `src/Nexaflow.Visuals.Text/Editor/Highlighting/TreeSitterColorizer.cs` | Capture → `TextSwatch.*`, painted onto AvalonEdit |
-| `src/Nexaflow.Visuals.Text/Editor/Highlighting/XshdTheming.cs` | Retints built-in `.xshd` colours to the palette |
+| `src/Nexaflow.Visuals.Text/Editor/Highlighting/HighlightingRegistry.cs` | File name → grammar, or plain text |
+| `src/Nexaflow.Visuals.Text/Editor/Highlighting/SyntaxTokenMap.cs` | Capture → `TextSwatch.*` — the role palette |
+| `src/Nexaflow.Visuals.Text/Editor/Highlighting/TreeSitterColorizer.cs` | Paints captures onto AvalonEdit |
 | `src/Nexaflow.Core/Themes/Tokens.xaml`, `Theme.<name>.xaml` | `TextSwatch.*` defaults + per-theme overrides |
 | `src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/SyntaxHighlightConsistencyTests.cs` | Reference-corpus consistency test |
 | `src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/CodeHighlighterTests.cs` | Grammar/capture assertions (the engine's own suite — no WPF) |

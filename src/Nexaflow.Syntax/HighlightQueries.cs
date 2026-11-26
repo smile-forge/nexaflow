@@ -46,6 +46,87 @@ public static class HighlightQueries
             ] @keyword
             """,
 
+        ["powershell"] =
+            """
+            ; Patterns are ordered low → high priority, so the catch-all variable sits first.
+            (variable) @variable
+            (comment) @comment
+            (string_literal) @string
+            [(integer_literal) (real_literal)] @number
+            (type_spec) @type
+
+            (command command_name: (command_name) @function)
+            (function_statement (function_name) @function)
+            (invokation_expression (member_name) @function)
+
+            (command_invokation_operator) @operator
+            [
+              "-and" "-or" "-xor" "-not" "-eq" "-ne" "-gt" "-ge" "-lt" "-le" "-like" "-notlike" "-match" "-notmatch"
+              "-contains" "-notcontains" "-in" "-notin" "-replace" "-split" "-join" "-is" "-isnot" "-as"
+            ] @operator
+
+            [
+              "param" "dynamicparam" "begin" "process" "end" "if" "elseif" "else" "switch" "foreach" "for" "while" "do"
+              "until" "function" "filter" "workflow" "break" "continue" "throw" "return" "exit" "trap" "try" "catch"
+              "finally" "data"
+            ] @keyword
+            """,
+
+        ["sql"] =
+            """
+            (object_reference name: (identifier) @type)
+            (invocation (object_reference name: (identifier) @function))
+            (field name: (identifier) @variable)
+            (parameter) @parameter
+
+            (literal) @string
+            ((literal) @number (#match? @number "^[-+]?[0-9]+(\\.[0-9]*)?$"))
+            [(keyword_true) (keyword_false) (keyword_null)] @constant
+            [(comment) (marginalia)] @comment
+
+            [
+              (keyword_select) (keyword_from) (keyword_where) (keyword_join) (keyword_left) (keyword_right) (keyword_inner)
+              (keyword_outer) (keyword_full) (keyword_cross) (keyword_on) (keyword_as) (keyword_and) (keyword_or) (keyword_not)
+              (keyword_in) (keyword_is) (keyword_like) (keyword_between) (keyword_group) (keyword_order) (keyword_by)
+              (keyword_having) (keyword_limit) (keyword_offset) (keyword_insert) (keyword_into) (keyword_values)
+              (keyword_update) (keyword_set) (keyword_delete) (keyword_create) (keyword_alter) (keyword_drop) (keyword_table)
+              (keyword_view) (keyword_index) (keyword_primary) (keyword_key) (keyword_foreign) (keyword_references)
+              (keyword_constraint) (keyword_unique) (keyword_default) (keyword_with) (keyword_union) (keyword_all)
+              (keyword_distinct) (keyword_case) (keyword_when) (keyword_then) (keyword_else) (keyword_end) (keyword_exists)
+              (keyword_if) (keyword_begin) (keyword_commit) (keyword_rollback) (keyword_transaction) (keyword_returning)
+              (keyword_over) (keyword_partition) (keyword_asc) (keyword_desc) (keyword_function) (keyword_returns)
+              (keyword_return) (keyword_declare) (keyword_trigger) (keyword_procedure) (keyword_execute) (keyword_using)
+              (keyword_cascade) (keyword_check) (keyword_column) (keyword_add) (keyword_rename) (keyword_to) (keyword_schema)
+              (keyword_database) (keyword_grant) (keyword_revoke) (keyword_recursive) (keyword_materialized)
+              (keyword_temporary) (keyword_temp) (keyword_nulls) (keyword_first) (keyword_last) (keyword_except)
+              (keyword_intersect) (keyword_any) (keyword_some) (keyword_only) (keyword_window) (keyword_rows) (keyword_range)
+            ] @keyword
+
+            [
+              (keyword_int) (keyword_boolean) (keyword_smallint) (keyword_bigint) (keyword_decimal) (keyword_float)
+              (keyword_double) (keyword_numeric) (keyword_real) (keyword_char) (keyword_varchar) (keyword_nvarchar)
+              (keyword_text) (keyword_uuid) (keyword_json) (keyword_jsonb) (keyword_date) (keyword_datetime) (keyword_time)
+              (keyword_timestamp) (keyword_timestamptz) (keyword_interval) (keyword_serial) (keyword_bigserial)
+              (keyword_bytea) (keyword_money) (keyword_bit)
+            ] @type
+
+            ["+" "-" "*" "/" "%" "=" "<" "<=" "!=" ">=" ">" "<>"] @operator
+            """,
+
+        ["diff"] =
+            """
+            (comment) @comment
+            [(addition) (new_file)] @inserted
+            [(deletion) (old_file)] @deleted
+            (location) @attribute
+            (commit) @constant
+            (command "diff" @function (argument) @parameter)
+            (filename) @string
+            (mode) @number
+            (index "index" @keyword)
+            (binary_hunk ["literal" "delta"] @keyword (size) @number)
+            """,
+
         ["json"] =
             """
             (string) @string

@@ -955,10 +955,73 @@
           }
         ]
       }
+    },
+    "parser-powershell": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/HighlightQueries.cs",
+          "class": "HighlightQueries"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/CodeHighlighterTests.cs",
+            "class": "CodeHighlighterTests",
+            "method": "PowerShell_ColoursKeywordsCommandsVariablesAndStrings"
+          }
+        ]
+      }
+    },
+    "parser-sql": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/HighlightQueries.cs",
+          "class": "HighlightQueries"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/CodeHighlighterTests.cs",
+            "class": "CodeHighlighterTests",
+            "method": "Sql_ColoursKeywordsTablesAndNumbers"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/LanguageInjectionTests.cs",
+            "class": "LanguageInjectionTests",
+            "method": "Ruby_Heredoc_Sql_IsColouredAsSql"
+          }
+        ]
+      }
+    },
+    "parser-diff": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/HighlightQueries.cs",
+          "class": "HighlightQueries"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/CodeHighlighterTests.cs",
+            "class": "CodeHighlighterTests",
+            "method": "Diff_ColoursWhatIsAddedAndWhatIsTakenOut"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 40,
+  "changed_sets": 46,
   "touched_nodes": [
     "barcode-editing",
     "code-folding",
@@ -993,6 +1056,9 @@
     "md-code-highlighting",
     "md-image-resolver",
     "md-link-decorator",
+    "parser-diff",
+    "parser-powershell",
+    "parser-sql",
     "solver-latex-fence",
     "solver-source-toggle",
     "visuals-text",

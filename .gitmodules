@@ -23,3 +23,15 @@
 	path = external/PdfPig
 	url = https://github.com/smile-forge/PdfPig.git
 	branch = nexaflow
+[submodule "external/tree-sitter-powershell"]
+	path = external/tree-sitter-powershell
+	url = https://github.com/smile-forge/tree-sitter-powershell.git
+	branch = nexaflow
+[submodule "external/tree-sitter-sql"]
+	path = external/tree-sitter-sql
+	url = https://github.com/smile-forge/tree-sitter-sql.git
+	branch = nexaflow
+[submodule "external/tree-sitter-diff"]
+	path = external/tree-sitter-diff
+	url = https://github.com/smile-forge/tree-sitter-diff.git
+	branch = nexaflow

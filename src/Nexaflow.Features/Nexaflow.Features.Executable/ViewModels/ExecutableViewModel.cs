@@ -17,6 +17,7 @@ using Nexaflow.IO.Pe;
 using Nexaflow.Localization;
 using Nexaflow.IO.Common;
 using Nexaflow.Interaction;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 
@@ -126,7 +127,8 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
 
     // ── Manifest ──────────────────────────────────────────────────────────────
     public ObservableCollection<InspectorCard> ManifestCards { get; } = [];
-    [ObservableProperty] private string  _manifestXml = string.Empty;
+    /// <summary>The manifest as it is written, shown read-only behind the raw toggle.</summary>
+    public EditedDocument ManifestDocument { get; } = new();
     [ObservableProperty] private bool    _showRawManifest;
     [ObservableProperty] private bool    _hasManifest;
 

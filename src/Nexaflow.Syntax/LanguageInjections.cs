@@ -29,7 +29,7 @@ public readonly record struct InjectionRange(
 /// parse tree, <see cref="Find"/> returns the embedded sub-ranges and the grammar each should be parsed with.
 /// The two halves are deliberately decoupled: <em>detecting</em> a site here is independent of whether the
 /// target grammar is actually available (see <see cref="CodeHighlighter"/>), so a site for a language we don't
-/// yet ship (sql, graphql, …) is detected today and lights up the moment a grammar is added.
+/// yet ship (graphql, …) is detected today and lights up the moment a grammar is added.
 ///
 /// Returns plain data (no live <see cref="Node"/>s) so callers can keep using it after the outer tree is
 /// disposed. The recursion, budget, and substring re-parsing all live in <see cref="CodeHighlighter"/>.
@@ -144,7 +144,7 @@ public static class LanguageInjections
             "CSS"                => "css",
             "JS" or "JAVASCRIPT" => "javascript",
             "JSON"               => "json",
-            "SQL"                => "sql",          // no grammar yet → no-op, but detected
+            "SQL"                => "sql",
             "ERB"                => "embedded-template",  // nested ERB (ruby + html) inside a heredoc
             "RUBY" or "RB"       => "ruby",
             _                    => null,

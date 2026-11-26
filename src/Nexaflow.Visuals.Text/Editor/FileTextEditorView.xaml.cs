@@ -107,9 +107,6 @@ public partial class FileTextEditorView : UserControl
         var resolution = HighlightingRegistry.Resolve(fileName);
         switch (resolution.Mode)
         {
-            case HighlightMode.Xshd:
-                Editor.SyntaxHighlighting = resolution.Definition;   // already retinted by the registry
-                break;
             case HighlightMode.TreeSitter:
                 var highlighter = CodeHighlighter.TryCreate(resolution.TreeSitterLanguage!);
                 if (highlighter is not null)

@@ -51,6 +51,8 @@ internal static class CodeGrammars
         ["jinja"] = "jinja",
         ["c"] = "c",
         ["cpp"] = "cpp",
+        ["pwsh"] = "powershell",
+        ["tsql"] = "sql",
     };
 
     /// <summary>What reads <paramref name="language"/>, or null where nothing does.</summary>

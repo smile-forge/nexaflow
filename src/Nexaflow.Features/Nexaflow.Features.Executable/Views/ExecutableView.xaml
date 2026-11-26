@@ -8,7 +8,7 @@
              xmlns:vcv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
-             xmlns:ae="clr-namespace:ICSharpCode.AvalonEdit;assembly=ICSharpCode.AvalonEdit"
+             
              AutomationProperties.AutomationId="ExecutableView"
              Background="{StaticResource BgBrush}"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
@@ -682,17 +682,19 @@
                                           ItemTemplate="{StaticResource CardTemplate}"/>
                         </ScrollViewer>
 
-                        <!-- AvalonEdit brings its own light default palette, so the surface colours are
-                             set from the theme here rather than left to the control. -->
+                        <!-- The manifest as it is written: XML, coloured by its grammar and numbered by line. -->
                         <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
                                 Background="{StaticResource Surface2Brush}"
                                 Visibility="{Binding ShowRawManifest, Converter={StaticResource BoolToVis}}">
-                            <ae:TextEditor x:Name="ManifestEditor" IsReadOnly="True" ShowLineNumbers="True"
-                                           Padding="8,6" BorderThickness="0" Background="Transparent"
-                                           Foreground="{StaticResource TextBrush}"
-                                           LineNumbersForeground="{StaticResource TextMutedBrush}"
-                                           FontFamily="Consolas, Cascadia Mono, Courier New" FontSize="12"
-                                           AutomationProperties.AutomationId="Executable_ManifestXml"/>
+                            <md:NexaTextSurface WrittenIn="xml" IsReadOnly="True"
+                                                Document="{Binding ManifestDocument}"
+                                                ContentPadding="8,6" Background="Transparent" BaseFontSize="12"
+                                                VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                                AutomationProperties.AutomationId="Executable_ManifestXml">
+                                <md:NexaTextSurface.LeadingMargins>
+                                    <md:LineNumberMargin/>
+                                </md:NexaTextSurface.LeadingMargins>
+                            </md:NexaTextSurface>
                         </Border>
                     </Grid>
                 </DockPanel>

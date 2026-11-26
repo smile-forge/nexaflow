@@ -6,8 +6,7 @@ namespace Nexaflow.Syntax;
 /// <remarks>
 /// This lives with the syntax engine rather than the editor so headless callers — the Initiatives snaplink
 /// validator and its CLI — can resolve a grammar (and therefore a class/method outline) without dragging in
-/// WPF/AvalonEdit. The editor's <c>HighlightingRegistry</c> delegates its tree-sitter branch here and keeps
-/// only its own <c>.xshd</c> fallback.
+/// WPF. The editor's <c>HighlightingRegistry</c> colours a file by what <see cref="ForEdit"/> answers here.
 /// </remarks>
 public static class TreeSitterLanguages
 {
@@ -44,6 +43,13 @@ public static class TreeSitterLanguages
         // .wxs/.wxl author the MSI, .props/.targets carry logic every project inherits. (.wixproj already
         // reads through the csproj path — it is a project file with PropertyGroups like any other.)
         Register("xml",  ".xml", ".xsl", ".xslt", ".wxs", ".wxl", ".props", ".targets", ".manifest");
+        // The rest of the XML a Windows developer opens: configuration, schemas, packages, resources.
+        Register("xml",  ".config", ".xsd", ".nuspec", ".wsdl", ".ps1xml", ".proj", ".resx", ".vsixmanifest");
+
+        // Scripts, queries and patches - each its own submodule, as xml is.
+        Register("powershell", ".ps1", ".psm1", ".psd1");
+        Register("sql",        ".sql");
+        Register("diff",       ".diff", ".patch");
         // .ipynb is owned by the Notebook feature (its own viewer), not the code editor.
     }
 
