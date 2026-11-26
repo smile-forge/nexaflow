@@ -9,7 +9,6 @@ namespace Nexaflow.Tests.Core.Unit.Ribbon;
 /// hears a change with who made it; and a pin of a page already on it is refused, its place given instead.
 /// </summary>
 [TestClass]
-[CoversNode("ribbon-layout-sync")]
 public class WorkspaceRibbonTests
 {
     private string _dir = null!;
@@ -39,6 +38,7 @@ public class WorkspaceRibbonTests
     }
 
     [TestMethod]
+    [CoversNode("ribbon-layout-sync")]
     public void AnEdit_IsSaved_AndHeardWithWhoMadeIt()
     {
         var ribbon = new WorkspaceRibbon(_dir);

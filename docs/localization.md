@@ -24,7 +24,7 @@ their own, and nothing in them is code.
 Options → Shell → **Language** lists the installed packs, each under its own name for itself ("English",
 "Français"). `ShellConfig.Language` stores the culture code — `en`, `fr`, `pt-BR`. A code with no pack runs in
 English, as does the `"English"` an earlier build stored there when the setting was an enum. Saving a change
-restarts the window through `ShellServices.RestartWindowForAppearance`, the path a theme change takes, which keeps
+restarts the window through `ShellServices.ReplaceWindow`, the path a theme change takes, which keeps
 both panes and each pane's active tab.
 
 ## UI strings

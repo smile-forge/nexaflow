@@ -12,7 +12,6 @@ namespace Nexaflow.Tests.Core.Unit;
 /// </summary>
 [TestClass]
 [CoversNode("opt-setup-wizard")]
-[CoversNode("opt-wizard-mandatory-configs")]
 public class SetupAgendaTests
 {
     [MandatorySetup]
@@ -50,6 +49,7 @@ public class SetupAgendaTests
     }
 
     [TestMethod]
+    [CoversNode("opt-wizard-mandatory-configs")]
     public void ANewMandatoryConfig_IsAskedFor_ButOneCarriedForwardWhole_IsNot()
     {
         var first = TestRuntimes.ConfigIn(_root);

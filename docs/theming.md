@@ -56,7 +56,7 @@ holds a Dark bootstrap merge for the designer; `Apply` rebuilds the list determi
 > **Theme switching restarts the window.** References are overwhelmingly `{StaticResource}` (resolved
 > once, at load) for rendering performance — a deliberate choice, so an open window does not live-reflow.
 > Instead, changing the theme in Options runs `ThemeManager.Apply` and then
-> `ShellServices.RestartWindowForAppearance` rebuilds the acting window in place — same position, same pane
+> `ShellServices.ReplaceWindow` rebuilds the acting window in place — same position, same pane
 > layout (both panes, each pane's active tab), now rendered against the new theme. A language change takes the
 > same path, for the same reason: UI strings resolve once as the XAML loads (see [localization.md](localization.md)).
 
