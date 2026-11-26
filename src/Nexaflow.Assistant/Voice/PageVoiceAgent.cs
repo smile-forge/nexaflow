@@ -1,9 +1,9 @@
-using System.Windows.Threading;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Providers.Common;
+using Nexaflow.Session.Services;
 
-namespace Nexaflow.Core.Services.Voice;
+namespace Nexaflow.Assistant.Voice;
 
 /// <summary>
 /// The agent a voice session talks to: the workspace's, on the page in front of the user at the moment each turn is
@@ -14,7 +14,7 @@ namespace Nexaflow.Core.Services.Voice;
 /// <para>Each turn runs on the UI thread, as a typed request does: the page, its tools and the handler that shows the
 /// conversation all live there — a tool refreshes the page it acted on as it returns.</para>
 /// </summary>
-public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageViewModel?> currentPage, Func<bool> includeContext, bool pageKeepsConversation)
+internal sealed class PageVoiceAgent(AIService service, IUiThread ui, Func<IPageViewModel?> currentPage, Func<bool> includeContext, bool pageKeepsConversation)
     : IVoiceAgent
 {
     /// <summary>How a spoken reply is written: short sentences, nothing that cannot be heard, what has to be seen shown.</summary>
@@ -28,21 +28,20 @@ public sealed class PageVoiceAgent(AIService service, Dispatcher ui, Func<IPageV
         "goodbye or that they are done, call end_voice_session.";
 
     public Task RunAsync(string userText, IReadOnlyList<LlmMessage> history, IReadOnlyList<IClientTool> sessionTools,
-    IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, Action<IReadOnlyList<LlmMessage>> condensed,
+                         IAIResponseHandler handler, Action<IReadOnlyList<LlmMessage>> ran, Action<IReadOnlyList<LlmMessage>> condensed,
                          LlmThinking thinking, CancellationToken ct)
     {
         var options = new AgentRunOptions
         {
-            History    = pageKeepsConversation ? [] : history,
-            Conversation = handler.ConversationName,
-            ReplyStyle = SpokenStyle,
-            Tools      = sessionTools,
-            Ran        = ran,
+            History          = pageKeepsConversation ? [] : history,
+            Conversation     = handler.ConversationName,
+            ReplyStyle       = SpokenStyle,
+            Tools            = sessionTools,
+            Ran              = ran,
             HistoryCondensed = condensed,
-            Thinking   = thinking,
+            Thinking         = thinking,
         };
-        return ui.InvokeAsync(() => service.RunAgentAsync(currentPage(), userText, includeContext(), handler, options, ct),
-                              DispatcherPriority.Normal, ct).Task.Unwrap();
+        return ui.RunAsync(() => service.RunAgentAsync(currentPage(), userText, includeContext(), handler, options, ct));
     }
 
     public Task<bool> NeedsThoughtAsync(string userText, IReadOnlyList<LlmMessage> history, CancellationToken ct)

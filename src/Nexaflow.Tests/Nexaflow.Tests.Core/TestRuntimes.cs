@@ -12,6 +12,7 @@ using Nexaflow.Core.Services;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
+using Nexaflow.IO.Common.Audio;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.Visuals.Common.Viewing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -75,20 +76,21 @@ internal static class TestRuntimes
     /// <paramref name="savedWorkspaces"/> (a list of one default workspace when none is given). Nobody holds a secret for their
     /// connections, and none are made. Their shell and security settings are the defaults.</summary>
     public static WorkspaceRuntimeFactory FactoryWith(BackgroundActivityManager? tasks, Action<NotificationItem> notify,
-                                                      WorkspaceManager? savedWorkspaces = null)
+                                                      WorkspaceManager? savedWorkspaces = null, ISpeechDevices? speech = null)
     {
         var ui        = new WpfUiThread(Dispatcher.CurrentDispatcher);
         var locations = new LocationProviderRegistry();
         var dependencies = new ExternalDependencyRegistry(ui, Features.Catalog, [new AiHostReading(holds: null)]);
         var shell     = new ShellConfig();
         var security  = new SecurityConfig();
+        var language  = new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load, LoggerFor<LanguageManager>());
         return new WorkspaceRuntimeFactory(new RuntimeSessionServices(
             Config, shell, security,
             Providers, savedWorkspaces ?? SavedListOf(), Features, tasks, notify, VirtualFileSystem.Instance, locations,
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
             ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), Substitute.For<IShellClipboard>(), new WpfFilePickers(),
-            dependencies, new LanguageManager(Path.Combine(AppContext.BaseDirectory, "Languages"), AssemblyLanguagePack.Load, LoggerFor<LanguageManager>()),
-            PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), NewAssistant: new WorkspaceAssistants(Features, Providers, shell, security, [], new WpfPictureFitting(), tasks, notify).Create, Logs: Logging.Factory));
+            dependencies, language,
+            PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), NewAssistant: new WorkspaceAssistants(Features, Providers, shell, security, language, [], new WpfPictureFitting(), speech ?? Substitute.For<ISpeechDevices>(), tasks, notify).Create, Logs: Logging.Factory));
     }
 
     /// <summary>

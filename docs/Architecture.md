@@ -26,7 +26,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Tier | Projects | Role |
 |------|----------|------|
 | Shell | `Nexaflow.Core` | WinExe entry point and the WPF app: window chrome, tab strip, ribbon, breadcrumbs, AI input bar, the views and view-models; fills `ShellPlatform` |
-| Session | `Nexaflow.Session`, `Nexaflow.Assistant`, `Nexaflow.Host` | WPF-free. `Session`: the shell session and the workspaces' lifetimes — configuration, the feature system (`FeatureManager`/`FeatureCatalog`), `WorkspaceManager`, `ProviderManager`, the inbox, the logs, help. `Assistant`: each runtime's `AIService` and its tools; it consumes the session, which never references it. `Host`: `ShellHost`, the composition root wiring both, which a UI app references alone |
+| Session | `Nexaflow.Session`, `Nexaflow.Assistant`, `Nexaflow.Host` | WPF-free. `Session`: the shell session and the workspaces' lifetimes — configuration, the feature system (`FeatureManager`/`FeatureCatalog`), `WorkspaceManager`, `ProviderManager`, the inbox, the logs, help. `Assistant`: each runtime's `AIService` and its tools, how what a window's AI bar sends is answered, and a spoken conversation's lifetime; it consumes the session, which never references it. `Host`: `ShellHost`, the composition root wiring both, which a UI app references alone |
 | Words | `Nexaflow.Localization` | WPF-free leaf: `Str`, which looks a UI string up in the active language, and the size / duration / time formatters — under everything that shows a person text, headless or drawn |
 | Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here. Names no UI toolkit (no WPF): what a contract hands out to be shown is a model, drawn by a `[ViewFor]` view; `ArchitectureRulesTests` keeps it so |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
@@ -80,7 +80,7 @@ A launch of a workspace already live opens a window on its runtime; tear-off and
 
 ### Central — the session (one per process)
 
-`ShellHost` builds the session in three stages — what the first window needs (its constructor), what follows the first frame (`FirstWindowDrawn`), what runs in the background meanwhile (`StartBackground`) — and ends it in reverse (`DisposeAsync`): every workspace runtime, the watches, the models held ahead, the AI host. It names no UI toolkit, nor does anything it is built from: what only a toolkit can do comes from the app in a `ShellPlatform` — the UI thread (`IUiThread`), the clipboard, the file and folder pickers (`IFilePickers`), the folder watcher (`IFolderWatcher`), the theme the features' resources fold into (`IThemeHost`), the attribute its views are marked with (WPF's `[ViewFor]`), which fenced markdown blocks its renderer draws as pictures, fitting a picture to a video's first frame (`IPictureFitting`), and the views pages are drawn with (`IPageViews`). Each runtime's assistant comes from the assistant's own factory (`WorkspaceAssistants`), held by the runtime as `IWorkspaceAssistant`; a window is reached as an `IWindowHost`. `SessionAssemblyRulesTests` keeps all of it so. What it has not yet handed over is still reached as a `*.Instance` singleton; `CoreSingletonRatchetTests` counts those left.
+`ShellHost` builds the session in three stages — what the first window needs (its constructor), what follows the first frame (`FirstWindowDrawn`), what runs in the background meanwhile (`StartBackground`) — and ends it in reverse (`DisposeAsync`): every workspace runtime, the watches, the models held ahead, the AI host. It names no UI toolkit, nor does anything it is built from: what only a toolkit can do comes from the app in a `ShellPlatform` — the UI thread (`IUiThread`), the clipboard, the file and folder pickers (`IFilePickers`), the folder watcher (`IFolderWatcher`), the theme the features' resources fold into (`IThemeHost`), the attribute its views are marked with (WPF's `[ViewFor]`), which fenced markdown blocks its renderer draws as pictures, fitting a picture to a video's first frame (`IPictureFitting`), the microphone and speakers a spoken conversation is held through (`ISpeechDevices`), and the views pages are drawn with (`IPageViews`). Each runtime's assistant comes from the assistant's own factory (`WorkspaceAssistants`), held by the runtime as `IWorkspaceAssistant`; a window is reached as an `IWindowHost`. `SessionAssemblyRulesTests` keeps all of it so. What it has not yet handed over is still reached as a `*.Instance` singleton; `CoreSingletonRatchetTests` counts those left.
 
 | Singleton | Owns | NOT responsible for |
 |-----------|------|---------------------|
@@ -179,9 +179,9 @@ page — it only knows how to _host_ them — and nothing of the session's lives
 
 | File | Responsibility |
 |------|----------------|
-| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`: `WpfUiThread`, `ShellClipboard`, `WpfFilePickers`, `ShellFolderWatcher`, `WpfThemeHost`, `[ViewFor]` as the view marker, `ContentLanguages.Draws`, `WpfPictureFitting`, `PageViews`), hands it the app's version, applies the appearance settings, builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
+| `App.xaml.cs` | The WPF adapter over the session: opens `ShellHost` with what only WPF makes (`ShellPlatform`: `WpfUiThread`, `ShellClipboard`, `WpfFilePickers`, `ShellFolderWatcher`, `WpfThemeHost`, `[ViewFor]` as the view marker, `ContentLanguages.Draws`, `WpfPictureFitting`, `WasapiSpeechDevices`, `PageViews`), hands it the app's version, applies the appearance settings, builds windows, and ends the session in `OnExit`. Also the windowless `--prestart` daemon and the window it keeps ready while none is open (`StandbyWindow`), and the single-instance IPC that forwards a later launch (a new window on the workspace's runtime; an `--open` path goes to the one workspace with windows open, else the first) |
 | `MainWindow.xaml.cs` | Wires shell commands; creates `ShellViewModel`; handles ESC/breadcrumb clicks; routes its drops (`DropRouter`) and pastes (`ClipboardRouter`) |
-| `ViewModels/ShellViewModel.cs` | Per-window VM and the session's `IWindowHost`: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open); showing, closing and placing its window, its pickers' owner |
+| `ViewModels/ShellViewModel.cs` | Per-window VM and the session's `IWindowHost`: pane/split layout, overlays, the AI bar's words and what it shows (the bar is the `IAssistantBar` its `AssistantRequests` answer through), toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open); showing, closing and placing its window, its pickers' owner |
 | `ViewModels/ConfigPageModels.cs` | The page a config is edited on where it has one of its own: the view marked `[ViewFor]` its model — its config, or the view-model a Core page that shows the session draws |
 | `Services/PageViews.cs` | The view each open page is drawn with (`IPageViews` to the session) |
 | `Services/WindowManager.cs` | Static DPI/monitor/cursor maths only — tab/window lifecycle is `ShellServices` |
@@ -229,6 +229,8 @@ Each workspace runtime's assistant, WPF-free. It consumes the session; the sessi
 | `WorkspaceAssistants.cs` | Makes each runtime's assistant from the session's services; `runtime.AiService` is the assistant it made |
 | `Agent/ClientBlockParser.cs`, `ParsedAssistantTurn.cs` | The assistant wire-protocol parser the agent loop reads fenced `client_tool` blocks with — not a feature contract |
 | `ShellAi/` | The shell's own AI tools: openable pages, ribbon buttons, open windows, opening a page |
+| `Requests/` | What a window's AI bar sends, and how each is answered (`AssistantRequests`): the query handler that clearly owns the words, else the one the model picks, else the agent — on a page that shows the assistant itself, there, otherwise in the bar (`IAssistantBar`). Words sent during a run join it; those left over run after it. As the user types, `TypedQueryPreview` says what the words point at: a handler's symbol and completion, or that the assistant is listening |
+| `Voice/` | Spoken conversations: `SpokenConversation`, one conversation's lifetime — the platform's microphone and speakers (`ISpeechDevices`), the agent that answers each turn on the page in front of the user (`PageVoiceAgent`), the name its turns are taken under in the bar, which the models let go of once it ends — over `VoiceSession`, its turn-taking |
 
 ### Nexaflow.Host
 
@@ -915,7 +917,8 @@ Feature code calls shellServices.OpenTab("PageKind", params, callerPage)
 
 ```
 User submits text in AI input bar
-  → ShellViewModel.SendAiMessage(input)
+  → ShellViewModel.SendAiMessage(input) → AssistantRequests.SendAsync(input, the focused pane's page)
+  → A run already under way: the words join it, taken up at its next turn
   → Check registered IQueryHandler list (Symbol prefix match first, then CanProcess scores)
   → If Symbol match: route directly to that handler
   → If multiple candidates score > 0: IAIService.DisambiguateToolSelection() picks one
