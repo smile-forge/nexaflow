@@ -113,11 +113,11 @@ public class WorkspaceConfigScopingTests
     // ── Required-property gate (used by the wizard + ability grid) ──
 
     [TestMethod]
-    public void AreRequiredPropertiesSatisfied_Cases()
+    public void AConfigIsComplete_WhenEveryRequiredSettingIsFilled()
     {
-        Assert.IsTrue(ConfigEditViewModel.AreRequiredPropertiesSatisfied(new NoRequiredConfig()));
-        Assert.IsFalse(ConfigEditViewModel.AreRequiredPropertiesSatisfied(new FakeProviderConfig { ApiKey = "" }));
-        Assert.IsTrue(ConfigEditViewModel.AreRequiredPropertiesSatisfied(new FakeProviderConfig { ApiKey = "sk-123" }));
+        Assert.IsTrue(ConfigRequirements.IsComplete(new NoRequiredConfig()));
+        Assert.IsFalse(ConfigRequirements.IsComplete(new FakeProviderConfig { ApiKey = "" }));
+        Assert.IsTrue(ConfigRequirements.IsComplete(new FakeProviderConfig { ApiKey = "sk-123" }));
     }
 
     // ── Wizard predicate: is the startup workspace usable as-is? ──

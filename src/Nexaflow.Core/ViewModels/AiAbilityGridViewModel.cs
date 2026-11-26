@@ -468,7 +468,7 @@ public partial class AiAbilityGridViewModel : ObservableObject
         {
             if (provider.Harness == ModelHarness.Owned) continue;
             if (providerConfigs.TryGetValue(provider.Name, out var cfg)
-                && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg))
+                && !ConfigRequirements.IsComplete(cfg))
                 continue;
 
             foreach (var kind in Enum.GetValues<ModelKind>())

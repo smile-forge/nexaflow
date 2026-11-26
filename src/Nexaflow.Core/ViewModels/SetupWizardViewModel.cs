@@ -177,7 +177,7 @@ internal sealed class ConfigEditStep : ObservableObject, IWizardStep
     public object Content => _editor;
 
     public bool IsComplete => _editor.IsValid &&
-        (!_requireAll || ConfigEditViewModel.AreRequiredPropertiesSatisfied(_editor.EditingClone));
+        (!_requireAll || ConfigRequirements.IsComplete(_editor.EditingClone));
 
     public void OnEnter() { }
 
@@ -278,7 +278,7 @@ internal sealed partial class ProviderConfigStep : ObservableObject, IWizardStep
     public bool Applies => _ctx.Harness != WorkspaceHarness.Owned;
 
     public bool IsComplete =>
-        _editor is not null && ConfigEditViewModel.AreRequiredPropertiesSatisfied(_editor.EditingClone);
+        _editor is not null && ConfigRequirements.IsComplete(_editor.EditingClone);
 
     public void OnEnter()
     {
@@ -602,10 +602,10 @@ public partial class SetupWizardViewModel : ObservableObject
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var cfg in config.GetAll().OfType<IFeatureConfig>())
         {
-            if (cfg is WorkspacesConfig || !IsMandatory(cfg)) continue;
+            if (cfg is WorkspacesConfig || !ConfigRequirements.IsMandatory(cfg)) continue;
             bool isNew        = defaulted.Contains(cfg.ConfigName);
             bool needsNewInfo = migrated.Contains(cfg.ConfigName)
-                                && !ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg);
+                                && !ConfigRequirements.IsComplete(cfg);
             if (!isNew && !needsNewInfo) continue;
             var editor = new ConfigEditViewModel(cfg, cfg.ConfigName, cfg.FriendlyName, config, pages);
             steps.Add(new ConfigEditStep(cfg.FriendlyName, editor,
@@ -693,13 +693,13 @@ public partial class SetupWizardViewModel : ObservableObject
 
         // Persona + per-workspace feature configs only when they opt in via [MandatorySetup].
         var persona = workspace.Persona;
-        if (IsMandatory(persona))
+        if (ConfigRequirements.IsMandatory(persona))
             steps.Add(new ConfigEditStep(persona.FriendlyName,
                 new ConfigEditViewModel(persona, persona.ConfigName, persona.FriendlyName, rulings, pages),
                 _ => savedWorkspaces.SaveWorkspacePersona(workspace)));
 
         foreach (var wc in workspace.WorkspaceConfigs)
-            if (IsMandatory(wc))
+            if (ConfigRequirements.IsMandatory(wc))
                 steps.Add(new ConfigEditStep(wc.FriendlyName,
                     new ConfigEditViewModel(wc, wc.ConfigName, wc.FriendlyName, rulings, pages),
                     e => savedWorkspaces.SaveWorkspaceScopedConfig(workspace, (IFeatureConfig)e.RealConfig)));
@@ -720,7 +720,7 @@ public partial class SetupWizardViewModel : ObservableObject
         return ai.Columns
             .Where(c => c.Kind == ModelKind.Language && assignedColumnIds.Contains(c.Id))
             .Any(c => byName.TryGetValue(c.ProviderName, out var cfg)
-                      ? ConfigEditViewModel.AreRequiredPropertiesSatisfied(cfg)
+                      ? ConfigRequirements.IsComplete(cfg)
                       : providers.TakesNoConfig(c.AssemblyFileName));
     }
 
@@ -776,11 +776,6 @@ public partial class SetupWizardViewModel : ObservableObject
 
         return !string.IsNullOrWhiteSpace(markdown);
     }
-
-    /// <summary>True when a config class opts into the wizard via [MandatorySetup] (feature or provider side).</summary>
-    private static bool IsMandatory(object config)
-        => config.GetType().GetCustomAttribute<Nexaflow.Features.Common.MandatorySetupAttribute>() is not null
-        || config.GetType().GetCustomAttribute<Nexaflow.Providers.Common.MandatorySetupAttribute>() is not null;
 
     /// <summary>The Core assembly version (matches the version ConfigManager stamps on config files).</summary>
     public static string CurrentVersion()
