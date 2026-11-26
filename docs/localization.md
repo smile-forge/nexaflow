@@ -93,7 +93,7 @@ the grid is built — the same fallback, the same guard:
   Str.Format("Scratchpad.Config.Scratchpad.Hours", 2))`. A method returning plain strings offers data — formats,
   model names — shown as it is.
 
-A row the grid shows is a public read-write property of a type an editor can hold (`ConfigEditViewModel.EditableProperties`);
+A row the grid shows is a public read-write property of a type an editor can hold (`ConfigRequirements.EditableProperties`);
 a list a feature persists for itself isn't a setting and gets no row. A section with a page of its own — a control marked
 `[ViewFor(typeof(TheConfig))]` — shows that page, and its words are its XAML's, localized like any other view.
 
