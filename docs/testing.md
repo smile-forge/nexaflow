@@ -636,7 +636,7 @@ holds on to, and for the largest document each layer it holds and what opening i
 with corpus totals for every nested language, every stage of each language's own
 pipeline, and every kind of block. Rich text (RTF) is laid through the same steps — its samples and one long document
 written as a word processor writes one — and totalled on its own (`rtfTotals`), so the markdown totals compare with every
-run before it. And what **reading** a long document costs once it is open (`reading`), timed on a `MarkdownSurface` in a
+run before it. And what **reading** a long document costs once it is open (`reading`), timed on a `NexaTextSurface` in a
 window until the window is idle, since that is where it is paid — a screen down at a time from the top, the thumb dragged
 anywhere, a turn of the wheel at three depths, the pointer's cursor and the block it is over, a drag down a screen, and
 picking everything out — over a generated lecture script about a megabyte long and full of formulas, and
@@ -645,7 +645,7 @@ and asserts nothing.
 
 What **writing** costs is its own test and its own file (`WhatWritingInADocumentCosts`, `markdown-writing-bench-*.json`),
 because an edit laid as a changed string pays for laying out and painting and nothing else. Its keys go in as the window's
-do (`ContentEngine.Input`), to a `MarkdownSurface` in a window, each timed until the window is idle, so the edit, the history
+do (`ContentEngine.Input`), to a `NexaTextSurface` in a window, each timed until the window is idle, so the edit, the history
 kept, the host told, laying out and painting are all in it. Over generated prose and C# at 50 KB, 1 MB and 50 MB, and prose
 holding a 1 MB and a 5 MB C# fence, it times a keystroke at the top, middle and end (in and after the fence), taking back
 the last step, taking back fifty one at a time, pasting a megabyte and carrying a word down the screen, each with what it
@@ -978,7 +978,7 @@ solution — which is why everything that does **not** need Core lives in the su
 ### Visuals (`Nexaflow.Tests.Visuals`)
 
 Covers the `Nexaflow.Visuals.*` libraries, with no reference to Core: markdown parsing and rendering
-(`MarkdownBuilder`, `MarkdownSurface`, extensions, pipeline, every language's builder and the layered layout), the
+(`MarkdownBuilder`, `NexaTextSurface`, extensions, pipeline, every language's builder and the layered layout), the
 LaTeX formula tree/layout/caret model, the music engraver, writing in a document, `Visuals.Text`'s
 editor surface and highlighting, the shared controls and pan/zoom layout, and the WebView2 surface.
 

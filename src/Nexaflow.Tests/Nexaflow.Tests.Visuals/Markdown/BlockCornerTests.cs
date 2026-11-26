@@ -353,7 +353,7 @@ public class BlockCornerTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     /// <summary>Where the <paramref name="index"/>th block of another language came out on the page.</summary>
-    private static LayoutRect Box(MarkdownSurface editor, int index)
+    private static LayoutRect Box(NexaTextSurface editor, int index)
     {
         var block = MarkdownEditorHarness.Blocks(editor)[index];
         var rects = editor.Shown.Laid.Root.RangeRects(block.Start, block.Length);

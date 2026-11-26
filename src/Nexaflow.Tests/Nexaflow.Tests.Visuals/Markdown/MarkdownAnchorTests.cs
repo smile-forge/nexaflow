@@ -42,7 +42,7 @@ public class MarkdownAnchorTests
     public void AnInPageLink_IsTheViewsToResolve_NeverTheHosts() => UiThread.Run(() =>
     {
         var handed = new List<string>();
-        var view = new MarkdownSurface();
+        var view = new NexaTextSurface();
         view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
 
         view.Document.Load(Doc);
@@ -75,7 +75,7 @@ public class MarkdownAnchorTests
     public void PressingAChartsNodeGoesWhereItsClickLineSaid() => UiThread.Run(() =>
     {
         var handed = new List<string>();
-        var view = new MarkdownSurface();
+        var view = new NexaTextSurface();
         view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
 
         view.Document.Load("```mermaid\nflowchart LR\n  a[\"Apples\"] --> b[\"Bananas\"]\n  click a href \"https://example.com/a\"\n```\n");
@@ -90,7 +90,7 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void ScrollToAnchor_FindsItsHeading_AndSaysWhenThereIsNone() => UiThread.Run(() =>
     {
-        var view = new MarkdownSurface { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var view = new NexaTextSurface { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
 
         view.Document.Load(Doc);
 
@@ -100,7 +100,7 @@ public class MarkdownAnchorTests
     });
 
     /// <summary>Presses the words of a link on the surface the view is showing.</summary>
-    private static void Press(MarkdownSurface view, string words)
+    private static void Press(NexaTextSurface view, string words)
     {
         var shown = view.Shown;
 
@@ -119,7 +119,7 @@ public class MarkdownAnchorTests
     public void ARelativeLinkThatIsNotAnAnchor_StaysInert() => UiThread.Run(() =>
     {
         var handed = new List<string>();
-        var view = new MarkdownSurface();
+        var view = new NexaTextSurface();
         view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
 
         view.Document.Load("[notes](notes.md)\n");

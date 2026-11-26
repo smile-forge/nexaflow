@@ -211,7 +211,7 @@ reading holds the characters as written, cut for the stretches laid into lines, 
 (`TextParser.InLines`, run as the stage `TextIntoLines`): the pieces whatever looks into text — a spelling, a name — finds there.
 Text and code are laid line by line on one base (`LinedBuilder`): the language says what its stretch and its lines are laid as,
 what each piece is inked in and which runs a line is set as — a token each for code, the whole line for text — and the base lays,
-keeps and wraps them. Where the host asks for it (`LayoutHost.WrapsLines`, set by `MarkdownSurface.WrapsLines`), a line too long
+keeps and wraps them. Where the host asks for it (`LayoutHost.WrapsLines`, set by `NexaTextSurface.WrapsLines`), a line too long
 for the room carries on in rows beneath, broken after the last space that fits and a word wider than a row broken where the row
 ends, the spaces a row ends on hanging past it and no row ended after nothing but the line's indent, and the rows after the
 first carrying on under that indent — unless it takes half the room or more (`LineRows`). A run a row break cuts is laid as
@@ -229,9 +229,9 @@ wrap instead and all of them show (`ContentEngine.Slides`).
 **What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
 where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and
 their numbers, from the document's line index (`ContentEngine.LinesBetween`), laid whole or a unit at a time; and the
-surface says the ones on its visible page, in its own frame (`MarkdownSurface.LinesShown`). Margins — line numbers,
+surface says the ones on its visible page, in its own frame (`NexaTextSurface.LinesShown`). Margins — line numbers,
 breakpoints, a fold's handles — stand in a stack on each side of the page, outward from it in the order listed
-(`MarkdownSurface.LeadingMargins`, `TrailingMargins`), each a control of its own (`ContentMargin`) drawn again whenever the
+(`NexaTextSurface.LeadingMargins`, `TrailingMargins`), each a control of its own (`ContentMargin`) drawn again whenever the
 surface scrolls or lays out. Nothing a margin draws is content: no caret stands in it and no selection or search reaches
 it, and a margin that picks lines out asks the surface to, so what is picked out is the content's.
 
@@ -426,7 +426,7 @@ characters and the blocks they show and gathers the highest rank in each. From i
   the heading answering to that name, the steps after it are looked for in its section, and a link lands as far as it
   still goes. A title path (`Guide > Setup`, what a snaplink records) is matched on the whole chain of headings holding
   one (`ContentEngine.Titled`), each title read as the markdown it was written as. A heading a list already holds — an
-  outline panel's row — is handed back as itself (`OutlineHeading`, `MarkdownSurface.Show`), never as a path.
+  outline panel's row — is handed back as itself (`OutlineHeading`, `NexaTextSurface.Show`), never as a path.
 
 **What the reader has folded away of a document is the engine's too**, kept by the name each heading answers to, so a
 section stays folded through every edit. A heading of the document's own offers to fold its section in its corner
@@ -550,7 +550,7 @@ picture of itself, prose no corner at all. A language that implements any of the
 
 ## 10. The element and the surface
 
-`MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the focus,
+`NexaTextSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the focus,
 and what a search turned up, and answers what the engine asks of a control — a copy to be put on the clipboard, what is
 on one, a picture of a block, a page. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
 engine holds.
@@ -560,12 +560,12 @@ back, and the laid tree — and makes every edit to it. The document is one immu
 a `ContentChange` made to a version, and the version it makes knows the change both ways, so what is kept to take an edit back and
 what whoever shows the content is told both read what changed rather than comparing two documents. It knows where every line
 starts (`LineOf`, `OffsetOf`), so going to a line, and saying which line a place is on, asks the document rather than reading it
-(`MarkdownFind.Line`, `MarkdownSurface.GoTo`): a line far down a long document is found as quickly as the first, and laid there. It also lays out the buttons in the corner of the block
+(`MarkdownFind.Line`, `NexaTextSurface.GoTo`): a line far down a long document is found as quickly as the first, and laid there. It also lays out the buttons in the corner of the block
 the pointer is over, since only it knows both where the block came out and what its language offers
 (`ContentEngine.Corner`), and a press on one is a press like any other. The element paints all that and says where the
 reader is.
 
-**The document is the page's, and holds itself.** A page hands the surface an `EditedDocument` (`MarkdownSurface.Document`):
+**The document is the page's, and holds itself.** A page hands the surface an `EditedDocument` (`NexaTextSurface.Document`):
 a plain object, with no control in it, holding the version the document is at, what was written so it can be taken back, and
 whether it differs from what was last saved. The surface's engine writes in it and the page reads from it — `IsDirty`, `Changed`
 with the change itself, and the characters only when it saves them (`WriteTo`). Nothing hands the text back to the page as it is

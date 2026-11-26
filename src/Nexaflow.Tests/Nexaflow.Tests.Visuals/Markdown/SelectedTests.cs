@@ -87,9 +87,9 @@ public class SelectedTests
     });
 
     /// <summary><paramref name="markdown"/> on a surface, laid out, and every Selected it raises, in order.</summary>
-    private static (MarkdownSurface Surface, List<ContentSelectionChange> Told) Shown(string markdown)
+    private static (NexaTextSurface Surface, List<ContentSelectionChange> Told) Shown(string markdown)
     {
-        var surface = new MarkdownSurface { IsReadOnly = false };
+        var surface = new NexaTextSurface { IsReadOnly = false };
         var told = new List<ContentSelectionChange>();
 
         surface.Selected += (_, e) => told.Add(e.Change);

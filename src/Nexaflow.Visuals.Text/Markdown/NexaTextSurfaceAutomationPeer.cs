@@ -9,7 +9,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// writing it — what a screen reader reads of a field and a test asks of a text box. What the content draws, its links among it, is the
 /// content's own to say, beneath this.
 /// </summary>
-internal sealed class MarkdownSurfaceAutomationPeer(MarkdownSurface owner) : UserControlAutomationPeer(owner), IValueProvider
+internal sealed class NexaTextSurfaceAutomationPeer(NexaTextSurface owner) : UserControlAutomationPeer(owner), IValueProvider
 {
     public override object? GetPattern(PatternInterface patternInterface) =>
         patternInterface == PatternInterface.Value ? this : base.GetPattern(patternInterface);

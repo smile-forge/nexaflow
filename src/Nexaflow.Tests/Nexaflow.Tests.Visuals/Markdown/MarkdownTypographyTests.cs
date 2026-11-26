@@ -55,11 +55,11 @@ public class MarkdownTypographyTests
     public void WithNoExplicitSize_TheSurfaceFollowsTheShellSetting() => UiThread.Run(() =>
     {
         TextTypography.BaseFontSize = 21;
-        var following = Body(Shown(new MarkdownSurface()));
-        var told = Body(Shown(new MarkdownSurface { BaseFontSize = 21 }));
+        var following = Body(Shown(new NexaTextSurface()));
+        var told = Body(Shown(new NexaTextSurface { BaseFontSize = 21 }));
 
         TextTypography.BaseFontSize = TextTypography.DefaultBaseFontSize;
-        var smaller = Body(Shown(new MarkdownSurface()));
+        var smaller = Body(Shown(new NexaTextSurface()));
 
         Assert.AreEqual(told, following, 1e-6, "unset, it is set at the shell's size");
         Assert.IsTrue(smaller < following, "and moves when the shell's size does");
@@ -70,8 +70,8 @@ public class MarkdownTypographyTests
     {
         TextTypography.BaseFontSize = 21;
 
-        var told = Body(Shown(new MarkdownSurface { BaseFontSize = 13 }));
-        var shell = Body(Shown(new MarkdownSurface()));
+        var told = Body(Shown(new NexaTextSurface { BaseFontSize = 13 }));
+        var shell = Body(Shown(new NexaTextSurface()));
 
         Assert.IsTrue(told < shell, "a host with a zoom of its own says what size, whatever the shell's is");
     });
@@ -90,7 +90,7 @@ public class MarkdownTypographyTests
         return (Of("Heading"), Of("Body"), Of("code"));
     }
 
-    private static MarkdownSurface Shown(MarkdownSurface surface)
+    private static NexaTextSurface Shown(NexaTextSurface surface)
     {
         surface.Document.Load("Body text.\n");
         surface.Measure(new Size(600, 400));
@@ -100,7 +100,7 @@ public class MarkdownTypographyTests
     }
 
     /// <summary>How large the body is set on a surface.</summary>
-    private static double Body(MarkdownSurface surface) =>
+    private static double Body(NexaTextSurface surface) =>
         surface.Shown.Laid.Root.SelfAndDescendants().First(piece => piece.Words is { } said && said.Glyphs.Text.Contains("Body"))
                .Words!.Glyphs.Baseline;
 }

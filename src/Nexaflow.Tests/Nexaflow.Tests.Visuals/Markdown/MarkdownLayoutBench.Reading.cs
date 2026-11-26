@@ -51,7 +51,7 @@ public partial class MarkdownLayoutBench
     /// <summary>One document, opened on a surface in a window and read: each step timed until the window has nothing left to do.</summary>
     private static Dictionary<string, object> Reading(string name, string text)
     {
-        var surface = new MarkdownSurface
+        var surface = new NexaTextSurface
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,

@@ -148,7 +148,7 @@ public class DocumentTypingTests
     private const string Pie = "```mermaid\npie\n    title Pets\n    \"Dogs\" : 40\n```";
 
     /// <summary>The ribbon a right-click on the words <paramref name="over"/> opens.</summary>
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, string over)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, string over)
     {
         var at = editor.Document.ToString().IndexOf(over, System.StringComparison.Ordinal);
         var box = editor.Shown.Laid.Root.SelfAndDescendants().Last(piece => piece.Words is not null && piece.Sits().Start <= at && at < piece.Sits().End).Bounds;

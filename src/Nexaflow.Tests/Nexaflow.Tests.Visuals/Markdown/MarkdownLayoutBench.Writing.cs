@@ -194,7 +194,7 @@ public partial class MarkdownLayoutBench
                                                                                                                                                                 Action<string> said, out TimeSpan opened, out (int Offset, double Ms)? farthest,
                                                                                                             (int Start, int End)? past = null)
     {
-        var surface = new MarkdownSurface
+        var surface = new NexaTextSurface
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -381,7 +381,7 @@ foreach (var (place, at) in places)
     }
 
     /// <summary>What scrolls <paramref name="surface"/>'s page, as the reader's scrollbar does.</summary>
-    private static ScrollViewer Scroller(MarkdownSurface surface)
+    private static ScrollViewer Scroller(NexaTextSurface surface)
     {
         ScrollViewer? found = null;
         Looked(surface);
@@ -402,7 +402,7 @@ foreach (var (place, at) in places)
     /// not laying the document down to wherever the word is; a jump down a long document is the reading bench's to time. Says whether
     /// the press picked the word up, since a press that does not drags out a selection instead, and what that costs is not this.
     /// </summary>
-    private static object Carried(MarkdownSurface surface)
+    private static object Carried(NexaTextSurface surface)
     {
         var engine = surface.Engine;
 

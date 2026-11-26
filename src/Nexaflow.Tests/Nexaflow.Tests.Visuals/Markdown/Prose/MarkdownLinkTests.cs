@@ -167,7 +167,7 @@ public class MarkdownLinkTests
         // it between them — which is the thing that quietly stops working when a surface is swapped underneath.
         var offered = new List<string>();
 
-        var view = new MarkdownSurface
+        var view = new NexaTextSurface
         {
             LinkDecorator = (where, _) =>
             {

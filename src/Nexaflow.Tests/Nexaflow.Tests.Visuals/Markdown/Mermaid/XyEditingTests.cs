@@ -25,7 +25,7 @@ public class XyEditingTests
 {
     private const string Sales = "xychart\n  x-axis \"Month\" [jan, feb]\n  bar \"Sold\" [1, 2]";
 
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Sales) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string diagram = Sales) =>
         MarkdownEditorHarness.Run("Sales:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
             var chart = MarkdownEditorHarness.Block(editor);
@@ -44,13 +44,13 @@ public class XyEditingTests
         chart.EndPointerSelect();
     }
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();

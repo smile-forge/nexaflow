@@ -13,7 +13,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <para>
 /// <strong>The engine raises no events.</strong> It is not a WPF object, and it has no window, no clipboard and no file
 /// dialog. Whatever shows the content is all of those, so it implements this and turns each question into an event a host can
-/// subscribe to (<see cref="MarkdownSurface"/>). Nothing the engine needs from outside goes any other way.
+/// subscribe to (<see cref="NexaTextSurface"/>). Nothing the engine needs from outside goes any other way.
 /// </para>
 /// <para>
 /// <strong>Asking is not deciding.</strong> What a copy holds, what a paste comes to, whether a change may be made at all —

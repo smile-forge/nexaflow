@@ -80,6 +80,6 @@ public class FocusAndPromptTests
         }));
     }
 
-    private static TextBlock PromptIn(MarkdownSurface editor) =>
+    private static TextBlock PromptIn(NexaTextSurface editor) =>
         ((Grid)editor.Content).Children.OfType<TextBlock>().Single();
 }

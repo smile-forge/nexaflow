@@ -29,7 +29,7 @@ copied in as test data (`Tests.Markdown/Prose/Corpus/Specs`), each extension's a
   the tree into the shared layout tree; another language's content is laid by that language's builder when the
   markdown builder asks for it, and grafted in where its fence was, so its pieces are selectable in the document that
   holds them.
-- **Surface:** [`MarkdownSurface`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) is the one control every
+- **Surface:** [`NexaTextSurface`](../src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs) is the one control every
   markdown host uses — read-only or written in, a whole document or content in one language (`WrittenIn`). It
   draws the whole document on one element; there is no text box underneath. What it shows is the page's
   [`EditedDocument`](../src/Nexaflow.Markdown/Editing/EditedDocument.cs) (`Document`), which says what changed and whether it
@@ -1066,7 +1066,7 @@ sits under its parent — and a rank too wide for the room wraps onto further ro
 **A graph shown on its own is laid out at its own size.** In a page a diagram fits the room it is given — reshaped to it
 first, drawn smaller last — and there is no honest way to wrap a twelve-way fan into a panel, so set into one it only
 comes out too small to read. A host showing nothing but a graph writes it in alone
-([`MarkdownSurface.WrittenIn`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs)) with its width unlimited
+([`NexaTextSurface.WrittenIn`](../src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs)) with its width unlimited
 (`UnlimitedWidth`), so it is laid out as the graph it is, stops making the panel hold it, and puts the surface on the shared
 [`PanZoomSurface`](../src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs) instead — the one the scratchpad's
 corkboard and the image viewer's collage use. The surface asks for its layout's full size, the viewport fits that
@@ -1113,7 +1113,7 @@ mechanism.
 ### Bound words (every diagram on the shared tree)
 
 Anywhere a diagram draws words somebody wrote, a `{{…}}` in them is read against whatever the host handed the
-renderer (`MarkdownSurface.DataSource` → `ContentInputs.Data` →
+renderer (`NexaTextSurface.DataSource` → `ContentInputs.Data` →
 [`IDataContext`](../src/Nexaflow.Markdown/Binding/IDataContext.cs)):
 
 ```
@@ -1181,7 +1181,7 @@ spans, Ctrl adding or taking one away — raised in `Selected` with its id where
 selection and copied as the words drawn. Tested by `MermaidBindingTests`, `BoundGraphTests`, `BoundContentTests` and
 `FoldingDiagramTests`.
 
-Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.Refresh()`, which lays out from
+Nothing watches the object: a host that has changed what it holds calls `NexaTextSurface.Refresh()`, which lays out from
 the source again.
 
 ### Nested content — one content inside another
@@ -2074,7 +2074,7 @@ in the wrong place, a duration mis-scaled — moves a head, and that is where it
 `.abc` and `.ly` open in the **markdown tab**, each as the one block it is rather than as a document that
 contains one.
 
-The mechanism is `MarkdownSurface.WrittenIn` — the name of a language a fence can name, or empty for a
+The mechanism is `NexaTextSurface.WrittenIn` — the name of a language a fence can name, or empty for a
 document. The surface's engine lays the text out in that language alone: nothing is put round it to say what
 it is, so `MarkdownViewModel.Markdown` holds the tune and nothing else, `Save` writes exactly what was read,
 and **the bytes on disk never carry a wrapper**. A file that was never markdown does not become markdown by
@@ -2089,7 +2089,7 @@ maths is one of them.
 | Which extensions are one block, and in what language | [`SingleBlockFiles`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/SingleBlockFiles.cs) — one row per file type |
 | The tab that opens | [`ShowMusicAction`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/FileActions/ShowMusicAction.cs), experience `/text/music` |
 | The extension → experience mapping | `default-filemap.json` |
-| The editor property | [`MarkdownSurface.WrittenIn`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) |
+| The editor property | [`NexaTextSurface.WrittenIn`](../src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs) |
 
 Adding another notation is a row in `SingleBlockFiles`, a filemap entry, and nothing else — the reading,
 the rendering, the inline editing, the dirty tracking and the saving are the markdown tab's, unchanged.

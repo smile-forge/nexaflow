@@ -64,7 +64,7 @@ src/
   Nexaflow.Interaction/               WPF-free input vocabulary: KeyModifiers, drag payloads, IDropTarget + IPasteTarget, the async clipboard — the window's DropRouter and ClipboardRouter do the rest
   Nexaflow.Localization/              WPF-free words in the user's language: Str, and the size / duration / time formatters
   Nexaflow.Visuals.Common/            shared WPF controls, converters, formatters
-  Nexaflow.Visuals.Text/              markdown shown or written in — one MarkdownSurface, never hand-roll a RichTextBox
+  Nexaflow.Visuals.Text/              markdown shown or written in — one NexaTextSurface, never hand-roll a RichTextBox
   Nexaflow.Visuals.Terminal/          terminal input logic
   Nexaflow.IO.Common/                 WPF-free IO leaves: encoding, glob, hashing, codec/archive contracts, VFS, file watching
   Nexaflow.IO.Terminal/               PTY host

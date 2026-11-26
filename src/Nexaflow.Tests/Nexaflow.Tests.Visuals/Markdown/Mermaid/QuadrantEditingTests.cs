@@ -22,7 +22,7 @@ public class QuadrantEditingTests
 {
     private const string Plan = "quadrantChart\n  x-axis Urgent --> Later\n  quadrant-1 Plan\n  Task A:::hot: [0.3, 0.6]\n  classDef hot color: #ff0000";
 
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test) =>
         MarkdownEditorHarness.Run("Plan:\n\n```mermaid\n" + Plan + "\n```\n", editor =>
         {
             var chart = MarkdownEditorHarness.Block(editor);
@@ -40,7 +40,7 @@ public class QuadrantEditingTests
         chart.EndPointerSelect();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();

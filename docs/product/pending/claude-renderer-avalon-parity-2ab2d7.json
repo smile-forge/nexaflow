@@ -1,0 +1,728 @@
+{
+  "branch": "claude/renderer-avalon-parity-2ab2d7",
+  "nodes": {
+    "markdown-inline-editor": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "How it\u0027s wired"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Editing.cs",
+          "class": "ContentEngine",
+          "method": "Walked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface"
+        }
+      ]
+    },
+    "visuals-text": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface"
+        }
+      ]
+    },
+    "vtext-selectable-markdown": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface"
+        }
+      ],
+      "concerns": {
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+            "class": "NexaTextSurface"
+          }
+        ]
+      }
+    },
+    "solver-latex-fence": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface",
+          "method": "WrittenIn"
+        }
+      ]
+    },
+    "solver-source-toggle": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface",
+          "method": "HoldAsWritten"
+        }
+      ]
+    },
+    "markdown-zoom": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface",
+          "method": "BaseFontSize"
+        }
+      ]
+    },
+    "md-image-resolver": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownPictures.cs",
+          "class": "MarkdownPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithImages.cs",
+          "class": "WithImages"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface",
+          "method": "ImageResolver"
+        }
+      ]
+    },
+    "md-link-decorator": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithLinks.cs",
+          "class": "WithLinks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithLinks.cs",
+          "class": "LinkLook"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface",
+          "method": "LinkDecorator"
+        }
+      ]
+    },
+    "markdown-block-picture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs",
+          "class": "IContentLanguage",
+          "method": "Corner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface",
+          "method": "CapturePicture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs",
+          "class": "ContentEngine",
+          "method": "Cornered"
+        }
+      ]
+    },
+    "markdown-surface": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs",
+          "class": "ContentEngine",
+          "method": "Blocked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement",
+          "method": "PaintOver"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/ShowBlocksAsWritten.cs",
+          "class": "ShowBlocksAsWritten"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElementAutomationPeer.cs",
+          "class": "ContentElementAutomationPeer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Links.cs",
+          "class": "ContentEngine",
+          "method": "LaidLinks"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/NexaTextSurfaceTests.cs",
+            "class": "NexaTextSurfaceTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SelectedTests.cs",
+            "class": "SelectedTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/LaidLinkTests.cs",
+            "class": "LaidLinkTests"
+          }
+        ]
+      }
+    },
+    "markdown-hosts": {
+      "links": [
+        {
+          "type": "node",
+          "target": "markdown-surface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface"
+        }
+      ]
+    },
+    "executable-dependency-viewport": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs",
+          "class": "PanZoomSurface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Views/ExecutableView.xaml.cs",
+          "class": "ExecutableView",
+          "method": "Laid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface",
+          "method": "UnlimitedWidth"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "Squarely"
+        }
+      ]
+    },
+    "content-margins": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentMargin.cs",
+          "class": "ContentMargin"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Window.cs",
+          "class": "ContentEngine",
+          "method": "LinesBetween"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
+          "class": "NexaTextSurface",
+          "method": "LinesShown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/LaidLine.cs",
+          "class": "LaidLine"
+        }
+      ]
+    },
+    "markdown-links": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "method": "FollowLink"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Events.cs",
+          "class": "NexaTextSurface",
+          "method": "OpenLink"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView"
+        }
+      ]
+    },
+    "markdown-heading-scroll": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/MarkdownTabRegistration.cs",
+          "class": "MarkdownTabRegistration",
+          "method": "CreatePageDefinition"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
+          "class": "NexaTextSurface",
+          "method": "ScrollToHeading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentOutline.cs",
+          "class": "ContentOutline",
+          "method": "Titled"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Outline.cs",
+          "class": "ContentEngine",
+          "method": "Titled"
+        }
+      ]
+    },
+    "markdown-source-box": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml",
+          "class": "MarkdownView"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownJourneyTests.cs",
+          "class": "MarkdownJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+          "class": "MarkdownViewModelTests"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Lines/LineRows.cs",
+          "class": "LineRows"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurfaceAutomationPeer.cs",
+          "class": "NexaTextSurfaceAutomationPeer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
+          "class": "NexaTextSurface",
+          "method": "ShowFound"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/LineIndenting.cs",
+          "class": "LineIndenting"
+        }
+      ]
+    },
+    "markdown-find": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.Search.cs",
+          "class": "MarkdownViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.Search.cs",
+          "class": "MarkdownViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
+          "class": "NexaTextSurface",
+          "method": "FindInRendered"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.Search.cs",
+          "class": "MarkdownViewModel",
+          "method": "SourceLaidOut"
+        }
+      ]
+    },
+    "markdown-split": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "ApplyViewMode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "Paired"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
+          "class": "NexaTextSurface",
+          "method": "ShowFrom"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
+          "class": "NexaTextSurface",
+          "method": "ShowsWhole"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
+          "class": "NexaTextSurface",
+          "method": "ShowsAtOnce"
+        }
+      ]
+    },
+    "markdown-outline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "method": "TakeOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownOutlineItem.cs",
+          "class": "MarkdownOutlineItem"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "OutlineRow_Click"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
+          "class": "NexaTextSurface",
+          "method": "Show"
+        }
+      ]
+    },
+    "markdown-block-undo": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/EditHistory.cs",
+          "class": "EditHistory"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.History.cs",
+          "class": "NexaTextSurface",
+          "method": "Undo"
+        }
+      ]
+    },
+    "markdown-copy": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "Copied"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.History.cs",
+          "class": "NexaTextSurface",
+          "method": "CopySelection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "Payload"
+        }
+      ]
+    },
+    "markdown-paste": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/HtmlToMarkdown.cs",
+          "class": "HtmlToMarkdown",
+          "method": "Convert"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "ReadBestMarkdown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.History.cs",
+          "class": "NexaTextSurface",
+          "method": "OnPaste"
+        },
+        {
+          "type": "node",
+          "target": "markdown-from-html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Writing.cs",
+          "class": "NexaTextSurface",
+          "method": "PasteAsync"
+        }
+      ]
+    },
+    "markdown-block-model": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownBlocks.cs",
+          "class": "MarkdownBlocks",
+          "method": "Split"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Keys.cs",
+          "class": "NexaTextSurface",
+          "method": "Pressed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentChange.cs",
+          "class": "ContentChange"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/OrdinaryEdits.cs",
+          "class": "OrdinaryEdits"
+        }
+      ]
+    },
+    "markdown-scroll-anchor": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Keys.cs",
+          "class": "NexaTextSurface",
+          "method": "Reveal"
+        }
+      ]
+    },
+    "barcode-editing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Keys.cs",
+          "class": "NexaTextSurface",
+          "method": "Pressed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/Stages/HoldValue.cs",
+          "class": "HoldValue"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Barcode/BarcodeBuilder.cs",
+          "class": "BarcodeBuilder",
+          "method": "LayPieces"
+        }
+      ]
+    },
+    "markdown-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Menu.cs",
+          "class": "NexaTextSurface",
+          "method": "ShowContextRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
+          "class": "LinkedElement",
+          "method": "BuildRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits",
+          "method": "Started"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
+          "class": "ContentLanguages",
+          "method": "Insertable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped",
+          "method": "Starting"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/MiniRibbon.cs",
+          "class": "MiniRibbonControl"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits",
+          "method": "Ribbon"
+        }
+      ]
+    },
+    "markdown-paper": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Printing/PaperPages.cs",
+          "class": "PaperPages"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Printing/MarkdownPaginator.cs",
+          "class": "MarkdownPaginator"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Print.cs",
+          "class": "NexaTextSurface",
+          "method": "Paginator"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Export/LayoutExport.cs",
+          "class": "LayoutExport",
+          "method": "IsPicture"
+        }
+      ]
+    },
+    "markdown-dragdrop": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Writing.cs",
+          "class": "NexaTextSurface",
+          "method": "DropContent"
+        }
+      ]
+    },
+    "markdown-caret-crossing": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/NexaTextSurfaceTests.cs",
+            "class": "NexaTextSurfaceTests",
+            "method": "TheCaretWalksFromProseIntoAFormulaAndOutTheOtherSide"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 31,
+  "touched_nodes": [
+    "barcode-editing",
+    "content-margins",
+    "executable-dependency-viewport",
+    "markdown-block-model",
+    "markdown-block-picture",
+    "markdown-block-undo",
+    "markdown-caret-crossing",
+    "markdown-context-menu",
+    "markdown-copy",
+    "markdown-dragdrop",
+    "markdown-find",
+    "markdown-heading-scroll",
+    "markdown-hosts",
+    "markdown-inline-editor",
+    "markdown-links",
+    "markdown-outline",
+    "markdown-paper",
+    "markdown-paste",
+    "markdown-scroll-anchor",
+    "markdown-source-box",
+    "markdown-split",
+    "markdown-surface",
+    "markdown-zoom",
+    "md-image-resolver",
+    "md-link-decorator",
+    "solver-latex-fence",
+    "solver-source-toggle",
+    "visuals-text",
+    "vtext-selectable-markdown"
+  ]
+}

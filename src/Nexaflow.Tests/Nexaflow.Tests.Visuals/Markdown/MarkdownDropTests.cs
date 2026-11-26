@@ -16,7 +16,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 ///
 /// <para>
 /// These show a real window, because a drop is a gesture a window receives. That is what keeps them out of
-/// <see cref="MarkdownSurfaceTests"/> and in a file of their own.
+/// <see cref="NexaTextSurfaceTests"/> and in a file of their own.
 /// </para>
 /// </summary>
 [TestClass]
@@ -88,7 +88,7 @@ public class MarkdownDropTests
     }));
 
     /// <summary>A point on the editor over the piece <paramref name="word"/> is drawn as.</summary>
-    private static Point Over(MarkdownSurface editor, string word)
+    private static Point Over(NexaTextSurface editor, string word)
     {
         var at = Doc.IndexOf(word, StringComparison.Ordinal);
         var piece = editor.Shown.Laid.Root.SelfAndDescendants()

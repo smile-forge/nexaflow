@@ -29,7 +29,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// something of what arrived answering first.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface
+public sealed partial class NexaTextSurface
 {
     /// <summary>What was written here, which a host with buttons for undo and redo asks whether either can be done.</summary>
     public EditHistory History => _engine.History;
@@ -68,18 +68,18 @@ public sealed partial class MarkdownSurface
     /// takes the words away once the copy is there.
     /// </summary>
     public static readonly RoutedEvent CopyingEvent = EventManager.RegisterRoutedEvent(
-        "Copying", RoutingStrategy.Bubble, typeof(EventHandler<ContentCopyingEventArgs>), typeof(MarkdownSurface));
+        "Copying", RoutingStrategy.Bubble, typeof(EventHandler<ContentCopyingEventArgs>), typeof(NexaTextSurface));
 
     /// <summary>
     /// Raised with what was pasted, to be told what it comes to. A host that makes something of it — a picture, a file — says so
     /// and marks it handled; otherwise the words and markdown in it are written.
     /// </summary>
     public static readonly RoutedEvent PastingEvent = EventManager.RegisterRoutedEvent(
-        "Pasting", RoutingStrategy.Bubble, typeof(EventHandler<ContentPastingEventArgs>), typeof(MarkdownSurface));
+        "Pasting", RoutingStrategy.Bubble, typeof(EventHandler<ContentPastingEventArgs>), typeof(NexaTextSurface));
 
     /// <summary>Raised when something dragged in from elsewhere is let go here, to be told what it comes to. Whoever answers says, or takes it.</summary>
     public static readonly RoutedEvent DroppingEvent = EventManager.RegisterRoutedEvent(
-        "Dropping", RoutingStrategy.Bubble, typeof(EventHandler<ContentDroppingEventArgs>), typeof(MarkdownSurface));
+        "Dropping", RoutingStrategy.Bubble, typeof(EventHandler<ContentDroppingEventArgs>), typeof(NexaTextSurface));
 
     public event EventHandler<ContentCopyingEventArgs> Copying
     {
@@ -95,7 +95,7 @@ public sealed partial class MarkdownSurface
 
     /// <summary>Raised before anything written here changes, for a host that may refuse it.</summary>
     public static readonly RoutedEvent ChangingEvent = EventManager.RegisterRoutedEvent(
-        "Changing", RoutingStrategy.Bubble, typeof(EventHandler<ContentChangingEventArgs>), typeof(MarkdownSurface));
+        "Changing", RoutingStrategy.Bubble, typeof(EventHandler<ContentChangingEventArgs>), typeof(NexaTextSurface));
 
     public event EventHandler<ContentChangingEventArgs> Changing
     {
@@ -105,7 +105,7 @@ public sealed partial class MarkdownSurface
 
     /// <summary>Raised to keep a picture of one block — what its corner's Save asks for. Whoever keeps it marks it handled.</summary>
     public static readonly RoutedEvent BlockSavingEvent = EventManager.RegisterRoutedEvent(
-        "BlockSaving", RoutingStrategy.Bubble, typeof(EventHandler<ContentBlockSavingEventArgs>), typeof(MarkdownSurface));
+        "BlockSaving", RoutingStrategy.Bubble, typeof(EventHandler<ContentBlockSavingEventArgs>), typeof(NexaTextSurface));
 
     public event EventHandler<ContentBlockSavingEventArgs> BlockSaving
     {

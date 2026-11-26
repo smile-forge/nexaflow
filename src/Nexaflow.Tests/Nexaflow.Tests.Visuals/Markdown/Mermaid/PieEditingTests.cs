@@ -24,7 +24,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 /// puts the caret between its digits and a keystroke changes the chart.
 ///
 /// <para>
-/// Driven through a real <see cref="Nexaflow.Visuals.Text.Markdown.MarkdownSurface"/>, because that is the whole
+/// Driven through a real <see cref="Nexaflow.Visuals.Text.Markdown.NexaTextSurface"/>, because that is the whole
 /// claim: the caret has to be adopted by the editor and the keystroke routed back into the block, neither of which the
 /// block can do for itself.
 /// </para>
@@ -42,7 +42,7 @@ public class PieEditingTests
     private const string Titled = "pie showData\n  title Pets\n  \"Dogs\" : 30\n  \"Cats\" : 10";
 
     /// <summary>Shows the pie as the whole document, and hands back the element it drew.</summary>
-    private static void Edited(Action<MarkdownSurface, DocumentBlock> test) =>
+    private static void Edited(Action<NexaTextSurface, DocumentBlock> test) =>
         MarkdownEditorHarness.Run(Markdown, editor =>
         {
             var pie = MarkdownEditorHarness.Block(editor);
@@ -85,7 +85,7 @@ public class PieEditingTests
     }
 
     /// <summary>The pie inside a document, fenced, which is how most are written.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Markdown) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string diagram = Markdown) =>
         MarkdownEditorHarness.Run("Below:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
             var pie = MarkdownEditorHarness.Block(editor);
@@ -94,13 +94,13 @@ public class PieEditingTests
             test(editor, pie!);
         });
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
@@ -712,7 +712,7 @@ public class PieEditingTests
         }));
 
     /// <summary>Has <paramref name="editor"/> handed <paramref name="words"/> to paste, as the clipboard would.</summary>
-    private static void Holding(MarkdownSurface editor, string words) =>
+    private static void Holding(NexaTextSurface editor, string words) =>
         MarkdownEditorHarness.Clipboard = ComposedPayload.OfText(words);
 
     /// <summary>The legend's row for the slice labelled <paramref name="name"/>.</summary>
@@ -734,7 +734,7 @@ public class PieEditingTests
     }
 
     /// <summary>The ribbon a right-click in the middle of <paramref name="over"/> opens.</summary>
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, Rect over)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, Rect over)
     {
         var ribbon = editor.Shown.BuildRibbon(new Point(over.X + (over.Width / 2), over.Y + (over.Height / 2))) as DiagramRibbon;
         Assert.IsNotNull(ribbon, "a right-click opens the ribbon");
@@ -758,7 +758,7 @@ public class PieEditingTests
         }
     }
 
-    private static void Press(MarkdownSurface editor, Key key, ModifierKeys modifiers)
+    private static void Press(NexaTextSurface editor, Key key, ModifierKeys modifiers)
     {
         editor.Pressed(key, modifiers);
         MarkdownEditorHarness.Pump();

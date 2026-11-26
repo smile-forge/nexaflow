@@ -24,7 +24,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// search survives that too (<see cref="Refound"/>).
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface
+public sealed partial class NexaTextSurface
 {
     /// <summary>Everywhere the document says what was looked for, in the order a reader comes to them.</summary>
     public IReadOnlyList<(int Start, int Length)> Found { get; private set; } = [];

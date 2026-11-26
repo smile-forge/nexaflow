@@ -24,7 +24,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// sentence.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface : IDropTarget, IPasteTarget
+public sealed partial class NexaTextSurface : IDropTarget, IPasteTarget
 {
     /// <summary>Puts the caret at the end of what is written and takes the keyboard — for a note just made, to be written in.</summary>
     public void BeginEdit()

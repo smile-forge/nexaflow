@@ -14,11 +14,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// are the engine's, said again here: the engine works out what happened, and this control only passes it up the page.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface
+public sealed partial class NexaTextSurface
 {
     /// <summary>Raised when the source changed — written in, taken back, written again, or put there on the reader's behalf.</summary>
     public static readonly RoutedEvent SourceChangedEvent = EventManager.RegisterRoutedEvent(
-        nameof(SourceChanged), RoutingStrategy.Bubble, typeof(EventHandler<ContentSourceChangedEventArgs>), typeof(MarkdownSurface));
+        nameof(SourceChanged), RoutingStrategy.Bubble, typeof(EventHandler<ContentSourceChangedEventArgs>), typeof(NexaTextSurface));
 
     public event EventHandler<ContentSourceChangedEventArgs> SourceChanged
     {
@@ -31,7 +31,7 @@ public sealed partial class MarkdownSurface
     /// thing says what it stands for and, where the drawing names it, its id.
     /// </summary>
     public static readonly RoutedEvent SelectedEvent = EventManager.RegisterRoutedEvent(
-        nameof(Selected), RoutingStrategy.Bubble, typeof(EventHandler<ContentSelectedEventArgs>), typeof(MarkdownSurface));
+        nameof(Selected), RoutingStrategy.Bubble, typeof(EventHandler<ContentSelectedEventArgs>), typeof(NexaTextSurface));
 
     public event EventHandler<ContentSelectedEventArgs> Selected
     {
@@ -50,7 +50,7 @@ public sealed partial class MarkdownSurface
     /// </para>
     /// </summary>
     public static readonly RoutedEvent DoubleClickedEvent = EventManager.RegisterRoutedEvent(
-        nameof(DoubleClicked), RoutingStrategy.Bubble, typeof(EventHandler<ContentSelectedEventArgs>), typeof(MarkdownSurface));
+        nameof(DoubleClicked), RoutingStrategy.Bubble, typeof(EventHandler<ContentSelectedEventArgs>), typeof(NexaTextSurface));
 
     public event EventHandler<ContentSelectedEventArgs> DoubleClicked
     {
@@ -60,7 +60,7 @@ public sealed partial class MarkdownSurface
 
     /// <summary>Raised once the content has been laid out, before it is shown — for a page reading what was laid.</summary>
     public static readonly RoutedEvent PreRenderEvent = EventManager.RegisterRoutedEvent(
-        nameof(PreRender), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(MarkdownSurface));
+        nameof(PreRender), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(NexaTextSurface));
 
     public event RoutedEventHandler PreRender
     {
@@ -74,7 +74,7 @@ public sealed partial class MarkdownSurface
     /// to come, which one of these on its own cannot.
     /// </summary>
     public static readonly RoutedEvent RereadEvent = EventManager.RegisterRoutedEvent(
-        nameof(Reread), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(MarkdownSurface));
+        nameof(Reread), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(NexaTextSurface));
 
     public event RoutedEventHandler Reread
     {
@@ -94,7 +94,7 @@ public sealed partial class MarkdownSurface
     /// <see cref="ShownFrom"/> says where it now stands.
     /// </summary>
     public static readonly RoutedEvent PlaceChangedEvent = EventManager.RegisterRoutedEvent(
-        nameof(PlaceChanged), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(MarkdownSurface));
+        nameof(PlaceChanged), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(NexaTextSurface));
 
     public event RoutedEventHandler PlaceChanged
     {
@@ -108,7 +108,7 @@ public sealed partial class MarkdownSurface
     /// goes.
     /// </summary>
     public static readonly RoutedEvent LinkNavigateEvent = EventManager.RegisterRoutedEvent(
-        nameof(LinkNavigate), RoutingStrategy.Bubble, typeof(EventHandler<ContentLinkEventArgs>), typeof(MarkdownSurface));
+        nameof(LinkNavigate), RoutingStrategy.Bubble, typeof(EventHandler<ContentLinkEventArgs>), typeof(NexaTextSurface));
 
     public event EventHandler<ContentLinkEventArgs> LinkNavigate
     {

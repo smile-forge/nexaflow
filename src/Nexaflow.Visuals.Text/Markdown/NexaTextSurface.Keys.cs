@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// content it asks back for a page, which is the one part of it only this control can answer.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface
+public sealed partial class NexaTextSurface
 {
     /// <inheritdoc/>
     protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)

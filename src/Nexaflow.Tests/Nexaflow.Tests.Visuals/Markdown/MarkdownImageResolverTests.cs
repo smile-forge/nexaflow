@@ -7,7 +7,7 @@ using Nexaflow.Visuals.Text.Markdown;
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
-/// The host image hook, <see cref="MarkdownSurface.ImageResolver"/>. A document that does not live on disk — the help
+/// The host image hook, <see cref="NexaTextSurface.ImageResolver"/>. A document that does not live on disk — the help
 /// pane's showcases, read out of a language pack — brings its pictures through it. What is asked in what order, and what a
 /// resolver that throws costs, is <c>MarkdownImageTests</c>; this is that the surface hands the hook on. UI category: text
 /// is set on an STA thread; no window opens.
@@ -25,7 +25,7 @@ public class MarkdownImageResolverTests
         // The resolver is the host's and the asking is a stage's, so the one thing the view has to do is
         // carry it between them.
         var pixel = Pixel();
-        var view = new MarkdownSurface { ImageResolver = _ => pixel };
+        var view = new NexaTextSurface { ImageResolver = _ => pixel };
 
         view.Document.Load(Doc);
 

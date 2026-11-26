@@ -65,7 +65,7 @@ public partial class SolverView : UserControl
     }
 
     /// <summary>The editor the current tab shows, or null on Calc - which has a plain field instead.</summary>
-    private MarkdownSurface? Editor =>
+    private NexaTextSurface? Editor =>
         _vm.IsLatexMode ? LatexInput : _vm.IsTextMode ? ProseInput : null;
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

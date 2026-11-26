@@ -158,9 +158,9 @@ public partial class MarkdownLayoutBench
     }
 
     /// <summary>A surface of the engine's holding <paramref name="document"/> as written, once it has read all of it.</summary>
-    private static (MarkdownSurface Half, Window Window) EngineHalf(EditedDocument document, bool shown)
+    private static (NexaTextSurface Half, Window Window) EngineHalf(EditedDocument document, bool shown)
     {
-        var surface = new MarkdownSurface
+        var surface = new NexaTextSurface
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -224,7 +224,7 @@ public partial class MarkdownLayoutBench
     }
 
     /// <summary>Waits while <paramref name="surface"/> reads what it has not read yet, up to <see cref="ReadBudget"/>.</summary>
-    private static void ReadAll(MarkdownSurface surface)
+    private static void ReadAll(NexaTextSurface surface)
     {
         var reading = Stopwatch.StartNew();
         while (!surface.Engine.ReadingRest.IsCompleted && reading.Elapsed < ReadBudget)

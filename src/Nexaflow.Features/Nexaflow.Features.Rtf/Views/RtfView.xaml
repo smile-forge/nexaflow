@@ -49,7 +49,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- The reading inset is ContentPadding, not a Margin, so the scrollbar sits flush against the minimap. -->
-            <md:MarkdownSurface x:Name="Document"
+            <md:NexaTextSurface x:Name="Document"
                                 Grid.Column="0"
                                 ContentPadding="48,32,48,56"
                                 IsReadOnly="True"

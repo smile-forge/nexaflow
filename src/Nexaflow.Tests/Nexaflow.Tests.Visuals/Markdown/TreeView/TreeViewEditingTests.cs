@@ -32,7 +32,7 @@ public class TreeViewEditingTests
     private const string Drawn = "├── src/\n│   ├── a.ts\n│   └── b.ts\n└── README.md";
 
     /// <summary>The tree inside a document, fenced as itself, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string tree = Tree) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string tree = Tree) =>
         MarkdownEditorHarness.Run("Files:\n\n```treeview\n" + tree + "\n```\n", editor =>
         {
             var block = MarkdownEditorHarness.Block(editor);
@@ -295,13 +295,13 @@ public class TreeViewEditingTests
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
@@ -309,7 +309,7 @@ public class TreeViewEditingTests
 
     private static string Trouble(DocumentBlock tree) => string.Join(" | ", tree.Diagnostics.Select(diagnostic => diagnostic.Message));
 
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, Rect over)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, Rect over)
     {
         var ribbon = editor.Shown.BuildRibbon(new Point(over.Right - 3, over.Top + (over.Height / 2))) as DiagramRibbon;
         Assert.IsNotNull(ribbon, "a right-click opens the ribbon");

@@ -133,9 +133,9 @@ public class ContentMarginTests
     /// <paramref name="text"/> in a surface in a window, shown as typed with its lines wrapped unless <paramref name="typed"/> says not —
     /// what <paramref name="configure"/> does to it done first — and <paramref name="test"/> run on it once it is laid out and drawn.
     /// </summary>
-    internal static void Shown(string text, Action<MarkdownSurface> test, Action<MarkdownSurface>? configure = null, bool typed = true)
+    internal static void Shown(string text, Action<NexaTextSurface> test, Action<NexaTextSurface>? configure = null, bool typed = true)
     {
-        var surface = new MarkdownSurface { IsReadOnly = false, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var surface = new NexaTextSurface { IsReadOnly = false, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         if (typed) (surface.WrittenIn, surface.WrapsLines) = (ContentLanguages.AsTyped, true);
         configure?.Invoke(surface);
 
@@ -162,7 +162,7 @@ public class ContentMarginTests
     /// Lets <paramref name="surface"/> lay out and draw what it now shows, over a few passes — each one bounded, so a surface that never
     /// settles fails the test rather than hanging it.
     /// </summary>
-    internal static void Settle(MarkdownSurface surface)
+    internal static void Settle(NexaTextSurface surface)
     {
         for (var pass = 0; pass < 10; pass++)
         {
@@ -178,7 +178,7 @@ public class ContentMarginTests
         public List<ShownLine> Drew { get; } = [];
 
         /// <summary>The surface it stands beside.</summary>
-        public MarkdownSurface? Holder => Surface;
+        public NexaTextSurface? Holder => Surface;
 
         protected override Size MeasureOverride(Size availableSize) => new(wide, 0);
 

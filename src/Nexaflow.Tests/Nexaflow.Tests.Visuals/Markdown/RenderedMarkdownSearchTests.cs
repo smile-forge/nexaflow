@@ -36,7 +36,7 @@ public class RenderedMarkdownSearchTests
         """;
 
     // The editor must be built and driven on an STA thread (UiThread.Run), like the other editor UI tests.
-    private static void InEditor(System.Action<MarkdownSurface> test) =>
+    private static void InEditor(System.Action<NexaTextSurface> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(Doc, test));
 
     [TestMethod]

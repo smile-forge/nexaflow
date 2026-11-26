@@ -25,7 +25,7 @@ public class EventModelingEditingTests
     private const string Model = "tf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded";
 
     /// <summary>The event model inside a document, fenced as itself, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string model = Model) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string model = Model) =>
         MarkdownEditorHarness.Run("Shopping:\n\n```eventmodeling\n" + model + "\n```\n", editor =>
         {
             var block = MarkdownEditorHarness.Block(editor);
@@ -146,13 +146,13 @@ public class EventModelingEditingTests
         Assert.IsTrue(model.HasCaret, $"a press on {name} takes the caret");
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
@@ -161,7 +161,7 @@ public class EventModelingEditingTests
     private static string Trouble(DocumentBlock model) => string.Join(" | ", model.Diagnostics.Select(diagnostic => diagnostic.Message));
 
     /// <summary>The ribbon a right-click inside <paramref name="frame"/>, clear of its words, opens.</summary>
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, LayoutPiece frame)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, LayoutPiece frame)
     {
         var box = frame.Bounds.ToWpf();
         var ribbon = editor.Shown.BuildRibbon(new Point(box.X + 3, box.Bottom - 3)) as DiagramRibbon;

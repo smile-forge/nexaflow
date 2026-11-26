@@ -59,7 +59,7 @@ public sealed class LineNumberMargin : ContentMargin
     }
 
     /// <summary><paramref name="digits"/> set in the face and size the surface's content is set in as typed, as it is drawn on the page.</summary>
-    private FormattedText Numeral(MarkdownSurface surface, string digits, Brush ink)
+    private FormattedText Numeral(NexaTextSurface surface, string digits, Brush ink)
     {
         var (face, size, _) = surface.TypedIn;
 

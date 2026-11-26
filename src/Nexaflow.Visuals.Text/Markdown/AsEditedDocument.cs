@@ -7,7 +7,7 @@ using Nexaflow.Markdown.Editing;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// Text a page only shows, as the document a surface shows it from (<see cref="MarkdownSurface.Document"/>): a document of its
+/// Text a page only shows, as the document a surface shows it from (<see cref="NexaTextSurface.Document"/>): a document of its
 /// own for each text it is handed, which is what showing a reply that grows, a help page or a message is — something loaded
 /// whole, never written back. A page that is written in holds its own <see cref="EditedDocument"/> instead.
 /// </summary>

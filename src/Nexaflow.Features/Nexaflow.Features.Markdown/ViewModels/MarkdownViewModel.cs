@@ -29,7 +29,7 @@ namespace Nexaflow.Features.Markdown.ViewModels;
 ///
 /// Holds the whole document as a single markdown string, two-way bound to the
 /// view's editing surface(s). The default surface is the shared
-/// <c>MarkdownSurface</c> (rendered with inline editing); the toolbar's
+/// <c>NexaTextSurface</c> (rendered with inline editing); the toolbar's
 /// three-stop slider swaps to the raw markdown in one text box, or shows the two
 /// side by side - see <see cref="MarkdownViewMode"/>.
 /// Both surfaces bind the same <see cref="Markdown"/>, so edits carry across.

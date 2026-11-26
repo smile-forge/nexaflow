@@ -28,7 +28,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 [TestCategory("UI")]
 [DoNotParallelize]
 [CoversNode("markdown-text")]
-public class MarkdownSurfaceTests
+public class NexaTextSurfaceTests
 {
     private const string Doc =
         "# Getting Started\n\nSome words about chrome.\n\n"
@@ -158,7 +158,7 @@ public class MarkdownSurfaceTests
     });
 
     /// <summary>Picks out the whole of the diagram, which is what makes a copy of it a copy of that block.</summary>
-    private static void Picked(MarkdownSurface surface)
+    private static void Picked(NexaTextSurface surface)
     {
         var fence = Doc.IndexOf("```mermaid", StringComparison.Ordinal);
 
@@ -324,10 +324,10 @@ public class MarkdownSurfaceTests
     {
         var chart = "flowchart LR\n" + string.Concat(Enumerable.Range(0, 9).Select(at => $"  n{at}[Step {at}] --> n{at + 1}[Step {at + 1}]\n"));
 
-        var page = new MarkdownSurface { WrittenIn = "mermaid", Document = new EditedDocument(chart) };
+        var page = new NexaTextSurface { WrittenIn = "mermaid", Document = new EditedDocument(chart) };
         page.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
-        var unlimited = new MarkdownSurface { WrittenIn = "mermaid", Document = new EditedDocument(chart), UnlimitedWidth = true };
+        var unlimited = new NexaTextSurface { WrittenIn = "mermaid", Document = new EditedDocument(chart), UnlimitedWidth = true };
         unlimited.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
         Assert.IsTrue(page.DesiredSize.Width <= 700, $"given no width, it is fitted to the room a page is set in: {page.DesiredSize.Width}");
@@ -336,9 +336,9 @@ public class MarkdownSurfaceTests
                        "and so is not drawn smaller");
     });
 
-    private static MarkdownSurface Shown(string markdown, ILayoutActions? host = null)
+    private static NexaTextSurface Shown(string markdown, ILayoutActions? host = null)
     {
-        var surface = new MarkdownSurface { Host = host, Document = new EditedDocument(markdown) };
+        var surface = new NexaTextSurface { Host = host, Document = new EditedDocument(markdown) };
 
         surface.Measure(new Size(640, 2000));
         surface.Arrange(new Rect(0, 0, 640, 2000));
@@ -376,7 +376,7 @@ public class MarkdownSurfaceTests
     /// into a piece per token the moment a grammar has read it — so a phrase that was one run a moment ago is
     /// six of them once the colouring lands.
     /// </remarks>
-    private static Point Middle(MarkdownSurface surface, string words)
+    private static Point Middle(NexaTextSurface surface, string words)
     {
         var piece = surface.Shown.Laid.Root.SelfAndDescendants()
             .First(one => one.Words is { } said && said.Glyphs.Text.Contains(words));
@@ -399,7 +399,7 @@ public class MarkdownSurfaceTests
     [TestMethod]
     public void APageReadAsWhatItDrawsIsSearchedAndQuotedAsItsWords() => UiThread.Run(() =>
     {
-        var surface = new MarkdownSurface { WrittenIn = RtfParser.Language, Document = new EditedDocument(@"{\rtf1\pard Keep the {\b paragraph} here.\par}") };
+        var surface = new NexaTextSurface { WrittenIn = RtfParser.Language, Document = new EditedDocument(@"{\rtf1\pard Keep the {\b paragraph} here.\par}") };
 
         surface.Measure(new Size(640, 2000));
         surface.Arrange(new Rect(0, 0, 640, 2000));

@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// drawn there offers (<see cref="IContentLanguage.Ribbon"/>), and what the host adds. This control adds nothing of its own: what may
 /// be done in content is the language's to say.
 /// </summary>
-public sealed partial class MarkdownSurface
+public sealed partial class NexaTextSurface
 {
     private Popup? _ribbon;
 

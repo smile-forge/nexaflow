@@ -274,7 +274,7 @@ public class FormulaEditingTests
     // ── Harness ─────────────────────────────────────────────────────────────
 
     /// <summary>Runs <paramref name="test"/> against a surface holding <paramref name="latex"/> as its one formula.</summary>
-    private static void InFormula(string latex, Action<MarkdownSurface, DocumentBlock> test) =>
+    private static void InFormula(string latex, Action<NexaTextSurface, DocumentBlock> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(latex,
                                                      editor => test(editor, MarkdownEditorHarness.Block(editor)),
                                                      editor => editor.WrittenIn = "latex"));
@@ -285,7 +285,7 @@ public class FormulaEditingTests
     /// <summary>Where the caret is, counted in the formula's LaTeX.</summary>
     private static int Caret(DocumentBlock formula) => formula.Caret - formula.Origin;
 
-    private static void Back(MarkdownSurface editor) => MarkdownEditorHarness.RaiseKey(editor, Key.Back);
+    private static void Back(NexaTextSurface editor) => MarkdownEditorHarness.RaiseKey(editor, Key.Back);
 
     /// <summary>The one leaf that sits <paramref name="at"/> characters into the formula's LaTeX.</summary>
     private static LayoutPiece Leaf(DocumentBlock formula, int at) =>

@@ -23,7 +23,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 ///
 /// <para>
 /// For a test about what a language draws — where its pieces go, what it looks like — rather than about a document. What a
-/// document adds, writing in the content and answering what its pieces offer, is tested on a <see cref="MarkdownSurface"/>,
+/// document adds, writing in the content and answering what its pieces offer, is tested on a <see cref="NexaTextSurface"/>,
 /// where it happens.
 /// </para>
 /// </summary>

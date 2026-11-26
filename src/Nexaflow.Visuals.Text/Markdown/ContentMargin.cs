@@ -7,12 +7,12 @@ namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
 /// Something drawn beside a surface's page in step with the lines on it — their numbers, a breakpoint, a fold's handle, a line picked
-/// out — one of a stack the surface keeps on each side of the page (<see cref="MarkdownSurface.LeadingMargins"/>,
-/// <see cref="MarkdownSurface.TrailingMargins"/>).
+/// out — one of a stack the surface keeps on each side of the page (<see cref="NexaTextSurface.LeadingMargins"/>,
+/// <see cref="NexaTextSurface.TrailingMargins"/>).
 ///
 /// <para>
 /// <strong>The lines are the engine's; what stands beside them is the margin's.</strong> Which lines stand on the page, and where their
-/// rows are, only what laid them can say (<see cref="MarkdownSurface.LinesShown"/>). Nothing of a margin is in the content, so nothing
+/// rows are, only what laid them can say (<see cref="NexaTextSurface.LinesShown"/>). Nothing of a margin is in the content, so nothing
 /// in it is a place for a caret, a stretch to pick out or copy, or something a search finds. What it draws for a line, and what a
 /// press on one means, are its own — and a margin that picks lines out asks the surface to, so what is picked out is the content's.
 /// </para>
@@ -26,10 +26,10 @@ public abstract class ContentMargin : FrameworkElement
     protected ContentMargin() => ClipToBounds = true;
 
     /// <summary>The surface it stands beside, or null while it stands beside none.</summary>
-    protected MarkdownSurface? Surface { get; private set; }
+    protected NexaTextSurface? Surface { get; private set; }
 
     /// <summary>Stands beside <paramref name="surface"/>, or beside none.</summary>
-    internal void Beside(MarkdownSurface? surface)
+    internal void Beside(NexaTextSurface? surface)
     {
         Surface = surface;
         LinesMoved();

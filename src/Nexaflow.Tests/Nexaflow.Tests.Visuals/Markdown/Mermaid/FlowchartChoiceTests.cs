@@ -18,7 +18,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 /// because the chart draws neither as words and so there is nowhere to put a caret in them.
 ///
 /// <para>
-/// Driven through a real <see cref="MarkdownSurface"/> and the ribbon it builds, because the whole claim is that a press on a
+/// Driven through a real <see cref="NexaTextSurface"/> and the ribbon it builds, because the whole claim is that a press on a
 /// node offers them and a press on an option writes them: the offer has to reach the chart's own handler and the change has to
 /// come back out as markdown, neither of which the chart does for itself.
 /// </para>
@@ -156,7 +156,7 @@ public class FlowchartChoiceTests
     // ── Driving it ──────────────────────────────────────────────────────────
 
     /// <summary>Shows the chart inside a document, fenced, which is how one is written.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Bracketed) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string diagram = Bracketed) =>
         MarkdownEditorHarness.Run("Below:\n\n```mermaid\n" + diagram + "```\n", editor =>
         {
             var chart = MarkdownEditorHarness.Block(editor);
@@ -166,7 +166,7 @@ public class FlowchartChoiceTests
         });
 
     /// <summary>The block as it stands now, which is another block after every edit.</summary>
-    private static DocumentBlock Block(MarkdownSurface editor)
+    private static DocumentBlock Block(NexaTextSurface editor)
     {
         var chart = MarkdownEditorHarness.Block(editor);
         Assert.IsNotNull(chart, "the chart did not render as content");
@@ -189,10 +189,10 @@ public class FlowchartChoiceTests
         chart.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == FlowchartPiece.Link).Bounds.ToWpf();
 
     /// <summary>The ribbon a right-click in the middle of somewhere opens, or nothing where it opens none.</summary>
-    private static DiagramRibbon? Opened(MarkdownSurface editor, Rect over) =>
+    private static DiagramRibbon? Opened(NexaTextSurface editor, Rect over) =>
         editor.Shown.BuildRibbon(new Point(over.X + (over.Width / 2), over.Y + (over.Height / 2))) as DiagramRibbon;
 
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, Rect over)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, Rect over)
     {
         var ribbon = Opened(editor, over);
         Assert.IsNotNull(ribbon, "a right-click opens the ribbon");
@@ -200,7 +200,7 @@ public class FlowchartChoiceTests
     }
 
     /// <summary>The choices a right-click offers there, by id.</summary>
-    private static List<string> Groups(MarkdownSurface editor, Rect over) =>
+    private static List<string> Groups(NexaTextSurface editor, Rect over) =>
         [.. (Opened(editor, over)?.Controls ?? []).OfType<MiniRibbonChoice>().Select(choice => choice.Id)];
 
     /// <summary>The choice of <paramref name="ribbon"/> known by <paramref name="id"/>.</summary>
@@ -208,7 +208,7 @@ public class FlowchartChoiceTests
         ribbon.Controls.OfType<MiniRibbonChoice>().Single(choice => choice.Id == id);
 
     /// <summary>What the ribbon says a node is, of one of its choices — that choice's id and the option's, as the option's button is found by.</summary>
-    private static string? Current(MarkdownSurface editor, string words, string group) =>
+    private static string? Current(NexaTextSurface editor, string words, string group) =>
         Choice(Ribbon(editor, Node(Block(editor), words)), "flowchart." + group.ToLowerInvariant()) is { Current: { } current } choice
             ? choice.Id + "." + current
             : null;

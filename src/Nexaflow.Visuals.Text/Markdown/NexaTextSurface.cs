@@ -45,7 +45,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// written, so that it can be taken back.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface : UserControl, IContentEvents
+public sealed partial class NexaTextSurface : UserControl, IContentEvents
 {
     private readonly ScrollViewer _scroller;
     private readonly TextBlock _prompt;
@@ -60,7 +60,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// </summary>
     private readonly ContentEngine _engine = new();
 
-    public MarkdownSurface()
+    public NexaTextSurface()
     {
         Focusable = true;
         FocusVisualStyle = null;
@@ -244,8 +244,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// characters when it saves them.
     /// </summary>
     public static readonly DependencyProperty DocumentProperty = DependencyProperty.Register(
-        nameof(Document), typeof(EditedDocument), typeof(MarkdownSurface),
-        new PropertyMetadata(null, (surface, args) => ((MarkdownSurface)surface).Holding((EditedDocument?)args.NewValue)));
+        nameof(Document), typeof(EditedDocument), typeof(NexaTextSurface),
+        new PropertyMetadata(null, (surface, args) => ((NexaTextSurface)surface).Holding((EditedDocument?)args.NewValue)));
 
     /// <summary>The document shown and written in — the page's, where it handed one over, and otherwise one of the surface's own.</summary>
     public EditedDocument Document
@@ -259,8 +259,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
     /// <summary>Whether it is only read. A read document can still be selected, searched and copied from.</summary>
     public static readonly DependencyProperty IsReadOnlyProperty = DependencyProperty.Register(
-        nameof(IsReadOnly), typeof(bool), typeof(MarkdownSurface),
-        new PropertyMetadata(true, (surface, _) => ((MarkdownSurface)surface).Remake()));
+        nameof(IsReadOnly), typeof(bool), typeof(NexaTextSurface),
+        new PropertyMetadata(true, (surface, _) => ((NexaTextSurface)surface).Remake()));
 
     public bool IsReadOnly
     {
@@ -274,8 +274,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// language alone. Empty, the default, for a document.
     /// </summary>
     public static readonly DependencyProperty WrittenInProperty = DependencyProperty.Register(
-        nameof(WrittenIn), typeof(string), typeof(MarkdownSurface),
-        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Rewritten()));
+        nameof(WrittenIn), typeof(string), typeof(NexaTextSurface),
+        new PropertyMetadata(null, (surface, _) => ((NexaTextSurface)surface).Rewritten()));
 
     public string? WrittenIn
     {
@@ -291,8 +291,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// will not set. Everything else about writing in it carries on as it was.
     /// </summary>
     public static readonly DependencyProperty EditAsSourceProperty = DependencyProperty.Register(
-        nameof(EditAsSource), typeof(bool), typeof(MarkdownSurface),
-        new PropertyMetadata(false, (surface, _) => ((MarkdownSurface)surface).HoldAsWritten()));
+        nameof(EditAsSource), typeof(bool), typeof(NexaTextSurface),
+        new PropertyMetadata(false, (surface, _) => ((NexaTextSurface)surface).HoldAsWritten()));
 
     public bool EditAsSource
     {
@@ -305,8 +305,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// a page's source read as a page — rather than laid as its language lays it.
     /// </summary>
     public static readonly DependencyProperty WrapsLinesProperty = DependencyProperty.Register(
-        nameof(WrapsLines), typeof(bool), typeof(MarkdownSurface),
-        new PropertyMetadata(false, (surface, _) => ((MarkdownSurface)surface).Wrapped()));
+        nameof(WrapsLines), typeof(bool), typeof(NexaTextSurface),
+        new PropertyMetadata(false, (surface, _) => ((NexaTextSurface)surface).Wrapped()));
 
     public bool WrapsLines
     {
@@ -321,8 +321,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// surface — a post-it — says <see cref="WpfStyles.Light"/>.
     /// </summary>
     public static readonly DependencyProperty PaletteProperty = DependencyProperty.Register(
-        nameof(Palette), typeof(LayoutStyle), typeof(MarkdownSurface),
-        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Remake()));
+        nameof(Palette), typeof(LayoutStyle), typeof(NexaTextSurface),
+        new PropertyMetadata(null, (surface, _) => ((NexaTextSurface)surface).Remake()));
 
     public LayoutStyle? Palette
     {
@@ -335,8 +335,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// size; a host with a zoom of its own binds the zoomed size here, and it applies at once even while being written in.
     /// </summary>
     public static readonly DependencyProperty BaseFontSizeProperty = DependencyProperty.Register(
-        nameof(BaseFontSize), typeof(double), typeof(MarkdownSurface),
-        new PropertyMetadata(double.NaN, (surface, _) => ((MarkdownSurface)surface).Remake()));
+        nameof(BaseFontSize), typeof(double), typeof(NexaTextSurface),
+        new PropertyMetadata(double.NaN, (surface, _) => ((NexaTextSurface)surface).Remake()));
 
     public double BaseFontSize
     {
@@ -346,8 +346,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
     /// <summary>What is shown where nothing is written yet, until something is.</summary>
     public static readonly DependencyProperty PlaceholderProperty = DependencyProperty.Register(
-        nameof(Placeholder), typeof(string), typeof(MarkdownSurface),
-        new PropertyMetadata(string.Empty, (surface, _) => ((MarkdownSurface)surface).Prompted()));
+        nameof(Placeholder), typeof(string), typeof(NexaTextSurface),
+        new PropertyMetadata(string.Empty, (surface, _) => ((NexaTextSurface)surface).Prompted()));
 
     public string Placeholder
     {
@@ -360,8 +360,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// scrollbar in too, leaving a gap before anything beside it.
     /// </summary>
     public static readonly DependencyProperty ContentPaddingProperty = DependencyProperty.Register(
-        nameof(ContentPadding), typeof(Thickness), typeof(MarkdownSurface),
-        new PropertyMetadata(default(Thickness), (surface, _) => ((MarkdownSurface)surface).Padded()));
+        nameof(ContentPadding), typeof(Thickness), typeof(NexaTextSurface),
+        new PropertyMetadata(default(Thickness), (surface, _) => ((NexaTextSurface)surface).Padded()));
 
     public Thickness ContentPadding
     {
@@ -374,8 +374,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// whatever <see cref="ImageResolver"/> finds.
     /// </summary>
     public static readonly DependencyProperty BaseDirectoryProperty = DependencyProperty.Register(
-        nameof(BaseDirectory), typeof(string), typeof(MarkdownSurface),
-        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Hosted()));
+        nameof(BaseDirectory), typeof(string), typeof(NexaTextSurface),
+        new PropertyMetadata(null, (surface, _) => ((NexaTextSurface)surface).Hosted()));
 
     public string? BaseDirectory
     {
@@ -389,8 +389,8 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// diagram itself and wants it at its own size rather than drawn smaller to fit a page.
     /// </summary>
     public static readonly DependencyProperty UnlimitedWidthProperty = DependencyProperty.Register(
-        nameof(UnlimitedWidth), typeof(bool), typeof(MarkdownSurface),
-        new PropertyMetadata(false, (surface, _) => ((MarkdownSurface)surface).Remake()));
+        nameof(UnlimitedWidth), typeof(bool), typeof(NexaTextSurface),
+        new PropertyMetadata(false, (surface, _) => ((NexaTextSurface)surface).Remake()));
 
     public bool UnlimitedWidth
     {
@@ -477,7 +477,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     /// <summary>After a different document is shown: nothing of the last one can be taken back, found or held open.</summary>
     private void Settled()
     {
-        
+
 
         // A field holding one language is written at the end of what it holds; a document, text shown as a page, and anything only
         // read, is read from its top.
@@ -529,7 +529,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
             Margin = ContentPadding,
         };
 
-        
+
         element.CaretMoved += (_, _) => Reveal();
 
         _scroller.Content = element;
@@ -591,7 +591,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
         Remake();
     }
 
-    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new MarkdownSurfaceAutomationPeer(this);
+    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new NexaTextSurfaceAutomationPeer(this);
 
     // ── Links ───────────────────────────────────────────────────────────────
 

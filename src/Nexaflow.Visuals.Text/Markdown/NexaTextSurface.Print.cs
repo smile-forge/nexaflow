@@ -9,7 +9,7 @@ using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
-public sealed partial class MarkdownSurface
+public sealed partial class NexaTextSurface
 {
     /// <summary>
     /// The document this surface shows, on sheets whose printable area is <paramref name="sheet"/> — what printing it prints.

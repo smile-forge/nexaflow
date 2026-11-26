@@ -49,9 +49,9 @@ public class FoldingDiagramTests
         """;
 
     /// <summary>The diagram fenced in a document, as a reader is shown it, measured and arranged.</summary>
-    private static MarkdownSurface Shown(string diagram, Action<MarkdownSurface>? host = null)
+    private static NexaTextSurface Shown(string diagram, Action<NexaTextSurface>? host = null)
     {
-        var surface = new MarkdownSurface();
+        var surface = new NexaTextSurface();
         host?.Invoke(surface);
         surface.Document.Load("```mermaid\n" + diagram.TrimEnd('\n') + "\n```\n");
 
@@ -63,7 +63,7 @@ public class FoldingDiagramTests
     /// it answered on, and the element moves that onto this one — so without pumping, the page is read back before
     /// anything a press set in motion has reached it.
     /// </summary>
-    private static MarkdownSurface Settled(MarkdownSurface surface)
+    private static NexaTextSurface Settled(NexaTextSurface surface)
     {
         Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
 
@@ -74,19 +74,19 @@ public class FoldingDiagramTests
     }
 
     /// <summary>Every word drawn anywhere in it.</summary>
-    private static List<string> Words(MarkdownSurface surface) =>
+    private static List<string> Words(NexaTextSurface surface) =>
         [.. surface.Shown.Laid.Root.SelfAndDescendants()
                    .Select(piece => piece.Words?.Glyphs.Text)
                    .OfType<string>()];
 
     /// <summary>Where each piece of a kind was placed, in the order they were drawn.</summary>
-    private static List<Rect> Placed(MarkdownSurface surface, string kind) =>
+    private static List<Rect> Placed(NexaTextSurface surface, string kind) =>
         [.. surface.Shown.Laid.Tree.Root.Placed().Where(at => at.Piece.Kind == kind).Select(at => at.Where.ToWpf())];
 
     private static Point Middle(Rect where) => new(where.X + (where.Width / 2), where.Y + (where.Height / 2));
 
     /// <summary>A press at the middle of <paramref name="where"/>, and the page as it then stands.</summary>
-    private static void Press(MarkdownSurface surface, Rect where)
+    private static void Press(NexaTextSurface surface, Rect where)
     {
         surface.Shown.BeginPointerSelect(Middle(where));
         Settled(surface);
@@ -132,7 +132,7 @@ public class FoldingDiagramTests
     });
 
     /// <summary>Whether the node drawn at <paramref name="where"/> says <paramref name="words"/>.</summary>
-    private static bool Says(MarkdownSurface surface, Rect where, string words) =>
+    private static bool Says(NexaTextSurface surface, Rect where, string words) =>
         surface.Shown.Laid.Tree.Root.Placed().Any(at => at.Piece.Words?.Glyphs.Text == words && where.Contains(at.Where.ToWpf()));
 
     [TestMethod]
@@ -220,7 +220,7 @@ public class FoldingDiagramTests
     });
 
     /// <summary>What the menu offers where <paramref name="where"/> was pressed.</summary>
-    private static List<string> Verbs(MarkdownSurface surface, Rect where) =>
+    private static List<string> Verbs(NexaTextSurface surface, Rect where) =>
         surface.Shown.BuildRibbon(Middle(where)) is DiagramRibbon ribbon
             ? [.. ribbon.Controls.Select(control => control.Id)]
             : [];
@@ -303,7 +303,7 @@ public class FoldingDiagramTests
     [CoversNode("graph-expandable-nodes")]
     public void AndEverythingElseOnThePageIsLeftWhereItWas() => UiThread.Run(() =>
     {
-        var surface = new MarkdownSurface { Document = new EditedDocument("Before it.\n\n```mermaid\n" + Src + "\n```\n\nAfter it.\n") };
+        var surface = new NexaTextSurface { Document = new EditedDocument("Before it.\n\n```mermaid\n" + Src + "\n```\n\nAfter it.\n") };
         Settled(surface);
 
         var before = Placed(surface, LayoutPieces.Whole)[0];
@@ -406,7 +406,7 @@ public class FoldingDiagramTests
     }
 
     /// <summary>The diagram one of those supplies the whole body of, as the PE inspector's dependency tab is.</summary>
-    private static MarkdownSurface Grown(out Walker walker)
+    private static NexaTextSurface Grown(out Walker walker)
     {
         var walking = new Walker();
         walker = walking;
@@ -466,7 +466,7 @@ public class FoldingDiagramTests
     // ── Whose press it is ───────────────────────────────────────────────────
 
     /// <summary>A point inside the drawing that nothing drawn covers — the empty part of it.</summary>
-    private static Point Nowhere(MarkdownSurface surface)
+    private static Point Nowhere(NexaTextSurface surface)
     {
         var drawn = surface.Shown.Laid.Tree.Root.Placed()
                            .Where(at => at.Piece.Region is not null || at.Piece.Words is not null)
