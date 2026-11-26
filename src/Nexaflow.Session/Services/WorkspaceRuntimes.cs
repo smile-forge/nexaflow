@@ -163,6 +163,16 @@ public sealed class WorkspaceRuntimes : IDisposable
         _ = End(runtime);
     }
 
+    /// <summary>Reopens every open tab of <paramref name="pageKinds"/>, in every live workspace's windows: the settings their pages
+    /// are built from changed.</summary>
+    public void ReopenPagesOf(IEnumerable<string> pageKinds)
+    {
+        var kinds = pageKinds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (kinds.Count == 0) return;
+        foreach (var runtime in _byWorkspace.Values.ToList())
+            runtime.ShellServices.ReopenTabsOf(kinds);
+    }
+
     /// <summary>Every tab open in a workspace.</summary>
     internal IEnumerable<Page> OpenTabs() => _byWorkspace.Values.SelectMany(runtime => runtime.ShellServices.GetOpenTabs());
 
