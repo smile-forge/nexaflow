@@ -13,7 +13,19 @@ public sealed record HelpSearchResult(HelpTopic Topic, int MatchCount, string Pr
 
 /// <summary>One match: the page, which match it is on that page (0-based, in reading order — the ordinal the page's
 /// own highlight steps through), and the line it sits on.</summary>
-public sealed record HelpHit(HelpTopic Topic, int Ordinal, string Preview);
+public sealed record HelpHit(HelpTopic Topic, int Ordinal, string Preview)
+{
+    /// <summary>The hit as a search names it, <c>&lt;topic&gt;#&lt;ordinal&gt;</c>: which help page, and which match on it in
+    /// reading order.</summary>
+    public string Id => $"{Topic.Topic}#{Ordinal}";
+
+    /// <summary>The help page and the match on it that <paramref name="id"/> names, or null for an id that names no hit.</summary>
+    public static (string Topic, int Ordinal)? ParseId(string id)
+    {
+        var hash = id.LastIndexOf('#');
+        return hash > 0 && int.TryParse(id[(hash + 1)..], out var ordinal) ? (id[..hash], ordinal) : null;
+    }
+}
 
 /// <summary>
 /// The "then every help page" half of a help search. Holds each page as <see cref="HelpPlainText"/> and matches with

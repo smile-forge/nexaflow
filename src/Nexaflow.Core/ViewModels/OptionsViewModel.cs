@@ -391,7 +391,7 @@ public partial class OptionsViewModel : ObservableObject
 
     public event Action?                      SaveCompleted;
     public event Action<string>?              SaveError;
-    public event Action<IEnumerable<string>>? TabRefreshRequested;
+    
 
     /// <summary>The session's feature system: every feature's config, and the pages a changed one refreshes.</summary>
     private readonly FeatureManager _features;
@@ -477,14 +477,10 @@ public partial class OptionsViewModel : ObservableObject
             }
         }
 
-        // Request tab refresh for the feature configs that changed (only meaningful when a window is open).
-        // A refresh closes and reopens the tab, so reopening every feature's tabs on any save threw away
-        // pages whose settings nobody touched — a Network sweep in flight among them.
-        var activeCtx = _runtimes.FirstWithWindows;
-        var pageKindsToRefresh = activeCtx is null ? [] : _features.PageKindsChangedBy(changed, activeCtx);
-
-        if (pageKindsToRefresh.Count > 0)
-            TabRefreshRequested?.Invoke(pageKindsToRefresh);
+        // The pages built from a config that changed reopen, in every window, and only those: reopening throws away what a page
+        // holds, so a page whose settings nobody touched — a Network sweep in flight, say — is left alone.
+        if (_runtimes.FirstWithWindows is { } runtime)
+        _runtimes.ReopenPagesOf(_features.PageKindsChangedBy(changed, runtime));
 
         SaveCompleted?.Invoke();
     }

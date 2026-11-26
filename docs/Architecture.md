@@ -26,7 +26,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Tier | Projects | Role |
 |------|----------|------|
 | Shell | `Nexaflow.Core` | WinExe entry point and the WPF app: window chrome, tab strip, ribbon, breadcrumbs, AI input bar, the views and view-models; fills `ShellPlatform` |
-| Session | `Nexaflow.Session`, `Nexaflow.Assistant`, `Nexaflow.Host` | WPF-free. `Session`: the shell session and the workspaces' lifetimes — configuration and what a config's attributes require (`ConfigRequirements`), the feature system (`FeatureManager`/`FeatureCatalog`), `WorkspaceManager`, `ProviderManager`, what first-run setup asks and saves (`SetupAgenda`, `WorkspaceAiSetup`), edits of a workspace's settings and its ability grid (`WorkspaceSettingsDraft`, `AiConfigDraft`), the inbox, the logs, help. `Assistant`: each runtime's `AIService` and its tools, how what a window's AI bar sends is answered, and a spoken conversation's lifetime; it consumes the session, which never references it. `Host`: `ShellHost`, the composition root wiring both, which a UI app references alone |
+| Session | `Nexaflow.Session`, `Nexaflow.Assistant`, `Nexaflow.Host` | WPF-free. `Session`: the shell session and the workspaces' lifetimes — configuration and what a config's attributes require (`ConfigRequirements`), the feature system (`FeatureManager`/`FeatureCatalog`), `WorkspaceManager`, `ProviderManager`, what first-run setup asks and saves (`SetupAgenda`, `WorkspaceAiSetup`), edits of a workspace's settings and its ability grid (`WorkspaceSettingsDraft`, `AiConfigDraft`), a workspace's ribbon (`WorkspaceRibbon`), which workspace each window shows (`WorkspaceWindows`), the inbox and its unread count, the logs, help. `Assistant`: each runtime's `AIService` and its tools, how what a window's AI bar sends is answered — the `/` quick-open and `?` search among it — and a spoken conversation's lifetime; it consumes the session, which never references it. `Host`: `ShellHost`, the composition root wiring both, which a UI app references alone |
 | Words | `Nexaflow.Localization` | WPF-free leaf: `Str`, which looks a UI string up in the active language, and the size / duration / time formatters — under everything that shows a person text, headless or drawn |
 | Contracts | `Nexaflow.Features.Common` | ALL feature-facing interfaces + small DTOs. Features and Core meet only here. Names no UI toolkit (no WPF): what a contract hands out to be shown is a model, drawn by a `[ViewFor]` view; `ArchitectureRulesTests` keeps it so |
 | Features | `Nexaflow.Features.*` (~30, + 3 `Compressed.*` codec backends) | One assembly per feature; reflection-discovered, lazily loaded |
@@ -134,7 +134,7 @@ A `Workspace` (`Core/Models/Workspace.cs`) is a named, themed, saved configurati
 | `AiConfig` | The configured provider/model columns + each ability's **chain** of them (`AbilityChain`, tried in order). Shared, so an edit shows in every runtime on this workspace | `ai-abilities/` |
 | `Persona` | The assistant persona (name + system prompt) | `ai-persona/` |
 | `ProviderConfigs` | The provider configs (API keys / subscriptions) used to build provider instances | provider config folders |
-| `RibbonService : RibbonLayoutService` + `RibbonChanged` | The shared ribbon layout. Saving raises `RibbonChanged`, which every window/runtime on this workspace observes to reload live | `ribbon.json` |
+| `Ribbon : WorkspaceRibbon` | The shared ribbon: its buttons, saved as they change, and the shipped ones whenever it has none; pins, refusing a page already on it. Every window on this workspace hears a change with who made it, and takes it up unless it made it | `ribbon.json` |
 | `ConversationsDir` | Where this workspace's conversations are stored | `Conversations/` |
 | `LocalDir` / `DocumentNotesDir` | What the workspace keeps on this machine alone, too large to roam with its settings: what whole-document work worked out — gists, summaries, translations — so doing it again asks only of what changed. `%LOCALAPPDATA%\Smile\nexaflow\Contexts\<name>\` (`ConfigManager.LocalDir`; beside the config base as `local\` when `NEXAFLOW_CONFIG_DIR` sets one apart), renamed and deleted with the workspace, let go of when no workspace names it | `DocumentNotes/` under the local folder |
 | workspace-scoped feature configs | Any `IFeatureConfig` marked `[WorkspaceScopedConfig]` (saved via `WorkspaceManager.SaveWorkspaceScopedConfig`) | `<configName>/` |
@@ -202,7 +202,9 @@ assistant or the host.
 |------|----------------|
 | `Services/WorkspaceRuntimes.cs` | The live workspaces: one runtime per `Workspace`, opened, resumed, made dormant and ended; a window's switch moves it between them |
 | `Services/WorkspaceRuntimeFactory.cs` | Builds every runtime from the session's services (`RuntimeSessionServices`), its assistant from the factory it is handed |
-| `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
+| `Services/WorkspaceWindows.cs` | Which workspace each window shows: a window moved to another, a workspace deleted from under its windows (never the last), a copy of one, a window's tabs kept as its default; a workspace leaving the saved list takes its windows to the first left |
+| `Services/WorkspaceRibbon.cs` | A workspace's ribbon, shared by its windows: saved as it changes, the shipped buttons when it has none, pins, the pages a button can be added for |
+| `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`Ribbon`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
 | `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`Assistant`/`ShellServices`/`Vfs`) |
 | `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links) |
 | `Services/WorkspaceManager.cs` | The saved `Workspaces` list; `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
@@ -878,7 +880,7 @@ App.OnStartup
         FeatureScope made with it, AcquireProviderSet(pool) → register providers, mount its connections
   → new MainWindow(WindowServices, runtime)                 ← window on ONE runtime at a time
       → ShellViewModel(WindowServices, runtime)   (CurrentRuntime = runtime)
-          → ribbon binds runtime.Workspace → RibbonViewModel.SetWorkspace → Load() (shared layout)
+          → ribbon binds runtime.Workspace → RibbonViewModel.SetWorkspace → workspace.Ribbon.Entries (shared layout)
           → OpenWorkspaceTabs()   ← the session it left when resumed from dormancy, its startup tabs otherwise
   → win.Show(); its first frame → ShellHost.FirstWindowDrawn (models load ahead); ShellHost.StartBackground (warm-up)
   → a throw from the session's start or the first window ends the launch (StartupFailure): recorded in the crash
@@ -966,11 +968,12 @@ User selects file in file browser → clicks action button
 
 ```
 Save:  RibbonItems changes → CollectionChanged → RibbonViewModel.Save()
-         → workspace.RibbonService.Save(items) → workspace.RaiseRibbonChanged()
-         → every other window/runtime on this workspace reloads its items live
+         → workspace.Ribbon.Save(entries, by: this) → Changed(by)
+         → every other window/runtime on this workspace takes it up live; emptied, the shipped
+           buttons come back and every window takes them up (Changed(null)), as it does a pin
          (a closing window unhooks via RibbonViewModel.Detach — the Workspace outlives its windows)
 
-Load:  workspace bound → RibbonViewModel.SetWorkspace → workspace.RibbonService.Load()
+Load:  workspace bound → RibbonViewModel.SetWorkspace → workspace.Ribbon.Entries
          items are pure metadata (PageKind + params); they open via the window's
          OpenRibbonItem command — no per-window delegate reattachment needed.
          Bundled defaults: Ribbon/default-ribbon.json via RibbonLayoutService.LoadDefaults

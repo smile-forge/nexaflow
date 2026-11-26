@@ -578,8 +578,6 @@
   "Shell.AiBar.Spell.IgnoreAll": "Tout ignorer",
   "Shell.Text.Cut": "Couper",
   "Shell.Text.Paste": "Coller",
-  "Shell.AiBar.Search.Unsupported": "Cette page ne prend pas en charge la recherche.",
-  "Shell.AiBar.Search.Nothing": "Rien à rechercher.",
   "Shell.AiResponse.Considering": "Réflexion",
   "Shell.AiResponse.Working": "Exécution",
   "Shell.AiResponse.DeclinedFormat": "Refusé — {0} est consulté",

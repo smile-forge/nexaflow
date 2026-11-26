@@ -19,6 +19,7 @@ namespace Nexaflow.Session.Services;
 /// add, rename and delete them.</param>
 /// <param name="Updates">Where this build stands against its newest release, which the window's About page shows.</param>
 /// <param name="Logging">The process's logs: what the window logs to, and the session's log the window's Options turns on and off.</param>
+/// <param name="WorkspaceWindows">Which workspace each window shows: the window moves to another, and copies and deletes them.</param>
 public sealed record WindowServices(
     ConfigManager Config,
     ShellConfig Shell,
@@ -32,4 +33,5 @@ public sealed record WindowServices(
     ProviderManager Providers,
     WorkspaceManager SavedWorkspaces,
     AppUpdates Updates,
-    ShellLogging Logging);
+    ShellLogging Logging,
+    WorkspaceWindows WorkspaceWindows);

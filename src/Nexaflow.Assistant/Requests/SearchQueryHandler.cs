@@ -1,11 +1,8 @@
-using System.Threading;
-using System.Threading.Tasks;
-using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
 using Nexaflow.Localization;
 
-namespace Nexaflow.Core.Services;
+namespace Nexaflow.Assistant.Requests;
 
 /// <summary>
 /// The shell's one search route: <c>?</c> searches whatever the active page is, provided that page

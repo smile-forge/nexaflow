@@ -263,15 +263,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     partial void OnCurrentRuntimeChanged(WorkspaceRuntime value) => WorkspaceTasks.Refresh();
 
-    /// <summary>This window's workspace was removed (in the Options panel, or by another window): it shows the first left.</summary>
-    private void OnWorkspacesRefreshed(object? sender, EventArgs e)
-    {
-        if (CurrentRuntime is null || _session.SavedWorkspaces.Workspaces.Contains(CurrentRuntime.Workspace)) return;
-        var fallback = _session.SavedWorkspaces.Workspaces.FirstOrDefault();
-        if (fallback is not null)
-            _ui.Invoke(() => MoveToWorkspace(fallback));
-    }
-
     /// <summary>The workspace's assistant may now hold a spoken conversation or not, or its own models came into or went out of reach:
     /// the mic and the AI's line follow it.</summary>
     private void OnAssistantReadinessChanged(object? sender, EventArgs e) => _ui.InvokeAsync(() =>
@@ -372,17 +363,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private readonly Queue<NotificationItem> _toastQueue = new();
     private CancellationTokenSource? _toastDismissCts;
 
-    /// <summary>Default time a toast stays up, by severity (overridden by NotificationItem.ToastDuration).</summary>
-    private static TimeSpan DefaultToastDuration(NotificationItem m) => m.Severity switch
-    {
-        // Messages with actions (Update, Retry) stay up long enough to act on.
-        _ when m.HasActions          => TimeSpan.FromMinutes(5),
-        MessageSeverity.Update       => TimeSpan.FromMinutes(5),
-        MessageSeverity.Error        => TimeSpan.FromSeconds(8),
-        MessageSeverity.Warning      => TimeSpan.FromSeconds(8),
-        _                            => TimeSpan.FromSeconds(6),
-    };
-
     /// <summary>Queues a message as a toast; shows it immediately if nothing is currently displayed.</summary>
     private void ShowToast(NotificationItem message)
     {
@@ -409,7 +389,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         try
         {
-            await Task.Delay(message.ToastDuration ?? DefaultToastDuration(message), token);
+            await Task.Delay(message.ToastLifetime, token);
             await _ui.InvokeAsync(() => { if (ActiveToast == message) ToastFading = true; });
             await Task.Delay(ToastFadeMs, token);
         }
@@ -477,7 +457,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         var vm = new OptionsViewModel(_session.Config, ConfigPageModels.Drawn(_views.Registry, _session), _session.Features, _runtimes, _shellServices);
         vm.SaveError           += ShowErrorToast;
-        vm.TabRefreshRequested += RefreshTabs;
+        
         vm.SaveCompleted       += () =>
         {
             OptionsOpen = false;
@@ -517,24 +497,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         Overlays.OptionsPanel = _optionsPanel;
     }
 
-    /// <summary>
-    /// Closes matching tabs (by PageKind) and immediately reopens them so they pick
-    /// up updated config.  Called by the Options panel after a settings save.
-    /// </summary>
-    public void RefreshTabs(IEnumerable<string> pageKinds)
-    {
-        var kinds = pageKinds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var toRefresh = Tabs.Where(t => kinds.Contains(t.PageKind ?? string.Empty)).ToList();
-        foreach (var tab in toRefresh)
-        {
-            var pageKind   = tab.PageKind;
-            var pageParams = tab.PageParams;
-            _shellServices.CloseTab(tab);
-            if (!string.IsNullOrEmpty(pageKind))
-                _shellServices.OpenTab(pageKind, pageParams);
-        }
-    }
-
     // ── Workspaces / workspace ──────────────────────────────────────────────
     [ObservableProperty, NotifyPropertyChangedFor(nameof(BreadcrumbDisplayFilters))] private WorkspaceRuntime _currentRuntime = null!;
 
@@ -563,23 +525,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// workspace's other windows stay as they are, and when this was the last of them the workspace records its session and turns
     /// dormant. The window then shows the workspace it joined: the session it left, when it was dormant; its startup tabs otherwise.
     /// </summary>
-    private void MoveToWorkspace(Workspace workspace)
-    {
-        var from = CurrentRuntime;
-        var to   = _runtimes.Open(workspace);
-        if (ReferenceEquals(from, to)) return;
-
-        to.ShellServices.RegisterWindow(this);
-        from.ShellServices.UnregisterWindow(this);
-
-        // Leaving closed the tabs; the panes that showed them go too, so the window starts over on one empty pane, as a new
-        // window does, for the workspace it joined to fill.
-        WireRootPane();
-        AttachRuntime(from, to);
-
-        to.ShellServices.SetFocused(this);
-        to.ShellServices.OpenWorkspaceTabs();
-    }
+    private void MoveToWorkspace(Workspace workspace) => _session.WorkspaceWindows.Move(this, CurrentRuntime, workspace);
 
     /// <summary>This window now shows <paramref name="to"/>: what it follows of a runtime — its providers, for the mic and the
     /// AI's line — it follows there.</summary>
@@ -590,6 +536,14 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         to.AiService.ReadinessChanged += OnAssistantReadinessChanged;
         RecomputeVoiceAvailable();
         RecomputeLocalAiNotice();
+    }
+
+    /// <summary>The window moved to <paramref name="to"/>: leaving closed its tabs, so the panes that showed them go too, and the
+    /// window starts over on one empty pane, as a new window does, for the workspace it joined to fill.</summary>
+    void IWindowHost.Rejoin(WorkspaceRuntime from, WorkspaceRuntime to)
+    {
+        WireRootPane();
+        AttachRuntime(from, to);
     }
 
     // ── Options overlay ───────────────────────────────────────────────────
@@ -828,7 +782,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         _help = new HelpPaneController(this);   // before the panes exist: their first page change already asks it
         WireRootPane();
 
-        _session.SavedWorkspaces.WorkspacesRefreshed += OnWorkspacesRefreshed;
+        
 
         // ── Voice input availability + the AI's line ─────────────────────────
         // The mic follows the workspace's Speech In chain: a model assigned, downloaded, or taken away. What the
@@ -858,14 +812,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         RecomputeVoiceAvailable();
         RecomputeLocalAiNotice();
 
-        // ── Shared inbox: keep this window's unread badge + toasts in sync ──
-        // The store is shared across windows, but UnreadCount is derived, so recompute on both
-        // collection changes AND per-item IsRead changes (marking read in one window is a property
-        // mutation that ObservableCollection doesn't surface) — otherwise other windows' badges go stale.
-        Notifications.CollectionChanged += OnInboxChanged;
-        foreach (var m in Notifications) m.PropertyChanged += OnMessageItemChanged;
+        // ── Shared inbox: this window's unread badge, and the toasts it claims ──
+        _inbox.UnreadChanged += OnUnreadChanged;
         _inbox.MessagePosted += OnMessagePosted;
-        RecomputeUnread();
+        UnreadCount = _inbox.UnreadCount;
     }
 
     /// <summary>Detaches shared-store handlers so a closed window's view-model can be collected.</summary>
@@ -873,15 +823,13 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         _inbox.MessagePosted -= OnMessagePosted;
 
-        // The workspace list, the runtime and the AI host outlive their windows: unhook them, or a closed window stays rooted and keeps
-        // switching the runtime other windows show. A window that closes while listening stops listening.
-        _session.SavedWorkspaces.WorkspacesRefreshed -= OnWorkspacesRefreshed;
+        // The runtime and the AI host outlive their windows: unhook them, or a closed window stays rooted. A window that closes while
+        // listening stops listening.
         CurrentRuntime.AiService.ReadinessChanged -= OnAssistantReadinessChanged;
         _ = Voice.StopAsync();
         _preview.Dispose();
 
-        Notifications.CollectionChanged -= OnInboxChanged;
-        foreach (var m in Notifications) m.PropertyChanged -= OnMessageItemChanged;
+        _inbox.UnreadChanged -= OnUnreadChanged;
 
         // The Workspace outlives its windows — unhook its RibbonChanged or this window's ribbon
         // view-model stays rooted (and dead-reloads on every ribbon edit in surviving windows).
@@ -889,41 +837,18 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         Ribbon = null;
     }
 
-    private void OnInboxChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-    {
-        if (e.OldItems is not null)
-            foreach (NotificationItem m in e.OldItems) m.PropertyChanged -= OnMessageItemChanged;
-        if (e.NewItems is not null)
-            foreach (NotificationItem m in e.NewItems) m.PropertyChanged += OnMessageItemChanged;
-        RecomputeUnread();
-    }
-
-    private void OnMessageItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(NotificationItem.IsRead)) RecomputeUnread();
-    }
-
     private void OnMessagePosted(object? sender, NotificationItem message)
     {
-        // Only the focused window pops the toast; unfocused windows leave it pending until they
-        // gain focus (DrainPendingToasts). The shared ShownAsToast flag prevents double-toasting.
-        if (_isFocused && message.ShowToast && !message.ShownAsToast)
-        {
-            message.ShownAsToast = true;
-            ShowToast(message);
-        }
+        // Only the focused window pops the toast; unfocused windows leave it pending until they gain focus (DrainPendingToasts).
+        if (_isFocused && _inbox.ClaimToast(message)) ShowToast(message);
     }
 
     private void DrainPendingToasts()
     {
-        foreach (var m in _inbox.PendingToasts.ToList())
-        {
-            m.ShownAsToast = true;
-            ShowToast(m);
-        }
+        foreach (var message in _inbox.ClaimPendingToasts()) ShowToast(message);
     }
 
-    private void RecomputeUnread() => UnreadCount = Notifications.Count(n => !n.IsRead);
+    private void OnUnreadChanged(object? sender, EventArgs e) => UnreadCount = _inbox.UnreadCount;
 
     private void RecomputeVoiceAvailable()
     {
@@ -1151,11 +1076,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     private void ToggleNotifications()
     {
         NotificationsOpen = !NotificationsOpen;
-        if (NotificationsOpen)
-        {
-            foreach (var n in Notifications) n.IsRead = true;
-            UnreadCount = 0;
-        }
+        if (NotificationsOpen) _inbox.MarkAllRead();
     }
 
     [RelayCommand]
@@ -1261,11 +1182,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (CurrentRuntime?.Workspace is not { } source) return;
 
-        var mgr   = _session.SavedWorkspaces;
-        var clone = mgr.CloneWorkspace(source, mgr.UniqueWorkspaceName($"{source.Name} copy"));
-        mgr.SaveWorkspaces();        // persist the new workspace in the dropdown list immediately
-
-        ConfigureWorkspace(clone);   // open Configure on its identity page
+        ConfigureWorkspace(_session.WorkspaceWindows.CopyOf(source));   // open Configure on its identity page
     }
 
     /// <summary>
@@ -1279,14 +1196,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     {
         if (CurrentRuntime?.Workspace is not { } workspace) return;
 
-        var tabs = CaptureLayout();
-        workspace.DefaultTabs = tabs;
-        _session.SavedWorkspaces.SaveWorkspaces();
-
+        var count = _session.WorkspaceWindows.UseAsDefaultTabs(workspace, this);
         ShowInfoToast(Str.Get("Shell.Workspace.DefaultTabs.Set"),
-        tabs.Count == 0 ? Str.Get("Shell.Workspace.DefaultTabs.SavedNone")
-        : tabs.Count == 1 ? Str.Get("Shell.Workspace.DefaultTabs.SavedOne")
-        : Str.Format("Shell.Workspace.DefaultTabs.SavedFormat", tabs.Count));
+        count == 0 ? Str.Get("Shell.Workspace.DefaultTabs.SavedNone")
+        : count == 1 ? Str.Get("Shell.Workspace.DefaultTabs.SavedOne")
+        : Str.Format("Shell.Workspace.DefaultTabs.SavedFormat", count));
     }
 
     /// <summary>Snapshots the current tabs grouped by pane (index 0 = left/primary, 1 = the right split),
@@ -1326,8 +1240,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// </summary>
     public void RequestDeleteWorkspace(Workspace workspace)
     {
-        var mgr = _session.SavedWorkspaces;
-        if (mgr.Workspaces.Count <= 1) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
+        if (!_session.WorkspaceWindows.CanDelete(workspace)) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
 
         var liveWs = _runtimes.Find(workspace);
 
@@ -1337,27 +1250,12 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         ? Str.Format("Shell.Workspace.Delete.AskOpenFormat", workspace.Name)
         : Str.Format("Shell.Workspace.Delete.AskFormat", workspace.Name);
 
-        ShowConfirmation(Str.Get("Shell.Workspace.DeleteZone.Title"), message, onConfirm: () => DeleteWorkspace(workspace, liveWs));
+        ShowConfirmation(Str.Get("Shell.Workspace.DeleteZone.Title"), message, onConfirm: () => DeleteWorkspace(workspace));
     }
 
-    private void DeleteWorkspace(Workspace workspace, WorkspaceRuntime? liveWs)
+    private void DeleteWorkspace(Workspace workspace)
     {
-        var mgr = _session.SavedWorkspaces;
-
-        if (ReferenceEquals(liveWs, CurrentRuntime))
-        {
-            // The active workspace: move this window onto a surviving workspace BEFORE the delete, so the app is never left
-            // window-less (closing the last window shuts it down) and the list-refresh that follows finds this window already on a
-            // workspace that still exists.
-            var fallback = mgr.Workspaces.FirstOrDefault(w => !ReferenceEquals(w, workspace));
-            if (fallback is null) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
-
-            MoveToWorkspace(fallback);
-        }
-
-        // Its runtime ends now — any other window still showing it closes — rather than staying dormant for a workspace that is gone.
-        _runtimes.Close(workspace);
-        mgr.DeleteWorkspace(workspace);
+        if (!_session.WorkspaceWindows.Delete(workspace, this)) { ShowErrorToast(Str.Get("Shell.Workspace.LastOne")); return; }
         WorkspaceConfigOpen = false;
     }
 

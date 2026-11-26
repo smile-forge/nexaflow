@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Nexaflow.Features.Common;
-
-namespace Nexaflow.Core.ViewModels;
+namespace Nexaflow.Assistant.Requests;
 
 /// <summary>The resolved quick-open for the current input: which target Enter opens, and the ghost-text
 /// remainder to show after the caret (null when there's nothing to complete).</summary>
@@ -14,7 +9,7 @@ public sealed record QuickOpenResult(QuickOpenTarget Target, string? Completion)
 /// by the router before it gets here, so <paramref name="prefixed"/> distinguishes the two modes: when true
 /// (the user typed "/"), prefix-match by name and offer a completion; when false (a bare input), engage only
 /// on an <em>exact</em> full-name match, so a page name opens on Enter without hijacking a normal AI question.
-/// Pure and testable; the <c>PageQuickOpenHandler</c> supplies the candidate set and performs the open.
+/// Pure and testable; the <see cref="PageQuickOpenHandler"/> supplies the candidate set and performs the open.
 /// </summary>
 public static class QuickOpen
 {

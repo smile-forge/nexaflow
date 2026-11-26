@@ -173,6 +173,9 @@ public sealed class ShellServices : IShellServices, IDisposable
 
     public bool HasWindows => _windows.Count > 0;
 
+    /// <summary>The windows showing this runtime.</summary>
+    public IReadOnlyList<IWindowHost> Windows => _windows;
+
     /// <summary>The focused window, or the first open one (null when window-less).</summary>
     internal IWindowHost? FocusedWindow => _focused ?? _windows.FirstOrDefault();
 
@@ -499,6 +502,19 @@ public sealed class ShellServices : IShellServices, IDisposable
         _tabToWindow.Remove(tab);
         host.RemoveTab(tab);
         DisposePage(tab);
+    }
+
+    /// <summary>Closes each tab of <paramref name="pageKinds"/> and opens it again, fresh, in the window it was in: how a change to
+    /// the settings its page is built from reaches a page already open.</summary>
+    public void ReopenTabsOf(IReadOnlySet<string> pageKinds)
+    {
+        foreach (var window in _windows.ToList())
+            foreach (var tab in window.Tabs.Where(tab => pageKinds.Contains(tab.PageKind ?? "")).ToList())
+            {
+                var (pageKind, pageParams) = (tab.PageKind!, tab.PageParams);
+                CloseTab(tab);
+                AddFreshTab(window, pageKind, pageParams);
+            }
     }
 
     /// <summary>Lets go of a closed page's view; the page has already disposed its view-model as it closed.</summary>

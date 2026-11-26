@@ -324,7 +324,7 @@ public sealed class ShellHost : IAsyncDisposable
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
                                            SavedWorkspaces.Workspaces.Contains, TimeProvider.System, logs.CreateLogger<WorkspaceRuntimes>());
         Windows = new WindowServices(Config, Shell, Activities, Workspaces, Inbox, Dependencies, Language, Features, Providers, SavedWorkspaces,
-                                     updates, options.Logging);
+        updates, options.Logging, new WorkspaceWindows(SavedWorkspaces, Workspaces, platform.Ui));
         _log.StartupMilestone("Init.Workspaces");
 
         // ── 7. Damaged config: say so, say what came back ────────────────────
@@ -410,6 +410,7 @@ public sealed class ShellHost : IAsyncDisposable
 
         _log.LogInformation("session ending");
         _draftSweeping?.Dispose();
+        Windows.WorkspaceWindows.Dispose();
         Workspaces.Dispose();
         var runtimesEnding = RuntimeFactory.EndAllAsync();
         Folders.Dispose();
