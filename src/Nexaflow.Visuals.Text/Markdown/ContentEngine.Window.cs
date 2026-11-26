@@ -426,7 +426,7 @@ public sealed partial class ContentEngine
 
     /// <summary>Where <paramref name="change"/> wrote, in the document it was made to — from its first write to the end of its last — and how far it moved what is after.</summary>
     private static (int From, int To, int By) Spanned(ContentChange change) =>
-        (change.Writes.Min(write => write.Start), change.Writes.Max(write => write.End), change.Writes.Sum(write => write.Text.Length - write.Length));
+        (change.Writes.Min(write => write.Start), change.Writes.Max(write => write.End), change.Writes.Sum(write => write.WrittenLength - write.Length));
 
     /// <summary>Stops showing content a stretch at a time, where it was.</summary>
     private void Closed()

@@ -9,12 +9,34 @@ namespace Nexaflow.Markdown.Editing;
 /// One stretch of the document written over, named in the document as it stood before the edit — by the node of the syntax tree
 /// whose characters are given a new value, or by where it starts and how long it is where no node stands for it (text typed at a
 /// caret).
+///
+/// <para>
+/// What is written is a string, or — for a long stretch kept to be written back, what an edit wrote over and taking it back writes
+/// again — a stretch of a document sharing the leaves it stands in (<see cref="Held"/>), so writing a gigabyte over costs the paths
+/// cut to it, not a string of it. Its length is known either way (<see cref="WrittenLength"/>); its characters are read only when
+/// <see cref="Text"/> is asked for.
+/// </para>
 /// </summary>
-/// <param name="Start">Where the stretch starts.</param>
-/// <param name="Length">How long it is: none, for text written between two characters.</param>
-/// <param name="Text">What is written in its place.</param>
-public readonly record struct ContentWrite(int Start, int Length, string Text)
+public readonly record struct ContentWrite
 {
+    private readonly string? _text;
+
+    /// <summary><paramref name="Text"/> written over the stretch from <paramref name="Start"/> over <paramref name="Length"/> characters.</summary>
+    public ContentWrite(int Start, int Length, string Text)
+    {
+        this.Start = Start;
+        this.Length = Length;
+        _text = Text;
+    }
+
+    /// <summary>The characters of <paramref name="held"/> written over the stretch from <paramref name="start"/> over <paramref name="length"/>, shared rather than copied.</summary>
+    public ContentWrite(int start, int length, ContentDocument held)
+    {
+        this.Start = start;
+        this.Length = length;
+        this.Held = held;
+    }
+
     /// <summary><paramref name="part"/>'s characters given <paramref name="value"/> in their place.</summary>
     public ContentWrite(ContentPart part, string value) : this(part.Start, part.Length, value) => this.Part = part;
 
@@ -26,6 +48,29 @@ public readonly record struct ContentWrite(int Start, int Length, string Text)
     public static ContentWrite Words(ContentPart part, int start, int length, string words) =>
         new(start, length, words) { Part = part, Meant = true };
 
+    /// <summary>Where the stretch starts.</summary>
+    public int Start { get; init; }
+
+    /// <summary>How long it is: none, for text written between two characters.</summary>
+    public int Length { get; init; }
+
+    /// <summary>What is written in its place — read out of <see cref="Held"/> where that holds it, which costs what it holds.</summary>
+    public string Text
+    {
+        get => _text ?? this.Held?.ToString() ?? string.Empty;
+        init
+        {
+            _text = value;
+            this.Held = null;
+        }
+    }
+
+    /// <summary>What is written in its place where it is a stretch of a document sharing that document's leaves, rather than a string — or null.</summary>
+    public ContentDocument? Held { get; private init; }
+
+    /// <summary>How many characters are written in its place, known without reading them.</summary>
+    public int WrittenLength => _text?.Length ?? this.Held?.Length ?? 0;
+
     /// <summary>The node whose characters are written over, where the edit named one.</summary>
     public ContentPart? Part { get; init; }
 
@@ -34,6 +79,11 @@ public readonly record struct ContentWrite(int Start, int Length, string Text)
 
     /// <summary>Where the stretch ends.</summary>
     public int End => this.Start + this.Length;
+
+    /// <summary>The same stretch and what is written over it, without the node it named or whether it was meant: what a version keeps of it.</summary>
+    public ContentWrite Bare() => this.Held is { } held ? new ContentWrite(this.Start, this.Length, held) : new ContentWrite(this.Start, this.Length, this.Text);
+
+    public void Deconstruct(out int Start, out int Length, out string Text) => (Start, Length, Text) = (this.Start, this.Length, this.Text);
 }
 
 /// <summary>
@@ -131,8 +181,8 @@ public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret
 
         foreach (var write in this.Writes.OrderBy(write => write.Start))
         {
-            if (write.End < offset || (write.End == offset && (write.Length > 0 || leansAfter))) moved += write.Text.Length - write.Length;
-            else if (write.Start < offset) return Math.Max(0, write.Start + (moved - offset)) + (leansAfter ? write.Text.Length : 0);
+            if (write.End < offset || (write.End == offset && (write.Length > 0 || leansAfter))) moved += write.WrittenLength - write.Length;
+            else if (write.Start < offset) return Math.Max(0, write.Start + (moved - offset)) + (leansAfter ? write.WrittenLength : 0);
             else break;
         }
 

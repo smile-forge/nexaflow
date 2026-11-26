@@ -46,7 +46,7 @@ internal abstract class ContentRope
     /// <summary>The fewest children a node is left holding when it can be joined to its neighbour instead.</summary>
     internal const int Fewest = 8;
 
-    private ContentRope(int length, int breaks, int crLfs, int height, char first, char last)
+    private ContentRope(int length, int breaks, int crLfs, int height, char first, char last, int held)
     {
         this.Length = length;
         this.Breaks = breaks;
@@ -54,6 +54,7 @@ internal abstract class ContentRope
         this.Height = height;
         this.First = first;
         this.Last = last;
+        this.HeldCharacters = held;
     }
 
     /// <summary>How many characters it holds; never none.</summary>
@@ -73,6 +74,9 @@ internal abstract class ContentRope
 
     /// <summary>Its last character.</summary>
     public char Last { get; }
+
+    /// <summary>How many of its characters are held in memory, rather than left where they stand in a file.</summary>
+    public int HeldCharacters { get; }
 
     /// <summary>Whether it holds enough to stand beside a neighbour as it is, rather than being joined to it.</summary>
     protected abstract bool Filled { get; }
@@ -133,11 +137,11 @@ internal abstract class ContentRope
     }
 
     /// <summary>
-    /// <paramref name="rope"/> with its characters from <paramref name="start"/> to <paramref name="end"/> replaced by
-    /// <paramref name="text"/> — or null where nothing is left.
+    /// <paramref name="rope"/> — or nothing — with its characters from <paramref name="start"/> to <paramref name="end"/> replaced by
+    /// <paramref name="text"/>, a tree whose leaves are taken as they are — or null where nothing is left.
     /// </summary>
-    public static ContentRope? Spliced(ContentRope rope, int start, int end, string text) =>
-        Joined(Joined(Before(rope, start), Of(text)), From(rope, end));
+    public static ContentRope? Spliced(ContentRope? rope, int start, int end, ContentRope? text) =>
+        rope is null ? text : Joined(Joined(Before(rope, start), text), From(rope, end));
 
     /// <summary>The character at <paramref name="offset"/>.</summary>
     public char this[int offset]
@@ -396,8 +400,8 @@ internal abstract class ContentRope
     /// <summary>A stretch of the document's characters, held or left where they stand.</summary>
     private abstract class Leaf : ContentRope
     {
-        protected Leaf(int length, (int Breaks, int CrLfs) counted, char first, char last)
-            : base(length, counted.Breaks, counted.CrLfs, 0, first, last) { }
+        protected Leaf(int length, (int Breaks, int CrLfs) counted, char first, char last, int held)
+            : base(length, counted.Breaks, counted.CrLfs, 0, first, last, held) { }
 
         /// <summary>Its characters — for a leaf left in a file, read from it, or from the blocks last read.</summary>
         public abstract ReadOnlyMemory<char> Chars { get; }
@@ -411,7 +415,7 @@ internal abstract class ContentRope
     /// <summary>A few thousand characters of the document, held as a string.</summary>
     private sealed class HeldLeaf : Leaf
     {
-        public HeldLeaf(string text) : base(text.Length, Counted(text), text[0], text[^1]) => this.Text = text;
+        public HeldLeaf(string text) : base(text.Length, Counted(text), text[0], text[^1], text.Length) => this.Text = text;
 
         public string Text { get; }
 
@@ -428,7 +432,7 @@ internal abstract class ContentRope
         private readonly int _start;
 
         public FileLeaf(ContentFile file, int block, int start, int length, (int Breaks, int CrLfs) counted, char first, char last)
-            : base(length, counted, first, last) => (_file, _block, _start) = (file, block, start);
+            : base(length, counted, first, last, held: 0) => (_file, _block, _start) = (file, block, start);
 
         public override ReadOnlyMemory<char> Chars => _file.Block(_block).AsMemory(_start, this.Length);
 
@@ -446,28 +450,28 @@ internal abstract class ContentRope
     {
         public Branch(ContentRope[] children) : this(children, Summed(children)) { }
 
-        private Branch(ContentRope[] children, (int Length, int Breaks, int CrLfs) summed)
-            : base(summed.Length, summed.Breaks, summed.CrLfs, children[0].Height + 1, children[0].First, children[^1].Last) =>
+        private Branch(ContentRope[] children, (int Length, int Breaks, int CrLfs, int Held) summed)
+            : base(summed.Length, summed.Breaks, summed.CrLfs, children[0].Height + 1, children[0].First, children[^1].Last, summed.Held) =>
             this.Children = children;
 
         public ContentRope[] Children { get; }
 
         protected override bool Filled => this.Children.Length >= Fewest;
 
-        private static (int Length, int Breaks, int CrLfs) Summed(ContentRope[] children)
+        private static (int Length, int Breaks, int CrLfs, int Held) Summed(ContentRope[] children)
         {
-            var (length, breaks, crLfs) = (0, 0, 0);
+            var (length, breaks, crLfs, held) = (0, 0, 0, 0);
 
             for (var at = 0; at < children.Length; at++)
             {
                 var child = children[at];
-                (length, breaks, crLfs) = (length + child.Length, breaks + child.Breaks, crLfs + child.CrLfs);
+                (length, breaks, crLfs, held) = (length + child.Length, breaks + child.Breaks, crLfs + child.CrLfs, held + child.HeldCharacters);
 
                 // A \r ending one child and a \n starting the next are one break, which the first counted on its own.
                 if (at > 0 && Paired(children[at - 1], child)) (breaks, crLfs) = (breaks - 1, crLfs + 1);
             }
 
-            return (length, breaks, crLfs);
+            return (length, breaks, crLfs, held);
         }
     }
 }

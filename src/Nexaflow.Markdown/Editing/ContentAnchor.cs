@@ -151,7 +151,7 @@ internal sealed class ContentAnchors
     /// </summary>
     private void Written(ContentWrite write)
     {
-        var by = write.Text.Length - write.Length;
+        var by = write.WrittenLength - write.Length;
         var first = this.FirstReaching(write.Start);
         if (first < 0) return;
 
@@ -181,7 +181,7 @@ internal sealed class ContentAnchors
                 }
 
                 var now = write.End == at && (write.Length > 0 || anchor.LeansAfter) ? at + by
-                        : write.Start < at ? write.Start + (anchor.LeansAfter ? write.Text.Length : 0)
+                        : write.Start < at ? write.Start + (anchor.LeansAfter ? write.WrittenLength : 0)
                         : at;
 
                 anchor.Stored = now - block.Shift;

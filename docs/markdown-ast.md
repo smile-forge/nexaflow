@@ -621,6 +621,16 @@ other writers on its first edit (`HoldForEdit`), once it is known to be what was
 Encodings whose characters can be found the start of from their bytes alone — UTF-8, UTF-16, UTF-32 and the single-byte ones
 (`ContentFile.Reads`) — are read this way; a file in any other is read whole.
 
+A long edit never becomes a string either. What a long stretch held as a rope is written over is kept to be written back as a
+stretch of the version it came from (`ContentWrite.Held`), sharing its leaves, and a stretch written that is held so goes into the
+rope as those leaves — so taking out half a file and taking it back costs the paths cut, and its length is known without reading it
+(`ContentWrite.WrittenLength`). The history counts only the characters it holds in memory (`ContentRope.HeldCharacters`). A
+document nothing has been written in takes up what another program added to its file (`EditedDocument.Grow`, told as `Grown`),
+with nothing to take back; growing at its start lets the steps go, since every offset they name has moved. Saving
+(`ContentFile.Save`) writes the whole document to a file beside the one it replaces and puts it in its place, then holds the same
+characters over the file just written (`EditedDocument.Rebase`, told as `Rebased`): a version made from the last by a change
+writing nothing, so every view, mark, anchor and step carries straight across without comparing the two.
+
 **So is a view of it.** Where the caret is, what is picked out and which lines are on the page are a `ContentEditor`, as
 plain an object as the document, which a page holds beside it and hands the surface (`NexaTextSurface.Editor`) — or the
 surface makes one of its own. The engine showing it is its view (`IContentEditorView`): what the page asks — put the caret

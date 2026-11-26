@@ -129,6 +129,9 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
     /// <summary>The rope its characters are held in, for the tests of how they are held — or null where they are one string.</summary>
     internal ContentRope? Rope => _rope;
 
+    /// <summary>How many of its characters are held in memory rather than left where they stand in a file: what keeping it costs.</summary>
+    internal int HeldCharacters => _flat?.Length ?? _rope!.HeldCharacters;
+
     /// <summary>The character at <paramref name="offset"/>.</summary>
     public char this[int offset] => _flat is { } flat ? flat[offset] : _rope![offset];
 
@@ -157,6 +160,18 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         var cut = length == from.Length ? from : ContentRope.Before(from, length)!;
 
         return new(null, cut, 0, null, null);
+    }
+
+    /// <summary>
+    /// This version's characters as <paramref name="same"/> holds them — the same characters over the file they were saved to — made from this
+    /// version by a change writing nothing, so whatever has this version carries everything it holds across without comparing the two.
+    /// </summary>
+    internal ContentDocument Restated(ContentDocument same)
+    {
+        if (same.Length != this.Length)
+            throw new ArgumentException($"{same.Length} characters are not the same characters as {this.Length}", nameof(same));
+
+        return new ContentDocument(same._flat, same._rope, this.Version, new ContentChange([], 0), new ContentChange([], 0));
     }
 
     /// <summary>The characters from <paramref name="start"/> on, as many as <paramref name="into"/> holds.</summary>
@@ -308,15 +323,17 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
 
     /// <summary>
     /// This version with <paramref name="change"/> made to it — or this version itself, where the change writes nothing different.
-    /// The change's writes are in this version's offsets and do not overlap, as every <see cref="ContentChange"/>'s are.
+    /// The change's writes are in this version's offsets and do not overlap, as every <see cref="ContentChange"/>'s are. A long stretch
+    /// written over is kept to be written back as a stretch of this version (<see cref="ContentWrite.Held"/>), sharing its leaves, and a
+    /// stretch written that is held so goes into the rope as the leaves it is — so neither way does a long edit become a string.
     /// </summary>
     public ContentDocument Apply(ContentChange change)
     {
         var writes = change.Writes.OrderBy(write => write.Start).ToList();
         var length = this.Length;
 
-        if (writes.Count == 0 || writes.All(write => write.Length == write.Text.Length && write.Start >= 0 && write.End <= length
-                                                     && this.Holds(write.Start, write.Text)))
+        if (writes.Count == 0 || writes.All(write => write.Held is null && write.Length == write.WrittenLength && write.Start >= 0
+                                                     && write.End <= length && this.Holds(write.Start, write.Text)))
             return this;
 
         var inverse = new List<ContentWrite>(writes.Count);
@@ -328,22 +345,25 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
                 throw new ArgumentException($"a write over {write.Start}..{write.End} overlaps another or runs past the {length} characters written", nameof(change));
 
             at += write.Start - from;
-            inverse.Add(new ContentWrite(at, write.Text.Length, this.Slice(write.Start, write.Length)));
-            at += write.Text.Length;
+            inverse.Add(this.Piece(at, write.WrittenLength, write.Start, write.Length));
+            at += write.WrittenLength;
             from = write.End;
         }
 
         var made = at + length - from;
-        var forward = new ContentChange([.. writes.Select(write => new ContentWrite(write.Start, write.Length, write.Text))], change.Caret);
+        var forward = new ContentChange([.. writes.Select(write => write.Bare())], change.Caret);
         var backward = new ContentChange(inverse, inverse[0].Start);
 
         // Held as it was where it stays on its side of the line it would switch at; a rope is made, or let go of, once, on the edit
-        // that crosses it.
-        if (_rope is { } rope && made >= FlatBelow)
+        // that crosses it — and made, however it was held, where a stretch written is held as one, which a string could hold only by
+        // reading all of it.
+        if (made >= FlatBelow && (_rope is not null || writes.Any(write => write.Held is { Roped: true })))
         {
+            var rope = _rope ?? ContentRope.Of(_flat!);
+
             // Written from the last back, so every write's offsets still mean what they did.
             for (var write = writes.Count - 1; write >= 0; write--)
-                rope = ContentRope.Spliced(rope, writes[write].Start, writes[write].End, writes[write].Text)!;
+                rope = ContentRope.Spliced(rope, writes[write].Start, writes[write].End, Inserted(writes[write]));
 
             return new ContentDocument(null, rope, this.Version, forward, backward);
         }
@@ -351,7 +371,19 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         if (_flat is { } flat && made < RopeFrom) return new ContentDocument(Written(flat, writes, made), null, this.Version, forward, backward);
 
         return Holding(Written(this.ToString(), writes, made), this.Version, forward, backward);
+
+        // What a write puts in a rope: the leaves of what it holds, or a tree of its string.
+        static ContentRope? Inserted(ContentWrite write) => write.Held is { Rope: { } leaves } ? leaves : ContentRope.Of(write.Text);
     }
+
+    /// <summary>
+    /// A write from <paramref name="at"/> over <paramref name="over"/> characters of whatever it is written into, of this version's characters from
+    /// <paramref name="start"/> over <paramref name="length"/>: a string, or — a long stretch of a rope — a stretch sharing its leaves.
+    /// </summary>
+    private ContentWrite Piece(int at, int over, int start, int length) =>
+        _rope is not null && length >= FlatBelow
+            ? new ContentWrite(at, over, this.Stretch(start, length))
+            : new ContentWrite(at, over, this.Slice(start, length));
 
     /// <summary>
     /// What changed from <paramref name="earlier"/> to this, both ways: the change that makes this from it, and the one that makes it
@@ -366,8 +398,8 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         var same = SameFromEnd(earlier, this, Math.Min(earlier.Length, this.Length) - start);
         var (removed, inserted) = (earlier.Length - start - same, this.Length - start - same);
 
-        return (new ContentChange([new ContentWrite(start, removed, this.Slice(start, inserted))], start + inserted),
-                new ContentChange([new ContentWrite(start, inserted, earlier.Slice(start, removed))], start + removed));
+        return (new ContentChange([this.Piece(start, removed, start, inserted)], start + inserted),
+                new ContentChange([earlier.Piece(start, inserted, start, removed)], start + removed));
     }
 
     /// <summary>
@@ -426,8 +458,9 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
             {
                 said.Text.AsSpan(from, write.Start - from).CopyTo(into[at..]);
                 at += write.Start - from;
-                write.Text.AsSpan().CopyTo(into[at..]);
-                at += write.Text.Length;
+                var text = write.Text;
+                text.AsSpan().CopyTo(into[at..]);
+                at += text.Length;
                 from = write.End;
             }
 

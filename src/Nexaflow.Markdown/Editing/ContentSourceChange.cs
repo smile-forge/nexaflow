@@ -32,7 +32,7 @@ public sealed class ContentSourceChange(EditState before, EditState after, Conte
             if (writes.Count == 0) return (this.After.Caret, 0, 0);
 
             var (start, end) = (writes.Min(write => write.Start), writes.Max(write => write.End));
-            var grown = writes.Sum(write => write.Text.Length - write.Length);
+            var grown = writes.Sum(write => write.WrittenLength - write.Length);
 
             return (start, end - start, end - start + grown);
         }
@@ -56,4 +56,13 @@ public enum ContentChangeKind
 
     /// <summary>Something else was shown in its place, whole: a file opened, a reply that grew, a note loaded. Nothing to take back.</summary>
     Loaded,
+
+    /// <summary>What another program added to the file it stands over was taken up — at its end, or its start. Nothing to take back.</summary>
+    Grown,
+
+    /// <summary>
+    /// The same characters, now held another way — over the file they were just saved to. Nothing written and nothing moved, and nothing
+    /// that could be taken back is lost.
+    /// </summary>
+    Rebased,
 }

@@ -1058,6 +1058,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentFileTests.cs",
             "class": "ContentFileTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/FileDocumentTests.cs",
+            "class": "FileDocumentTests"
           }
         ]
       }

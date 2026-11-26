@@ -282,7 +282,7 @@ public sealed partial class ContentEngine
     {
         if (_state.Raw is not { } zone || History.Begun(_last, _state) is not var (begun, written)) return null;
 
-        var (start, removed, added) = (written.Start, written.Length, written.Text.Length);
+        var (start, removed, added) = (written.Start, written.Length, written.WrittenLength);
         if (start > zone.End || start + added < zone.Start) return null;
 
         // Each end of the stretch where it stood before the step: as it is in front of what was written, moved back past it after it,
@@ -908,7 +908,7 @@ public sealed partial class ContentEngine
 
     /// <summary>An offset in the source as it stands, read in the source a set of writes makes of it.</summary>
     private static int Afterwards(IEnumerable<ContentWrite> writes, int offset) =>
-        offset + writes.Where(write => write.End <= offset).Sum(write => write.Text.Length - write.Length);
+        offset + writes.Where(write => write.End <= offset).Sum(write => write.WrittenLength - write.Length);
 
     /// <summary>
     /// The stretch a change wrote, in the source it made: from the first write to the last of them.
@@ -930,8 +930,8 @@ public sealed partial class ContentEngine
             var at = write.Start + grown;
 
             if (from < 0) from = at;
-            to = at + write.Text.Length;
-            grown += write.Text.Length - write.Length;
+            to = at + write.WrittenLength;
+            grown += write.WrittenLength - write.Length;
         }
 
         return from < 0 ? default : new EditRange(from, Math.Max(0, to - from));

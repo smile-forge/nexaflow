@@ -233,6 +233,55 @@ public sealed class ContentFile : IDisposable
         return ContentFileHold.Held;
     }
 
+    /// <summary>
+    /// Saves <paramref name="document"/> to <paramref name="path"/> in <paramref name="encoding"/>, with its mark where <paramref name="preamble"/>
+    /// says: written whole to a file beside it and put in its place, so a save that fails leaves the file as it was. The document is then held
+    /// over the file it was saved to (<see cref="EditedDocument.Rebase"/>), with everything that could be taken back kept, and that file —
+    /// opened with <paramref name="access"/>, and held against other writers where <paramref name="hold"/> says — is what comes back.
+    /// Whatever stood over the file before keeps reading the version it had until nothing holds it.
+    /// </summary>
+    public static ContentFile Save(EditedDocument document, string path, Encoding encoding, bool preamble,
+                                   ContentFileAccess access = ContentFileAccess.Editable, bool hold = true)
+    {
+        var full = System.IO.Path.GetFullPath(path);
+        var beside = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(full)!, $".{System.IO.Path.GetFileName(full)}.{Guid.NewGuid():N}.saving");
+
+        try
+        {
+            using (var stream = new FileStream(beside, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16))
+            using (var writer = new StreamWriter(stream, preamble ? encoding : Unmarked(encoding), 1 << 16))
+                document.WriteTo(writer);
+
+            if (File.Exists(full)) File.Replace(beside, full, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            else File.Move(beside, full);
+        }
+        catch
+        {
+            try { File.Delete(beside); }
+            catch (IOException) { }
+
+            throw;
+        }
+
+        var saved = Open(full, encoding, preamble ? encoding.GetPreamble().Length : 0, access);
+        saved.Scan();
+        if (hold) saved.HoldForEdit();
+
+        document.Rebase(ContentDocument.Of(saved));
+        document.MarkSaved();
+
+        return saved;
+    }
+
+    /// <summary><paramref name="encoding"/> writing no mark at the start of what it writes.</summary>
+    private static Encoding Unmarked(Encoding encoding) => encoding switch
+    {
+        UTF8Encoding => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+        UnicodeEncoding => new UnicodeEncoding(bigEndian: encoding.CodePage == 1201, byteOrderMark: false),
+        UTF32Encoding => new UTF32Encoding(bigEndian: encoding.CodePage == 12001, byteOrderMark: false),
+        _ => encoding,
+    };
+
     /// <summary>The characters of block <paramref name="block"/>: decoded once, then kept while it is among the last read.</summary>
     internal string Block(int block)
     {

@@ -75,7 +75,7 @@ public sealed class EditHistory
         if (ReferenceEquals(before.Document, after.Document)) return;
 
         var (forward, backward) = after.Document.ChangesFrom(before.Document);
-        if (forward.Writes.All(write => write.Length == 0 && write.Text.Length == 0)) return;
+        if (forward.Writes.All(write => write.Length == 0 && write.WrittenLength == 0)) return;
 
         _redo.Clear();
         if (_saved > _undo.Count) _saved = -1;
@@ -136,7 +136,7 @@ public sealed class EditHistory
                     : now.Document.MadeFrom(last.Document) ? now.Document.Change!
                     : now.Document.ChangesFrom(last.Document).Forward;
 
-        if (forward is null || forward.Writes.All(write => write.Length == 0 && write.Text.Length == 0))
+        if (forward is null || forward.Writes.All(write => write.Length == 0 && write.WrittenLength == 0))
             return open is null ? null : (last.Document.Apply(open.Backward), Spanned(open.Forward, last.Document));
 
         if (open is not null && open.After.Caret == last.Caret && Joined(open, forward, last) is { } joined)
@@ -149,13 +149,22 @@ public sealed class EditHistory
     private static ContentWrite Spanned(ContentChange change, ContentDocument after)
     {
         var (from, to) = (change.Writes.Min(write => write.Start), change.Writes.Max(write => write.End));
-        var reached = to + change.Writes.Sum(write => write.Text.Length - write.Length);
+        var reached = to + change.Writes.Sum(write => write.WrittenLength - write.Length);
 
         return new ContentWrite(from, to - from, after.Slice(from, reached - from));
     }
 
     /// <summary>Ends the step being written, so the next edit starts one of its own however near it lands.</summary>
     public void Break() => _open = null;
+
+    /// <summary>
+    /// Says that the document the history last left, <paramref name="from"/>, is now <paramref name="now"/>: the same characters held another
+    /// way, or grown past where any step writes. Every step still says what it did where it did it, so none is lost.
+    /// </summary>
+    public void Restate(ContentDocument from, ContentDocument now)
+    {
+        if (ReferenceEquals(_left, from)) _left = now;
+    }
 
     /// <summary>Says that what is written now has been saved, so <see cref="IsAtSaved"/> is true here and until something else is written.</summary>
     public void MarkSaved()
@@ -233,6 +242,9 @@ public sealed class EditHistory
     {
         var (wrote, undone, next) = (open.Forward.Writes, open.Backward.Writes, forward.Writes);
         if (wrote.Count == 0 || undone.Count != wrote.Count || next.Count != wrote.Count) return null;
+
+        // Typing joins what it typed; a stretch held as a document's leaves is a long edit of its own, never part of a run of typing.
+        if (wrote.Any(write => write.Held is not null) || undone.Any(write => write.Held is not null) || next.Any(write => write.Held is not null)) return null;
         if (!next.Any(write => before.Caret >= write.Start && before.Caret <= write.End)) return null;
 
         var written = before.Document;
@@ -283,7 +295,12 @@ public sealed class EditHistory
     /// <summary>One step: the change written and the change that takes it back, and the state either side of it without its document.</summary>
     private sealed record EditStep(ContentChange Forward, ContentChange Backward, EditPlace Before, EditPlace After)
     {
-        /// <summary>How many characters it holds, written and written over.</summary>
-        public long Held => Forward.Writes.Sum(write => (long)write.Text.Length) + Backward.Writes.Sum(write => (long)write.Text.Length);
+        /// <summary>
+        /// How many characters it holds in memory, written and written over — a stretch kept as a document's leaves counting only those
+        /// held in memory, so a long stretch of a file costs what keeping its place costs.
+        /// </summary>
+        public long Held => Forward.Writes.Sum(Kept) + Backward.Writes.Sum(Kept);
+
+        private static long Kept(ContentWrite write) => write.Held?.HeldCharacters ?? write.WrittenLength;
     }
 }

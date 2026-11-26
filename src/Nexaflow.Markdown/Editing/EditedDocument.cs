@@ -40,9 +40,14 @@ public sealed class EditedDocument : INotifyPropertyChanged
     private readonly ContentAnchors _anchors = new();
 
     /// <summary>A document holding <paramref name="text"/>, saved as it is.</summary>
-    public EditedDocument(string? text = null)
+    public EditedDocument(string? text = null) : this(ContentDocument.Of(text))
     {
-        _current = _saved = ContentDocument.Of(text);
+    }
+
+    /// <summary>A document at <paramref name="document"/> — one over a file, say (<see cref="ContentDocument.Of(ContentFile, int, int?)"/>) — saved as it is.</summary>
+    public EditedDocument(ContentDocument document)
+    {
+        _current = _saved = document;
         this.History.Changed += (_, _) => this.Restated();
     }
 
@@ -77,15 +82,56 @@ public sealed class EditedDocument : INotifyPropertyChanged
     /// Shows <paramref name="text"/> in its place, whole: a file opened, a reply that grew. Nothing written before it can be taken
     /// back, and what it holds now is what was saved.
     /// </summary>
-    public void Load(string? text)
+    public void Load(string? text) => this.Load(ContentDocument.Of(text));
+
+    /// <summary>Shows <paramref name="document"/> in its place, whole — a file opened over its blocks, say — as <see cref="Load(string?)"/> does.</summary>
+    public void Load(ContentDocument document)
     {
         var before = new EditState(_current, 0);
 
-        _current = _saved = ContentDocument.Of(text);
+        _current = _saved = document;
         this.History.Clear();
 
         this.Told(before, new EditState(_current, 0), ContentChangeKind.Loaded);
         this.Restated();
+    }
+
+    /// <summary>
+    /// Takes up <paramref name="more"/> — what another program added to the file it stands over — at its end, or at its start where
+    /// <paramref name="atStart"/> says: a log growing as it is read, the head of one read after its tail was shown. Nothing to take back
+    /// and nothing to save; whatever shows it carries the caret through it. Growing at the start moves every offset a step was written at,
+    /// so the steps are let go; growing at the end moves none. Only a document nothing has been written in grows, since what was added on
+    /// disk would otherwise be written over by a save.
+    /// </summary>
+    public void Grow(ContentDocument more, bool atStart = false)
+    {
+        if (more.Length == 0) return;
+        if (_dirty) throw new InvalidOperationException("a document written in does not grow: saving it would write over what was added on disk");
+
+        var before = new EditState(_current, 0);
+        var after = before.Made(new ContentChange([new ContentWrite(atStart ? 0 : _current.Length, 0, more)], 0));
+
+        if (atStart) this.History.Clear();
+        else this.History.Restate(_current, after.Document);
+
+        _current = _saved = after.Document;
+        this.Told(before, after, ContentChangeKind.Grown);
+    }
+
+    /// <summary>
+    /// Holds the same characters as <paramref name="same"/> holds them — over the file they were just saved to, so the file it stood over can
+    /// be let go of — with nothing written, nothing moved and nothing that could be taken back lost.
+    /// </summary>
+    public void Rebase(ContentDocument same)
+    {
+        var before = new EditState(_current, 0);
+        var restated = _current.Restated(same);
+
+        this.History.Restate(_current, restated);
+        if (ReferenceEquals(_saved, _current)) _saved = restated;
+        _current = restated;
+
+        this.Told(before, new EditState(restated, 0), ContentChangeKind.Rebased);
     }
 
     /// <summary>
