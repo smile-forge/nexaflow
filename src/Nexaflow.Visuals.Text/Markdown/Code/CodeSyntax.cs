@@ -22,8 +22,9 @@ namespace Nexaflow.Visuals.Text.Markdown.Code;
 /// copied with every edit since applied to the copy, so tree-sitter reads again only what the edits reached (<see cref="Find"/>).
 /// </para>
 /// <para>
-/// <strong>A long reading is parsed again once typing pauses.</strong> Handing tree-sitter the reading's characters is one string per
-/// parse, so a reading past <see cref="PausedFrom"/> waits <see cref="Pause"/> and is not parsed where a later version has been made
+/// <strong>A long reading is parsed again once typing pauses.</strong> Tree-sitter reads the version a stretch at a time, straight from the
+/// leaves it is held in (<see cref="ReadingText"/>), and still reads all of it; so a reading past <see cref="PausedFrom"/> waits
+/// <see cref="Pause"/> and is not parsed where a later version has been made
 /// meanwhile. Until a stretch's colours land, what it was last found coloured as is moved along by every change since, the stretches a
 /// change wrote over left uncoloured (<see cref="Known"/>).
 /// </para>
@@ -172,7 +173,8 @@ internal sealed class CodeSyntax : IReadingSyntax
             {
                 var old = parsed is { } from && this.Edits(from.Version, syntax.Version) is { } edits ? Edited(from.Tree, edits) : null;
 
-                if (reader.Parse(syntax.Characters.Slice(0, syntax.Characters.Length), old) is not { } made)
+                // Handed to tree-sitter a stretch at a time from the version itself: a reading is never copied into one string to be parsed.
+                if (reader.Parse(new ReadingText(syntax.Characters), old) is not { } made)
                 {
                     old?.Dispose();
                     return null;
@@ -195,11 +197,11 @@ internal sealed class CodeSyntax : IReadingSyntax
                 tree = made;
 
                 // What folds in it is read now, on this pass, from the tree just made — never on the thread that lays content out.
-                var folds = syntax.Characters.Length <= FoldsUpTo ? reader.FoldsIn(made, made.Source) : [];
+                var folds = syntax.Characters.Length <= FoldsUpTo ? reader.FoldsIn(made) : [];
                 lock (_gate) _folds = (syntax.Version, folds);
             }
 
-            var spans = reader.Highlight(tree, tree.Source, start, end);
+            var spans = reader.Highlight(tree, start, end);
 
             lock (_gate)
             {
@@ -359,6 +361,25 @@ internal sealed class CodeSyntax : IReadingSyntax
 
             return offset;
         }
+    }
+
+    /// <summary>
+    /// A version of a reading's characters as tree-sitter reads them, a stretch at a time — the stretches a rope holds them in, never all of
+    /// them as one string; and what a tree parsed from it reads its nodes' text from.
+    /// </summary>
+    private sealed class ReadingText(IContentCharacters characters) : TextSource
+    {
+        public override int Length => characters.Length;
+
+        public override int Read(int start, char[] buffer, int count)
+        {
+            var copied = Math.Max(0, Math.Min(count, characters.Length - start));
+            if (copied > 0) characters.CopyTo(start, buffer.AsSpan(0, copied));
+
+            return copied;
+        }
+
+        public override string GetText(int startIndex, int endIndex) => characters.Slice(startIndex, endIndex - startIndex);
     }
 }
 

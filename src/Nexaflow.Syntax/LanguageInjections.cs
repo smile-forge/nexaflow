@@ -46,13 +46,19 @@ public static class LanguageInjections
 
     /// <summary>The embedded regions in <paramref name="root"/> for an <paramref name="outerGrammarId"/> file.
     /// <paramref name="text"/> is the full source (used by text-scan arms; node-walk arms ignore it).</summary>
-    public static IReadOnlyList<InjectionRange> Find(string outerGrammarId, Node root, string text) => outerGrammarId switch
+    public static IReadOnlyList<InjectionRange> Find(string outerGrammarId, Node root, string text) => Find(outerGrammarId, root, TextSource.Of(text));
+
+    /// <summary>
+    /// The same, the source read only by the arms that scan it — every other walks the tree, so a long document held in pieces is never
+    /// made one string to say what is embedded in it.
+    /// </summary>
+    public static IReadOnlyList<InjectionRange> Find(string outerGrammarId, Node root, TextSource text) => outerGrammarId switch
     {
         "html"                      => FindHtml(root),
         "ruby"                      => FindRubyHeredocs(root),
         "embedded-template"         => FindErb(root),
         "php"                       => FindPhp(root),
-        "jinja"                     => FindJinja(root, text),
+        "jinja"                     => FindJinja(root, text.GetText(0, text.Length)),
         "javascript" or "typescript" => FindTaggedTemplates(root),
         _                           => [],
     };

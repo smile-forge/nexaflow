@@ -819,10 +819,100 @@
           "method": "FoldedAfter"
         }
       ]
+    },
+    "content-search": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentSearch.cs",
+          "class": "ContentSearch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
+          "class": "NexaTextSurface",
+          "method": "Refound"
+        }
+      ]
+    },
+    "content-text-automation": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurfaceAutomationPeer.cs",
+          "class": "NexaTextSurfaceAutomationPeer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurfaceAutomationPeer.cs",
+          "class": "SurfaceTextRange"
+        }
+      ]
+    },
+    "md-code-highlighting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSpans.cs",
+          "class": "CodeSpans"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeGrammars.cs",
+          "class": "CodeGrammars"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Code/CodeKinds.cs",
+          "class": "CodeKinds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/CodeLines.cs",
+          "class": "CodeLines"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeParser.cs",
+          "class": "CodeParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Fenced"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSyntax.cs",
+          "class": "CodeSyntax"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/CodeHighlights.cs",
+          "class": "CodeHighlights"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Slow.cs",
+          "class": "ContentEngine",
+          "method": "Later"
+        },
+        {
+          "type": "code",
+          "doc": "external/tree-sitter-dotnet-bindings/src/TextSource.cs",
+          "class": "TextSource"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 35,
+  "changed_sets": 38,
   "touched_nodes": [
     "barcode-editing",
     "code-folding",
@@ -830,6 +920,8 @@
     "content-line-setting",
     "content-margins",
     "content-marks",
+    "content-search",
+    "content-text-automation",
     "executable-dependency-viewport",
     "markdown-block-model",
     "markdown-block-picture",
@@ -851,6 +943,7 @@
     "markdown-split",
     "markdown-surface",
     "markdown-zoom",
+    "md-code-highlighting",
     "md-image-resolver",
     "md-link-decorator",
     "solver-latex-fence",

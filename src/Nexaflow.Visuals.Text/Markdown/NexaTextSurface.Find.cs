@@ -6,6 +6,8 @@ using System.Windows.Threading;
 
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout.Lines;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
@@ -42,12 +44,18 @@ public sealed partial class NexaTextSurface
 
     /// <summary>
     /// The same, for a question more complicated than a word — what a search box worked out — going to the first place at or
-    /// after <paramref name="from"/> in the source, and round to the first where none is.
+    /// after <paramref name="from"/> in the source, and round to the first where none is. Content laid line by line — code, text — is
+    /// searched a line at a time, and after an edit only on the lines it touched (<see cref="ContentSearch"/>).
     /// </summary>
     public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences, int from = 0) =>
-        Looked(() => _engine.ReadsAsDrawn
-            ? _engine.DrawnWords.Every(occurrences)
-            : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences), from);
+        Lined && occurrences is { } inLines
+            ? Looked(() => ContentSearch.Lines(_engine.State.Document, inLines), from, inLines)
+            : Looked(() => _engine.ReadsAsDrawn
+                ? _engine.DrawnWords.Every(occurrences)
+                : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences), from);
+
+    /// <summary>Whether the content is laid line by line — code, or text shown as typed — where a search reads it a line at a time.</summary>
+    private bool Lined => ContentEngine.Language(Named).Builder.IsSubclassOf(typeof(LinedBuilder));
 
     /// <summary>
     /// Shows every place <paramref name="matcher"/> finds and goes to the first, handing back what was found so the host
@@ -66,10 +74,12 @@ public sealed partial class NexaTextSurface
         return [.. Enumerable.Range(0, Found.Count).Select(at => new RenderedMatch(at, Preview(at)))];
     }
 
-    private int Looked(Func<IReadOnlyList<(int Start, int Length)>> looking, int from = 0)
+    private int Looked(Func<IReadOnlyList<(int Start, int Length)>> looking, int from = 0,
+                       Func<string, IReadOnlyList<(int Index, int Length)>>? inLines = null)
     {
         _lookedFor = looking;
-        _foundIn = _shown.Markdown;
+        _lookedInLines = inLines;
+        _foundIn = _engine.State.Document;
 
         Found = looking();
         At = -1;
@@ -87,26 +97,30 @@ public sealed partial class NexaTextSurface
     /// </summary>
     private Func<IReadOnlyList<(int Start, int Length)>>? _lookedFor;
 
-    /// <summary>The document as it read when <see cref="Found"/> was found in it.</summary>
-    private string _foundIn = string.Empty;
+    /// <summary>The version of the document <see cref="Found"/> was found in.</summary>
+    private ContentDocument? _foundIn;
+
+    /// <summary>What was looked for a line at a time, for content laid line by line — found again after an edit only where it wrote.</summary>
+    private Func<string, IReadOnlyList<(int Index, int Length)>>? _lookedInLines;
 
     /// <summary>
     /// What was found, found again in the document as it now reads — written in here, written in somewhere else, taken back — with
     /// the one being looked at kept to where its place went. Nothing is scrolled to or picked out: the reader is writing, not
     /// looking. Done before the page says it was laid out (<see cref="PreRender"/>), so whoever reads what was found then reads it
-    /// as it is.
+    /// as it is; and only where the document is another version than the one searched, so laying out again to scroll costs nothing.
     /// </summary>
     private void Refound()
     {
-        if (_lookedFor is not { } looking) return;
+        if (_lookedFor is not { } looking || _foundIn is not { } before) return;
 
-        var now = _shown.Markdown;
-        if (ReferenceEquals(_foundIn, now) || string.Equals(_foundIn, now, StringComparison.Ordinal)) return;
+        var now = _engine.State.Document;
+        if (ReferenceEquals(before, now)) return;
 
-        var was = At >= 0 ? SourceDifference.Between(_foundIn, now).Moved(Found[At].Start) : 0;
+        var change = ContentDocument.Between(before, now);
+        var was = At < 0 ? 0 : change?.Carried(Found[At].Start) ?? Found[At].Start;
 
         _foundIn = now;
-        Found = looking();
+        Found = _lookedInLines is { } inLines ? ContentSearch.Again(before, now, Found, inLines) : looking();
         At = Found.Count == 0 ? -1 : FirstAtOrAfter(was);
 
         Washed();

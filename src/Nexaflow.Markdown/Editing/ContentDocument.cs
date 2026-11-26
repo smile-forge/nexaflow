@@ -351,6 +351,17 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
                 new ContentChange([new ContentWrite(start, inserted, earlier.Slice(start, removed))], start + removed));
     }
 
+    /// <summary>
+    /// The change that makes <paramref name="after"/> from <paramref name="before"/> where one version is known to be made from the other — the
+    /// change it was made by, or for a step taken back, the one that undoes what made <paramref name="before"/> — nothing written for the same
+    /// version; and null where neither says, so whoever asks decides whether comparing the two is worth what it costs.
+    /// </summary>
+    public static ContentChange? Between(ContentDocument before, ContentDocument after) =>
+        ReferenceEquals(before, after) ? new ContentChange([], 0)
+        : after.MadeFrom(before) ? after.Change
+        : before.MadeFrom(after) ? before.Inverse
+        : null;
+
     /// <summary>Writes the characters to <paramref name="writer"/> a stretch at a time, without a copy of all of them being made.</summary>
     public void WriteTo(TextWriter writer)
     {
@@ -367,7 +378,7 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         if (ReferenceEquals(this, other)) return true;
         if (_flat is { } flat && other._flat is { } theirs) return string.Equals(flat, theirs, StringComparison.Ordinal);
 
-        return this.Length == other.Length && SameFromStart(this, other) == this.Length;
+        return this.Length == other.Length && SameCharacters(this, other);
     }
 
     public override bool Equals(object? obj) => this.Equals(obj as ContentDocument);
@@ -470,6 +481,31 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         }
 
         return shortest;
+    }
+
+    /// <summary>
+    /// Whether two versions as long as each other hold the same characters: read a stretch at a time in step, a stretch both hold in the very
+    /// same leaf — what a version shares with the one it was made from, which after an edit is nearly all of it — known the same by where it
+    /// is held, and only the rest compared character by character.
+    /// </summary>
+    private static bool SameCharacters(ContentDocument left, ContentDocument right)
+    {
+        using var ours = left.Chunks().GetEnumerator();
+        using var theirs = right.Chunks().GetEnumerator();
+        var (mine, yours) = (ReadOnlyMemory<char>.Empty, ReadOnlyMemory<char>.Empty);
+
+        while (true)
+        {
+            while (mine.IsEmpty && ours.MoveNext()) mine = ours.Current;
+            while (yours.IsEmpty && theirs.MoveNext()) yours = theirs.Current;
+            if (mine.IsEmpty || yours.IsEmpty) return mine.IsEmpty && yours.IsEmpty;
+
+            var taken = Math.Min(mine.Length, yours.Length);
+            var (here, there) = (mine[..taken], yours[..taken]);
+            if (!here.Equals(there) && !here.Span.SequenceEqual(there.Span)) return false;
+
+            (mine, yours) = (mine[taken..], yours[taken..]);
+        }
     }
 
     /// <summary>How many characters <paramref name="left"/> and <paramref name="right"/> end with alike, looking back no further than <paramref name="most"/>.</summary>

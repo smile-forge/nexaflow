@@ -82,7 +82,7 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | `upstream` (original) | `https://github.com/mariusgreuel/tree-sitter-dotnet-bindings.git` |
 | **Upstream default branch** | **`main`** |
 | Tracked integration branch | `nexaflow` |
-| In-flight feature branches | *(none — see the note on upstream being dormant)* |
+| In-flight feature branches | `feat/parse-from-reader` — a document held as anything but one string had to be copied into one for every parse, and every tree kept it; `Parser.Parse(TextSource, Tree?)` reads the source a stretch at a time through `ts_parser_parse`, and a tree parsed so reads its nodes' text through it (`Tree.Text`); branched off `nexaflow` (see the note on upstream being dormant) |
 | Nexaflow consumer project | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` |
 | Wired project(s) | `external/tree-sitter-dotnet-bindings/src/TreeSitter.csproj` (the managed bindings; **replaced the `TreeSitter.DotNet` PackageReference**). The natives are **not** built by that project — see below. |
 | Do **NOT** reference | `tests/`, `examples/`. Don't build the repo's `tree-sitter-native/*.vcxproj`: they'd need all 29 grammar submodules and produce languages Nexaflow never registers. |

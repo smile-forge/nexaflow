@@ -173,13 +173,11 @@ public sealed class EditedDocument : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// The change that makes <paramref name="after"/> from <paramref name="before"/>: the one it was made by, or — for a step taken back to
-    /// the version it came from — the one that undoes what made <paramref name="before"/>; found by comparing the two only where neither says.
+    /// The change that makes <paramref name="after"/> from <paramref name="before"/>: the one either side says (<see cref="ContentDocument.Between"/>),
+    /// found by comparing the two only where neither does.
     /// </summary>
     private static ContentChange Between(ContentDocument before, ContentDocument after) =>
-        after.MadeFrom(before) ? after.Change!
-        : before.MadeFrom(after) ? before.Inverse!
-        : after.ChangesFrom(before).Forward;
+        ContentDocument.Between(before, after) ?? after.ChangesFrom(before).Forward;
 
     /// <summary>What the history now says about taking back and about what was saved, said to whoever is listening where it moved.</summary>
     private void Restated()
