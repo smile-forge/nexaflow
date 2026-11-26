@@ -101,6 +101,9 @@ public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
     private Stopwatch? _clock;
     private bool _budgetReported;
 
+    /// <summary>Captures what the journey saw at each failure; made at the first one.</summary>
+    private JourneyEvidence? _evidence;
+
     /// <summary>
     /// <paramref name="wanted"/> seconds, or what is left of <see cref="JourneyBudget"/> — whichever is
     /// less, and never less than one. A single look still distinguishes a control that is present from
@@ -127,9 +130,26 @@ public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
     {
         _checks++;
         var el = WaitForId(automationId, Affordable(seconds));
-        if (el is null) _failures.Add($"{label}: control '{automationId}' not found.");
+        if (el is null) NoteFailure(label, $"{label}: control '{automationId}' not found.", missedId: automationId);
         return el;
     });
+
+    /// <summary>
+    /// Records a failed check together with what the journey saw at that moment (<see cref="JourneyEvidence"/>): a capture
+    /// of the window and its automation tree, and — for a control that was not found (<paramref name="missedId"/>) — whether
+    /// it turned up later. The capture's time is not charged to <see cref="JourneyBudget"/>: it is the journey reporting,
+    /// not waiting.
+    /// </summary>
+    private void NoteFailure(string label, string failure, string? missedId = null)
+    {
+        _clock?.Stop();
+        try
+        {
+            _evidence ??= new JourneyEvidence(Automation, () => MainWindow, () => FailureFolder);
+            _failures.Add(failure + _evidence.Capture(label, failure, missedId));
+        }
+        finally { _clock?.Start(); }
+    }
 
     /// <summary>
     /// Finds a control, invokes it, and requires it to have an observable <paramref name="effect"/> —
@@ -146,11 +166,11 @@ public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
         _checks++;
         try
         {
-            if (!effect()) _failures.Add($"{label}: '{automationId}' was invoked but had no observable effect.");
+            if (!effect()) NoteFailure(label, $"{label}: '{automationId}' was invoked but had no observable effect.");
         }
         catch (Exception ex)
         {
-            _failures.Add($"{label}: checking the effect of '{automationId}' threw {ex.GetType().Name}: {ex.Message}");
+            NoteFailure(label, $"{label}: checking the effect of '{automationId}' threw {ex.GetType().Name}: {ex.Message}");
         }
         return true;
     });
@@ -171,7 +191,7 @@ public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
         if (BlockedByModalQuestion(automationId)) return null;
         if (!el.IsEnabled)
         {
-            _failures.Add($"{label}: '{automationId}' is disabled — invoking it cannot do anything.");
+            NoteFailure(label, $"{label}: '{automationId}' is disabled — invoking it cannot do anything.");
             return el;
         }
         try
@@ -183,7 +203,7 @@ public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
         }
         catch (Exception ex)
         {
-            _failures.Add($"{label}: invoking '{automationId}' threw {ex.GetType().Name}: {ex.Message}");
+            NoteFailure(label, $"{label}: invoking '{automationId}' threw {ex.GetType().Name}: {ex.Message}");
         }
         if (App.HasExited) _failures.Add($"{label}: app exited after invoking '{automationId}'.");
         return el;
@@ -208,8 +228,8 @@ public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
     protected void Check(string label, Func<bool> assertion) => Timed(label, () =>
     {
         _checks++;
-        try { if (!assertion()) _failures.Add($"{label}: assertion returned false."); }
-        catch (Exception ex) { _failures.Add($"{label}: threw {ex.GetType().Name}: {ex.Message}"); }
+        try { if (!assertion()) NoteFailure(label, $"{label}: assertion returned false."); }
+        catch (Exception ex) { NoteFailure(label, $"{label}: threw {ex.GetType().Name}: {ex.Message}"); }
         return true;
     });
 
@@ -309,9 +329,9 @@ public abstract partial class UiJourneyTestBase : FileSystemUiTestBase
         if (MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Chrome_ConfirmOk")
                                                    .Or(cf.ByAutomationId("ShellPromptOk"))) is null) return false;
 
-        _failures.Add($"'{automationId}' was driven while the shell's modal question was still open. "
-                    + "Answer it in the journey first: a user could not have reached this control, so "
-                    + "neither should the pass.");
+        NoteFailure(automationId, $"'{automationId}' was driven while the shell's modal question was still open. "
+                                + "Answer it in the journey first: a user could not have reached this control, so "
+                                + "neither should the pass.");
         return true;
     }
 

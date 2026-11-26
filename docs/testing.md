@@ -357,6 +357,25 @@ $sbx = 'src/Nexaflow.Tests/Nexaflow.Tests.Sandbox/bin/x64/Debug/net10.0-windows/
   user is an administrator with UAC off, so an elevation never prompts.
 - It needs the Windows Sandbox feature and its app's `wsb` command.
 
+### What a failed journey leaves
+
+A journey failure is diagnosed from what the run kept, not by running it again until it repeats — a failure that
+shows one run in four, or only under some load, may not come back on demand. So every failed check records the
+moment it failed (`JourneyEvidence`, through `UiJourneyTestBase`'s checks and `RunStep`), into
+`TestResults\journey-logs\<test>-<time>\` in the checkout — which the sandbox shares, so a sandbox run's evidence lands
+on the host:
+
+- **`NN-<check>.png`** — the window as it looked.
+- **`NN-<check>.txt`** — the failure, what had focus and which window was in front, and the window's whole UI Automation
+  tree in the *raw* view: collapsed and off-screen parts too (marked `offscreen`), since a search walks past them.
+- **For a control that was not found**, the failure itself says what happened next: `appeared 1.4 s after the check
+  gave up` — the journey waited on the wrong thing or too little — or `still absent 10 s after` — the app never
+  exposed it. The tree is taken before that look, so it is the tree the failed search saw.
+
+The first five failures of a test are captured; later ones are mostly consequences of the first. The capture's time is
+not charged to the journey's budget. The app's own logs of a failed run (crash logs, binding errors, its log folder)
+go to the same folder.
+
 ### Flaky tests in CI
 
 CI runs the suites through `tools/ci/Invoke-UnitTests.ps1`, which reads each suite's TRX report rather than its
@@ -1251,6 +1270,7 @@ feature projects, and the desktop-heap hazard above is worst there. Mutation tes
 | Sample dataset generator | `Nexaflow.Tests.Fixtures/TestSampleData.cs` |
 | Sample catalogs | `Nexaflow.Tests.Fixtures/{Markdown,Tabular,Text,Code,Notebook,Json,Log,Binary,Image,Archive,Model3D,Audio,Video}Samples.cs` |
 | UI test base (app launch, isolated config) | `Nexaflow.Tests.UIJourneys/Infrastructure/UITestBase.cs` |
+| What a failed journey check keeps (screenshot, automation tree, late look) | `Nexaflow.Tests.UIJourneys/Infrastructure/JourneyEvidence.cs` |
 | How the app is found and started for a journey | `Nexaflow.Tests.Fixtures/BuiltOutput.cs` + `AppLaunchRecipe.cs` |
 | Journeys and the app in Windows Sandbox | `Nexaflow.Tests.Sandbox/` |
 | File-browser UI helpers (navigate, waits) | `Nexaflow.Tests.UIJourneys/Infrastructure/FileSystemUiTestBase.cs` |

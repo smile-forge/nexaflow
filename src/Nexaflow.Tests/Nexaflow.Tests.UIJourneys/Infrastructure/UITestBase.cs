@@ -208,6 +208,17 @@ public abstract class UITestBase
     }
 
     /// <summary>
+    /// Where this test keeps what it saw of a failure — the app's logs (<see cref="KeepLogsOfFailure"/>) and the journey's
+    /// captures at each failed check — <c>TestResults\journey-logs\&lt;test&gt;-&lt;time&gt;</c> in the checkout, which the
+    /// sandbox shares, so a failure seen once can be read after rather than caught again. Named at first use; created by
+    /// whatever writes there first.
+    /// </summary>
+    protected string FailureFolder => _failureFolder ??= Path.Combine(TestSampleData.RepoRoot, "TestResults", "journey-logs",
+        $"{TestContext?.TestName ?? GetType().Name}-{DateTime.Now:yyyyMMdd-HHmmss}");
+
+    private string? _failureFolder;
+
+    /// <summary>
     /// What the app wrote of a journey that failed — its crash logs, its binding errors, and its logs folder, the AI host's log among them where
     /// <see cref="KeepsAppLog"/> — copied to <c>TestResults\journey-logs\&lt;test&gt;-&lt;time&gt;</c> before the isolated folder
     /// is deleted, so a failure seen once, in the sandbox or on CI, can be read after rather than guessed at.
@@ -222,8 +233,7 @@ public abstract class UITestBase
                 .Concat(Directory.Exists(Path.Combine(_configDir, "local", "logs")) ? Directory.EnumerateFiles(Path.Combine(_configDir, "local", "logs")) : [])
                 .ToList();
             if (logs.Count == 0) return;
-            var into = Path.Combine(TestSampleData.RepoRoot, "TestResults", "journey-logs",
-                                    $"{TestContext?.TestName ?? GetType().Name}-{DateTime.Now:yyyyMMdd-HHmmss}");
+            var into = FailureFolder;
             Directory.CreateDirectory(into);
             foreach (var log in logs) File.Copy(log, Path.Combine(into, Path.GetFileName(log)), overwrite: true);
             TestContext?.WriteLine($"The app's logs of this failure are kept in {into}");
