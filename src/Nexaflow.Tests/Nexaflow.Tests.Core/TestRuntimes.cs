@@ -88,7 +88,7 @@ internal static class TestRuntimes
             Config, shell, security,
             Providers, savedWorkspaces ?? SavedListOf(), Features, tasks, notify, VirtualFileSystem.Instance, locations,
             new DiscoveredLocations(locations), Substitute.For<ICredentialSource>(), FirstDiscovery: () => Task.CompletedTask,
-            ui, new FolderActivity(ui, () => new ShellFolderWatcher(ui.Dispatcher)), new ElevatedBridgeLauncher(), Substitute.For<IShellClipboard>(), new WpfFilePickers(),
+            ui, new FolderActivity(ui), new ElevatedBridgeLauncher(), Substitute.For<IShellClipboard>(), new WpfFilePickers(),
             dependencies, language,
             PageViews.FromCatalog(Features.Catalog, dependencies, showComponents: () => { }, Logging), NewAssistant: new WorkspaceAssistants(Features, Providers, shell, security, language, [], new WpfPictureFitting(), speech ?? Substitute.For<ISpeechDevices>(), tasks, notify).Create, Logs: Logging.Factory));
     }

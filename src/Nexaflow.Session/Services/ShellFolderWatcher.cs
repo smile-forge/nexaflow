@@ -1,17 +1,15 @@
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Windows.Interop;
-using System.Windows.Threading;
-using Nexaflow.Features.Common;
 
-namespace Nexaflow.Core.Services;
+namespace Nexaflow.Session.Services;
 
 /// <summary>
 /// Folders watched as Explorer watches them: through the shell's change notifications, which carry both what the file
 /// system reports (a file made, deleted, renamed, its attributes changed — a placeholder downloaded or freed) and what
 /// software tells the shell about a file the file system knows nothing of, as a sync provider does when a file's sync
-/// state moves. One message-only window on the workspace's UI thread receives them; each folder is registered once, however
-/// many views watch it, and a burst of notifications reaches each view as one <see cref="FolderChange"/> a quiet moment later.
+/// state moves. One message-only window on the UI thread receives them (<see cref="MessageWindow"/>); each folder is
+/// registered once, however many views watch it, and a burst of notifications reaches each view as one
+/// <see cref="FolderChange"/> a quiet moment later. Nothing in it is a UI toolkit's.
 /// </summary>
 internal sealed class ShellFolderWatcher : IFolderWatcher
 {
@@ -23,15 +21,15 @@ internal sealed class ShellFolderWatcher : IFolderWatcher
 
     private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(300);
 
-    private readonly Dispatcher _ui;
-    private readonly HwndSource _window;
+    private readonly IUiThread _ui;
+    private readonly MessageWindow _window;
     private readonly Dictionary<string, Folder> _folders = new(StringComparer.OrdinalIgnoreCase);
 
-    public ShellFolderWatcher(Dispatcher ui)
+    /// <param name="ui">The UI thread, whose message loop delivers the notifications and whose timers settle them.</param>
+    public ShellFolderWatcher(IUiThread ui)
     {
-        _ui = ui;
-        _window = new HwndSource(new HwndSourceParameters("Nexaflow folder changes") { ParentWindow = new IntPtr(-3) /* HWND_MESSAGE */ });
-        _window.AddHook(OnMessage);
+        _ui     = ui;
+        _window = ui.Run(() => new MessageWindow("Nexaflow folder changes", OnMessage));
     }
 
     /// <summary>
@@ -57,8 +55,7 @@ internal sealed class ShellFolderWatcher : IFolderWatcher
     {
         foreach (var folder in _folders.Values) folder.Unregister();
         _folders.Clear();
-        _window.RemoveHook(OnMessage);
-        _window.Dispose();
+        _ui.Run(_window.Dispose);
     }
 
     private void Unwatch(Folder folder, Subscription subscription)
@@ -69,13 +66,12 @@ internal sealed class ShellFolderWatcher : IFolderWatcher
         _folders.Remove(folder.Path);
     }
 
-    private IntPtr OnMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    private bool OnMessage(int message, IntPtr wParam, IntPtr lParam)
     {
-        if (message != ChangeMessage) return IntPtr.Zero;
-        handled = true;
+        if (message != ChangeMessage) return false;
 
         IntPtr locked = SHChangeNotification_Lock(wParam, (uint)lParam.ToInt64(), out IntPtr items, out _);
-        if (locked == IntPtr.Zero) return IntPtr.Zero;
+        if (locked == IntPtr.Zero) return true;
 
         // A notification names one item, or two for a rename (old, new).
         string? first, second;
@@ -88,7 +84,7 @@ internal sealed class ShellFolderWatcher : IFolderWatcher
 
         Note(first);
         Note(second);
-        return IntPtr.Zero;
+        return true;
     }
 
     /// <summary>Tells the folder holding <paramref name="path"/> it changed there, and a watched folder named itself that it changed whole.</summary>
@@ -113,23 +109,22 @@ internal sealed class ShellFolderWatcher : IFolderWatcher
     {
         private readonly IntPtr _item;
         private readonly uint _registration;
-        private readonly DispatcherTimer _settle;
+        private readonly IUiTimer _settle;
         private readonly HashSet<string> _changed = new(StringComparer.OrdinalIgnoreCase);
         private bool _whole;
 
         public string Path { get; }
         public List<Subscription> Subscribers { get; } = [];
 
-        private Folder(string path, IntPtr item, uint registration, Dispatcher ui)
+        private Folder(string path, IntPtr item, uint registration, IUiThread ui)
         {
             Path          = path;
             _item         = item;
             _registration = registration;
-            _settle       = new DispatcherTimer(Quiet, DispatcherPriority.Background, (_, _) => Flush(), ui);
-            _settle.Stop();
+            _settle       = ui.CreateTimer(Quiet, Flush, UiTimerPriority.Background, once: true);
         }
 
-        public static Folder? Register(string path, IntPtr window, Dispatcher ui)
+        public static Folder? Register(string path, IntPtr window, IUiThread ui)
         {
             if (SHParseDisplayName(path, IntPtr.Zero, out IntPtr item, 0, out _) != 0 || item == IntPtr.Zero) return null;
 
@@ -146,31 +141,24 @@ internal sealed class ShellFolderWatcher : IFolderWatcher
         public void Note(string path)
         {
             _changed.Add(path);
-            Restart();
+            _settle.Restart();
         }
 
         public void NoteWhole()
         {
             _whole = true;
-            Restart();
+            _settle.Restart();
         }
 
         public void Unregister()
         {
-            _settle.Stop();
+            _settle.Dispose();
             SHChangeNotifyDeregister(_registration);
             ILFree(_item);
         }
 
-        private void Restart()
-        {
-            _settle.Stop();
-            _settle.Start();
-        }
-
         private void Flush()
         {
-            _settle.Stop();
             var change = new FolderChange(new HashSet<string>(_changed, StringComparer.OrdinalIgnoreCase), _whole);
             _changed.Clear();
             _whole = false;

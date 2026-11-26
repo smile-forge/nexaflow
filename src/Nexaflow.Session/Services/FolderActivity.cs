@@ -15,7 +15,7 @@ namespace Nexaflow.Session.Services;
 public sealed class FolderActivity : IDisposable
 {
     private readonly IUiThread _ui;
-    private readonly Func<IFolderWatcher> _newFolderWatcher;
+    
 
     /// <summary>Each file watched, with whoever follows it.</summary>
     private readonly Dictionary<WatchKey, WatchGroup> _groups = new(new WatchKeyComparer());
@@ -26,13 +26,8 @@ public sealed class FolderActivity : IDisposable
     /// <summary>Made on the first folder watched: it owns a window on the UI thread.</summary>
     private IFolderWatcher? _folderWatcher;
 
-    /// <param name="ui">Where a change is told.</param>
-    /// <param name="newFolderWatcher">Makes the folder watcher, the first time a folder is watched.</param>
-    internal FolderActivity(IUiThread ui, Func<IFolderWatcher> newFolderWatcher)
-    {
-        _ui               = ui;
-        _newFolderWatcher = newFolderWatcher;
-    }
+    /// <param name="ui">Where a change is told, and where the folder watcher's window is made.</param>
+    internal FolderActivity(IUiThread ui) => _ui = ui;
 
     /// <summary>The folders a long change is under way in, and what each says meanwhile.</summary>
     public FolderBusyTracker Busy { get; } = new();
@@ -73,7 +68,7 @@ public sealed class FolderActivity : IDisposable
     /// <summary>Follows the folder <paramref name="path"/> for <paramref name="owner"/>, telling each change on the UI thread.</summary>
     internal IDisposable WatchFolder(object owner, string path, Action<FolderChange> onChanged)
     {
-        var watch = new FolderWatch(this, owner, (_folderWatcher ??= _newFolderWatcher()).Watch(path, onChanged));
+        var watch = new FolderWatch(this, owner, (_folderWatcher ??= new ShellFolderWatcher(_ui)).Watch(path, onChanged));
         Hold(owner, watch);
         return watch;
     }
