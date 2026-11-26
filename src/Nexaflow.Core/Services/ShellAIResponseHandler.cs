@@ -63,20 +63,35 @@ public partial class ShellAIResponseHandler : ObservableObject
     [RelayCommand]
     private Task ContinueAsConversation() => Reply.ContinueAsConversationAsync();
 
-    private static readonly string[] Drawn =
-    [
-        nameof(InBar), nameof(ContextUse), nameof(AiResponseAiName), nameof(AiResponseText), nameof(AiOverlayIsApproval),
-        nameof(AiOverlayIsMessage), nameof(BarLine), nameof(BarShowsWork), nameof(BarShowsSaid),
-    ];
-
     private void OnReplyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        foreach (var name in Drawn) OnPropertyChanged(name);
+        // Each of the answer's changes raises only the names drawn from it, as each would have changed on its own.
+        switch (e.PropertyName)
+        {
+            case nameof(BarReply.IsOpen):
+                OnPropertyChanged(nameof(InBar));
+                OnPropertyChanged(nameof(BarShowsWork));
+                OnPropertyChanged(nameof(BarShowsSaid));
+                break;
+            case nameof(BarReply.Stage):
+                OnPropertyChanged(nameof(AiOverlayIsApproval));
+                OnPropertyChanged(nameof(AiOverlayIsMessage));
+                OnPropertyChanged(nameof(BarShowsWork));
+                OnPropertyChanged(nameof(BarShowsSaid));
+                break;
+            case nameof(BarReply.Text):          OnPropertyChanged(nameof(AiResponseText));   break;
+            case nameof(BarReply.AssistantName): OnPropertyChanged(nameof(AiResponseAiName)); break;
+            case nameof(BarReply.ContextUse):    OnPropertyChanged(nameof(ContextUse));       break;
+            case nameof(BarReply.Line):          OnPropertyChanged(nameof(BarLine));          break;
+        }
 
-        // The card holds the reply, what an approval explains, or a plan; a plan waiting for its answer is shown unasked. Put
+        // The card holds the reply, what an approval explains, or a plan; a plan waiting for its answer is shown unasked. It is put
         // away with the answer.
-        if (!Reply.IsOpen) Card.Close();
-        Card.HasContent = Reply.IsOpen && Reply.Stage != BarReplyStage.Running && Reply.Text.Trim().Length > 0;
-        Card.IsRequired = Reply.IsOpen && Reply.Stage == BarReplyStage.Approval && Reply.AsksAboutPlan;
+        if (e.PropertyName is nameof(BarReply.IsOpen) or nameof(BarReply.Stage) or nameof(BarReply.Text) or nameof(BarReply.AsksAboutPlan))
+        {
+            if (!Reply.IsOpen) Card.Close();
+            Card.HasContent = Reply.IsOpen && Reply.Stage != BarReplyStage.Running && Reply.Text.Trim().Length > 0;
+            Card.IsRequired = Reply.IsOpen && Reply.Stage == BarReplyStage.Approval && Reply.AsksAboutPlan;
+        }
     }
 }
