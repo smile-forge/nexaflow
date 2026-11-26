@@ -45,7 +45,7 @@ public abstract partial class UiJourneyTestBase
         var timer = Stopwatch.StartNew();
         try { body(); }
         catch (AssertInconclusiveException ex) { _stepsSkipped.Add($"{name}: {ex.Message}"); }
-        catch (Exception ex) { _failures.Add($"{ex.GetType().Name}: {ex.Message}"); }
+        catch (Exception ex) { NoteFailure(name, $"{ex.GetType().Name}: {ex.Message}"); }
         timer.Stop();
 
         for (var i = failuresBefore; i < _failures.Count; i++) _failures[i] = $"[{name}] {_failures[i]}";
