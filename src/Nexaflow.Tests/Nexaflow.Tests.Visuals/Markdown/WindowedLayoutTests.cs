@@ -314,7 +314,7 @@ public class WindowedLayoutTests
             engine.OnScreen = new LayoutRect(0, 0, Room, 400);
             engine.Relay();
 
-            engine.Input(new ContentKey(System.Windows.Input.Key.End, System.Windows.Input.ModifierKeys.Control));
+            engine.Input(new ContentKey(EditingKey.End, HeldKeys.Control));
 
             Assert.IsTrue(text.Length - engine.State.Caret < 3, $"{named ?? "markdown"}: the caret stopped at {engine.State.Caret} of {text.Length}, at the end of what was laid");
 

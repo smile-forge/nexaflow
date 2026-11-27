@@ -22,11 +22,11 @@ public class EditorKeysTests
     {
         var engine = Typed("int count = total;", caret: 0);
 
-        engine.Input(new ContentKey(Key.Right, ModifierKeys.Control));
+        engine.Input(new ContentKey(EditingKey.Right, HeldKeys.Control));
         Assert.AreEqual(4, engine.State.Caret);
 
-        engine.Input(new ContentKey(Key.Right, ModifierKeys.Control));
-        engine.Input(new ContentKey(Key.Left, ModifierKeys.Control));
+        engine.Input(new ContentKey(EditingKey.Right, HeldKeys.Control));
+        engine.Input(new ContentKey(EditingKey.Left, HeldKeys.Control));
         Assert.AreEqual(4, engine.State.Caret);
     });
 
@@ -35,8 +35,8 @@ public class EditorKeysTests
     {
         var engine = Typed("alpha beta gamma", caret: 0);
 
-        engine.Input(new ContentKey(Key.Right, ModifierKeys.Control | ModifierKeys.Shift));
-        engine.Input(new ContentKey(Key.Right, ModifierKeys.Control | ModifierKeys.Shift));
+        engine.Input(new ContentKey(EditingKey.Right, HeldKeys.Control | HeldKeys.Shift));
+        engine.Input(new ContentKey(EditingKey.Right, HeldKeys.Control | HeldKeys.Shift));
 
         Assert.AreEqual("alpha beta ", engine.State.SelectedText);
     });
@@ -46,10 +46,10 @@ public class EditorKeysTests
     {
         var engine = Typed("alpha beta gamma", caret: 11);
 
-        engine.Input(new ContentKey(Key.Back, ModifierKeys.Control));
+        engine.Input(new ContentKey(EditingKey.Back, HeldKeys.Control));
         Assert.AreEqual("alpha gamma", engine.State.Document.ToString());
 
-        engine.Input(new ContentKey(Key.Delete, ModifierKeys.Control));
+        engine.Input(new ContentKey(EditingKey.Delete, HeldKeys.Control));
         Assert.AreEqual("alpha ", engine.State.Document.ToString());
 
         engine.Undo();
@@ -61,7 +61,7 @@ public class EditorKeysTests
     {
         var engine = Typed("plain words", caret: 5);
 
-        engine.Input(new ContentKey(Key.B, ModifierKeys.Control));
+        engine.Input(new ContentKey(EditingKey.B, HeldKeys.Control));
 
         Assert.AreEqual("plain words", engine.State.Document.ToString(), "text has no way to say strong, so nothing is written");
     });
@@ -72,7 +72,7 @@ public class EditorKeysTests
         var engine = Typed("Some words here.", caret: 0, language: null);
         engine.Apply(engine.State.Select(5, 5), notify: false);
 
-        engine.Input(new ContentKey(Key.B, ModifierKeys.Control));
+        engine.Input(new ContentKey(EditingKey.B, HeldKeys.Control));
 
         Assert.AreEqual("Some **words** here.", engine.State.Document.ToString());
     });
@@ -85,7 +85,7 @@ public class EditorKeysTests
         var moved = 0;
         editor.CaretMoved += (_, _) => moved++;
 
-        engine.Input(new ContentKey(Key.Right, ModifierKeys.Control));
+        engine.Input(new ContentKey(EditingKey.Right, HeldKeys.Control));
 
         Assert.AreEqual(4, editor.Caret);
         Assert.AreEqual(1, moved);

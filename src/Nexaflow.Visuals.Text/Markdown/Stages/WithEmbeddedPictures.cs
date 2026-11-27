@@ -3,6 +3,7 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown.Stages;
 
@@ -32,7 +33,7 @@ public sealed class WithEmbeddedPictures(double textSize) : IAstStage
         if (node.Children.Select(child => child.Held).OfType<EmbeddedPicture>().FirstOrDefault() is not { } embedded) return node;
 
         return EmbeddedPictures.Drawn(embedded, textSize) is { } picture
-            ? node.Holding(MarkdownKinds.Image, WithImages.Picture, picture)
+            ? node.Holding(MarkdownKinds.Image, WithImages.Picture, WpfPicture.Of(picture))
             : node;
     }
 }

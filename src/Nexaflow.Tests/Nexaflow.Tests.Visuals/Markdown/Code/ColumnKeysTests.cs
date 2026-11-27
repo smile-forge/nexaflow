@@ -28,8 +28,8 @@ public class ColumnKeysTests
     {
         var engine = Typed("one\ntwo\nsix\n", caret: 0);
 
-        engine.Input(new ContentKey(Key.Down, ModifierKeys.Alt | ModifierKeys.Shift));
-        engine.Input(new ContentKey(Key.Down, ModifierKeys.Alt | ModifierKeys.Shift));
+        engine.Input(new ContentKey(EditingKey.Down, HeldKeys.Alt | HeldKeys.Shift));
+        engine.Input(new ContentKey(EditingKey.Down, HeldKeys.Alt | HeldKeys.Shift));
         engine.Input(new ContentText("//"));
 
         Assert.AreEqual("//one\n//two\n//six\n", engine.State.Document.ToString());
@@ -45,7 +45,7 @@ public class ColumnKeysTests
         var first = engine.Laid.Root.CaretRect(1);
         var second = engine.Laid.Root.CaretRect("abcdef\n".Length + 4);
 
-        engine.Input(new ContentPress(new LayoutPoint(first.X, first.Y + 1), 1, ModifierKeys.Alt));
+        engine.Input(new ContentPress(new LayoutPoint(first.X, first.Y + 1), 1, HeldKeys.Alt));
         engine.Input(new ContentDrag(new LayoutPoint(second.X, second.Y + 1)));
         engine.Input(new ContentRelease());
 

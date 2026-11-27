@@ -1,5 +1,5 @@
 using System;
-using System.Windows.Media;
+using Nexaflow.Markdown.Layout;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
@@ -26,7 +26,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Stages;
 /// </para>
 /// </summary>
 /// <param name="find">What this showing of the document resolves a name against (<see cref="MarkdownPictures.Found"/>).</param>
-public sealed class WithImages(Func<string, ImageSource?>? find) : IAstStage
+public sealed class WithImages(Func<string, LayoutPicture?>? find) : IAstStage
 {
     /// <summary>The role a found picture is hung under.</summary>
     public const string Picture = "picture";
@@ -38,13 +38,13 @@ public sealed class WithImages(Func<string, ImageSource?>? find) : IAstStage
     public ContentNode Run(ContentNode tree) => find is null ? tree : AstRewrite.Each(tree, Found);
 
     /// <summary>The picture hung on a part, or null where nothing was found for it.</summary>
-    public static ImageSource? Of(ContentPart? part)
+    public static LayoutPicture? Of(ContentPart? part)
     {
         if (part is null) return null;
 
         foreach (var child in part.Children)
             foreach (var held in child.Children)
-                if (held.Node.Role == Picture && held.Node.Held is ImageSource picture)
+                if (held.Node.Role == Picture && held.Node.Held is LayoutPicture picture)
                     return picture;
 
         return null;

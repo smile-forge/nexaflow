@@ -577,7 +577,7 @@ public class ContentElement : FrameworkElement
     {
         _pressedAt = pointInElement;
 
-        if (!_engine.Input(new ContentPress(Unscaled(pointInElement), 1, modifiers))) return false;
+        if (!_engine.Input(new ContentPress(Unscaled(pointInElement), 1, WpfInput.Held(modifiers)))) return false;
 
         _pressing = true;
         return true;
@@ -595,7 +595,7 @@ public class ContentElement : FrameworkElement
         var piece = Laid.Root.PieceAt(at);
         Tip(Says(piece));
 
-        if (!IsReadOnly && _engine.Gripping(piece, at) is { } grip) return grip;
+        if (!IsReadOnly && _engine.Gripping(piece, at) is { } grip) return WpfInput.Pointer(grip);
 
         return !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
     }

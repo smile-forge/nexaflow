@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Input;
 
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Painting;
@@ -65,7 +66,8 @@ public sealed partial class NexaTextSurface
     /// state, which nothing but a keyboard can set: a host or a test saying a key was pressed says which.
     /// </para>
     /// </summary>
-    internal bool Pressed(Key key, ModifierKeys modifiers) => _engine.Input(new ContentKey(key, modifiers));
+    internal bool Pressed(Key key, ModifierKeys modifiers) =>
+        WpfInput.Editing(key) is var pressed and not EditingKey.None && _engine.Input(new ContentKey(pressed, WpfInput.Held(modifiers)));
 
     /// <summary>
     /// Picks out everything written. Exactly that, rather than grown out to the constructs it covers, which in content shown

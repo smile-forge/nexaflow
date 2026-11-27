@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using System.Windows.Input;
+
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -134,22 +134,22 @@ public sealed partial class ContentEngine
     /// A press, taken as what it means where it landed. True where the content took it; false is a press that landed on
     /// nothing of the content, which whatever shows it may want for itself.
     /// </summary>
-    private bool Press(LayoutPoint at, ModifierKeys modifiers)
+    private bool Press(LayoutPoint at, HeldKeys modifiers)
     {
         _pressedAt = at;
         _moving = false;
         _carry = null;
 
         // A box's bar is the box's to slide, and no place in what it holds.
-        if (modifiers == ModifierKeys.None && PressedBar(at)) return true;
+        if (modifiers == HeldKeys.None && PressedBar(at)) return true;
 
         // A piece that answers to a press means what it answers with, and not a place to put the caret. Only a plain press:
         // Ctrl and Shift are adding to a selection, which is not what a press on a node means.
-        if (modifiers == ModifierKeys.None && Offered(at, LayoutGesture.Click) is { } act && Meant(act)) return true;
+        if (modifiers == HeldKeys.None && Offered(at, LayoutGesture.Click) is { } act && Meant(act)) return true;
 
         // Alt and a press begins a block of columns, in content laid line by line, which a drag stretches.
         _column = null;
-        if (modifiers.HasFlag(ModifierKeys.Alt) && this.Lined)
+        if (modifiers.HasFlag(HeldKeys.Alt) && this.Lined)
         {
             _dragging = true;
             _column = this.PlaceAt(at);
@@ -158,7 +158,7 @@ public sealed partial class ContentEngine
         }
 
         // Several things chosen at once: what Ctrl presses is added to what is chosen, or taken back out of it.
-        if (modifiers.HasFlag(ModifierKeys.Control))
+        if (modifiers.HasFlag(HeldKeys.Control))
         {
             _dragging = false;
             Toggle(at);
@@ -167,7 +167,7 @@ public sealed partial class ContentEngine
 
         // From where the choosing started to the press, as a drag from there would choose — from the caret, where nothing is
         // chosen yet — and a drag after it goes on choosing from the same place.
-        if (modifiers.HasFlag(ModifierKeys.Shift))
+        if (modifiers.HasFlag(HeldKeys.Shift))
         {
             if (!this.State.HasSelection)
             {
@@ -266,14 +266,14 @@ public sealed partial class ContentEngine
         }
 
         /// <summary>The piece the pointer was last over, and what it shows there — asked of the language again only once it is over another.</summary>
-        private (LayoutPiece Piece, Cursor? Pointer) _hovered;
+        private (LayoutPiece Piece, PointerShape? Pointer) _hovered;
 
         /// <summary>
         /// What the pointer shows over <paramref name="piece"/> where a press there would pick up a carry of the language's own
         /// (<see cref="ContentCarry.Pointer"/>), and while one is carried — or null for the pointer the place has anyway. The language is
         /// asked only as the pointer arrives on another piece, never as it moves along one.
         /// </summary>
-        internal Cursor? Gripping(LayoutPiece piece, LayoutPoint at)
+        internal PointerShape? Gripping(LayoutPiece piece, LayoutPoint at)
         {
             if (_moving && _carry is { } carried) return carried.Pointer;
             if (Unwritable) return null;

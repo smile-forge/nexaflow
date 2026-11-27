@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using System.Windows.Media;
+using Nexaflow.Markdown.Layout;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
@@ -22,7 +22,7 @@ namespace Nexaflow.Visuals.Text.Markdown.WordCloud.Stages;
 /// there may be nowhere: a host can hand back an image it holds in memory and never had a path for.
 /// </para>
 /// </summary>
-public sealed class WithPictures(Func<string, ImageSource?>? find) : IAstStage
+public sealed class WithPictures(Func<string, LayoutPicture?>? find) : IAstStage
 {
     /// <summary>The role a resolved picture is hung under.</summary>
     public const string Picture = "picture";

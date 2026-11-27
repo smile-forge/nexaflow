@@ -269,9 +269,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
     /// <summary>The picture a part was found to name — an image, a diagram node's, a cloud's mask — as the medium draws it.</summary>
     private static LayoutPicture? Pictured(ContentPart part) =>
-        (WithImages.Of(part) ?? WithDiagramPictures.Of(part) ?? part.Node.HeldAs(WithPictures.Picture) as ImageSource) is { } picture
-            ? WpfMedium.OnThisThread.Picture(picture)
-            : null;
+        WithImages.Of(part) ?? WithDiagramPictures.Of(part) ?? part.Node.HeldAs(WithPictures.Picture) as LayoutPicture;
 
     /// <summary>How the host wants a link to look, as its stage settled it, in the medium's inks.</summary>
     private static LayoutLinkLook? Linked(ContentPart part) =>
@@ -283,7 +281,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     private static LayoutLinkLook Look(LinkLook look) =>
         new(look.Ink is { } ink ? WpfMedium.OnThisThread.Ink(ink) : null, look.Underline, look.Before, look.After, look.Says)
         {
-            MarkFont = look.MarkFont?.Source,
+            MarkFont = look.MarkFont,
         };
 
     /// <summary>

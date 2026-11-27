@@ -1,6 +1,5 @@
 using System;
-using System.Windows;
-using System.Windows.Input;
+
 
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
@@ -16,13 +15,13 @@ namespace Nexaflow.Visuals.Text.Markdown;
 public abstract record ContentInput;
 
 /// <summary>A key pressed, with the modifiers held.</summary>
-public sealed record ContentKey(Key Key, ModifierKeys Modifiers = ModifierKeys.None) : ContentInput;
+public sealed record ContentKey(EditingKey Key, HeldKeys Modifiers = HeldKeys.None) : ContentInput;
 
 /// <summary>Characters typed — what a key, a composition or a dictation comes to.</summary>
 public sealed record ContentText(string Text) : ContentInput;
 
 /// <summary>A press at a point, the second of two in quick succession where <paramref name="Clicks"/> says so.</summary>
-public sealed record ContentPress(LayoutPoint At, int Clicks = 1, ModifierKeys Modifiers = ModifierKeys.None) : ContentInput;
+public sealed record ContentPress(LayoutPoint At, int Clicks = 1, HeldKeys Modifiers = HeldKeys.None) : ContentInput;
 
 /// <summary>
 /// The pointer moved while pressed, far enough to be a drag rather than a hand's tremor — how far that is being the

@@ -164,8 +164,8 @@ public partial class MarkdownLayoutBench
             ["keyTop"] = Keys(surface, () => engine.MoveCaretTo(0), () => engine.Input(new ContentText("x"))),
             ["keyMiddle"] = Keys(surface, () => engine.MoveCaretTo(engine.State.Document.Length / 2), () => engine.Input(new ContentText("x"))),
             ["keyEnd"] = Keys(surface, () => engine.MoveCaretTo(engine.State.Document.Length), () => engine.Input(new ContentText("x"))),
-            ["pageDownMs"] = PagesDown(surface, () => engine.MoveCaretTo(0), () => engine.Input(new ContentKey(Key.PageDown, ModifierKeys.None))),
-            ["toEndMs"] = Once(surface, () => engine.MoveCaretTo(0), () => engine.Input(new ContentKey(Key.End, ModifierKeys.Control))),
+            ["pageDownMs"] = PagesDown(surface, () => engine.MoveCaretTo(0), () => engine.Input(new ContentKey(EditingKey.PageDown, HeldKeys.None))),
+            ["toEndMs"] = Once(surface, () => engine.MoveCaretTo(0), () => engine.Input(new ContentKey(EditingKey.End, HeldKeys.Control))),
         };
 
         window.Close();

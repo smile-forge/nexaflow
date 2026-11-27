@@ -170,7 +170,7 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
     private sealed record Ending(ContentPart Field) : ContentCarry
     {
         /// <summary>A field's end moves across the row, so the pointer over it says so.</summary>
-        public override Cursor? Pointer => Cursors.SizeWE;
+        public override PointerShape? Pointer => PointerShape.ResizeAcross;
     }
 
     /// <summary>Whole fields, carried: let go on another field, they and it change places.</summary>

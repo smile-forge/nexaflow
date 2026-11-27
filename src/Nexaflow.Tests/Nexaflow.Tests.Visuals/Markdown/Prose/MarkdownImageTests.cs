@@ -164,7 +164,7 @@ public class MarkdownImageTests
 
     private static Laid Lay(string source, Func<string, ImageSource?>? asked, string? folder = null) =>
         Laying.Lay(null, source, 480,
-                   inputs: new ContentInputs(Pictures: MarkdownPictures.Found(asked, folder)));
+                   inputs: new ContentInputs(Pictures: WpfPicture.Finding(MarkdownPictures.Found(asked, folder))));
 
     private static List<PictureMark> Marks(Laid laid)
     {

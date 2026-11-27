@@ -592,7 +592,7 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         };
 
     /// <summary>What the host said about what the document holds, as the engine is told it.</summary>
-    private ContentInputs Asked => new(MarkdownPictures.Found(_pictures, BaseDirectory), _links, _data);
+    private ContentInputs Asked => new(WpfPicture.Finding(MarkdownPictures.Found(_pictures, BaseDirectory)), _links, _data);
 
     /// <summary>Tells the engine what the host now says, and lays the document out again by it.</summary>
     private void Hosted()

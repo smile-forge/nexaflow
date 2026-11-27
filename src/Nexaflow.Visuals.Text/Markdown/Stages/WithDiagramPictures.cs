@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using System.Windows.Media;
+using Nexaflow.Markdown.Layout;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
@@ -19,7 +19,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Stages;
 /// </para>
 /// </summary>
 /// <param name="find">What this showing of the block resolves a name against (<see cref="ContentInputs.Pictures"/>).</param>
-public sealed class WithDiagramPictures(Func<string, ImageSource?>? find) : IAstStage
+public sealed class WithDiagramPictures(Func<string, LayoutPicture?>? find) : IAstStage
 {
     /// <summary>The role a found picture is hung under.</summary>
     public const string Picture = "picture";
@@ -29,7 +29,7 @@ public sealed class WithDiagramPictures(Func<string, ImageSource?>? find) : IAst
     public ContentNode Run(ContentNode tree) => find is null ? tree : AstRewrite.Each(tree, Found);
 
     /// <summary>The picture hung on a metadata line, or null where nothing was found for it.</summary>
-    public static ImageSource? Of(ContentPart? property) => property?.Node.HeldAs(Picture) as ImageSource;
+    public static LayoutPicture? Of(ContentPart? property) => property?.Node.HeldAs(Picture) as LayoutPicture;
 
     private ContentNode Found(ContentNode node)
     {

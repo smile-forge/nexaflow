@@ -1,5 +1,5 @@
 using System;
-using System.Windows.Media;
+using Nexaflow.Markdown.Layout;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
@@ -96,15 +96,15 @@ public sealed class WithLinks(Func<string, string, LinkLook?>? asked) : IAstStag
 /// <param name="After">A mark set behind them — an arrow, for one that leaves the document.</param>
 /// <param name="Says">What resting on it says, where the host has something to say.</param>
 public sealed record LinkLook(
-    Brush? Ink = null,
+    LayoutColor? Ink = null,
     bool Underline = true,
     string? Before = null,
     string? After = null,
     string? Says = null)
 {
     /// <summary>
-    /// What the marks are drawn in, where they are glyphs the reading face does not have — an icon font.
+    /// The family the marks are drawn in, where they are glyphs the reading face does not have — an icon font.
     /// Null draws them in the same face as the words, which is right for an arrow and wrong for a pin.
     /// </summary>
-    public FontFamily? MarkFont { get; init; }
+    public string? MarkFont { get; init; }
 }

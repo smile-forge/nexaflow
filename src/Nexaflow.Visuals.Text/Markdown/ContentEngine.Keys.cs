@@ -1,6 +1,6 @@
 using System;
 using System.Windows;
-using System.Windows.Input;
+
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -61,15 +61,15 @@ public sealed partial class ContentEngine : IContentEditorView
 
 
     /// <summary>What a key means here, done.</summary>
-    private bool Pressed(Key key, ModifierKeys modifiers)
+    private bool Pressed(EditingKey key, HeldKeys modifiers)
     {
         _spaced = false;
 
-        var shift = (modifiers & ModifierKeys.Shift) != 0;
-        var ctrl = (modifiers & ModifierKeys.Control) != 0;
+        var shift = (modifiers & HeldKeys.Shift) != 0;
+        var ctrl = (modifiers & HeldKeys.Control) != 0;
 
         // Alt with Shift and an arrow picks out a block of columns, in content laid line by line.
-        if ((modifiers & ModifierKeys.Alt) != 0 && shift && key is Key.Left or Key.Right or Key.Up or Key.Down && this.Lined)
+        if ((modifiers & HeldKeys.Alt) != 0 && shift && key is EditingKey.Left or EditingKey.Right or EditingKey.Up or EditingKey.Down && this.Lined)
         {
             this.ColumnStep(key);
             return true;
@@ -79,66 +79,66 @@ public sealed partial class ContentEngine : IContentEditorView
 
         switch (key)
         {
-            case Key.Left or Key.Right:
-                MoveCaret(forward: key == Key.Right, extend: shift);
+            case EditingKey.Left or EditingKey.Right:
+                MoveCaret(forward: key == EditingKey.Right, extend: shift);
                 return true;
 
-            case Key.Up or Key.Down:
-                MoveCaretVertically(up: key == Key.Up, extend: shift);
+            case EditingKey.Up or EditingKey.Down:
+                MoveCaretVertically(up: key == EditingKey.Up, extend: shift);
                 return true;
 
-            case Key.Home or Key.End:
-                Along(end: key == Key.End, extend: shift);
+            case EditingKey.Home or EditingKey.End:
+                Along(end: key == EditingKey.End, extend: shift);
                 return true;
 
             // What is picked out goes first; then a block shown as written is drawn again, keeping what was written in it.
-            case Key.Escape:
+            case EditingKey.Escape:
                 if (!this.State.HasSelection) return LetGo();
                 ClearSelection();
                 return true;
 
             // A step up or down of whatever the content makes one of — an octave, in a tune — and failing that a page of
             // whatever shows it. Above the question of writing, because paging a document nobody may write in still pages it.
-            case Key.PageUp or Key.PageDown:
-                return Stepped(key == Key.PageUp) || this.Events?.OnPage(key == Key.PageUp) == true;
+            case EditingKey.PageUp or EditingKey.PageDown:
+                return Stepped(key == EditingKey.PageUp) || this.Events?.OnPage(key == EditingKey.PageUp) == true;
         }
 
         if (_readOnly) return false;
 
         switch (key)
         {
-            case Key.Back:
+            case EditingKey.Back:
                 Backspace();
                 return true;
 
             // Shift+Delete and Shift+Insert: the older keys for cutting and pasting.
-            case Key.Delete when shift:
+            case EditingKey.Delete when shift:
                 return Cut();
 
-            case Key.Delete:
+            case EditingKey.Delete:
                 Delete();
                 return true;
 
             // A line broken inside what is being written — the language's to say how.
-            case Key.Enter when shift:
+            case EditingKey.Enter when shift:
                 Break();
                 return true;
 
-            case Key.Enter or Key.Space:
-                Settle(key == Key.Enter ? "\n" : " ");
-                _spaced = key == Key.Space;
+            case EditingKey.Enter or EditingKey.Space:
+                Settle(key == EditingKey.Enter ? "\n" : " ");
+                _spaced = key == EditingKey.Space;
                 return true;
 
             // On to the next place to write in, where the language says; otherwise through the holes a construct left while any
             // remain; otherwise Tab is the window's, to move on with.
-            case Key.Tab:
+            case EditingKey.Tab:
                 return Tabbed(forward: !shift) || SelectNextPlaceholder(forward: !shift);
 
             // Something new where the caret is, where the language has something to put there.
-            case Key.Insert when !shift:
+            case EditingKey.Insert when !shift:
                 return Inserted();
 
-            case Key.Insert:
+            case EditingKey.Insert:
                 return Paste();
 
             default:
@@ -157,25 +157,25 @@ public sealed partial class ContentEngine : IContentEditorView
     }
 
     /// <summary>What a key held with Ctrl means.</summary>
-    private bool Commanded(Key key, bool shift)
+    private bool Commanded(EditingKey key, bool shift)
     {
         switch (key)
         {
-            case Key.A:
+            case EditingKey.A:
                 SelectAll();
                 return true;
 
-            case Key.Home or Key.End:
-                MoveCaretTo(key == Key.End ? this.State.Document.Length : 0, extend: shift);
+            case EditingKey.Home or EditingKey.End:
+                MoveCaretTo(key == EditingKey.End ? this.State.Document.Length : 0, extend: shift);
                 return true;
 
             // A word along, or back: to the next start of a word, a run of punctuation, or a line.
-            case Key.Left or Key.Right:
-                MoveCaretTo(ContentWordEdges.Next(this.State.Document, this.State.Caret, forward: key == Key.Right), extend: shift);
+            case EditingKey.Left or EditingKey.Right:
+                MoveCaretTo(ContentWordEdges.Next(this.State.Document, this.State.Caret, forward: key == EditingKey.Right), extend: shift);
                 return true;
 
             // Above the question of writing: what is only being looked at can still be picked out and copied.
-            case Key.C or Key.Insert:
+            case EditingKey.C or EditingKey.Insert:
                 return Copied();
         }
 
@@ -183,27 +183,27 @@ public sealed partial class ContentEngine : IContentEditorView
 
         switch (key)
         {
-            case Key.Z when shift:
-            case Key.Y:
+            case EditingKey.Z when shift:
+            case EditingKey.Y:
                 Redo();
                 return true;
 
-            case Key.Z:
+            case EditingKey.Z:
                 Undo();
                 return true;
 
             // Strong and emphasised are the language's to write, where it has a way to say them.
-            case Key.B or Key.I:
-                return Marked(key == Key.B ? EditKind.Emboldening : EditKind.Emphasising);
+            case EditingKey.B or EditingKey.I:
+                return Marked(key == EditingKey.B ? EditKind.Emboldening : EditKind.Emphasising);
 
             // A word taken out, after the caret or before it.
-            case Key.Back or Key.Delete:
-                return Worded(forward: key == Key.Delete);
+            case EditingKey.Back or EditingKey.Delete:
+                return Worded(forward: key == EditingKey.Delete);
 
-            case Key.X:
+            case EditingKey.X:
                 return Cut();
 
-            case Key.V:
+            case EditingKey.V:
                 return Paste();
 
             default:
@@ -237,7 +237,7 @@ public sealed partial class ContentEngine : IContentEditorView
     private bool Lined => Language(_named).Builder.IsSubclassOf(typeof(LinedBuilder));
 
     /// <summary>The block of columns picked out stretched a column across or a line up or down — begun at the caret, where none is picked out.</summary>
-    private void ColumnStep(Key key)
+    private void ColumnStep(EditingKey key)
     {
         var tab = _style.TabWidth;
         var (anchor, caret) = this.State.Selected is ColumnRanges block
@@ -246,9 +246,9 @@ public sealed partial class ContentEngine : IContentEditorView
 
         caret = key switch
         {
-            Key.Left => (caret.Line, Math.Max(0, caret.Column - 1)),
-            Key.Right => (caret.Line, caret.Column + 1),
-            Key.Up => (caret.Line - 1, caret.Column),
+            EditingKey.Left => (caret.Line, Math.Max(0, caret.Column - 1)),
+            EditingKey.Right => (caret.Line, caret.Column + 1),
+            EditingKey.Up => (caret.Line - 1, caret.Column),
             _ => (caret.Line + 1, caret.Column),
         };
 

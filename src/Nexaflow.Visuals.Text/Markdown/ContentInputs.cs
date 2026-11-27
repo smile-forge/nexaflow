@@ -1,5 +1,5 @@
 using System;
-using System.Windows.Media;
+using Nexaflow.Markdown.Layout;
 
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Visuals.Text.Markdown.Stages;
@@ -25,7 +25,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// the characters it was written with, so a document nobody has bound to still reads.
 /// </param>
 public sealed record ContentInputs(
-    Func<string, ImageSource?>? Pictures = null,
+    Func<string, LayoutPicture?>? Pictures = null,
     Func<string, string, LinkLook?>? Links = null,
     IDataContext? Data = null)
 {

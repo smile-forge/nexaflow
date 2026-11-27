@@ -7,6 +7,7 @@ using System.Windows.Automation.Provider;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Stages;
@@ -52,7 +53,7 @@ public class LaidLinkTests
         // The help pane's locate: links carry a pin in front, which is the host's and not the writer's.
         var view = Shown("[the Help button](locate:Chrome_HelpButton)\n",
                          decorate: (where, _) => where.StartsWith("locate:")
-                             ? new LinkLook(Brushes.Orange, Before: "\U0001F4CD", Says: "Shows where it is")
+                             ? new LinkLook(LayoutColor.Of(0xFF, 0xA5, 0x00), Before: "\U0001F4CD", Says: "Shows where it is")
                              : null);
 
         var link = Hyperlinks(view).Single();

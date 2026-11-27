@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 
 using System.Windows.Media;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
@@ -357,7 +358,7 @@ foreach (var (place, at) in places)
 
     said($"{name}: pasting {PasteSize / 1024} KB");
             surface.Pasting += Supplied;
-            row["paste"] = Taken(Pastes, () => engine.History.Break(), () => engine.Input(new ContentKey(Key.V, ModifierKeys.Control)), Source, Undo);
+            row["paste"] = Taken(Pastes, () => engine.History.Break(), () => engine.Input(new ContentKey(EditingKey.V, HeldKeys.Control)), Source, Undo);
             surface.Pasting -= Supplied;
 
     said($"{name}: carrying a word");
@@ -366,7 +367,7 @@ foreach (var (place, at) in places)
 
             return row;
 
-    void Undo() => engine.Input(new ContentKey(Key.Z, ModifierKeys.Control));
+    void Undo() => engine.Input(new ContentKey(EditingKey.Z, HeldKeys.Control));
 
             // The version written to: every change makes another, so a step changed the document where the version is another one —
             // asked without building the characters, which for a long document would be what the steps were timed paying for.
@@ -423,7 +424,7 @@ foreach (var (place, at) in places)
         Settle();
 
         var picked = !ReferenceEquals(engine.State.Document.ToString(), source);
-        if (picked) engine.Input(new ContentKey(Key.Z, ModifierKeys.Control));
+        if (picked) engine.Input(new ContentKey(EditingKey.Z, HeldKeys.Control));
 
         Settle();
 

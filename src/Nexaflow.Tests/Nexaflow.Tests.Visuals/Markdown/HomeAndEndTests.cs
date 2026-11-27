@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Windows.Input;
 
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
@@ -26,10 +27,10 @@ public class HomeAndEndTests
         var document = $"# Heading\n\n{Wide}\n\n```text\nalpha beta\n    indented  two\n```\n\nAfter.\n";
         var engine = Written(document, caret: At(document, "indented"));
 
-        engine.Input(new ContentKey(Key.End));
+        engine.Input(new ContentKey(EditingKey.End));
         Assert.AreEqual(At(document, "two") + "two".Length, engine.State.Caret, "End left the line it was on");
 
-        engine.Input(new ContentKey(Key.Home));
+        engine.Input(new ContentKey(EditingKey.Home));
         Assert.AreEqual(At(document, "    indented"), engine.State.Caret, "Home left the line it was on");
     });
 
@@ -39,7 +40,7 @@ public class HomeAndEndTests
         var document = $"{Wide}\n\n```csharp\nvar x = 1;\nvar y = 2;\n```\n";
         var engine = Written(document, caret: At(document, "var y"));
 
-        engine.Input(new ContentKey(Key.End));
+        engine.Input(new ContentKey(EditingKey.End));
         Assert.AreEqual(At(document, "var y = 2;") + "var y = 2;".Length, engine.State.Caret, "End went past the end of the fence's line");
     });
 
@@ -51,14 +52,14 @@ public class HomeAndEndTests
         var end = At(document, line) + line.Length;
         var engine = Written(document, caret: end);
 
-        engine.Input(new ContentKey(Key.Home));
+        engine.Input(new ContentKey(EditingKey.Home));
         var home = engine.State.Caret;
         var root = engine.Laid.Root;
 
         Assert.IsTrue(home > At(document, line), "Home went to the start of the line rather than of its last row");
         Assert.AreEqual(root.CaretRect(end).Y, root.CaretRect(home).Y, 0.5, "Home left the row it was on");
 
-        engine.Input(new ContentKey(Key.End));
+        engine.Input(new ContentKey(EditingKey.End));
         Assert.AreEqual(end, engine.State.Caret, "End is where the last row ends");
     });
 

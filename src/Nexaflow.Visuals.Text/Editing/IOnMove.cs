@@ -150,7 +150,7 @@ public abstract record ContentCarry : ContentLift
     /// What the pointer is over what a press would pick this up from, and while it is carried — a field's end moving across, say — or
     /// null for the pointer the place has anyway. Asked when the pointer arrives on a piece, never as it moves along one.
     /// </summary>
-    public virtual System.Windows.Input.Cursor? Pointer => null;
+    public virtual PointerShape? Pointer => null;
 }
 
 /// <summary>
