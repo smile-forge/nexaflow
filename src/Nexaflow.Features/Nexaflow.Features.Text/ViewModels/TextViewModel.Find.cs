@@ -13,8 +13,9 @@ namespace Nexaflow.Features.Text.ViewModels;
 
 /// <summary>
 /// Finding in the file, and replacing: the find bar, the shell's <c>?</c> search and the assistant's all run one query
-/// (<see cref="SearchRequest"/>) over every line of the whole file — off the page, as it was written when the search began — and the matches
-/// are marked on the page by the lines being drawn (<see cref="MatchMarks"/>), so a file of any length is marked at the cost of a screen.
+/// (<see cref="SearchRequest"/>) through the shared search over the file's lines (<see cref="FileFind"/>): every line of the whole file read
+/// off the page, as it was written when the search began, the matches marked on the page by the lines being drawn (<see cref="FoundMarks"/>),
+/// so a file of any length is marked at the cost of a screen, and the search run again once writing pauses.
 /// </summary>
 public sealed partial class TextViewModel
 {
@@ -48,8 +49,11 @@ public sealed partial class TextViewModel
     /// <summary>Raised when the bar opens so the view can focus the find box.</summary>
     public event Action? FindBarFocusRequested;
 
-    /// <summary>What the search marks on the page: worked out over the lines being drawn, the match looked at outlined.</summary>
-    private readonly MatchMarks _matchMarks = new();
+    /// <summary>The search shown and what it found, marked on the page by the editor's own marks.</summary>
+    private readonly FileFind _find;
+
+    /// <summary>The lines the minimap's ticks were worked out for.</summary>
+    private IReadOnlyList<long>? _ticked;
 
     private IReadOnlyList<double> _miniMapMarks = [];
 
@@ -60,22 +64,12 @@ public sealed partial class TextViewModel
         private set { _miniMapMarks = value; OnPropertyChanged(); }
     }
 
-    // ── Search cancellation ───────────────────────────────────────────────────
-
-    private CancellationTokenSource? _searchCts;
-    private Func<CancellationToken, Task>? _lastSearch;
-
-    /// <summary>The lines of the whole file (from nought) that hold at least one match, in order.</summary>
-    private long[] _matchingLineNumbers = [];
-
     // The active query — the ONE authority for what matches, so the text viewer honours whole-word, wildcards and quoting exactly like
     // every other ISearchable page. Scanning, marking, navigation and replacing all read this.
     private SearchRequest? _activeRequest;
 
     // Kept only for regex-mode Replace's $1 expansion; null for a literal/wildcard query.
     private Regex? _activeRegex;
-    private int _currentMatchIndex = -1;
-
     // ── Search ────────────────────────────────────────────────────────────────
 
     /// <summary>A plain (simple) find — the raw text as one whole-word literal, so <c>*</c>/<c>?</c> are
@@ -125,12 +119,6 @@ public sealed partial class TextViewModel
     /// </summary>
     private async Task RunSearchAsync(SearchRequest request, CancellationToken externalCt = default)
     {
-        _lastSearch = ct => RunSearchAsync(request, ct);
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_searchCts.Token, externalCt);
-        var ct = linked.Token;
-
         _activeRequest = request;
         // Only a single-regex query keeps a compiled Regex, for Replace's $1 expansion.
         _activeRegex = request.Terms is [{ Kind: SearchTermKind.Regex }]
@@ -140,40 +128,24 @@ public sealed partial class TextViewModel
         CurrentSearchTerm = SearchSyntax.Format(request);
 
         IsSearchRunning = true;
-        try
-        {
-            var (lines, count) = await ScanAsync(request, ct);
-            _matchingLineNumbers = lines;
-
-            MiniMapMarks       = MarksFor(lines);
-            SearchMatchCount   = count;
-            IsSearchActive     = count > 0;
-            _currentMatchIndex = count > 0 ? 0 : -1;
-            _matchMarks.Show(count > 0 ? (int _, string text) => request.Occurrences(text) : null);
-            if (count > 0) NavigateToMatchLine(lines[0]);
-        }
+        try { await _find.FindAsync(QueryOf(request), 0, externalCt); }
         catch (OperationCanceledException) { }
         finally { IsSearchRunning = false; }
     }
 
-    /// <summary>
-    /// Every line of the whole file the request matches, and how many — read a line at a time off the page, from the file as it stood when
-    /// the search began — with the first of them as hits, where <paramref name="collect"/> is asked for.
-    /// </summary>
-    private async Task<(long[] lines, int count)> ScanAsync(SearchRequest request, CancellationToken ct, List<SearchHit>? collect = null, int collectCap = 0)
+    /// <summary>What <paramref name="request"/> asks of each line of the file.</summary>
+    private static LineQuery QueryOf(SearchRequest request) => new(request.Matches, request.Occurrences);
+
+    /// <summary>What the search found, or which of it is looked at, changed: the count, whether it shows, and the minimap's ticks said again.</summary>
+    private void OnFindChanged(object? sender, EventArgs args)
     {
-        var lines = _shown.Lines();
-        var matching = new List<long>();
+        SearchMatchCount = _find.Count;
+        IsSearchActive   = _find.Count > 0;
 
-        await Task.Run(() => lines((line, _, text) =>
-        {
-            if (!request.Matches(text)) return;
-
-            matching.Add(line);
-            if (collect is not null && collect.Count < collectCap) collect.Add(HitFor(line, text));
-        }, ct), ct);
-
-        return (matching.ToArray(), matching.Count);
+        // Stepping through what was found moves no tick: they are worked out again only for other lines found.
+        if (ReferenceEquals(_find.Lines, _ticked)) return;
+        _ticked      = _find.Lines;
+        MiniMapMarks = MarksFor(_ticked);
     }
 
     private static SearchHit HitFor(long line, string text) =>
@@ -205,9 +177,8 @@ public sealed partial class TextViewModel
         if (!display)
         {
             // Agent-side read: scan without touching the marks, the minimap or the find bar.
-            var hits = new List<SearchHit>();
-            var (_, found) = await ScanAsync(request, ct, hits, SearchHitCap);
-            return found == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits, found);
+            var found = await _find.ReadAsync(QueryOf(request), SearchHitCap, ct);
+            return found.Lines.Length == 0 ? SearchOutcome.None() : SearchOutcome.Found(Hits(found.First), found.Lines.Length);
         }
 
         // Inject the query into the find bar so it lights up exactly what the bar would, and turn on the
@@ -223,139 +194,47 @@ public sealed partial class TextViewModel
 
         return SearchMatchCount == 0
             ? SearchOutcome.None()
-            : SearchOutcome.Found(VisibleHits(), SearchMatchCount);
+            : SearchOutcome.Found(Hits(_find.Firsts(SearchHitCap)), SearchMatchCount);
     }
+
+    /// <summary>Lines found as hits, each previewed from what is written on it.</summary>
+    private static IReadOnlyList<SearchHit> Hits(IReadOnlyList<(long Line, string Text)> lines) =>
+        [.. lines.Select(line => HitFor(line.Line, line.Text))];
 
     /// <summary>
-    /// Narrows the match set to the agent's chosen lines — the minimap, match count and next/previous navigation all follow it. The marks on
-    /// the page still show every occurrence, since they are drawn from the query rather than the match list.
+    /// Narrows the match set to the agent's chosen lines — the minimap, match count, the marks on the page and next/previous navigation all
+    /// follow it.
     /// </summary>
-    public Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct)
-    {
-        var lines = hits.Select(h => long.TryParse(h.Id, out var l) ? l : -1)
-                        .Where(l => l >= 0)
-                        .Distinct()
-                        .OrderBy(l => l)
-                        .ToArray();
-        if (lines.Length == 0) return Task.FromResult(false);
+    public Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct) =>
+        Task.FromResult(_find.Narrow(hits.Select(h => long.TryParse(h.Id, out var l) ? l : -1)));
 
-        _matchingLineNumbers = lines;
-        MiniMapMarks         = MarksFor(lines);
-        SearchMatchCount     = lines.Length;
-        IsSearchActive       = true;
-        _currentMatchIndex   = 0;
-        NavigateToMatchLine(lines[0]);
-        return Task.FromResult(true);
-    }
-
-    /// <summary>The current match lines as hits, each previewed from what is written on it.</summary>
-    private IReadOnlyList<SearchHit> VisibleHits()
-    {
-        var hits = new List<SearchHit>(Math.Min(_matchingLineNumbers.Length, SearchHitCap));
-        foreach (var line in _matchingLineNumbers)
-        {
-            if (hits.Count >= SearchHitCap) break;
-            hits.Add(HitFor(line, _shown.LineText(line)));
-        }
-        return hits;
-    }
-
-    private IReadOnlyList<double> MarksFor(long[] lines)
+    private IReadOnlyList<double> MarksFor(IReadOnlyList<long> lines)
     {
         long total = Math.Max(1, LineCount);
-        var marks  = new List<double>(lines.Length);
+        var marks  = new List<double>(lines.Count);
         foreach (var l in lines) marks.Add((double)l / total);
         return marks;
     }
 
-    private Task ReRunSearchAsync() => _lastSearch?.Invoke(CancellationToken.None) ?? Task.CompletedTask;
+    /// <summary>Runs the search shown again over the file as it is now, the reader kept on the match they were on.</summary>
+    private Task ReRunSearchAsync() => _find.AgainAsync();
 
     [RelayCommand]
     private void CancelSearch()
     {
-        _searchCts?.Cancel();
-        _matchMarks.Show(null);
-        MiniMapMarks         = [];
-        SearchMatchCount     = 0;
-        IsSearchActive       = false;
-        CurrentSearchTerm    = string.Empty;
-        _lastSearch          = null;
-        _currentMatchIndex   = -1;
-        _matchingLineNumbers = [];
-        _activeRequest       = null;
-        _activeRegex         = null;
+        _find.Clear();
+        CurrentSearchTerm = string.Empty;
+        _activeRequest    = null;
+        _activeRegex      = null;
     }
 
     // Next/Previous find the match after/before the CARET — the first match whose file line is past the caret's, so a plain click-then-F3
-    // lands on the next occurrence like every editor. The match list is file-line-sorted, so a binary search picks the neighbour, and going
-    // to it brings the window there where the file is too long for one document.
+    // lands on the next occurrence like every editor — and going to it brings the window there where the file is too long for one document.
     [RelayCommand]
-    private void FindNext() => StepFromCaret(forward: true);
+    private void FindNext() => _find.StepFromCaret(forward: true);
 
     [RelayCommand]
-    private void FindPrevious() => StepFromCaret(forward: false);
-
-    private void StepFromCaret(bool forward)
-    {
-        var n = _matchingLineNumbers.Length;
-        if (n == 0) return;
-
-        var caretLine = _shown.LineOf(Editor.Caret);
-        int idx;
-        if (forward)
-        {
-            idx = LowerBound(_matchingLineNumbers, caretLine + 1);   // first match strictly after the caret
-            if (idx >= n) idx = 0;                                   // past the last → wrap to the first
-        }
-        else
-        {
-            idx = LowerBound(_matchingLineNumbers, caretLine) - 1;   // last match strictly before the caret
-            if (idx < 0) idx = n - 1;                                // before the first → wrap to the last
-        }
-
-        _currentMatchIndex = idx;
-        NavigateToMatchLine(_matchingLineNumbers[idx]);
-    }
-
-    // First index whose value is >= target (the match list is ascending file lines).
-    private static int LowerBound(long[] arr, long target)
-    {
-        int lo = 0, hi = arr.Length;
-        while (lo < hi) { int mid = (lo + hi) >> 1; if (arr[mid] < target) lo = mid + 1; else hi = mid; }
-        return lo;
-    }
-
-    /// <summary>
-    /// Goes to the first match on line <paramref name="line"/> of the whole file: the caret at its start, the match outlined as the one looked
-    /// at, and the line brought onto the page.
-    /// </summary>
-    private void NavigateToMatchLine(long line)
-    {
-        if (MatchOnLine(line) is not { } match)
-        {
-            _shown.GoToLine(line, ShownPlace.Nearest);
-            return;
-        }
-
-        Editor.MoveCaretTo(match.Start);
-        _matchMarks.LookAt(match);
-        Editor.ScrollToLine(Document.Current.LineOf(match.Start), ShownPlace.Nearest);
-    }
-
-    /// <summary>The first match on line <paramref name="line"/> of the whole file, where it stands in the document — the window brought there first.</summary>
-    private (int Start, int Length)? MatchOnLine(long line)
-    {
-        if (_activeRequest is null || _shown.OffsetOfLine(line) is not { } at) return null;
-
-        var document = Document.Current;
-        var (from, to) = document.LineAt(_shown.DocumentOffset(at));
-        document = Document.Current;
-
-        foreach (var (index, length) in _activeRequest.Occurrences(document.Slice(from, to - from).TrimEnd('\r', '\n')))
-            return (from + index, length);
-
-        return null;
-    }
+    private void FindPrevious() => _find.StepFromCaret(forward: false);
 
     // ── Find & Replace bar ────────────────────────────────────────────────────
 
@@ -477,12 +356,13 @@ public sealed partial class TextViewModel
     {
         if (string.IsNullOrEmpty(FindText)) return;
         if (!IsSearchActive) await RunFindAsync();
-        if (!IsSearchActive || _matchingLineNumbers.Length == 0) return;
+        if (!IsSearchActive || _find.Count == 0) return;
         if (!await EnsureEditingAsync()) return;
 
-        var line = _matchingLineNumbers[Math.Clamp(_currentMatchIndex < 0 ? 0 : _currentMatchIndex, 0, _matchingLineNumbers.Length - 1)];
+        // Gone to again, the window over a file too long for one document brought to it, so the match looked at is in the document.
+        _find.GoTo(Math.Max(0, _find.At));
 
-        if (MatchOnLine(line) is { } match)
+        if (Editor.Found.LookedAt is { } match)
         {
             var replacement = ReplaceText;
             if (UseRegex && _activeRegex is not null) // expand $1… against the matched text

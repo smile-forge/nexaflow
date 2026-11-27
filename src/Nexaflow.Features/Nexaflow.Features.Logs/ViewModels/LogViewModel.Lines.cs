@@ -33,7 +33,7 @@ public sealed partial class LogViewModel
     [ObservableProperty] private string _customHighlightTerm = string.Empty;
 
     /// <summary>Every occurrence of the reader's term, whatever its case — below what a search found, which reads over it.</summary>
-    private readonly MatchMarks _termMarks = new("Log.Term", order: 900);
+    private readonly FoundMarks _termMarks = new("Log.Term", order: 900);
 
     // ── Regex filter ─────────────────────────────────────────────────────────
 
@@ -77,7 +77,6 @@ public sealed partial class LogViewModel
         Editor.Marks.Add(_selectedMarks);
         Editor.Marks.Add(_termMarks);
         Editor.Marks.Add(_filterMarks);
-        Editor.Marks.Add(_matchMarks);
 
         Reselected();
     }
@@ -106,9 +105,26 @@ public sealed partial class LogViewModel
         if (HighlightInfo)    levels[LogLevel.Info]    = "Log.Info";
         if (HighlightDebug)   levels[LogLevel.Debug]   = "Log.Debug";
 
-        var parser = ActiveParser;
-        _levelMarks.Show(levels.Count == 0 ? null : (_, text) => levels.GetValueOrDefault(parser.ParseLine(text).Level));
+        _levelMarks.Show(Parsed(), levels.Count == 0 ? null : (_, _, line) => levels.GetValueOrDefault(line.Level));
     }
+
+    /// <summary>
+    /// Each line drawn read by the parser the log was found to be written for — read once a line for every layer asking, so the level wash and
+    /// the time filter's veil share one parse of what is on screen.
+    /// </summary>
+    private LineReading<LogLine> Parsed()
+    {
+        var parser = ActiveParser;
+        if (_parsed is { } parsed && ReferenceEquals(_parsedBy, parser)) return parsed;
+
+        (_parsed, _parsedBy) = (new LineReading<LogLine>(parser.ParseLine), parser);
+        return _parsed;
+    }
+
+    /// <summary>The lines drawn as the active parser reads them, and the parser that reads them.</summary>
+    private LineReading<LogLine>? _parsed;
+
+    private ILogParser? _parsedBy;
 
     // ── Custom term highlight ─────────────────────────────────────────────────
 
@@ -116,11 +132,11 @@ public sealed partial class LogViewModel
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            _termMarks.Show(null);
+            _termMarks.Clear();
             return;
         }
 
-        _termMarks.Show((_, text) => Occurrences(text, value));
+        _termMarks.Show(new LineQuery(text => Occurrences(text, value)));
     }
 
     /// <summary>Where <paramref name="term"/> is written in <paramref name="text"/>, whatever its case.</summary>
@@ -161,10 +177,13 @@ public sealed partial class LogViewModel
     partial void OnFilterStartChanged(DateTime? value) => ShowFilters();
     partial void OnFilterEndChanged(DateTime? value) => ShowFilters();
 
-    /// <summary>Veils each line the regex filter or the time filter leaves out; with neither, none.</summary>
+    /// <summary>
+    /// Veils each line the regex filter or the time filter leaves out; with neither, none. A time range reads each line's stamp through the
+    /// parse the level wash shares; a pattern alone reads only what is written.
+    /// </summary>
     private void ShowFilters()
     {
-        var (filter, start, end, parser) = (ActiveFilter, FilterStart, FilterEnd, ActiveParser);
+        var (filter, start, end) = (ActiveFilter, FilterStart, FilterEnd);
         if (filter is null && start is null && end is null)
         {
             _filterMarks.Show(null);
@@ -172,16 +191,18 @@ public sealed partial class LogViewModel
         }
 
         // An empty line has nothing to fade.
-        _filterMarks.Show((_, text) => text.Length == 0 || Passes(text, filter, start, end, parser) ? null : "Log.Filter");
+        if (start is null && end is null)
+            _filterMarks.Show((_, text) => text.Length == 0 || filter!.IsMatch(text) ? null : "Log.Filter");
+        else
+            _filterMarks.Show(Parsed(), (_, text, line) => text.Length == 0 || Passes(text, line, filter, start, end) ? null : "Log.Filter");
     }
 
-    /// <summary>Whether a line reading <paramref name="text"/> is one the filters keep: matched by the regex, and stamped inside the range — a line with no stamp is kept.</summary>
-    private static bool Passes(string text, Regex? filter, DateTime? start, DateTime? end, ILogParser parser)
+    /// <summary>Whether a line reading <paramref name="text"/>, read as <paramref name="line"/>, is one the filters keep: matched by the regex, and stamped inside the range — a line with no stamp is kept.</summary>
+    private static bool Passes(string text, LogLine line, Regex? filter, DateTime? start, DateTime? end)
     {
         if (filter is not null && !filter.IsMatch(text)) return false;
-        if (start is null && end is null) return true;
 
-        return parser.ParseLine(text).Timestamp is not { } stamp || ((start is null || stamp >= start) && (end is null || stamp <= end));
+        return line.Timestamp is not { } stamp || ((start is null || stamp >= start) && (end is null || stamp <= end));
     }
 
     [RelayCommand]

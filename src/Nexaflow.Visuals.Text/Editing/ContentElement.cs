@@ -1050,7 +1050,7 @@ public class ContentElement : FrameworkElement
         if ((marks is null || marks.Count == 0) && !caretLine) return;
 
         var document = state.Document;
-        var (start, end) = NearScreen(laid, document.Length);
+        if (NearScreen(laid, document.Length) is not (var start, var end)) return;
         // A wash across the page runs from its left edge on screen to past the end of its longest line, however far it has slid.
         var width = Math.Max(RenderSize.Width / Scale, laid.Size.Width + by.X);
         var inks = new Dictionary<string, Brush>(StringComparer.Ordinal);
@@ -1097,10 +1097,14 @@ public class ContentElement : FrameworkElement
         }
     }
 
-    /// <summary>The stretch of the document laid near the screen — all of it, where nothing says which part of it is on screen.</summary>
-    private (int Start, int End) NearScreen(Laid laid, int length)
+    /// <summary>
+    /// The stretch of the document drawn round the screen — what was painted round it last — which is all a mark is worked out for; or null
+    /// before anything has said where the screen is, so nothing is marked until it does, and being told paints again
+    /// (<see cref="OnScreen"/>). Never the whole document: a long one would cost a mark for every line it holds.
+    /// </summary>
+    private (int Start, int End)? NearScreen(Laid laid, int length)
     {
-        if (_painted is not { } near) return (0, length);
+        if (_painted is not { } near) return null;
 
         var from = laid.Root.StopBelow(near.Y);
         var to = laid.Root.StopBelow(near.Y + near.Height);

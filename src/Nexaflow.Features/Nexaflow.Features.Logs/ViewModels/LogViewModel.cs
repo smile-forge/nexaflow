@@ -137,6 +137,8 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
         Editor = new ContentEditor(Document);
         _shown = new ShownFile(Editor);
+        _find = new FileFind(_shown, Editor.Found, ShownPlace.Centre);
+        _find.Changed += OnFindChanged;
         Lined();
 
         Document.Changed += (_, _) => Recounted();
@@ -506,6 +508,8 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         _disposed = true;
         _loadCts?.Cancel();
         _watch?.Dispose();
+        _find.Changed -= OnFindChanged;
+        _find.Dispose();
         _shown.Dispose();
         Editor.Dispose();
 

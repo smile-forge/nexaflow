@@ -673,14 +673,25 @@ at the start of what took its place, or at its end where it leans after. The doc
 dozen, each with a shift of its own, so a write moves the ones it touches one by one and every block after it by one sum.
 
 **What a host draws over the content is marks, never ink in it.** A view holds layers of marks (`ContentEditor.Marks`,
-`ContentMarkLayer`): what a search found (`FoundMarks`, a layer every view has), the stretches a host names (`RangeMarks`), each
-level a log line is at. A mark is a wash or a line round characters, a wash or a veil across every row of a line, or a bar under
+`ContentMarkLayer`): what a search found (`FoundMarks`, a layer every view has), each level a log line is at, the lines a filter
+leaves out (`LineMarks`). A mark is a wash or a line round characters, a wash or a veil across every row of a line, or a bar under
 them, and names the theme token it is inked in, resolved when it is drawn — never a colour, except a bar under a colour the
-document itself writes. A layer is asked only about the stretch near the screen (`ContentElement.PaintMarks`), so marking every
-line of a long file costs a screen's worth; it is carried through every change before the change is drawn, so a mark stays over
-what it named; and it says when it changes, which is a repaint and nothing else. The line the caret is on can be washed too
-(`NexaTextSurface.HighlightsCaretLine`). Nothing marked changes what is laid: recolouring the characters themselves is the
-language's, from its stages.
+document itself writes. A layer is asked only about the stretch painted round the screen (`ContentElement.PaintMarks`), and
+nothing before a screen is known, so marking every line of a long file costs a screen's worth. The lines of that stretch are
+sliced once for every layer (`ContentMarkRequest.Lines`), and what more than one layer works out from a line — a log line parsed —
+is worked out once for them all (`LineReading`, `ContentMarkRequest.Read`). A layer is carried through every change before the
+change is drawn, so a mark stays over what it named; and it says when it changes, which is a repaint and nothing else. The line
+the caret is on can be washed too (`NexaTextSurface.HighlightsCaretLine`). Nothing marked changes what is laid: recolouring the
+characters themselves is the language's, from its stages.
+
+**Every page searches through one search** (`ContentFind`), which the page drives and only adapts to its own words. Over the
+lines of a file a page shows (`FileFind`, through `ShownFile`, so a window onto a file too long for a document is searched as the
+whole file) it reads a line at a time off the page, finds the lines a query (`LineQuery`) finds, marks the query's matches on the
+lines drawn and no others, steps from the line looked at or from the caret, narrows to lines chosen, and runs again once writing
+pauses, the reader kept on the match they were on. Over a document held whole (`PlaceFind`) it finds a place at a time — by a
+query asked of each line, found again after an edit only on the lines it touched, or by a finder reading what a page draws — and
+is found again when the page says the document has come to read. The Text and log viewers, the code editor, the Markdown page and
+the surface all drive it.
 
 What happened is the engine's to say, and the surface says it again to the page as routed events: `SourceChanged` (what
 changed, and whether it was written, taken back, put there or loaded), `Selected` (what is picked out — words, a note, a box in
