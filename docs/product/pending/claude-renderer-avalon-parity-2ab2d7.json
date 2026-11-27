@@ -476,9 +476,9 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
-          "class": "MarkdownClipboard",
-          "method": "Copied"
+          "doc": "src/Nexaflow.Markdown/Engine/Markdown/ContentEngine.Clipboard.cs",
+          "class": "ContentEngine",
+          "method": "CopyOf"
         },
         {
           "type": "code",
@@ -765,7 +765,7 @@
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
-          "class": "RangeMarks"
+          "class": "LineMarks"
         },
         {
           "type": "code",
@@ -774,9 +774,9 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
-          "class": "ContentElement",
-          "method": "PaintMarks"
+          "doc": "src/Nexaflow.Markdown/Engine/Markdown/ContentEngine.Shown.cs",
+          "class": "ContentEngine",
+          "method": "MarksNear"
         }
       ]
     },
@@ -822,8 +822,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Find.cs",
-          "class": "NexaTextSurface",
+          "doc": "src/Nexaflow.Markdown/Engine/Markdown/ContentEngine.Find.cs",
+          "class": "ContentEngine",
           "method": "Refound"
         }
       ]
@@ -839,6 +839,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurfaceAutomationPeer.cs",
           "class": "SurfaceTextRange"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentTextUnits.cs",
+          "class": "ContentTextUnits"
         }
       ]
     },
@@ -1586,7 +1591,7 @@
         {
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
-          "class": "MatchMarks"
+          "class": "FoundMarks"
         }
       ],
       "concerns": {
@@ -1841,7 +1846,7 @@
           "type": "code",
           "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
           "class": "TextViewModel",
-          "method": "ScanAsync"
+          "method": "BuildFindRequest"
         }
       ]
     },
@@ -2143,8 +2148,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
-          "class": "MatchMarks"
+          "doc": "src/Nexaflow.Markdown/Editing/ContentFind.cs",
+          "class": "FileFind"
         }
       ]
     },
@@ -2990,8 +2995,9 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithEmbeddedPictures.cs",
-          "class": "WithEmbeddedPictures"
+          "doc": "src/Nexaflow.Markdown/Engine/Markdown/ContentEngine.cs",
+          "class": "ContentEngine",
+          "method": "Pictured"
         },
         {
           "type": "code",
@@ -3734,11 +3740,58 @@
           "method": "FromPicture"
         }
       ]
+    },
+    "abbreviations": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithReferences.cs",
+          "class": "WithReferences",
+          "method": "Spelled"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithReferences.cs",
+          "class": "WithReferences",
+          "method": "Abbreviated"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Engine/Markdown/ContentEngine.Shown.cs",
+          "class": "ContentEngine",
+          "method": "Says"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/WithTargets.cs",
+          "class": "WithTargets",
+          "method": "Defined"
+        }
+      ]
+    },
+    "chrome-messages-button": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:NotificationsButton"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "ToggleNotifications"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 184,
+  "changed_sets": 186,
   "touched_nodes": [
+    "abbreviations",
     "abc-editing",
     "abc-layout",
     "architecture-writing",
@@ -3750,6 +3803,7 @@
     "c4-diagram-writing",
     "c4-sequence-writing",
     "chemical-structures",
+    "chrome-messages-button",
     "class-diagram",
     "code-context-menu",
     "code-find",
