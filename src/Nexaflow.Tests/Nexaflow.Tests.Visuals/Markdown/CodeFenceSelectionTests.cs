@@ -48,7 +48,7 @@ public class CodeFenceSelectionTests
         Sweep(surface, Before(surface, "x = 1"), After(surface, "2;"));
         surface.Pressed(Key.C, ModifierKeys.Control);
 
-        Assert.AreEqual(Dragged, asked.Single().Text.ReplaceLineEndings("\n"), "the code picked out, and no fence round it");
+        Assert.AreEqual(Dragged, MarkdownClipboard.PlainWords(asked.Single()).ReplaceLineEndings("\n"), "the code picked out, and no fence round it");
     });
 
     [TestMethod]
@@ -61,7 +61,7 @@ public class CodeFenceSelectionTests
         surface.Pressed(Key.C, ModifierKeys.Control);
 
         Assert.AreEqual(Dragged, surface.Shown.Current.SelectedText, "a reader who may not write may still pick code out");
-        Assert.AreEqual(Dragged, asked.Single().Text.ReplaceLineEndings("\n"), "and copy it");
+        Assert.AreEqual(Dragged, MarkdownClipboard.PlainWords(asked.Single()).ReplaceLineEndings("\n"), "and copy it");
     });
 
     /// <summary>A press, a move half way and a move the rest of the way, and letting go — as a hand drags.</summary>
@@ -98,9 +98,9 @@ public class CodeFenceSelectionTests
         return new Rect(box.X * zoom, box.Y * zoom, box.Width * zoom, box.Height * zoom);
     }
 
-    private static List<MarkdownClipboard.ContentCopy> Copies(NexaTextSurface surface)
+    private static List<ContentCopy> Copies(NexaTextSurface surface)
     {
-        var asked = new List<MarkdownClipboard.ContentCopy>();
+        var asked = new List<ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
         return asked;
     }

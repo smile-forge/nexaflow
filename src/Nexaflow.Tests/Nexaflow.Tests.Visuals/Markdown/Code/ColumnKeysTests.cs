@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using System.Windows.Media.Imaging;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -63,7 +62,7 @@ public class ColumnKeysTests
         Assert.IsTrue(engine.Copied());
 
         var copy = copies.Made.Single();
-        Assert.AreEqual("b\ne", copy.Text.ReplaceLineEndings("\n"));
+        Assert.AreEqual("b\ne", MarkdownClipboard.PlainWords(copy).ReplaceLineEndings("\n"));
         Assert.IsTrue(copy.Column);
         Assert.IsTrue(MarkdownClipboard.Payload(copy).Contains(MarkdownClipboard.ColumnFormat));
     });
@@ -91,9 +90,9 @@ public class ColumnKeysTests
     /// <summary>What a page is told is copied, kept.</summary>
     private sealed class Copies : IContentEvents
     {
-        public List<MarkdownClipboard.ContentCopy> Made { get; } = [];
+        public List<ContentCopy> Made { get; } = [];
 
-        public Task<bool>? OnCopy(MarkdownClipboard.ContentCopy copy)
+        public Task<bool>? OnCopy(ContentCopy copy)
         {
             this.Made.Add(copy);
             return Task.FromResult(true);
@@ -105,7 +104,7 @@ public class ColumnKeysTests
 
         public bool OnPaste() => false;
 
-        public BitmapSource? OnPicture(ContentPart block) => null;
+        public LayoutPicture? OnPicture(ContentPart block) => null;
 
         public bool OnBlockSave(ContentPart block) => false;
 

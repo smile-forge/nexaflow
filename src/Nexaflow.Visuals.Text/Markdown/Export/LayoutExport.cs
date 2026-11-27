@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -13,7 +12,6 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
-using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown.Export;
 
@@ -26,8 +24,8 @@ public sealed record ExportOccasion
     /// <summary>How wide the document is laid, in device-independent pixels — what a picture of a block is as wide as.</summary>
     public double Width { get; init; } = 640;
 
-    /// <summary>The palette it is drawn in: a page is white unless somebody says otherwise.</summary>
-    public LayoutStyle Style { get; init; } = WpfStyles.Light;
+    /// <summary>The palette it is drawn in — a white page's, for a page.</summary>
+    public required LayoutStyle Style { get; init; }
 
     /// <summary>Whether what another language draws is painted, so a format that cannot draw the language puts the picture in.</summary>
     public bool Pictures { get; init; }
@@ -50,14 +48,14 @@ public sealed record ExportOccasion
 /// </summary>
 public static class LayoutExport
 {
-    /// <summary><paramref name="markdown"/>, laid out read-only for <paramref name="occasion"/> and walked.</summary>
-    public static ExportDocument Exported(string markdown, ExportOccasion occasion)
+    /// <summary><paramref name="markdown"/>, laid out read-only in <paramref name="medium"/> for <paramref name="occasion"/> and walked.</summary>
+    public static ExportDocument Exported(string markdown, ExportOccasion occasion, ILayoutMedium medium)
     {
         // A document written out shows every line it holds: nothing it is written to slides.
-        var engine = new ContentEngine(WpfMedium.OnThisThread, occasion.Style) { Slides = false };
+        var engine = new ContentEngine(medium, occasion.Style) { Slides = false };
         var laid = engine.Lay(null, EditState.For(markdown), occasion.Style, occasion.Width, readOnly: true);
 
-        return laid.Root.Part is ContentPart document ? new Walk(laid, engine.NameOf, occasion).Document(document) : new ExportDocument([]);
+        return laid.Root.Part is ContentPart document ? new Walk(laid, engine.NameOf, occasion, medium).Document(document) : new ExportDocument([]);
     }
 
     /// <summary>
@@ -81,13 +79,17 @@ public static class LayoutExport
         /// <summary>The name a heading answers to, as the outline of what was laid says.</summary>
         private readonly Func<ContentPart, string?> _named;
         private readonly ExportOccasion _occasion;
+
+        /// <summary>What the layout was made in, which paints a picture of what another language drew.</summary>
+        private readonly ILayoutMedium _medium;
         private readonly Dictionary<ContentPart, List<LayoutPiece>> _pieces = new(ReferenceEqualityComparer.Instance);
 
-        public Walk(Laid laid, Func<ContentPart, string?> named, ExportOccasion occasion)
+        public Walk(Laid laid, Func<ContentPart, string?> named, ExportOccasion occasion, ILayoutMedium medium)
         {
             _laid = laid;
             _named = named;
             _occasion = occasion;
+            _medium = medium;
 
             foreach (var piece in laid.Root.SelfAndDescendants())
             {
@@ -193,9 +195,7 @@ public static class LayoutExport
         {
             var box = drawn.Bounds;
 
-            if (WpfPainter.Painted(_laid.Root, box.ToWpf(), _occasion.Scale, _occasion.Style.Text.Brush(), null) is not { } painted) return null;
-
-            return new ExportPicture(WpfPainter.Png(painted), box.Width, box.Height);
+            return _medium.PaintedPng(_laid.Root, box, _occasion.Scale, _occasion.Style.Text) is { } png ? new ExportPicture(png, box.Width, box.Height) : null;
         }
 
         /// <summary>What an alert says it is, and the word and the colour it is drawn with.</summary>

@@ -146,7 +146,7 @@ public class NexaTextSurfaceTests
         // A clipboard is the application's, shared with every other thing in the window. The surface says
         // what would go on it and asks; it does not reach out and put it there.
         var surface = Shown(Doc);
-        var asked = new List<MarkdownClipboard.ContentCopy>();
+        var asked = new List<ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
 
         Picked(surface);
@@ -171,7 +171,7 @@ public class NexaTextSurfaceTests
         // Pasted into a document the picture is what was wanted; pasted into an editor the lines are. Both go, and whatever
         // takes the copy chooses — nobody means to paste a chart as the word "pie" and a pair of numbers.
         var surface = Shown(Doc);
-        var asked = new List<MarkdownClipboard.ContentCopy>();
+        var asked = new List<ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
 
         Picked(surface);
@@ -210,7 +210,7 @@ public class NexaTextSurfaceTests
         // The same answer that leaves a code fence's Save button off leaves its picture off here.
         const string source = "```csharp\nvar x = 1;\n```\n\nWords.\n";
         var surface = Shown(source);
-        var asked = new List<MarkdownClipboard.ContentCopy>();
+        var asked = new List<ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
 
         surface.Shown.SelectRange(0, source.IndexOf("```\n", 3, StringComparison.Ordinal) + 4);

@@ -375,6 +375,10 @@ public sealed class WpfMedium : ILayoutMedium
 
         return figures;
     }
+
+    /// <inheritdoc/>
+    public byte[]? PaintedPng(LayoutPiece laid, LayoutRect area, double scale, LayoutInk text) =>
+        WpfPainter.Painted(laid, area.ToWpf(), scale, text.Brush(), null) is { } painted ? WpfPainter.Png(painted) : null;
 }
 
 /// <summary>The renderer-free layout's values said in WPF's terms, and back.</summary>

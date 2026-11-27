@@ -70,6 +70,13 @@ public interface ILayoutMedium
     LayoutPicture? Decoded(EmbeddedPicture picture, double textSize);
 
     /// <summary>
+    /// What <paramref name="laid"/> paints over <paramref name="area"/>, as a PNG of <paramref name="scale"/> pixels to each of the
+    /// layout's — words that carry no ink of their own in <paramref name="text"/> — or null where nothing could be painted. What an
+    /// export keeps of a picture another language drew, for a format that cannot draw the language.
+    /// </summary>
+    byte[]? PaintedPng(LayoutPiece laid, LayoutRect area, double scale, LayoutInk text);
+
+    /// <summary>
     /// The glyph <paramref name="character"/> is drawn with in <paramref name="face"/>, set at <paramref name="size"/> with the left
     /// end of its baseline at <paramref name="origin"/> — or null where the face has no glyph for it.
     /// </summary>

@@ -39,7 +39,7 @@ internal sealed class CodeSyntax : IReadingSyntax
 
     /// <summary>
     /// How long a reading may be and still be coloured, folded and read as code: past it, as a code editor withholds them on a file too long to
-    /// parse at the pace of typing, it is shown as written (<see cref="NexaTextSurface.ColoursWithheld"/>).
+    /// parse at the pace of typing, it is shown as written, and whatever shows it can tell the reader why.
     /// </summary>
     internal const int ColoursUpTo = 16 * 1024 * 1024;
 

@@ -5,8 +5,6 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-using System.Windows;
-using System.Windows.Media;
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -15,7 +13,6 @@ using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
-using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Localization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;

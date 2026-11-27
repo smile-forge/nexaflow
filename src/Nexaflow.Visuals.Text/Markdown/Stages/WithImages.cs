@@ -25,7 +25,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Stages;
 /// wrote instead of it — which is what alt text is for, and the only thing to show when the picture is gone.
 /// </para>
 /// </summary>
-/// <param name="find">What this showing of the document resolves a name against (<see cref="MarkdownPictures.Found"/>).</param>
+/// <param name="find">What this showing of the document resolves a name against (<see cref="ContentInputs.Pictures"/>).</param>
 public sealed class WithImages(Func<string, LayoutPicture?>? find) : IAstStage
 {
     /// <summary>The role a found picture is hung under.</summary>

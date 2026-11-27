@@ -7,8 +7,10 @@ using System.Windows.Media.Imaging;
 using Nexaflow.Interaction;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -131,7 +133,7 @@ public sealed partial class NexaTextSurface
     // ── What the engine asks of this ────────────────────────────────────────
 
     /// <inheritdoc/>
-    Task<bool>? IContentEvents.OnCopy(MarkdownClipboard.ContentCopy copy)
+    Task<bool>? IContentEvents.OnCopy(ContentCopy copy)
     {
         var asked = new ContentCopyingEventArgs(CopyingEvent, copy);
         RaiseEvent(asked);
@@ -177,7 +179,7 @@ public sealed partial class NexaTextSurface
     }
 
     /// <inheritdoc/>
-    BitmapSource? IContentEvents.OnPicture(ContentPart block) => CapturePicture(block, Background);
+    LayoutPicture? IContentEvents.OnPicture(ContentPart block) => CapturePicture(block, Background) is { } picture ? WpfPicture.Of(picture) : null;
 
     /// <inheritdoc/>
     bool IContentEvents.OnBlockSave(ContentPart block)
@@ -205,10 +207,10 @@ public sealed partial class NexaTextSurface
 }
 
 /// <summary>Something asked to be put on the clipboard, in every way a reader might want it pasted.</summary>
-public sealed class ContentCopyingEventArgs(RoutedEvent routed, MarkdownClipboard.ContentCopy copy) : RoutedEventArgs(routed)
+public sealed class ContentCopyingEventArgs(RoutedEvent routed, ContentCopy copy) : RoutedEventArgs(routed)
 {
     /// <summary>What would go on the clipboard.</summary>
-    public MarkdownClipboard.ContentCopy Copy { get; } = copy;
+    public ContentCopy Copy { get; } = copy;
 }
 
 /// <summary>

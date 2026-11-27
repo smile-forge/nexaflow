@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Windows;
-using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -13,7 +11,6 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
-using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -476,7 +473,7 @@ public sealed partial class ContentEngine
         LayoutVerbs.Navigate => Followed(act),
 
         LayoutVerbs.Copy when act.Intent.Target is { Length: > 0 } what =>
-            this.Events?.OnCopy(MarkdownClipboard.Copied(what)) is not null,
+            this.Events?.OnCopy(CopyOf(what)) is not null,
 
         LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block =>
             this.Events?.OnCopy(CopyOf(block)) is not null,

@@ -1,8 +1,7 @@
 using System.Threading.Tasks;
-using System.Windows.Media.Imaging;
-
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -13,7 +12,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <para>
 /// <strong>The engine raises no events.</strong> It is not a WPF object, and it has no window, no clipboard and no file
 /// dialog. Whatever shows the content is all of those, so it implements this and turns each question into an event a host can
-/// subscribe to (<see cref="NexaTextSurface"/>). Nothing the engine needs from outside goes any other way.
+/// subscribe to. Nothing the engine needs from outside goes any other way.
 /// </para>
 /// <para>
 /// <strong>Asking is not deciding.</strong> What a copy holds, what a paste comes to, whether a change may be made at all —
@@ -28,7 +27,7 @@ public interface IContentEvents
     /// A copy asked to be put on the clipboard, in every form it might be pasted as. What came of it once it is somewhere: true
     /// where it was put there, false where it could not be; null where nobody took it.
     /// </summary>
-    Task<bool>? OnCopy(MarkdownClipboard.ContentCopy copy);
+    Task<bool>? OnCopy(ContentCopy copy);
 
     /// <summary>
     /// A link to be followed, where it leads out of the content. True where somebody followed it. A link within the same
@@ -56,8 +55,11 @@ public interface IContentEvents
     /// </summary>
     bool OnPaste();
 
-    /// <summary>A picture of <paramref name="block"/>, which only whatever painted it can draw. Null where it cannot be drawn.</summary>
-    BitmapSource? OnPicture(ContentPart block);
+    /// <summary>
+    /// A picture of <paramref name="block"/>, which only whatever painted it can draw — held in the medium the content is laid out in.
+    /// Null where it cannot be drawn.
+    /// </summary>
+    LayoutPicture? OnPicture(ContentPart block);
 
     /// <summary>
     /// A picture of <paramref name="block"/> asked to be kept — its corner's Save. True where somebody kept it. A file goes

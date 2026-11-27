@@ -4,6 +4,7 @@ using System.Text;
 using Nexaflow.IO.Documents;
 using Nexaflow.Markdown.Export;
 using Nexaflow.Visuals.Text.Markdown.Export;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.SiteGenerator;
 
@@ -23,7 +24,7 @@ internal static class Render
     /// What a page is laid out for: the width of the site's column, on a white page, and whatever another language draws kept
     /// as the picture it is drawn as, twice as fine as it is laid so it stays sharp on a fine screen.
     /// </summary>
-    private static readonly ExportOccasion Occasion = new() { Width = 760, Pictures = true, Scale = 2 };
+    private static readonly ExportOccasion Occasion = new() { Style = WpfStyles.Light, Width = 760, Pictures = true, Scale = 2 };
 
     private static readonly HtmlDocumentWriter Html = new(new HtmlWriting { Anchors = true });
 
@@ -32,7 +33,7 @@ internal static class Render
     /// <summary>The page's body, and its topics — the same list the app puts at the top of every help page.</summary>
     public static (string Html, IReadOnlyList<Topic> Topics) Page(HelpPage page, IReadOnlyDictionary<string, HelpPage> byTopic)
     {
-        var document = LayoutExport.Exported(page.Body, Occasion);
+        var document = LayoutExport.Exported(page.Body, Occasion, WpfMedium.OnThisThread);
 
         var topics = document.Blocks
             .OfType<ExportHeading>()
@@ -45,14 +46,14 @@ internal static class Render
 
     /// <summary>A page's summary line as inline HTML, so its emphasis and code spans read as the page wrote them.</summary>
     public static string Inline(string markdown) =>
-        LayoutExport.Exported(markdown, Occasion) is { Blocks: [ExportParagraph only] } ? Html.Written(only.Words) : Loose(markdown).Trim();
+        LayoutExport.Exported(markdown, Occasion, WpfMedium.OnThisThread) is { Blocks: [ExportParagraph only] } ? Html.Written(only.Words) : Loose(markdown).Trim();
 
     /// <summary>The same text with its marks taken off, on one line, for somewhere that can only hold plain text.</summary>
     public static string Plain(string markdown) =>
-        Text.Written(LayoutExport.Exported(markdown, Occasion)).Trim().Replace('\n', ' ');
+        Text.Written(LayoutExport.Exported(markdown, Occasion, WpfMedium.OnThisThread)).Trim().Replace('\n', ' ');
 
     /// <summary>A block of markdown as HTML — a section's opening prose, which carries no app link schemes.</summary>
-    public static string Loose(string markdown) => Html.Written(LayoutExport.Exported(markdown, Occasion));
+    public static string Loose(string markdown) => Html.Written(LayoutExport.Exported(markdown, Occasion, WpfMedium.OnThisThread));
 
     /// <summary>
     /// A help page's HTML, with what the app means by its links and pictures said as the site says it: another page is the
