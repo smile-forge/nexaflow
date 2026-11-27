@@ -473,7 +473,7 @@ a literal `#RRGGBB`, `Color.FromRgb(...)` or `Brushes.X` as the **final** value.
    overrides it by string key. This is the same seam as `IPageRegistration` — no Core⇄feature reference.
 
 **XAML** binds the key: `Foreground="{StaticResource SuccessBrush}"`. **Code-drawn surfaces** (OnRender
-panels, AvalonEdit colorizers) can't bind, so read the resource at paint time with a literal *fallback*:
+panels, a margin beside the text surface) can't bind, so read the resource at paint time with a literal *fallback*:
 
 ```csharp
 Application.Current?.Resources["AccentBrush"] as Brush ?? Brushes.DodgerBlue   // fallback ONLY for design-time/tests

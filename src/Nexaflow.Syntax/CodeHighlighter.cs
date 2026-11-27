@@ -217,10 +217,10 @@ public sealed class CodeHighlighter : IDisposable
 
     /// <summary>
     /// Pulls every fold end back off the line delimiter it may have landed on, and drops what that leaves
-    /// empty. A fold ending <i>inside</i> a delimiter is the one shape a folding consumer cannot render:
-    /// AvalonEdit rejects such an element outright, and because it throws from the render pass the shell's
-    /// unhandled-exception handler cannot recover it - the layout stays dirty, WPF re-measures, it throws
-    /// again. That live-lock wrote 170MB of one identical stack trace in 85 seconds for a customer.
+    /// empty. A fold ending <i>inside</i> a delimiter - between the return and the line feed of a CRLF - ends on
+    /// no line: not the one the break ends, nor the next. A view that folds whole lines cannot place it, and
+    /// one that draws a fold as an element of its own may refuse it from its render pass, where nothing can
+    /// recover - the layout stays dirty, is measured again, and refuses again.
     /// <para>
     /// The source is the grammars, not us: c, cpp, java, rust, python and ruby all match a line comment as
     /// "up to the newline", so the token swallows the CR of a CRLF and a comment-run fold ends between the

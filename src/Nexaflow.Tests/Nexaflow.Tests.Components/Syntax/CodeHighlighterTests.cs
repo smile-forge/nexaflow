@@ -216,10 +216,9 @@ public class CodeHighlighterTests
         FoldSamples.Keys.Select(k => new object[] { k });
 
     /// <summary>
-    /// A fold must never end strictly inside a line delimiter. AvalonEdit refuses such an element, and it
-    /// refuses it from the render pass — where the shell cannot recover, because handling the exception
-    /// leaves the layout dirty and WPF just re-measures and throws again. One customer's log was that
-    /// live-lock: the same trace 17,724 times in 85 seconds, 170MB.
+    /// A fold must never end strictly inside a line delimiter: it would end on no line, which a view folding
+    /// whole lines cannot place, and one drawing folds as elements may refuse from its render pass — where
+    /// nothing recovers, because the layout stays dirty and is measured, and refused, again and again.
     /// <para>
     /// It only bites on CRLF, since a one-character delimiter has no "strictly inside". Every folding test
     /// here used \n literals, which is exactly why c, cpp, java, rust, python and ruby all shipped broken —
@@ -252,7 +251,7 @@ public class CodeHighlighterTests
             bool insideDelimiter = f.End < src.Length && src[f.End - 1] == '\r' && src[f.End] == '\n';
             Assert.IsFalse(insideDelimiter,
                 $"[{grammarId}/{endings}] fold [{f.Start}..{f.End}) ends between the \\r and the \\n — "
-                + "AvalonEdit throws on this from the render pass and the shell cannot recover");
+                + "it ends on no line, so a view folding whole lines cannot place it");
         }
     }
 

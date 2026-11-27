@@ -4,10 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Windows.Documents;
 using System.Windows.Input;
 
-using ICSharpCode.AvalonEdit;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
@@ -15,8 +13,9 @@ using Nexaflow.Visuals.Text.Markdown;
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
-/// What each half costs in time, on the same text — AvalonEdit's box against a surface of the engine's, set as the page sets each:
-/// how long the first screen takes, a keystroke at the top, the middle and the end, a page down, and Ctrl+End.
+/// What a surface of the engine's costs in time, on the same text two ways — held as a string (<c>engine</c>), and read from a file on
+/// disk a block at a time (<c>onDisk</c>): how long the first screen takes, a keystroke at the top, the middle and the end, a page
+/// down, and Ctrl+End.
 ///
 /// <para>
 /// A keystroke is timed twice: to when the half has laid out and drawn what it changed (<c>sync</c>, everything a
@@ -128,53 +127,12 @@ public partial class MarkdownLayoutBench
     {
         ["name"] = name,
         ["kb"] = Math.Round(text.Length / 1024.0, 1),
-        ["avalonEdit"] = TimedAvalon(text),
-        ["engine"] = TimedEngine(text),
+        ["engine"] = TimedEngine(text, onDisk: false),
+        ["onDisk"] = TimedEngine(text, onDisk: true),
     };
 
-    private static Dictionary<string, object> TimedAvalon(string text)
-    {
-        var editor = new TextEditor
-        {
-            WordWrap = true,
-            ShowLineNumbers = false,
-            FontFamily = new System.Windows.Media.FontFamily("Consolas, Courier New"),
-            FontSize = 14,
-            Padding = new System.Windows.Thickness(40, 24, 40, 48),
-            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
-        };
-
-        var window = Hosted(editor);
-        window.Show();
-        Settle();
-
-        var open = Stopwatch.StartNew();
-        editor.Document.Text = text;
-        editor.UpdateLayout();
-        var first = open.Elapsed.TotalMilliseconds;
-        Settle();
-        var settled = open.Elapsed.TotalMilliseconds;
-
-        var area = editor.TextArea;
-        var row = new Dictionary<string, object>
-        {
-            ["openMs"] = Math.Round(first, 1),
-            ["openSettledMs"] = Math.Round(settled, 1),
-            ["keyTop"] = Keys(editor, () => area.Caret.Offset = 0, () => area.PerformTextInput("x")),
-            ["keyMiddle"] = Keys(editor, () => area.Caret.Offset = editor.Document.TextLength / 2, () => area.PerformTextInput("x")),
-            ["keyEnd"] = Keys(editor, () => area.Caret.Offset = editor.Document.TextLength, () => area.PerformTextInput("x")),
-            ["pageDownMs"] = PagesDown(editor, () => area.Caret.Offset = 0, () => EditingCommands.MoveDownByPage.Execute(null, area)),
-            ["toEndMs"] = Once(editor, () => area.Caret.Offset = 0, () => EditingCommands.MoveToDocumentEnd.Execute(null, area)),
-        };
-
-        window.Close();
-        Settle();
-
-        return row;
-    }
-
-    private static Dictionary<string, object> TimedEngine(string text)
+    /// <summary>A surface of the engine's over <paramref name="text"/> — held as a string, or read from a file on disk where <paramref name="onDisk"/> says — timed.</summary>
+    private static Dictionary<string, object> TimedEngine(string text, bool onDisk)
     {
         var surface = new NexaTextSurface
         {
@@ -189,7 +147,7 @@ public partial class MarkdownLayoutBench
         window.Show();
         Settle();
 
-        var document = new EditedDocument(text);
+        var (document, file) = onDisk ? OnDisk(text) : (new EditedDocument(text), (ContentFile?)null);
 
         var open = Stopwatch.StartNew();
         surface.Document = document;
@@ -213,6 +171,12 @@ public partial class MarkdownLayoutBench
         window.Close();
         Settle();
         GC.KeepAlive(document);
+
+        if (file is not null)
+        {
+            file.Dispose();
+            File.Delete(file.Path);
+        }
 
         return row;
     }

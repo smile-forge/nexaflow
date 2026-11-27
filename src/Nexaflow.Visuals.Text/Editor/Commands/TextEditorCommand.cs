@@ -8,8 +8,8 @@ namespace Nexaflow.Visuals.Text.Editor.Commands;
 public enum TextEditScope { Selection, Document }
 
 /// <summary>
-/// The live surface a command operates on. Deliberately plain data + callbacks (no AvalonEdit types) so
-/// commands are unit-testable without a control; the editor view-model fills it from the real editor.
+/// The live surface a command operates on. Deliberately plain data + callbacks (no control's types) so
+/// commands are unit-testable without a control; the editor view-model fills it from the page's editor.
 /// </summary>
 public sealed class TextEditorContext
 {

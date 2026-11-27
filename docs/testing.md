@@ -98,8 +98,8 @@ A **device** is not automatically an excuse either. Audio's engine only exists a
 "every transport command is safe before it exists" — the half that actually breaks — is unit-testable even
 though playing a sound is not. Split the leaf's rule from the device call and test the half you can.
 
-Some leaves are only reachable through the real control (a rendered `RichTextBox`, a live AvalonEdit
-selection). Those get a control-level test in an off-screen window (`MarkdownEditorHarness`) tagged
+Some leaves are only reachable through the real control (a rendered `RichTextBox`, a key pressed into a
+live surface). Those get a control-level test in an off-screen window (`MarkdownEditorHarness`) tagged
 `TestCategory=UI` — still one test per leaf, just not headless.
 
 ### When a node genuinely can't be unit-tested

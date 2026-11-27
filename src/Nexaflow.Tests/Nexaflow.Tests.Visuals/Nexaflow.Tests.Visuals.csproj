@@ -15,8 +15,7 @@
   <ItemGroup>
     <PackageReference Include="MSTest" Version="4.5.1" />
     <PackageReference Include="NSubstitute" Version="6.2.0" />
-    <!-- The layout bench's comparison half: the editor the shared surface replaces, measured beside it. -->
-    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+
   </ItemGroup>
 
   <ItemGroup>

@@ -3,9 +3,9 @@
 
     <!-- ════ Log viewer colour tokens ════
          Shipped as an IThemeContribution so they merge BELOW the active theme (layer 3): every theme
-         gets these defaults, and any theme may retune a key by name. Consumed by the AvalonEdit
-         colorizers / renderers + the selection margin. All are deliberately translucent (they wash
-         OVER the log text), so the alpha is baked into the brush. -->
+         gets these defaults, and any theme may retune a key by name. Named by the log's marks - a
+         level's wash, the filter's veil, the term, the lines picked out - and by the selection margin.
+         All are deliberately translucent (they wash OVER the log text), so the alpha is baked into the brush. -->
 
     <!-- Per-level row washes (background tint of a whole log line). -->
     <SolidColorBrush x:Key="Log.Fatal"   Color="#46C8143C"/>  <!-- a=70  deep crimson -->
