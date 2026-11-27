@@ -45,9 +45,7 @@
   "Text.Viewer.Find.NothingToReplace": "Aucune occurrence à remplacer.",
   "Text.Viewer.Find.ReplacedFormat": "{0} occurrence(s) remplacée(s).",
 
-  "Text.Viewer.Menu.Cut": "Couper",
-  "Text.Viewer.Menu.Copy": "Copier",
-  "Text.Viewer.Menu.Paste": "Coller",
+
 
   "Text.Viewer.Split.Label": "Découper",
   "Text.Viewer.Split.Now": "Découper",
@@ -74,8 +72,7 @@
 
   "Text.Viewer.Edit.DiscardTitle": "Abandonner les modifications ?",
   "Text.Viewer.Edit.DiscardAsk": "Vous avez des modifications non enregistrées. Les abandonner et arrêter la modification ?",
-  "Text.Viewer.Edit.ArchiveLarge": "Les fichiers volumineux contenus dans une archive ne peuvent pas être modifiés sur place — extrayez-les ou découpez-les d'abord.",
-  "Text.Viewer.Edit.NotEditable": "Ce fichier ne peut pas être modifié.",
+  "Text.Viewer.Edit.WrittenElsewhere": "Un autre programme écrit dans « {0} », il ne peut donc pas être modifié pour l'instant.",
   "Text.Viewer.Save.SavedFormat": "{0} enregistré.",
   "Text.Viewer.Save.FailedFormat": "Impossible d'enregistrer « {0} » : {1}",
 

@@ -7,7 +7,7 @@ using System.Windows.Media;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// Each line's number beside it, counting from one: set in the face and size the content is set in as typed, so a number stands on its
+/// Each line's number beside it, counting from <see cref="FirstNumber"/>: set in the face and size the content is set in as typed, so a number stands on its
 /// line's first row as the line's own characters do; right-aligned in a column as wide as the document's last number; and beside only
 /// the first row of a line wrapped onto several.
 /// </summary>
@@ -21,6 +21,20 @@ public sealed class LineNumberMargin : ContentMargin
 
     /// <summary>The fewest digits the column is wide enough for, so a short document's column does not widen as it grows past nine lines.</summary>
     private const int FewestDigits = 2;
+
+    public static readonly DependencyProperty FirstNumberProperty = DependencyProperty.Register(
+        nameof(FirstNumber), typeof(long), typeof(LineNumberMargin),
+        new FrameworkPropertyMetadata(1L, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>
+    /// The number the document's first line is given: one, unless the document is a stretch of something longer — a window onto a file —
+    /// whose lines are numbered as lines of the whole of it.
+    /// </summary>
+    public long FirstNumber
+    {
+        get => (long)GetValue(FirstNumberProperty);
+        set => SetValue(FirstNumberProperty, value);
+    }
 
     public static readonly DependencyProperty ForegroundProperty = DependencyProperty.Register(
         nameof(Foreground), typeof(Brush), typeof(LineNumberMargin),
@@ -40,7 +54,7 @@ public sealed class LineNumberMargin : ContentMargin
     {
         if (Surface is not { } surface) return default;
 
-        var digits = Math.Max(FewestDigits, surface.Document.Current.LineCount.ToString(CultureInfo.InvariantCulture).Length);
+        var digits = Math.Max(FewestDigits, (FirstNumber - 1 + surface.Document.Current.LineCount).ToString(CultureInfo.InvariantCulture).Length);
 
         return new Size(Lead + Numeral(surface, new string('0', digits), Brushes.Transparent).WidthIncludingTrailingWhitespace + Gap, 0);
     }
@@ -53,7 +67,7 @@ public sealed class LineNumberMargin : ContentMargin
 
         foreach (var line in lines)
         {
-            var number = Numeral(surface, line.Number.ToString(CultureInfo.InvariantCulture), ink);
+            var number = Numeral(surface, (FirstNumber - 1 + line.Number).ToString(CultureInfo.InvariantCulture), ink);
             drawing.DrawText(number, new Point(ActualWidth - Gap - number.WidthIncludingTrailingWhitespace, line.Top));
         }
     }

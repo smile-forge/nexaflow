@@ -98,6 +98,9 @@ public sealed class EditedDocument : INotifyPropertyChanged
         _current = _saved = document;
         this.History.Clear();
 
+        // Loaded whole, it stands over no window onto a file — a window loads it and then says it stands over it.
+        this.Window = null;
+
         this.Told(before, new EditState(_current, 0), ContentChangeKind.Loaded);
         this.Restated();
     }

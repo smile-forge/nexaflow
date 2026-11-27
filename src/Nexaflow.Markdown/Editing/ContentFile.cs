@@ -243,14 +243,27 @@ public sealed class ContentFile : IDisposable
     public static ContentFile Save(EditedDocument document, string path, Encoding encoding, bool preamble,
                                    ContentFileAccess access = ContentFileAccess.Editable, bool hold = true)
     {
-        var full = Replace(path, encoding, preamble, document.WriteTo);
+        var saved = WriteOut(document.Current, path, encoding, preamble, access, hold);
+
+        document.Rebase(ContentDocument.Of(saved));
+        document.MarkSaved();
+
+        return saved;
+    }
+
+    /// <summary>
+    /// The writing half of <see cref="Save"/>: <paramref name="version"/> written to <paramref name="path"/> beside it and put in its place, and the
+    /// file it now is, opened, scanned and held as <see cref="Save"/> says — touching no document, so it can be done away from whatever shows
+    /// one, which then stands its document over the file this returns (<see cref="EditedDocument.Rebase"/>, <see cref="EditedDocument.MarkSaved"/>).
+    /// </summary>
+    public static ContentFile WriteOut(ContentDocument version, string path, Encoding encoding, bool preamble,
+                                       ContentFileAccess access = ContentFileAccess.Editable, bool hold = true)
+    {
+        var full = Replace(path, encoding, preamble, version.WriteTo);
 
         var saved = Open(full, encoding, preamble ? encoding.GetPreamble().Length : 0, access);
         saved.Scan();
         if (hold) saved.HoldForEdit();
-
-        document.Rebase(ContentDocument.Of(saved));
-        document.MarkSaved();
 
         return saved;
     }
@@ -321,8 +334,8 @@ public sealed class ContentFile : IDisposable
     /// <summary>What <see cref="Starts"/> came to, for the blocks scanned when it was asked.</summary>
     private long[]? _starts;
 
-    /// <summary><paramref name="encoding"/> writing no mark at the start of what it writes.</summary>
-    private static Encoding Unmarked(Encoding encoding) => encoding switch
+    /// <summary><paramref name="encoding"/> without the mark at the start of a file it would otherwise write — for a file saved as it was found, without one.</summary>
+    public static Encoding Unmarked(Encoding encoding) => encoding switch
     {
         UTF8Encoding => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
         UnicodeEncoding => new UnicodeEncoding(bigEndian: encoding.CodePage == 1201, byteOrderMark: false),

@@ -2,6 +2,7 @@ using Nexaflow.IO.Common;
 using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 
@@ -9,9 +10,9 @@ namespace Nexaflow.Tests.Features.Text;
 
 /// <summary>
 /// Headless command/state logic behind the Text toolbar &amp; split panel — the view toggles and
-/// split-mode wiring that need no file load and no AvalonEdit <c>TextDocument</c> mutation. The
-/// windowed reader is covered by <see cref="TextViewModelTests"/>; the interactive controls are
-/// exercised end-to-end by the UI journey. Everything here runs synchronously on the test thread.
+/// split-mode wiring that need no file load. Reading and editing a file are covered by
+/// <see cref="TextViewModelTests"/>; the interactive controls are exercised end-to-end by the UI
+/// journey. Everything here runs synchronously on the test thread.
 /// </summary>
 [TestClass]
 public class TextViewModelCommandTests
@@ -84,14 +85,17 @@ public class TextViewModelCommandTests
     [CoversNode("editing")]
     public void ToggleEditing_EntersThenExitsEditMode()
     {
-        using var vm = Make();   // a small (non-large) path → CanEdit is true, no confirm needed to exit
+        using var vm = Make();   // no file to hold → editing starts at once, and nothing written means no prompt to leave it
         Assert.IsFalse(vm.IsEditing);
+        Assert.IsTrue(vm.IsReadOnly, "a file opens read-only");
 
         vm.ToggleEditingCommand.Execute(null);
         Assert.IsTrue(vm.IsEditing, "first toggle switches the 'Edit' button into the 'Editing' state");
+        Assert.IsFalse(vm.IsReadOnly);
 
         vm.ToggleEditingCommand.Execute(null);   // not dirty → exits without a discard prompt
         Assert.IsFalse(vm.IsEditing, "toggling again leaves edit mode");
+        Assert.IsTrue(vm.IsReadOnly);
     }
 
     [TestMethod]
@@ -136,7 +140,7 @@ public class TextViewModelCommandTests
         Assert.IsFalse(vm.IsSearchActive);
         Assert.AreEqual(0, vm.SearchMatchCount);
         Assert.AreEqual(string.Empty, vm.CurrentSearchTerm);
-        Assert.AreEqual(-1, vm.ScrollToOffset);
-        Assert.AreEqual(0, vm.SearchHighlights.Count);
+        Assert.AreEqual(0, vm.MiniMapMarks.Count);
+        Assert.AreEqual(0, vm.Editor.Marks.Mark(new ContentMarkRequest(vm.Document.Current, 0, vm.Document.Current.Length)).Count, "nothing is marked");
     }
 }

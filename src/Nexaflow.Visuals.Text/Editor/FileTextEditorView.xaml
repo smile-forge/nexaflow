@@ -106,6 +106,8 @@
                                 ShowsWhitespace="{Binding ShowWhitespace}"
                                 HighlightsCaretLine="True"
                                 BaseFontSize="13"
+                                VerticalScrollBarVisibility="Auto"
+                                HorizontalScrollBarVisibility="Auto"
                                 Margin="3,3,0,0"
                                 Background="{StaticResource BgBrush}">
                 <md:NexaTextSurface.LeadingMargins>

@@ -989,7 +989,7 @@ re-rolling them.
 | Strategy | Canonical reader | When |
 |----------|------------------|------|
 | Tail-first + background head-load | `Logs/ViewModels/LogViewModel.cs` | append-only files where the recent end matters most |
-| Head-first window + placeholder padding for scrollbar | `Text/ViewModels/TextViewModel.cs` | top-of-file-first text; line index built up front |
+| File-backed document over a block table, through a moving window past `int` reach | `Markdown/Editing/ContentFile.cs`, `ContentFileWindow.cs` (Text viewer) | text read and edited anywhere: one scan counts the lines, a screen then costs a screen, edits are held over the file's own characters until a save streams them out |
 | Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
 | Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
 | One rectangular selection per window | `IO.Hdf5/PureHdf/PureHdfSource.cs` (`ReadBlock`) | N-D arrays: a table window is one hyperslab read, and `Hdf5Selection.Walk` streams a whole dataset in C order through bounded memory |

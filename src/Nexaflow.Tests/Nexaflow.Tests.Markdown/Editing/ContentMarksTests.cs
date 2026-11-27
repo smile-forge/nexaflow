@@ -84,6 +84,41 @@ public class ContentMarksTests
     }
 
     [TestMethod]
+    public void WhatASearchMatches_IsWorkedOutOnlyOnTheLinesDrawn_AndTheOneLookedAtFollowsItsText()
+    {
+        var document = new EditedDocument("foo one\nbar\nfoo two\nfoo three\n");
+        using var editor = new ContentEditor(document);
+        var matches = new MatchMarks();
+        editor.Marks.Add(matches);
+
+        var asked = new List<string>();
+        matches.Show(line =>
+        {
+            asked.Add(line);
+            var found = new List<(int, int)>();
+            for (var at = line.IndexOf("foo", StringComparison.Ordinal); at >= 0; at = line.IndexOf("foo", at + 3, StringComparison.Ordinal)) found.Add((at, 3));
+            return found;
+        });
+        matches.LookAt((12, 3));
+
+        // Only the lines the stretch drawn touches are asked about: here the third and fourth.
+        var into = new List<ContentMark>();
+        matches.Mark(new ContentMarkRequest(document.Current, 13, 21), into);
+        CollectionAssert.AreEqual(new[] { "foo two", "foo three" }, asked);
+        CollectionAssert.AreEqual(new[] { 12, 20 }, into.Where(mark => mark.Kind == ContentMarkKind.Wash).Select(mark => mark.Start).ToArray());
+        Assert.AreEqual(12, into.Single(mark => mark.Kind == ContentMarkKind.Outline).Start);
+
+        // A write before it moves the match looked at with its characters.
+        document.Write(ContentChange.Write(0, 0, ">> "));
+        Assert.AreEqual((15, 3), matches.LookedAt);
+        Assert.AreEqual("foo", document.Current.Slice(matches.LookedAt!.Value.Start, 3));
+
+        matches.Show(null);
+        Assert.IsTrue(matches.IsEmpty, "no search, nothing marked");
+        Assert.IsNull(matches.LookedAt);
+    }
+
+    [TestMethod]
     public void TheLayers_AreDrawnByTheirOrder_AndSayWhenAnyChanges()
     {
         using var editor = new ContentEditor(new EditedDocument("text"));

@@ -959,9 +959,11 @@ tree — that is the maintenance step.
 `Features.Common` (contracts) has no test folder of its own; its client-tool wire-protocol parser
 (`ClientBlockParser`) and the agent loop are tested in `Tests.Core` (`Unit/ClientTools/`).
 
-The windowed-reader view-models load into a thread-affine AvalonEdit `TextDocument` across `await`
-points, so `LogViewModel`/`TextViewModel` tests run under `Infrastructure/AsyncPump.cs` (a
-single-threaded synchronization context). `LogViewModel`'s background head-reassembly needs a live UI
+The windowed-reader view-models load across `await` points, so `LogViewModel`/`TextViewModel` tests run
+under `Infrastructure/AsyncPump.cs` (a single-threaded synchronization context): the log loads into a
+thread-affine AvalonEdit `TextDocument`, and the Text viewer's continuations come back to one thread as
+they do on its page. A Text test that drives the assistant's tools hands the page `UiRunningShell`, whose
+`RunOnUiAsync` does its work at once — a substitute alone hands back a default task and never does it. `LogViewModel`'s background head-reassembly needs a live UI
 `Dispatcher`, so that one path is left to the UI smoke rather than a unit test.
 
 ### Core shell (`Nexaflow.Tests.Core`)
@@ -1024,9 +1026,8 @@ no Visuals. That is the point of the split rather than a side effect: these test
 no shell and no config root (no IO library reaches one), so they are the fastest suite to run and the one
 least able to fail for a reason that is not about its subject.
 
-- **`Common/`** — `Base64Codec`, `DirectoryMover`, `FileSplitter`, `Glob`, `Hashing`, `OverlayTextFile`,
-  `TextLineIndex`, `TextTransforms`, and `FileTransferEngine`'s verified copies (a test seam changes what landed
-  before the read-back). `Common/Audio/` holds the speech devices' tests; `SerialPortCatalogTests` lists this machine's
+- **`Common/`** — `Base64Codec`, `DirectoryMover`, `FileSplitter`, `Glob`, `Hashing`, `TextTransforms`, and
+  `FileTransferEngine`'s verified copies (a test seam changes what landed before the read-back). `Common/Audio/` holds the speech devices' tests; `SerialPortCatalogTests` lists this machine's
   COM ports without opening any. The USB probe's audio test signals, meter and endpoint catalog are that feature's own,
   tested in `Tests.Features.WindowsOS/UsbProbe/`; WAV, PNG and resampling are `Nexaflow.Media`'s, tested in
   `Tests.Components/Media/`.

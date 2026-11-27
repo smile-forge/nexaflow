@@ -1500,10 +1500,374 @@
           "method": "OnDocumentPropertyChanged"
         }
       ]
+    },
+    "text-viewer-editing-toggle": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.cs",
+          "class": "TextViewModel",
+          "method": "EnsureEditingAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelCommandTests.cs",
+            "class": "TextViewModelCommandTests",
+            "method": "ToggleEditing_EntersThenExitsEditMode"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "Editing_HoldsTheFileAgainstOtherWriters_UntilEditingStops"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "Editing_IsRefused_WhileAnotherProgramWritesTheFile"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "Editing_AFileChangedSinceItWasRead_ReadsItAgainFirst"
+          }
+        ]
+      }
+    },
+    "text-viewer-save": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.cs",
+          "class": "TextViewModel",
+          "method": "Save"
+        }
+      ]
+    },
+    "text-viewer-undo-redo": {
+      "links": [],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextFindReplaceTests.cs",
+            "class": "TextFindReplaceTests",
+            "method": "Undo_StartsFromWhatWasRead_ThenTracksEdits"
+          }
+        ]
+      }
+    },
+    "text-viewer-goto-line": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextFindReplaceTests.cs",
+            "class": "TextFindReplaceTests",
+            "method": "GoToLine_ScrollsToRequestedLine_AndRejectsBadInput"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "GoToLine_DeepInALongFile_MovesTheWindowThere_NumberingLinesAsTheWholeFiles"
+          }
+        ]
+      }
+    },
+    "text-viewer-highlights": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
+          "class": "MatchMarks"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "FindNextPrevious_MovesTheCaret_AndFeedsTheMarksAndTheMinimap"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentMarksTests.cs",
+            "class": "ContentMarksTests",
+            "method": "WhatASearchMatches_IsWorkedOutOnlyOnTheLinesDrawn_AndTheOneLookedAtFollowsItsText"
+          }
+        ]
+      }
+    },
+    "text-viewer-minimap": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "FindNextPrevious_MovesTheCaret_AndFeedsTheMarksAndTheMinimap"
+          }
+        ]
+      }
+    },
+    "text-viewer-find-nav": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "FindNext"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "FindPrevious"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "FindNextPrevious_MovesTheCaret_AndFeedsTheMarksAndTheMinimap"
+          }
+        ]
+      }
+    },
+    "text-viewer-search-indicator": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "Search_LongFile_FindsMatchesAcrossTheWholeFile"
+          }
+        ]
+      }
+    },
+    "text-viewer-status-matchcount": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "Search_LongFile_FindsMatchesAcrossTheWholeFile"
+          }
+        ]
+      }
+    },
+    "text-viewer-find": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "SearchConventionalAsync"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "SearchRegexAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "SearchAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Search/TextSearchableTests.cs",
+            "class": "TextSearchableTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "Search_LongFile_FindsMatchesAcrossTheWholeFile"
+          }
+        ]
+      }
+    },
+    "text-viewer-streaming-indicator": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "LoadAsync_FileLongerThanItsWindow_CountsEveryLine_AndShowsTheTop"
+          }
+        ]
+      }
+    },
+    "text-viewer-windowing": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/testing.md",
+          "title_path": [
+            "Testing",
+            "Sample files (\u0060test-samples/\u0060)"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentFileWindow.cs",
+          "class": "ContentFileWindow"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.File.cs",
+          "class": "TextViewModel",
+          "method": "FollowReader"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "GoToLine_DeepInALongFile_MovesTheWindowThere_NumberingLinesAsTheWholeFiles"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelArchiveTests.cs",
+            "class": "TextViewModelArchiveTests",
+            "method": "LoadAsync_LongFileInsideZip_LoadsContent"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelArchiveTests.cs",
+            "class": "TextViewModelArchiveTests",
+            "method": "Save_LongFileInsideZip_WritesTheWholeOfItBackIntoArchive"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentFileWindowTests.cs",
+            "class": "ContentFileWindowTests"
+          }
+        ]
+      }
+    },
+    "text-viewer-func-encoding-detect": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "LoadAsync_DetectsEncodingFromBom"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "SelectedEncoding_Change_ReDecodesFile"
+          }
+        ]
+      }
+    },
+    "text-viewer-func-editing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.cs",
+          "class": "TextViewModel",
+          "method": "Save"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "LongFile_EditsFarApart_AreBothSaved_AndCanStillBeTakenBack"
+          }
+        ]
+      }
+    },
+    "text-viewer-ai-act-find-text": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelTests.cs",
+            "class": "TextViewModelTests",
+            "method": "AiTools_ReadReplaceSave_ThroughClientToolSurface"
+          }
+        ]
+      }
+    },
+    "vtext-editor": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/FileTextEditorViewModelTests.cs",
+            "class": "FileTextEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "text-viewer-match-case": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "ScanAsync"
+        }
+      ]
+    },
+    "text-viewer-regex": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "SearchRegexAsync"
+        }
+      ]
+    },
+    "text-viewer-replace": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "ReplaceAll"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 70,
+  "changed_sets": 96,
   "touched_nodes": [
     "barcode-editing",
     "code-context-menu",
@@ -1555,9 +1919,28 @@
     "parsers",
     "solver-latex-fence",
     "solver-source-toggle",
+    "text-viewer-ai-act-find-text",
+    "text-viewer-editing-toggle",
+    "text-viewer-find",
+    "text-viewer-find-nav",
+    "text-viewer-func-editing",
+    "text-viewer-func-encoding-detect",
+    "text-viewer-goto-line",
+    "text-viewer-highlights",
+    "text-viewer-match-case",
+    "text-viewer-minimap",
+    "text-viewer-regex",
+    "text-viewer-replace",
+    "text-viewer-save",
+    "text-viewer-search-indicator",
+    "text-viewer-status-matchcount",
+    "text-viewer-streaming-indicator",
+    "text-viewer-undo-redo",
+    "text-viewer-windowing",
     "theme-textswatch-palette",
     "visuals-text",
     "vtext-color-swatch",
+    "vtext-editor",
     "vtext-highlighting",
     "vtext-selectable-markdown",
     "windowed-reading"

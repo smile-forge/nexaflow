@@ -45,9 +45,7 @@
   "Text.Viewer.Find.NothingToReplace": "No matches to replace.",
   "Text.Viewer.Find.ReplacedFormat": "Replaced {0} occurrence(s).",
 
-  "Text.Viewer.Menu.Cut": "Cut",
-  "Text.Viewer.Menu.Copy": "Copy",
-  "Text.Viewer.Menu.Paste": "Paste",
+
 
   "Text.Viewer.Split.Label": "Split",
   "Text.Viewer.Split.Now": "Split",
@@ -74,8 +72,7 @@
 
   "Text.Viewer.Edit.DiscardTitle": "Discard changes?",
   "Text.Viewer.Edit.DiscardAsk": "You have unsaved edits. Discard them and stop editing?",
-  "Text.Viewer.Edit.ArchiveLarge": "Large files inside archives can't be edited in place — extract or split first.",
-  "Text.Viewer.Edit.NotEditable": "This file can't be edited.",
+  "Text.Viewer.Edit.WrittenElsewhere": "Another program is writing '{0}', so it can't be edited now.",
   "Text.Viewer.Save.SavedFormat": "Saved {0}.",
   "Text.Viewer.Save.FailedFormat": "Could not save '{0}': {1}",
 

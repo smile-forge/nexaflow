@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
 using Nexaflow.IO.Common;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Features.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
@@ -15,15 +16,18 @@ using NSubstitute;
 namespace Nexaflow.Tests.Features.Text;
 
 /// <summary>
-/// Covers the windowed text reader/editor: the small-file fast path and the large-file path (sparse line
-/// index + two-sided placeholder padding + a sliding window of real content), plus edit dirty-tracking.
-/// Runs under <see cref="AsyncPump"/> because loading mutates a thread-affine AvalonEdit
-/// <c>TextDocument</c> across <c>await</c> points.
+/// The Text viewer over a file on disk: read as one document over its blocks, or — past the window it is given, kept small here so a test
+/// file is too long for one — through a window onto it that moves where the reader goes, its lines numbered as lines of the whole file;
+/// what is written held over the file until it is saved, and the file held against other writers while it is edited. Runs under
+/// <see cref="AsyncPump"/>, so what the page awaits comes back to one thread, as it does to the page's own.
 /// </summary>
 [TestClass]
 [CoversNode("text-viewer")]
 public class TextViewModelTests
 {
+    /// <summary>A window far shorter than <see cref="WriteManyLines"/>'s file, so that file is shown a stretch at a time.</summary>
+    private const int SmallWindow = 200_000;
+
     private static string WriteTemp(string content)
     {
         var path = Path.Combine(TestTemp.Root, $"textvm_{Guid.NewGuid():N}.txt");
@@ -40,6 +44,20 @@ public class TextViewModelTests
         return WriteTemp(string.Join("\n", lines)); // no trailing newline → exactly 10,000 lines
     }
 
+    /// <summary>Which line of the whole file the caret is on, counting from nought.</summary>
+    private static long CaretLine(TextViewModel vm) => vm.FirstLineNumber - 1 + vm.Document.Current.LineOf(vm.Editor.Caret);
+
+    /// <summary>A shell whose go-to-line prompt answers with what the test gives the function it hands back.</summary>
+    private static (IShellServices Shell, Action<string> GoTo) PromptingShell()
+    {
+        var shell = Substitute.For<IShellServices>();
+        Action<string>? confirm = null;
+        shell.When(s => s.ShowPrompt(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Action<string>>(), Arg.Any<Action>()))
+             .Do(ci => confirm = ci.Arg<Action<string>>());
+
+        return (shell, line => confirm!(line));
+    }
+
     [TestMethod]
     [CoversNode("text-viewer-status-filesize")]
     [CoversNode("text-viewer-status-linecount")]
@@ -52,9 +70,10 @@ public class TextViewModelTests
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.IsFalse(vm.IsLargeFile);
-            Assert.AreEqual("line one\nline two\nline three", vm.Document.Text);
+            Assert.AreEqual("line one\nline two\nline three", vm.Document.ToString());
             Assert.AreEqual(3, vm.LineCount);                                    // status-bar Line Count
-            Assert.IsFalse(string.IsNullOrWhiteSpace(vm.FileSizeText), "status bar shows the file size");
+            Assert.AreEqual(1, vm.FirstLineNumber);
+            Assert.IsFalse(vm.Document.IsDirty, "what was read is what is saved");
             StringAssert.Contains(vm.FileSizeText, "B");                         // e.g. "28 B"
         }
         finally { File.Delete(path); }
@@ -70,27 +89,13 @@ public class TextViewModelTests
             using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
-            // Aspect 4: two Text tabs on different files must be distinguishable when pinned together, so
-            // their identically-named tools don't collapse first-wins in MultiContextClientTool.
+            // Two Text tabs on different files must be distinguishable when pinned together, so their identically-named tools don't
+            // collapse first-wins in MultiContextClientTool.
             Assert.AreEqual(path, vm.GetSecurityContext());
-
-            // The page advertises a read-only context preview for the conversation panel.
             Assert.IsInstanceOfType(vm, typeof(IContextPreview));
         }
         finally { File.Delete(path); }
     });
-
-    /// <summary>A shell whose RunOnUiAsync actually runs the delegate — the substitute's default swallows it,
-    /// silently no-opping every UI-marshalled tool path (read/replace/save all funnel through it).</summary>
-    private static IShellServices RunningShell()
-    {
-        var shell = Substitute.For<IShellServices>();
-        shell.RunOnUiAsync(Arg.Any<Action>())
-             .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
-        shell.RunOnUiAsync(Arg.Any<Func<Task<string>>>())
-             .Returns(ci => ci.Arg<Func<Task<string>>>()());
-        return shell;
-    }
 
     [TestMethod]
     [CoversNode("text-viewer-ai-act")]
@@ -100,90 +105,94 @@ public class TextViewModelTests
         var path = WriteTemp("alpha\nbeta\ngamma\n");
         try
         {
-            using var vm = new TextViewModel(path, RunningShell(), VirtualFileSystem.Instance) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, UiRunningShell.Over(Substitute.For<IShellServices>()), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
-            // Context is honest about the file the tools act on.
             StringAssert.Contains(vm.GetContext(), vm.FileName);
 
-            // Exercise the AI act surface exactly as the conversation hub does — via GetClientTools(),
-            // not the VM's internal methods — so the tools' arg-parsing and wiring are covered too.
+            // Exercised exactly as the conversation hub does — through GetClientTools(), not the view-model's own methods — so the
+            // tools' argument parsing and wiring are covered too.
             var tools = vm.GetClientTools();
             CollectionAssert.AreEquivalent(
                 new[] { "copy_visible_text", "read_lines", "find_text", "edit_lines", "replace_in_range", "replace_all", "save_file" },
                 tools.Select(t => t.Name).ToArray(),
                 "the Text AI act tool surface changed — update the tree's text-viewer-ai-act leaves to match");
 
-            // read_lines: numbered, reflects current content
-            var read = tools.Single(t => t.Name == "read_lines");
-            var r = await read.InvokeAsync(new JsonObject { ["start_line"] = 1, ["count"] = 3 }, CancellationToken.None);
-            Assert.IsFalse(r.IsError);
-            StringAssert.Contains(r.ModelText, "alpha");
-            StringAssert.Contains(r.ModelText, "gamma");
+            var read = await tools.Single(t => t.Name == "read_lines").InvokeAsync(new JsonObject { ["start_line"] = 1, ["count"] = 3 }, CancellationToken.None);
+            Assert.IsFalse(read.IsError);
+            StringAssert.Contains(read.ModelText, "1\talpha");
+            StringAssert.Contains(read.ModelText, "3\tgamma");
 
-            // replace_all: whole-file find/replace (case-insensitive default), marks the document dirty
-            var replace = tools.Single(t => t.Name == "replace_all");
-            var rep = await replace.InvokeAsync(new JsonObject { ["find"] = "beta", ["replace"] = "BETA" }, CancellationToken.None);
-            Assert.IsFalse(rep.IsError);
-            StringAssert.Contains(vm.Document.Text, "BETA");
+            var found = await tools.Single(t => t.Name == "find_text").InvokeAsync(new JsonObject { ["query"] = "gamma" }, CancellationToken.None);
+            Assert.IsFalse(found.IsError);
+            StringAssert.Contains(found.ModelText, "line 3");
+
+            var replaced = await tools.Single(t => t.Name == "replace_all").InvokeAsync(new JsonObject { ["find"] = "beta", ["replace"] = "BETA" }, CancellationToken.None);
+            Assert.IsFalse(replaced.IsError);
+            Assert.IsTrue(vm.IsEditing, "a tool that writes starts editing");
+            StringAssert.Contains(vm.Document.ToString(), "BETA");
             Assert.IsTrue(vm.IsDirty);
 
-            // edit_lines: replace a line range in place (new_text keeps its trailing newline → lines stay split)
-            var edit = tools.Single(t => t.Name == "edit_lines");
-            await edit.InvokeAsync(new JsonObject { ["start_line"] = 1, ["end_line"] = 1, ["new_text"] = "ALPHA\n" }, CancellationToken.None);
-            StringAssert.Contains(vm.Document.Text, "ALPHA\nBETA");   // still three lines, line 1 replaced
+            await tools.Single(t => t.Name == "edit_lines").InvokeAsync(new JsonObject { ["start_line"] = 1, ["end_line"] = 1, ["new_text"] = "ALPHA\n" }, CancellationToken.None);
+            Assert.AreEqual("ALPHA\nBETA\ngamma\n", vm.Document.ToString(), "line 1 replaced, the lines still apart");
 
-            // replace_in_range: find/replace confined to a line range
-            var range = tools.Single(t => t.Name == "replace_in_range");
-            var rr = await range.InvokeAsync(new JsonObject { ["start_line"] = 3, ["end_line"] = 3, ["find"] = "gamma", ["replace"] = "GAMMA" }, CancellationToken.None);
-            Assert.IsFalse(rr.IsError);
-            StringAssert.Contains(vm.Document.Text, "GAMMA");
+            var ranged = await tools.Single(t => t.Name == "replace_in_range").InvokeAsync(new JsonObject { ["start_line"] = 3, ["end_line"] = 3, ["find"] = "gamma", ["replace"] = "GAMMA" }, CancellationToken.None);
+            Assert.IsFalse(ranged.IsError);
+            Assert.AreEqual("ALPHA\nBETA\nGAMMA\n", vm.Document.ToString());
 
-            // save_file: takes the save branch on a dirty document (persistence itself is covered by the
-            // direct-save tests above; the tool's write is fire-and-forget through the dispatcher).
-            var save = tools.Single(t => t.Name == "save_file");
-            var s = await save.InvokeAsync(new JsonObject(), CancellationToken.None);
-            Assert.IsFalse(s.IsError);
-            Assert.AreEqual("saved", s.Summary);
+            // Every write the tools made is the reader's to take back.
+            Assert.IsTrue(vm.Document.CanUndo);
+
+            var save = await tools.Single(t => t.Name == "save_file").InvokeAsync(new JsonObject(), CancellationToken.None);
+            Assert.IsFalse(save.IsError);
+            Assert.AreEqual("saved", save.Summary);
         }
         finally { File.Delete(path); }
     });
 
     [TestMethod]
     [CoversNode("text-viewer-streaming-indicator")]
-    public void LoadAsync_LargeFile_IndexesLineCountAndWindowsFromTop() => AsyncPump.Run(async () =>
+    public void LoadAsync_FileLongerThanItsWindow_CountsEveryLine_AndShowsTheTop() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out var lineCount);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, SmallWindow) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             Assert.IsTrue(vm.IsLargeFile);   // drives the status-bar 'Streaming' badge
-            Assert.AreEqual(lineCount, vm.LineCount, "the index counts every line up front");
-            Assert.AreEqual(lineCount, vm.Document.LineCount, "placeholder padding preserves the scrollbar coordinate space");
+            Assert.AreEqual(lineCount, vm.LineCount, "the whole file's lines are counted, not the window's");
+            Assert.AreEqual(1, vm.FirstLineNumber);
+            Assert.IsTrue(vm.Document.Current.LineCount < lineCount / 2, "the document holds its window, not the file");
 
-            StringAssert.Contains(vm.Document.Text, "Line 00000");                  // first window is real
-            Assert.IsFalse(vm.Document.Text.Contains("Line 09999"), "the tail is still placeholder");
+            StringAssert.Contains(vm.Document.ToString(), "Line 00000");
+            Assert.IsFalse(vm.Document.ToString().Contains("Line 09999"), "the end of the file is not in the window yet");
         }
         finally { File.Delete(path); }
     });
 
     [TestMethod]
     [CoversNode("text-viewer-windowing")]
-    public void EnsureWindow_SlidesToViewportDeepInFile() => AsyncPump.Run(async () =>
+    [CoversNode("text-viewer-goto-line")]
+    public void GoToLine_DeepInALongFile_MovesTheWindowThere_NumberingLinesAsTheWholeFiles() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out _);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
+            var (shell, goTo) = PromptingShell();
+            using var vm = new TextViewModel(path, shell, VirtualFileSystem.Instance, SmallWindow) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
-            Assert.IsFalse(vm.Document.Text.Contains("Line 08000"), "line 8000 starts out as placeholder");
+            Assert.IsFalse(vm.Document.ToString().Contains("Line 08000"));
 
-            await vm.EnsureWindowAsync(8000, 8050);
+            vm.GoToLineCommand.Execute(null);
+            goTo("8001");
 
-            StringAssert.Contains(vm.Document.Text, "Line 08000");                  // now real content
-            Assert.AreEqual(10_000, vm.Document.LineCount, "total line count is unchanged by sliding");
+            Assert.AreEqual(8000, CaretLine(vm), "the caret stands on line 8001 of the file");
+            Assert.IsTrue(vm.FirstLineNumber > 1, "the window moved, and the line numbers moved with it");
+            var line = vm.Document.Current.LineOf(vm.Editor.Caret);
+            var (start, end) = vm.Document.Current.LineAt(vm.Document.Current.OffsetOf(line));
+            StringAssert.StartsWith(vm.Document.Current.Slice(start, end - start), "Line 08000");
+            Assert.AreEqual(10_000, vm.LineCount, "moving the window does not change the file's line count");
         }
         finally { File.Delete(path); }
     });
@@ -192,12 +201,12 @@ public class TextViewModelTests
     [CoversNode("text-viewer-find")]
     [CoversNode("text-viewer-status-matchcount")]
     [CoversNode("text-viewer-search-indicator")]
-    public void Search_LargeFile_FindsMatchesAcrossTheWholeFile() => AsyncPump.Run(async () =>
+    public void Search_LongFile_FindsMatchesAcrossTheWholeFile() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out _);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, SmallWindow) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
 
             await vm.SearchConventionalAsync("Line 07777");
@@ -205,31 +214,44 @@ public class TextViewModelTests
             Assert.IsTrue(vm.IsSearchActive);
             Assert.AreEqual(1, vm.SearchMatchCount);                             // status-bar Match Count
             Assert.AreEqual("Line 07777", vm.CurrentSearchTerm);                 // search-bar Search Indicator
-            StringAssert.Contains(vm.Document.Text, "Line 07777", "search navigated/slid the window to the match");
+            Assert.AreEqual(7777, CaretLine(vm), "the search went to the match, the window brought there");
         }
         finally { File.Delete(path); }
     });
 
     [TestMethod]
     [CoversNode("text-viewer-func-editing")]
-    public void LargeFile_EditAndSave_PersistsViaStreamingMerge() => AsyncPump.Run(async () =>
+    public void LongFile_EditsFarApart_AreBothSaved_AndCanStillBeTakenBack() => AsyncPump.Run(async () =>
     {
         var path = WriteManyLines(out _);
         try
         {
-            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
-            await vm.LoadAsync(CancellationToken.None);
+            var (shell, goTo) = PromptingShell();
+            using (var vm = new TextViewModel(path, shell, VirtualFileSystem.Instance, SmallWindow) { IsMonitoring = false })
+            {
+                await vm.LoadAsync(CancellationToken.None);
+                await vm.ToggleEditingCommand.ExecuteAsync(null);
 
-            vm.IsEditing = true;
-            vm.OnUserEdit(0, 0, "ZZZ"); // insert at the very start of the window (the view forwards this)
-            Assert.IsTrue(vm.IsDirty);
+                vm.Document.Write(ContentChange.Write(0, 0, "ZZZ"));
+                Assert.IsTrue(vm.IsDirty);
 
-            await vm.SaveCommand.ExecuteAsync(null);
+                // Far enough that the window leaves the first edit behind.
+                vm.GoToLineCommand.Execute(null);
+                goTo("8001");
+                Assert.IsFalse(vm.Document.ToString().Contains("ZZZ"), "the first edit is outside the window now");
+                vm.Document.Write(ContentChange.Write(vm.Editor.Caret, 0, "YYY"));
 
-            Assert.IsFalse(vm.IsDirty, "save clears the dirty flag");
-            var first = File.ReadLines(path).First();
-            StringAssert.StartsWith(first, "ZZZLine 00000", "the edit merged into the saved file");
-            Assert.AreEqual(10_000, vm.LineCount, "line count is intact after save + reload");
+                await vm.SaveCommand.ExecuteAsync(null);
+
+                Assert.IsFalse(vm.IsDirty, "saving leaves nothing to save");
+                Assert.IsTrue(vm.Document.CanUndo, "saving keeps what can be taken back");
+                Assert.AreEqual(10_000, vm.LineCount);
+            }
+
+            var lines = File.ReadAllLines(path);
+            StringAssert.StartsWith(lines[0], "ZZZLine 00000", "the edit the window left behind was saved");
+            StringAssert.StartsWith(lines[8000], "YYYLine 08000", "the edit in the window was saved");
+            Assert.AreEqual(10_000, lines.Length);
         }
         finally { File.Delete(path); }
     });
@@ -241,25 +263,25 @@ public class TextViewModelTests
         var path = WriteTemp("alpha\nbeta\ngamma");
         try
         {
-            var shell = Substitute.For<IShellServices>();
-            using var vm = new TextViewModel(path, shell, VirtualFileSystem.Instance) { IsMonitoring = false };
-            await vm.LoadAsync(CancellationToken.None);
+            using (var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false })
+            {
+                await vm.LoadAsync(CancellationToken.None);
 
-            bool dirtyRaised = false;
-            vm.DirtyChanged += d => dirtyRaised = d;
+                var dirtyRaised = false;
+                vm.DirtyChanged += dirty => dirtyRaised = dirty;
 
-            vm.IsEditing = true;
-            vm.Document.Insert(0, "X"); // a real Document edit raises Document.Changed in the view; here drive directly
-            vm.OnUserEdit(0, 0, "X");
+                await vm.ToggleEditingCommand.ExecuteAsync(null);
+                vm.Document.Write(ContentChange.Write(0, 0, "X"));
 
-            Assert.IsTrue(vm.IsDirty);
-            Assert.IsTrue(dirtyRaised);
-            Assert.IsTrue(vm.SaveCommand.CanExecute(null), "Save is enabled once the document is dirty");
+                Assert.IsTrue(vm.IsDirty);
+                Assert.IsTrue(dirtyRaised);
+                Assert.IsTrue(vm.SaveCommand.CanExecute(null), "Save is enabled once the document is dirty");
 
-            await vm.SaveCommand.ExecuteAsync(null);
+                await vm.SaveCommand.ExecuteAsync(null);
+                Assert.IsFalse(vm.IsDirty, "saving clears the dirty flag");
+            }
 
-            Assert.IsFalse(vm.IsDirty, "saving clears the dirty flag");
-            StringAssert.StartsWith(File.ReadAllText(path), "Xalpha", "the edit was persisted to disk");
+            Assert.AreEqual("Xalpha\nbeta\ngamma", File.ReadAllText(path), "the edit was saved, and nothing else changed");
         }
         finally { File.Delete(path); }
     });
@@ -268,7 +290,7 @@ public class TextViewModelTests
     [CoversNode("text-viewer-find-nav")]
     [CoversNode("text-viewer-highlights")]
     [CoversNode("text-viewer-minimap")]
-    public void FindNextPrevious_MovesMatchCursor_AndFeedsHighlightsAndMinimap() => AsyncPump.Run(async () =>
+    public void FindNextPrevious_MovesTheCaret_AndFeedsTheMarksAndTheMinimap() => AsyncPump.Run(async () =>
     {
         var path = WriteTemp("foo a\nbar b\nfoo c\nbar d\nfoo e"); // "foo" on lines 1, 3, 5
         try
@@ -279,19 +301,20 @@ public class TextViewModelTests
             await vm.SearchConventionalAsync("foo");
             Assert.IsTrue(vm.IsSearchActive);
             Assert.AreEqual(3, vm.SearchMatchCount);
-            Assert.IsTrue(vm.SearchHighlights.Count > 0, "matches in the resident window are highlighted");
             Assert.AreEqual(3, vm.MiniMapMarks.Count, "one minimap mark per matching line across the file");
+            Assert.AreEqual(0, CaretLine(vm), "the search goes to the first match");
 
-            int LineAt(int offset) => vm.Document.GetLineByOffset(offset).LineNumber;
-            Assert.AreEqual(1, LineAt(vm.ScrollToOffset), "the first match centres on line 1");
+            var document = vm.Document.Current;
+            var marks = vm.Editor.Marks.Mark(new ContentMarkRequest(document, 0, document.Length));
+            CollectionAssert.AreEqual(new[] { 0, 12, 24 }, marks.Where(m => m.Kind == ContentMarkKind.Wash).Select(m => m.Start).ToArray(), "every match is marked");
+            Assert.AreEqual(0, marks.Single(m => m.Kind == ContentMarkKind.Outline).Start, "the match gone to is outlined");
 
-            vm.CurrentCaretOffset = vm.ScrollToOffset;
-            await vm.FindNextCommand.ExecuteAsync(null);
-            Assert.AreEqual(3, LineAt(vm.ScrollToOffset), "Find Next advances to the next matching line");
+            vm.FindNextCommand.Execute(null);
+            Assert.AreEqual(2, CaretLine(vm), "Find Next advances to the next matching line");
+            Assert.AreEqual(12, vm.Editor.Marks.Mark(new ContentMarkRequest(document, 0, document.Length)).Single(m => m.Kind == ContentMarkKind.Outline).Start);
 
-            vm.CurrentCaretOffset = vm.ScrollToOffset;
-            await vm.FindPreviousCommand.ExecuteAsync(null);
-            Assert.AreEqual(1, LineAt(vm.ScrollToOffset), "Find Previous steps back to the earlier matching line");
+            vm.FindPreviousCommand.Execute(null);
+            Assert.AreEqual(0, CaretLine(vm), "Find Previous steps back to the earlier matching line");
         }
         finally { File.Delete(path); }
     });
@@ -300,8 +323,8 @@ public class TextViewModelTests
     [CoversNode("text-viewer-func-encoding-detect")]
     public void LoadAsync_DetectsEncodingFromBom() => AsyncPump.Run(async () =>
     {
-        // A UTF-16 LE file (with BOM) whose bytes are garbage under the default UTF-8 selection —
-        // the loader must honour the byte-order mark and decode it correctly regardless.
+        // A UTF-16 LE file (with BOM) whose bytes are garbage under the default UTF-8 selection — the loader must honour the byte-order
+        // mark and decode it correctly regardless.
         var path = Path.Combine(TestTemp.Root, $"textvm_{Guid.NewGuid():N}.txt");
         File.WriteAllText(path, "héllo\nwörld", Encoding.Unicode);
         try
@@ -310,7 +333,7 @@ public class TextViewModelTests
             Assert.AreEqual("UTF-8", vm.SelectedEncoding.Name); // selection is the default; the BOM overrides it
             await vm.LoadAsync(CancellationToken.None);
 
-            Assert.AreEqual("héllo\nwörld", vm.Document.Text, "the UTF-16 BOM was auto-detected on load");
+            Assert.AreEqual("héllo\nwörld", vm.Document.ToString(), "the UTF-16 BOM was auto-detected on load");
         }
         finally { File.Delete(path); }
     });
@@ -326,14 +349,14 @@ public class TextViewModelTests
         {
             using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
             await vm.LoadAsync(CancellationToken.None);
-            Assert.IsFalse(vm.Document.Text.Contains("café"), "under the default UTF-8, 0xE9 mangles");
+            StringAssert.Contains(vm.Document.ToString(), "café", "bytes that are not UTF-8 are read as the single-byte text they are");
 
-            // Switching the selector re-reads the file (fire-and-forget reload); poll until it lands.
+            // Choosing an encoding reads the file again in it (fire-and-forget); poll until it lands.
+            vm.SelectedEncoding = vm.AvailableEncodings.First(e => e.Name == "UTF-8");
+            await WaitUntilAsync(() => vm.Document.ToString().Contains('�'), "read as UTF-8, 0xE9 is no character");
+
             vm.SelectedEncoding = vm.AvailableEncodings.First(e => e.Name == "Latin-1");
-            await WaitUntilAsync(() => vm.Document.Text.Contains("café"),
-                "changing the encoding selector re-decodes the file as Latin-1");
-
-            Assert.IsTrue(vm.Document.Text.Contains("café"));
+            await WaitUntilAsync(() => vm.Document.ToString().Contains("café"), "read as Latin-1, it is é again");
         }
         finally { File.Delete(path); }
     });
@@ -357,16 +380,85 @@ public class TextViewModelTests
             Assert.IsNotNull(onChanged, "monitoring registered a file watch");
             Assert.IsFalse(vm.FileChangedBannerVisible);
 
-            File.WriteAllText(path, "updated\ncontent\nthird"); // the file mutates on disk
+            File.WriteAllText(path, "updated\ncontent\nthird"); // the file changes on disk, which the viewer shares with writers while unedited
             onChanged!();                                       // the shell's debounced watcher fires
 
             Assert.IsTrue(vm.FileChangedBannerVisible, "a disk change raises the file-changed banner");
 
-            // Let the full change→reload→auto-hide cycle finish before the pump completes, so no
-            // continuation is posted after the sync-context closes.
-            for (int i = 0; i < 500 && vm.FileChangedBannerVisible; i++) await Task.Delay(20);
+            // Let the change → reload → auto-hide cycle finish before the pump completes, so no continuation is posted after it closes.
+            for (var i = 0; i < 500 && vm.FileChangedBannerVisible; i++) await Task.Delay(20);
             Assert.IsFalse(vm.FileChangedBannerVisible, "the banner auto-hides after the reload settles");
-            StringAssert.Contains(vm.Document.Text, "updated", "the reload pulled the new on-disk content");
+            Assert.AreEqual("updated\ncontent\nthird", vm.Document.ToString(), "the reload read what is on disk now");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("text-viewer-editing-toggle")]
+    public void Editing_HoldsTheFileAgainstOtherWriters_UntilEditingStops() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("alpha\nbeta");
+        try
+        {
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
+            await vm.LoadAsync(CancellationToken.None);
+
+            using (new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete)) { }
+
+            await vm.ToggleEditingCommand.ExecuteAsync(null);
+            Assert.IsTrue(vm.IsEditing);
+            Assert.IsFalse(vm.IsReadOnly);
+            Assert.ThrowsExactly<IOException>(() => new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete).Dispose(),
+                "no other program writes the file while it is edited");
+            using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) { }
+
+            await vm.ToggleEditingCommand.ExecuteAsync(null);   // nothing written: no question asked
+            Assert.IsFalse(vm.IsEditing);
+            Assert.IsTrue(vm.IsReadOnly);
+            using (new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete)) { }
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("text-viewer-editing-toggle")]
+    public void Editing_IsRefused_WhileAnotherProgramWritesTheFile() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("alpha\nbeta");
+        try
+        {
+            var shell = Substitute.For<IShellServices>();
+            using var vm = new TextViewModel(path, shell, VirtualFileSystem.Instance) { IsMonitoring = false };
+            await vm.LoadAsync(CancellationToken.None);
+
+            using (new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete))
+            {
+                await vm.ToggleEditingCommand.ExecuteAsync(null);
+            }
+
+            Assert.IsFalse(vm.IsEditing, "a file another program is writing is not edited over it");
+            Assert.IsTrue(vm.IsReadOnly);
+            shell.Received(1).ShowError(Arg.Is<string>(message => message.Contains(vm.FileName)));
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [CoversNode("text-viewer-editing-toggle")]
+    public void Editing_AFileChangedSinceItWasRead_ReadsItAgainFirst() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("alpha\nbeta");
+        try
+        {
+            using var vm = new TextViewModel(path, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
+            await vm.LoadAsync(CancellationToken.None);
+
+            File.WriteAllText(path, "changed\nmeanwhile\nby another program", new UTF8Encoding(false));
+            await vm.ToggleEditingCommand.ExecuteAsync(null);
+
+            Assert.IsTrue(vm.IsEditing);
+            Assert.AreEqual("changed\nmeanwhile\nby another program", vm.Document.ToString(), "what is edited is what is on disk now");
+            Assert.AreEqual(3, vm.LineCount);
         }
         finally { File.Delete(path); }
     });
@@ -411,7 +503,7 @@ public class TextViewModelTests
 
     private static async Task WaitUntilAsync(Func<bool> condition, string because)
     {
-        for (int i = 0; i < 300 && !condition(); i++) await Task.Delay(10);
+        for (var i = 0; i < 300 && !condition(); i++) await Task.Delay(10);
         Assert.IsTrue(condition(), because);
     }
 }

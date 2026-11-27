@@ -272,3 +272,71 @@ public sealed class FoundMarks : ContentMarkLayer
         }
     }
 }
+
+/// <summary>
+/// What a search matches, marked on the lines being drawn — worked out there and nowhere else, so a document of any length costs a screen of
+/// matching however many matches it holds, and what is marked stays true through every edit and every move of a window onto a file. The
+/// match being looked at is outlined as well, and carried through every change while it stands.
+/// </summary>
+public sealed class MatchMarks : ContentMarkLayer
+{
+    /// <summary>What a line's matches are, or null for no search.</summary>
+    private Func<string, IReadOnlyList<(int Index, int Length)>>? _matches;
+
+    public override int Order => 1000;
+
+    public override bool IsEmpty => _matches is null;
+
+    /// <summary>The match being looked at, where one is.</summary>
+    public (int Start, int Length)? LookedAt { get; private set; }
+
+    /// <summary>Marks what <paramref name="matches"/> finds on each line drawn — nothing, where it is null — and looks at none of it yet.</summary>
+    public void Show(Func<string, IReadOnlyList<(int Index, int Length)>>? matches)
+    {
+        _matches = matches;
+        this.LookedAt = null;
+        this.Remark();
+    }
+
+    /// <summary>Outlines <paramref name="match"/> as the one looked at — none, where it is null.</summary>
+    public void LookAt((int Start, int Length)? match)
+    {
+        this.LookedAt = match;
+        this.Remark();
+    }
+
+    public override void Mark(ContentMarkRequest request, ICollection<ContentMark> into)
+    {
+        if (_matches is not { } matches) return;
+
+        var document = request.Document;
+        var (start, end) = (Math.Clamp(request.Start, 0, document.Length), Math.Clamp(request.End, 0, document.Length));
+
+        for (var line = document.LineOf(start); line < document.LineCount; line++)
+        {
+            var (from, to) = document.LineAt(document.OffsetOf(line));
+            if (from > end) break;
+
+            foreach (var (index, length) in matches(document.Slice(from, to - from).TrimEnd('\r', '\n')))
+            {
+                into.Add(new ContentMark(ContentMarkKind.Wash, from + index, length, FoundMarks.WashToken));
+                if (this.LookedAt == (from + index, length)) into.Add(new ContentMark(ContentMarkKind.Outline, from + index, length, FoundMarks.OutlineToken));
+            }
+        }
+    }
+
+    public override void Carry(ContentSourceChange change)
+    {
+        if (this.LookedAt is not { } at) return;
+
+        if (change.Kind == ContentChangeKind.Loaded)
+        {
+            this.LookedAt = null;
+            return;
+        }
+
+        var start = change.Change.Carried(at.Start);
+        var end = change.Change.Carried(at.Start + at.Length, leansAfter: true);
+        this.LookedAt = end > start ? (start, end - start) : null;
+    }
+}

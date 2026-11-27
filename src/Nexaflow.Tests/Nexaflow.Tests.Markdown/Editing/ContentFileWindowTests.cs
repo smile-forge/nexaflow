@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -24,19 +25,22 @@ public class ContentFileWindowTests
     public void Begin() => _folder = TestTemp.CreateSubdirectory("file-window").FullName;
 
     [TestMethod]
-    public void TheWindow_HoldsTheFilesCharactersWhereItStands_WhereverItMoves()
+    public void TheWindow_HoldsTheFilesCharactersWhereItStands_OnWholeLines_WhereverItMoves()
     {
         var text = Lines(8000);
         var window = Opened(text);
 
         Assert.AreEqual(text.Length, window.Length);
-        Assert.AreEqual(text[..Size], window.Document.ToString());
+        Assert.AreEqual(text.Substring(0, window.Document.Current.Length), window.Document.ToString());
 
         foreach (var centre in new long[] { text.Length / 2, text.Length - 5, 30_000, 0 })
         {
             window.MoveTo(centre);
+            var held = window.Document.ToString();
 
-            Assert.AreEqual(text.Substring((int)window.Start, window.Document.Current.Length), window.Document.ToString(), $"round {centre}");
+            Assert.AreEqual(text.Substring((int)window.Start, held.Length), held, $"round {centre}");
+            Assert.IsTrue(window.Start == 0 || text[(int)window.Start - 1] == '\n', $"the window starts where a line does: round {centre}");
+            Assert.IsTrue(window.Start + held.Length == text.Length || held.EndsWith('\n'), $"and ends where one ends: round {centre}");
             Assert.IsTrue(window.Covers(Math.Min(centre, text.Length - 1), Math.Min(centre, text.Length - 1)));
         }
     }
@@ -52,8 +56,86 @@ public class ContentFileWindowTests
         Assert.IsFalse(window.Document.ToString().Contains("WRITTEN"));
 
         window.MoveTo(0);
-        Assert.AreEqual(text[..100] + "WRITTEN" + text[100..(Size - 7)], window.Document.ToString()[..(Size - 7 + 7)]);
+        var written = text[..100] + "WRITTEN" + text[100..];
+        Assert.AreEqual(written[..window.Document.Current.Length], window.Document.ToString());
         Assert.AreEqual(text.Length + 7, window.Length);
+    }
+
+    [TestMethod]
+    public void ItsLines_AreTheFilesLines_CountedOnFromThoseBeforeIt_AndAnyLineOfTheFileIsFound()
+    {
+        var text = Lines(8000);
+        var starts = LineStarts(text);
+        var window = Opened(text);
+
+        window.MoveTo(text.Length / 2);
+        Write(window, 10, "written\nin two lines ");
+
+        var written = text[..(int)(window.Start + 10)] + "written\nin two lines " + text[(int)(window.Start + 10)..];
+        var writtenStarts = LineStarts(written);
+
+        Assert.AreEqual(starts.Count(start => start < window.Start), window.LinesBefore, "the lines before the window");
+        Assert.AreEqual(writtenStarts.Count, window.LineCount, "the lines of the whole file, what was written in the window among them");
+
+        foreach (var line in new[] { 0, 1, 2000, (int)window.LinesBefore, (int)window.LinesBefore + 3, writtenStarts.Count - 1 })
+            Assert.AreEqual(writtenStarts[line], window.OffsetOfLine(line), $"line {line}");
+
+        Assert.IsNull(window.OffsetOfLine(writtenStarts.Count), "a line past the last");
+    }
+
+    [TestMethod]
+    public void EveryLineOfTheWholeFile_IsReadInOrder_WithWhereItStarts_AndTheWholeOfItWritten()
+    {
+        var text = Lines(8000) + "last line, no line end";
+        var path = Written(text);
+        var window = Opened(path, text);
+
+        window.MoveTo(text.Length / 2);
+        Write(window, 0, "W");
+
+        var written = text[..(int)window.Start] + "W" + text[(int)window.Start..];
+        var read = new List<(long Number, long Start, string Text)>();
+        window.EachLine((number, start, line) => read.Add((number, start, line)));
+
+        var expected = written.Split('\n');
+        Assert.AreEqual(expected.Length, read.Count);
+        for (var line = 0; line < expected.Length; line += 997)
+        {
+            Assert.AreEqual(line, read[line].Number);
+            Assert.AreEqual(expected[line], read[line].Text);
+            Assert.AreEqual(LineStarts(written)[line], read[line].Start);
+        }
+
+        using var whole = new StringWriter();
+        window.WriteTo(whole);
+        Assert.AreEqual(written, whole.ToString());
+    }
+
+    [TestMethod]
+    public void OpenedIntoAPagesDocument_ThatDocumentIsTheWindows_AndLoadedWholeAgainItStandsOverNone()
+    {
+        var text = Lines(8000);
+        var page = new EditedDocument();
+        var file = ContentFile.Open(Written(text), new UTF8Encoding(false), 0, ContentFileAccess.Editable, blockBytes: 4000);
+        file.Scan();
+
+        var window = ContentFileWindow.Open(file, page, at: 0, size: Size);
+
+        Assert.AreSame(page, window.Document);
+        Assert.AreSame(window, page.Window);
+
+        page.Load("whole");
+        Assert.IsNull(page.Window);
+    }
+
+    /// <summary>Where each line of <paramref name="text"/> starts, every line feed ending one.</summary>
+    private static List<long> LineStarts(string text)
+    {
+        var starts = new List<long> { 0 };
+        for (var at = 0; at < text.Length; at++)
+            if (text[at] == '\n') starts.Add(at + 1);
+
+        return starts;
     }
 
     [TestMethod]
