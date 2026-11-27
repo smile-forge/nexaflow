@@ -125,7 +125,7 @@ public partial class MarkdownLayoutBench
     /// </summary>
     private static (EditedDocument Document, ContentFile File) OnDisk(string text)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"nexaflow-bench-{Guid.NewGuid():N}.txt");
+        var path = TestTemp.CreateFile(".txt");
         File.WriteAllText(path, text, new UTF8Encoding(false));
 
         var file = ContentFile.Open(path, new UTF8Encoding(false), 0, ContentFileAccess.Editable);
