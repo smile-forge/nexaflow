@@ -96,8 +96,8 @@ internal sealed class PacketEdits : IContentLanguage, IOnEdit, IOnMove
 
         // Done to the field under the pointer, so each stands beside the rest of what is done to it as its icon — never behind a
         // button of its own a reader has to open to find it — and is named to a reader hovering over it.
-        static MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
-            new(id, Str.Get(name), pressed) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
+        MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
+            new(id, Str.Get(name), pressed) { Shape = RibbonMarks.Drawn(ask.Medium, ask.Style, IconRef.Fluent(icon)) };
     }
 
     /// <summary>The field a control of the ribbon was used over, or null where it was used over none.</summary>

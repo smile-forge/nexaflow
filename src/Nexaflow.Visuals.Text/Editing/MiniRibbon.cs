@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Windows.Media;
+using Nexaflow.Markdown.Layout;
 
 using Nexaflow.Markdown.Editing;
 
@@ -26,8 +26,8 @@ public abstract record MiniRibbonControl(string Id, string Name);
 /// <param name="Pressed">The change pressing it makes, given the content as it stands — or null for none.</param>
 public sealed record MiniRibbonButton(string Id, string Name, Func<ContentEdit, ContentChange?> Pressed) : MiniRibbonControl(Id, Name)
 {
-    /// <summary>Its picture in a sixteen-by-sixteen box, filled in the ink of whatever shows it — or null, to be named.</summary>
-    public Geometry? Shape { get; init; }
+    /// <summary>Its picture in a sixteen-by-sixteen box, made by the medium the content is laid in (<see cref="RibbonMarks"/>) and filled in the ink of whatever shows it — or null, to be named.</summary>
+    public LayoutShape? Shape { get; init; }
 
     /// <summary>Whether it takes something away — drawn in the theme's colour for danger, as what takes something away is.</summary>
     public bool Warns { get; init; }
@@ -58,10 +58,10 @@ public sealed record MiniRibbonChoice(string Id, string Name, IReadOnlyList<Mini
 public sealed record MiniRibbonOption(string Id, string Name)
 {
     /// <summary>What it is drawn as where a picture says it better than a word, in the box a button gives a picture — or null.</summary>
-    public Geometry? Shape { get; init; }
+    public LayoutShape? Shape { get; init; }
 
     /// <summary>The colour it is, where the option is itself a colour — drawn as a swatch of it, and as nothing where it is clear.</summary>
-    public Color? Shade { get; init; }
+    public LayoutColor? Shade { get; init; }
 
     /// <summary>The few letters it is drawn as, where neither a shape nor a colour says it.</summary>
     public string? Letters { get; init; }

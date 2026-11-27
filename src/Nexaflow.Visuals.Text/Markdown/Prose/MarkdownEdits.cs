@@ -100,7 +100,7 @@ internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
         new MiniRibbonChoice(Inserts, Str.Get("Text.Ribbon.Insert"),
                              [.. ContentLanguages.Insertable.Where(language => language.Name is not null).Select(language => new MiniRibbonOption(language.Name!, language.DisplayName?.Invoke() ?? language.Name!)
                              {
-                                 Shape = DiagramRibbon.Drawn(language.Icon),
+                                 Shape = RibbonMarks.Drawn(ask.Medium, ask.Style, language.Icon),
                              })],
                              Started),
     ];

@@ -138,6 +138,8 @@ public sealed partial class ContentEngine
                 Selection = state.Selection,
                 Caret = state.HasSelection ? null : state.Caret,
                 IsReadOnly = _readOnly,
+                Medium = _medium,
+                Style = _style,
             };
 
             return [.. language.Editing.Ribbon(ask), .. Clipboarding(language.Editing.Clipboard(ask), state)];
@@ -160,12 +162,12 @@ public sealed partial class ContentEngine
         if (!_readOnly && allowed.HasFlag(ClipboardOffers.Paste)) yield return Clipboard(LayoutVerbs.Paste, "Text.Ribbon.Paste", Paste);
 
         // Done by the engine itself rather than written by a change, so the button answers none.
-        static MiniRibbonButton Clipboard(string verb, string name, Func<bool> done) =>
+        MiniRibbonButton Clipboard(string verb, string name, Func<bool> done) =>
             new(verb, Str.Get(name), _ =>
             {
                 done();
                 return null;
-            }) { Shape = DiagramRibbon.Marked(new LayoutIntent(verb)) };
+            }) { Shape = RibbonMarks.Marked(_medium, new LayoutIntent(verb)) };
     }
 
     /// <summary>

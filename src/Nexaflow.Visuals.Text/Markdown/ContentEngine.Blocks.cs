@@ -301,7 +301,7 @@ public sealed partial class ContentEngine
         {
             if (ContentLanguages.Held(at) is not { } language) continue;
 
-            var ask = new ContentAsk(ContentNested.Language(at)!, this.State.Document) { Part = block, IsReadOnly = _readOnly };
+            var ask = new ContentAsk(ContentNested.Language(at)!, this.State.Document) { Part = block, IsReadOnly = _readOnly, Medium = _medium, Style = _style };
             return language.Editing.Corner(ask);
         }
 
@@ -309,13 +309,13 @@ public sealed partial class ContentEngine
         // on one: copying it is what selecting it is for.
         if (_named is { } named)
             return _wrapsLines ? BlockCorner.None
-                               : Language(named).Editing.Corner(new ContentAsk(named, this.State.Document) { Part = block, IsReadOnly = _readOnly });
+                               : Language(named).Editing.Corner(new ContentAsk(named, this.State.Document) { Part = block, IsReadOnly = _readOnly, Medium = _medium, Style = _style });
 
         // A heading of the document's own offers what its section can do, as markdown says.
         if (Headed(block) is { } section)
             return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, this.State.Document)
             {
-                Part = block, Root = RootOf(block), Section = section, IsReadOnly = _readOnly,
+                Part = block, Root = RootOf(block), Section = section, IsReadOnly = _readOnly, Medium = _medium, Style = _style,
             });
 
         // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
@@ -406,16 +406,16 @@ public sealed partial class ContentEngine
 
     /// <summary>What a button shows: the mark for what it does, where there is one, and its name where there is not.</summary>
     private IShapedText Face(LayoutIntent offer, ILayoutMedium medium) =>
-        DiagramRibbon.Icon(offer) is { } mark
-            ? medium.Shape(mark, _markFace ??= medium.Face(DiagramRibbon.IconFont.Source), MarkSize, _style.Text)
-            : medium.Shape(DiagramRibbon.Names(offer), _style.Face(_style.TextFont), MarkSize, _style.Text);
+        RibbonMarks.Icon(offer) is { } mark
+            ? medium.Shape(mark, _markFace ??= medium.Face(RibbonMarks.IconFont), MarkSize, _style.Text)
+            : medium.Shape(RibbonMarks.Names(offer), _style.Face(_style.TextFont), MarkSize, _style.Text);
 
     /// <summary>The face a button's mark is drawn in, found the first time one is.</summary>
     private LayoutFace? _markFace;
 
     /// <summary>How wide a button is: square where it shows a mark, and its name's width with room round it where it does not.</summary>
     private static double Width(IShapedText face, LayoutIntent offer) =>
-        DiagramRibbon.Icon(offer) is not null ? ButtonSize : face.Width + (ButtonPad * 2);
+        RibbonMarks.Icon(offer) is not null ? ButtonSize : face.Width + (ButtonPad * 2);
 
     /// <summary>What the corner's pieces are.</summary>
     private static class CornerPieces

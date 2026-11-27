@@ -121,8 +121,8 @@ internal sealed class TreeViewEdits : IContentLanguage, IOnEdit, IOnMove
 
         // Done to the node under the pointer, so each stands beside the rest as its icon, named to a reader hovering over it. What a node
         // is turned into is drawn after "As": the folder or the file alone would read as a choice of the icon it is drawn with.
-        static MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
-            new(id, Str.Get(name), pressed) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
+        MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
+            new(id, Str.Get(name), pressed) { Shape = RibbonMarks.Drawn(ask.Medium, ask.Style, IconRef.Fluent(icon)) };
     }
 
     /// <summary>Whether the tree's front matter shows an icon beside every node.</summary>

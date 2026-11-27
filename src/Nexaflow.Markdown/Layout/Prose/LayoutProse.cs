@@ -65,6 +65,12 @@ public sealed record LayoutStyle
     public required IReadOnlyDictionary<string, LayoutInk> Elements { get; init; }
 
     /// <summary>
+    /// The colours a reader is offered to paint something with — the host's shared bank as its theme tunes it, asked each time they are
+    /// offered, so a theme retuning the bank retunes what is offered without the style being made again.
+    /// </summary>
+    public required Func<IReadOnlyList<LayoutSwatch>> Swatches { get; init; }
+
+    /// <summary>
     /// The colours a theme names for C4's levels — a person, a system, a container, a component, a deployment node, something somebody
     /// else's — and its boundaries, each null where the theme names none and C4 grades from the accent instead.
     /// </summary>
@@ -122,6 +128,12 @@ public sealed record LayoutStyle
     /// <summary>Whether the spaces, tabs and line ends of content laid line by line are drawn, as faint marks standing for none of it.</summary>
     public bool ShowsWhitespace { get; init; }
 }
+
+/// <summary>
+/// A colour of the bank a reader paints with (<see cref="LayoutStyle.Swatches"/>): the invariant name a choice of it is keyed by, so two
+/// a theme happens to tune alike are still two choices; the label a reader sees; and the colour itself.
+/// </summary>
+public sealed record LayoutSwatch(string Name, string Label, LayoutColor Shade);
 
 /// <summary>Where content stands in what holds it.</summary>
 public enum LayoutStanding

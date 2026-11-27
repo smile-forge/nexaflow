@@ -106,8 +106,8 @@ internal sealed class TreemapEdits : IContentLanguage, IOnEdit, IOnMove
         ];
 
         // Done to the item under the pointer, so each stands beside the rest as its icon, named to a reader hovering over it.
-        static MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
-            new(id, Str.Get(name), pressed) { Shape = DiagramRibbon.Drawn(IconRef.Fluent(icon)) };
+        MiniRibbonButton Pressing(string id, string name, string icon, Func<ContentEdit, ContentChange?> pressed) =>
+            new(id, Str.Get(name), pressed) { Shape = RibbonMarks.Drawn(ask.Medium, ask.Style, IconRef.Fluent(icon)) };
     }
 
     /// <summary>The item a control of the ribbon was used over, or null where it was used over none.</summary>

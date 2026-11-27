@@ -707,7 +707,7 @@ public class PieEditingTests
                 .ToList();
 
             Assert.AreEqual(12, offers.Count, "five places, four holes, three strokes");
-            Assert.IsTrue(offers.All(option => option.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as what it would make");
+            Assert.IsTrue(offers.All(option => option.Shape is WpfShape { Geometry: { IsFrozen: true } shape } && !shape.IsEmpty()), "each drawn as what it would make");
             Assert.IsTrue(offers.All(option => option.Name is { Length: > 0 }), "and named, for whoever hovers or hears the screen read");
         }));
 

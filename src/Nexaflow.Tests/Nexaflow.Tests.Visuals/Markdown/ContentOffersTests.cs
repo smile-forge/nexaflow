@@ -10,6 +10,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -238,23 +239,23 @@ public class ContentOffersTests
     [TestMethod]
     [CoversNode("markdown-context-menu")]
     public void NothingIsOfferedToAReaderWhoMayNotWrite() =>
-        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Ribbon(new ContentAsk(string.Empty, ContentDocument.Of("words\n")) { IsReadOnly = true }).Count);
+        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Ribbon(new ContentAsk(string.Empty, ContentDocument.Of("words\n")) { IsReadOnly = true, Medium = WpfMedium.OnThisThread, Style = WpfStyles.Dark }).Count);
 
     [TestMethod]
     public void EveryOfferIsSomethingAReaderCanRead() => UiThread.Run(() =>
     {
         // A verb is what the renderer calls it; what a reader sees is words.
-        Assert.AreEqual(Str.Get("Text.Ribbon.Copy"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Copy)));
-        Assert.AreEqual(Str.Get("Text.Ribbon.SavePicture"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Save)));
-        Assert.AreEqual(Str.Get("Text.Ribbon.OpenLink"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Navigate)));
+        Assert.AreEqual(Str.Get("Text.Ribbon.Copy"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Copy)));
+        Assert.AreEqual(Str.Get("Text.Ribbon.SavePicture"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Save)));
+        Assert.AreEqual(Str.Get("Text.Ribbon.OpenLink"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Navigate)));
 
         // And a content's own verb says whatever it said for itself.
-        Assert.AreEqual("Sharpen", DiagramRibbon.Names(new LayoutIntent("sharpen", null, "Sharpen")));
+        Assert.AreEqual("Sharpen", RibbonMarks.Names(new LayoutIntent("sharpen", null, "Sharpen")));
     });
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static ContentAsk Ask(string named, string source) => new(named, ContentDocument.Of(source));
+    private static ContentAsk Ask(string named, string source) => new(named, ContentDocument.Of(source)) { Medium = WpfMedium.OnThisThread, Style = WpfStyles.Dark };
 
     /// <summary>The handle a journey presses a button by.</summary>
     private static string Id(Button button) => System.Windows.Automation.AutomationProperties.GetAutomationId(button);

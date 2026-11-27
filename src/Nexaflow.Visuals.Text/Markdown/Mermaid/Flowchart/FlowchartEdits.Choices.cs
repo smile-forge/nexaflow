@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Windows.Media;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
@@ -46,8 +46,8 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     private static readonly MermaidShape[] Drawable =
         [.. Enum.GetValues<MermaidShape>().Where(shape => shape != MermaidShape.None)];
 
-    // A geometry belongs to the thread that made it, and every window's thread shows ribbons of its own.
-    private static readonly ThreadLocal<Dictionary<MermaidShape, Geometry>> ShapeIcons = new(() => []);
+    // A picture belongs to the medium that drew it, and every window's thread draws in a medium of its own.
+    private static readonly ConditionalWeakTable<ILayoutMedium, ConcurrentDictionary<MermaidShape, LayoutShape>> ShapeIcons = new();
 
     /// <inheritdoc/>
     public IReadOnlyList<MiniRibbonControl> Ribbon(ContentAsk ask)
@@ -55,7 +55,7 @@ internal sealed partial class FlowchartEdits : IContentLanguage
         if (ask.IsReadOnly || ask.Root is not { } root) return [];
         if (Named(ask.Part) is not { Length: > 0 } id || Charted(root, id) is not { } node) return [];
 
-        return [Shapes(node.Shape), Colours(Filling(root, id))];
+        return [Shapes(ask.Medium, node.Shape), Colours(ask.Style, Filling(root, id))];
     }
 
     // ── What is offered ─────────────────────────────────────────────────────
@@ -64,9 +64,9 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     /// Every shape a node may be drawn as, each drawn as itself, the one it is drawn as now picked out — and the one chosen written where
     /// the chart says the shape last.
     /// </summary>
-    private static MiniRibbonChoice Shapes(MermaidShape drawn) =>
+    private static MiniRibbonChoice Shapes(ILayoutMedium medium, MermaidShape drawn) =>
         new(Chose + "shape", Str.Get("Text.Flowchart.Shape"),
-            [.. Drawable.Select(shape => new MiniRibbonOption(MermaidShapes.Wording(shape)!, ReadAs(shape)) { Shape = ShapeIcon(shape), Letters = Lettered(shape) })],
+            [.. Drawable.Select(shape => new MiniRibbonOption(MermaidShapes.Wording(shape)!, ReadAs(shape)) { Shape = ShapeIcon(medium, shape), Letters = Lettered(shape) })],
             static (edit, option) => OfferedOver(edit) is { } id ? Shaped(edit, id, option.Id) : null)
         {
             Current = MermaidShapes.Wording(drawn),
@@ -76,21 +76,21 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     /// The colours a node may be filled with — the shared swatch bank, and the clear one that takes a fill back out again — the one it is
     /// filled with now picked out, and the one chosen written into the line styling that node.
     /// </summary>
-    private static MiniRibbonChoice Colours(string? filled)
+    private static MiniRibbonChoice Colours(LayoutStyle style, string? filled)
     {
         var said = DiagramSwatches.Shade(filled);
         var clear = new MiniRibbonOption(DiagramSwatches.Clear.ToLowerInvariant(), Str.Get("Text.Flowchart.NoFill")) { Shade = DiagramSwatches.Nothing };
         var options = new List<MiniRibbonOption> { clear };
         var current = filled is null ? clear.Id : null;
 
-        foreach (var (name, label, shade) in DiagramSwatches.Bank())
+        foreach (var swatch in style.Swatches())
         {
-            options.Add(new MiniRibbonOption(name.ToLowerInvariant(), label) { Shade = shade });
-            if (current is null && said == shade) current = name.ToLowerInvariant();
+            options.Add(new MiniRibbonOption(swatch.Name.ToLowerInvariant(), swatch.Label) { Shade = swatch.Shade });
+            if (current is null && said == swatch.Shade) current = swatch.Name.ToLowerInvariant();
         }
 
         return new MiniRibbonChoice(Chose + "fill", Str.Get("Text.Flowchart.Fill"), options,
-                                    static (edit, option) => OfferedOver(edit) is { } id ? Coloured(edit, id, option.Id) : null)
+                                    static (edit, option) => OfferedOver(edit) is { } id ? Coloured(edit, id, option) : null)
         {
             Current = current,
         };
@@ -159,16 +159,10 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     /// A shape drawn as itself in the box a ribbon button gives it, or null for the one shape there is no picture of. Kept once
     /// drawn: a right-click asks for every shape there is, and not one of them turns on which node the pointer is over.
     /// </summary>
-    private static Geometry? ShapeIcon(MermaidShape shape)
-    {
-        if (shape == MermaidShape.Text) return null;
-
-        var kept = ShapeIcons.Value!;
-
-        return kept.TryGetValue(shape, out var already)
-            ? already
-            : kept[shape] = ((WpfShape)DiagramShapes.AsPicture(WpfMedium.OnThisThread, DiagramShapes.For(shape), Side)).Geometry;
-    }
+    private static LayoutShape? ShapeIcon(ILayoutMedium medium, MermaidShape shape) =>
+        shape == MermaidShape.Text
+            ? null
+            : ShapeIcons.GetValue(medium, static _ => new()).GetOrAdd(shape, static (shape, medium) => DiagramShapes.AsPicture(medium, DiagramShapes.For(shape), Side), medium);
 
     /// <summary>
     /// The letters a shape is drawn as where there is no shape to draw it by: words with nothing round them, whose whole shape is
@@ -209,14 +203,14 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     }
 
     /// <summary>
-    /// A node given a fill, which a <c>style</c> line says: written into the line styling that node alone, into a line of its own
-    /// at the foot of the chart where there is none, and out again — the line with it, where the fill was all the line said — for
-    /// the clear colour.
+    /// A node given the fill of the option chosen, which a <c>style</c> line says: written into the line styling that node alone, into a
+    /// line of its own at the foot of the chart where there is none, and out again — the line with it, where the fill was all the line
+    /// said — for the clear colour.
     /// </summary>
-    private static ContentChange? Coloured(ContentEdit edit, string id, string name)
+    private static ContentChange? Coloured(ContentEdit edit, string id, MiniRibbonOption option)
     {
-        var clear = string.Equals(name, DiagramSwatches.Clear, StringComparison.OrdinalIgnoreCase);
-        var shade = clear ? null : DiagramSwatches.Hex(name);
+        var clear = string.Equals(option.Id, DiagramSwatches.Clear, StringComparison.OrdinalIgnoreCase);
+        var shade = clear || option.Shade is not { } colour ? null : DiagramSwatches.Hex(colour);
 
         if (!clear && shade is null) return null;
 

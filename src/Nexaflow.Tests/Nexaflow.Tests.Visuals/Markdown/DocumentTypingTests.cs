@@ -9,6 +9,7 @@ using System.Windows.Controls.Primitives;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -114,7 +115,7 @@ public class DocumentTypingTests
 
             CollectionAssert.AreEqual(ContentLanguages.Insertable.Select(language => language.DisplayName?.Invoke() ?? language.Name).ToArray(),
                                       adds.Select(option => option.Name).ToArray(), "one for each language, in the table's order");
-            Assert.IsTrue(adds.All(option => option.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as its icon");
+            Assert.IsTrue(adds.All(option => option.Shape is WpfShape { Geometry: { IsFrozen: true } shape } && !shape.IsEmpty()), "each drawn as its icon");
         }));
 
     [TestMethod]

@@ -1,6 +1,7 @@
 using System.Windows;
 
 using Nexaflow.Markdown.Layout;
+using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -190,6 +191,12 @@ public sealed record ContentAsk(string Named, Nexaflow.Markdown.Editing.ContentD
 
     /// <summary>Whether the reader may write in it, so nothing that changes it is offered where they may not.</summary>
     public bool IsReadOnly { get; init; }
+
+    /// <summary>The medium the content is laid in — what a picture offered over it is drawn by, so whatever shows the offer can fill it.</summary>
+    public required ILayoutMedium Medium { get; init; }
+
+    /// <summary>The style the content is drawn in — the face its icons are drawn in, and the colours a reader is offered to paint with.</summary>
+    public required LayoutStyle Style { get; init; }
 }
 
 /// <summary>

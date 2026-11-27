@@ -1,23 +1,18 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Windows.Media;
-
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Mermaid;
-using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Markdown.Layout.Prose;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
 /// <summary>
-/// The colours a diagram offers a reader to paint something with: the app's shared swatch bank as the theme tunes it
-/// (<see cref="SwatchPalette"/>), so a node coloured from the ribbon is coloured from the same bank as everything else in the
-/// window, and one theme retunes them all at once.
+/// The colours a diagram offers a reader to paint something with: the bank the style names (<see cref="LayoutStyle.Swatches"/>), which
+/// the host fills from the app's shared swatch bank as the theme tunes it, so a node coloured from the ribbon is coloured from the same
+/// bank as everything else in the window, and one theme retunes them all at once.
 ///
 /// <para>
 /// A diagram names a colour by the bank's own name for it and never by its value. Two the theme happens to tune alike are still
-/// two choices, where offers keyed by the colour itself would collapse into one; and a bank that cannot be resolved at all — no
-/// application, as in a test — still offers the same twelve names rather than nothing. What goes into the source is the value,
-/// because a value is all a diagram can hold.
+/// two choices, where offers keyed by the colour itself would collapse into one. What goes into the source is the value, because a
+/// value is all a diagram can hold.
 /// </para>
 /// </summary>
 internal static class DiagramSwatches
@@ -26,22 +21,11 @@ internal static class DiagramSwatches
     public const string Clear = "None";
 
     /// <summary>The colour that is no colour, which is how a reader is shown it.</summary>
-    public static Color Nothing => Colors.Transparent;
+    public static LayoutColor Nothing => LayoutColors.Transparent;
 
-    /// <summary>The bank, each colour under the invariant name a diagram's choices are keyed by and the label a reader sees.</summary>
-    public static IEnumerable<(string Name, string Label, Color Shade)> Bank() =>
-        SwatchPalette.Keys.Select(key => (Named(key), SwatchPalette.HueName(key), (SwatchPalette.Resolve(key) as SolidColorBrush)?.Color ?? Colors.Gray));
-
-    /// <summary>The colour the bank holds by a name, written as a diagram writes one — or null for a name it holds none by.</summary>
-    public static string? Hex(string name) =>
-        Bank().Where(one => string.Equals(one.Name, name, StringComparison.OrdinalIgnoreCase))
-              .Select(one => (string?)$"#{one.Shade.R:x2}{one.Shade.G:x2}{one.Shade.B:x2}")
-              .FirstOrDefault();
+    /// <summary>A colour written as a diagram writes one.</summary>
+    public static string Hex(LayoutColor shade) => $"#{shade.R:x2}{shade.G:x2}{shade.B:x2}";
 
     /// <summary>What a colour written in a diagram's source comes to, or null where nothing is written or it says no colour.</summary>
-    public static Color? Shade(string? written) =>
-        DiagramColour.ParseCss(written) is { } said ? Color.FromArgb(said.A, said.R, said.G, said.B) : null;
-
-    /// <summary>A swatch's name, which is its key without the word every key in the bank starts with.</summary>
-    private static string Named(string key) => key[(key.IndexOf('.') + 1)..];
+    public static LayoutColor? Shade(string? written) => DiagramColour.ParseCss(written);
 }

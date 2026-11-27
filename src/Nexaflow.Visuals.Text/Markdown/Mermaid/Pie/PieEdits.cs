@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
-using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
@@ -97,6 +95,7 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
         if (ask.IsReadOnly) return [];
 
         var config = (ask.Root?.Node as ConfiguredNode<PieConfig>)?.Config ?? PieConfig.Default;
+        var medium = ask.Medium;
         var kinds = new HashSet<string>();
         for (var up = ask.Piece; up.Exists; up = up.Parent) kinds.Add(up.Kind);
 
@@ -104,22 +103,22 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
             return
             [
                 Choice("legend", "Text.Pie.Legend", ["config", "pie", "legendPosition"],
-                       Placings.Select(placing => (placing.Written, placing.Tip(), Placed(placing.Read), config.Legend == placing.Read))),
+                       Placings.Select(placing => (placing.Written, placing.Tip(), Placed(medium, placing.Read), config.Legend == placing.Read))),
             ];
 
         if (kinds.Contains(PiePiece.Slices) || kinds.Contains(PiePiece.Shares))
             return
             [
                 Choice("hole", "Text.Pie.Hole", ["config", "pie", "donutHole"],
-                       Holes.Select(hole => (hole.Written, hole.Tip(), Holed(hole.Read), Math.Abs(config.DonutHole - hole.Read) < 0.001))),
+                       Holes.Select(hole => (hole.Written, hole.Tip(), Holed(medium, hole.Read), Math.Abs(config.DonutHole - hole.Read) < 0.001))),
                 Choice("stroke", "Text.Pie.Stroke", ["config", "themeVariables", "pieStrokeWidth"],
-                       Strokes.Select(stroke => (stroke.Written, stroke.Tip(), Stroked(stroke.Read), Math.Abs(config.StrokeWidth - stroke.Read) < 0.001))),
+                       Strokes.Select(stroke => (stroke.Written, stroke.Tip(), Stroked(medium, stroke.Read), Math.Abs(config.StrokeWidth - stroke.Read) < 0.001))),
             ];
 
         return [];
 
         // Each drawn as what it would make; the one chosen written into the front matter at the field it names.
-        static MiniRibbonChoice Choice(string name, string tip, string[] path, IEnumerable<(string Written, string Tip, Geometry Shape, bool Current)> options)
+        static MiniRibbonChoice Choice(string name, string tip, string[] path, IEnumerable<(string Written, string Tip, LayoutShape Shape, bool Current)> options)
         {
             var all = options.ToList();
 
@@ -142,51 +141,47 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
     // ── What each option is drawn as ────────────────────────────────────────
 
     /// <summary>A pie and its legend's three lines, the legend where <paramref name="read"/> puts it.</summary>
-    private static Geometry Placed(PieLegend read) => read switch
+    private static LayoutShape Placed(ILayoutMedium medium, PieLegend read) => read switch
     {
-        PieLegend.Left => Drawn(Lines(1, 4.5, 4, 1.5, 3), Disc(11, 8, 4.5)),
-        PieLegend.Right => Drawn(Disc(5, 8, 4.5), Lines(11, 4.5, 4, 1.5, 3)),
-        PieLegend.Top => Drawn(Keys(1), Disc(8, 10, 5.5)),
-        PieLegend.Bottom => Drawn(Disc(8, 6, 5.5), Keys(13.5)),
-        _ => Drawn(Disc(8, 8, 7.5), Disc(8, 8, 5), Lines(5.5, 5.75, 5, 1, 2)),
+        PieLegend.Left => Drawn(medium, Lines(medium, 1, 4.5, 4, 1.5, 3), Disc(medium, 11, 8, 4.5)),
+        PieLegend.Right => Drawn(medium, Disc(medium, 5, 8, 4.5), Lines(medium, 11, 4.5, 4, 1.5, 3)),
+        PieLegend.Top => Drawn(medium, Keys(medium, 1), Disc(medium, 8, 10, 5.5)),
+        PieLegend.Bottom => Drawn(medium, Disc(medium, 8, 6, 5.5), Keys(medium, 13.5)),
+        _ => Drawn(medium, Disc(medium, 8, 8, 7.5), Disc(medium, 8, 8, 5), Lines(medium, 5.5, 5.75, 5, 1, 2)),
     };
 
     /// <summary>A pie with a hole <paramref name="share"/> of its radius across.</summary>
-    private static Geometry Holed(double share) => share > 0 ? Drawn(Disc(8, 8, 7.5), Disc(8, 8, 7.5 * share)) : Drawn(Disc(8, 8, 7.5));
+    private static LayoutShape Holed(ILayoutMedium medium, double share) =>
+        share > 0 ? Drawn(medium, Disc(medium, 8, 8, 7.5), Disc(medium, 8, 8, 7.5 * share)) : Drawn(medium, Disc(medium, 8, 8, 7.5));
 
     /// <summary>A pie of three wedges, the lines between them <paramref name="width"/> thick as the chart writes it.</summary>
-    private static Geometry Stroked(double width)
+    private static LayoutShape Stroked(ILayoutMedium medium, double width)
     {
-        if (width <= 0) return Drawn(Disc(8, 8, 7.5));
+        if (width <= 0) return Drawn(medium, Disc(medium, 8, 8, 7.5));
 
-        var gaps = new GeometryGroup();
-        foreach (var turn in new[] { 0.0, 120, 240 })
-            gaps.Children.Add(new RectangleGeometry(new Rect(8 - (width * 0.275), 0, width * 0.55, 8)) { Transform = new RotateTransform(turn, 8, 8) });
+        LayoutShape[] gaps =
+        [
+            .. new[] { 0.0, 120, 240 }.Select(turn =>
+                medium.Transformed(Bar(medium, 8 - (width * 0.275), 0, width * 0.55, 8), LayoutMatrix.Rotation(turn, 8, 8))),
+        ];
 
-        var cut = new CombinedGeometry(GeometryCombineMode.Exclude, Disc(8, 8, 7.5), gaps);
-        cut.Freeze();
-        return cut;
+        return medium.Combine(Disc(medium, 8, 8, 7.5), medium.Group(gaps), ShapeCombine.Exclude);
     }
 
     /// <summary>Three lines of a legend, one under another.</summary>
-    private static Geometry Lines(double x, double y, double width, double thick, double step) =>
-        Drawn(Bar(x, y, width, thick), Bar(x, y + thick + step, width, thick), Bar(x, y + (2 * (thick + step)), width, thick));
+    private static LayoutShape Lines(ILayoutMedium medium, double x, double y, double width, double thick, double step) =>
+        Drawn(medium, Bar(medium, x, y, width, thick), Bar(medium, x, y + thick + step, width, thick), Bar(medium, x, y + (2 * (thick + step)), width, thick));
 
     /// <summary>Three keys of a legend, side by side.</summary>
-    private static Geometry Keys(double y) => Drawn(Bar(2, y, 3, 1.5), Bar(6.5, y, 3, 1.5), Bar(11, y, 3, 1.5));
+    private static LayoutShape Keys(ILayoutMedium medium, double y) =>
+        Drawn(medium, Bar(medium, 2, y, 3, 1.5), Bar(medium, 6.5, y, 3, 1.5), Bar(medium, 11, y, 3, 1.5));
 
-    private static Geometry Disc(double x, double y, double radius) => new EllipseGeometry(new Point(x, y), radius, radius);
+    private static LayoutShape Disc(ILayoutMedium medium, double x, double y, double radius) => medium.Ellipse(new LayoutPoint(x, y), radius, radius);
 
-    private static Geometry Bar(double x, double y, double width, double height) => new RectangleGeometry(new Rect(x, y, width, height));
+    private static LayoutShape Bar(ILayoutMedium medium, double x, double y, double width, double height) => medium.Rectangle(new LayoutRect(x, y, width, height));
 
     /// <summary>Shapes drawn as one, a shape inside another cut out of it.</summary>
-    private static Geometry Drawn(params Geometry[] shapes)
-    {
-        var drawn = new GeometryGroup { FillRule = FillRule.EvenOdd };
-        foreach (var shape in shapes) drawn.Children.Add(shape);
-        drawn.Freeze();
-        return drawn;
-    }
+    private static LayoutShape Drawn(ILayoutMedium medium, params LayoutShape[] shapes) => medium.Group(shapes, evenOdd: true);
 
     /// <summary>A label holds anything but what would end it, which a backslash keeps (<see cref="PieParser.Escaped"/>).</summary>
     internal static MermaidWriting? Escaping(ContentPart part, int caret, string text)

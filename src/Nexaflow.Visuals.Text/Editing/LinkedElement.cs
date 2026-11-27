@@ -84,7 +84,7 @@ public class LinkedElement(string? source, LayoutStyle palette, ContentEngine en
     /// nothing itself.
     /// </summary>
     private MiniRibbonButton Answering(LayoutIntent meant, IReadOnlyList<LayoutPiece> over, LayoutPoint where) =>
-        new(meant.Verb, DiagramRibbon.Names(meant), _ =>
+        new(meant.Verb, RibbonMarks.Names(meant), _ =>
         {
             var told = false;
 
@@ -103,5 +103,5 @@ public class LinkedElement(string? source, LayoutStyle palette, ContentEngine en
             }
 
             return null;
-        }) { Shape = DiagramRibbon.Marked(meant) };
+        }) { Shape = RibbonMarks.Marked(WpfMedium.OnThisThread, meant) };
 }

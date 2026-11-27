@@ -8,6 +8,7 @@ using Nexaflow.Localization;
 using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Visuals.Text.Painting;
 
@@ -270,6 +271,7 @@ public static class WpfStyles
             BarcodeLight = Ink(inks.BarcodeLight),
             Series = [.. inks.Series.Select(Ink)],
             Elements = inks.Elements.ToDictionary(element => element.Key, element => Ink(element.Value)),
+            Swatches = Swatched,
             C4Person = inks.C4Person is { } person ? Ink(person) : null,
             C4System = inks.C4System is { } system ? Ink(system) : null,
             C4Container = inks.C4Container is { } container ? Ink(container) : null,
@@ -286,6 +288,18 @@ public static class WpfStyles
             Says = Str.Get,
         };
     }
+
+    /// <summary>
+    /// The app's shared swatch bank (<see cref="SwatchPalette"/>) as the theme tunes it now, each under its key without the word every key
+    /// starts with — and every one of them still, in grey, where there is no application to resolve them against, as in a test.
+    /// </summary>
+    private static IReadOnlyList<LayoutSwatch> Swatched() =>
+    [
+        .. SwatchPalette.Keys.Select(key => new LayoutSwatch(key[(key.IndexOf('.') + 1)..], SwatchPalette.HueName(key),
+                                                             (SwatchPalette.Resolve(key) as SolidColorBrush)?.Color is { } shade
+                                                                 ? new LayoutColor(shade.A, shade.R, shade.G, shade.B)
+                                                                 : LayoutColors.Gray)),
+    ];
 
     private static Brush Frozen(byte r, byte g, byte b) => Frozen(0xFF, r, g, b);
 

@@ -47,7 +47,7 @@ public class FlowchartChoiceTests
             Assert.IsTrue(shapes.All(option => option.Name is { Length: > 0 }), "each named, for whoever hovers or hears the screen read");
 
             // Every shape is drawn as itself, bar the one whose whole shape is having none, which is drawn as letters instead.
-            Assert.IsTrue(shapes.All(option => option.Shape is { IsFrozen: true } drawn && !drawn.IsEmpty() || option.Letters is { Length: > 0 }),
+            Assert.IsTrue(shapes.All(option => option.Shape is WpfShape { Geometry: { IsFrozen: true } drawn } && !drawn.IsEmpty() || option.Letters is { Length: > 0 }),
                           "each drawn as itself");
             CollectionAssert.AreEqual(new[] { "text" }, shapes.Where(option => option.Shape is null).Select(option => option.Id).ToArray());
 
@@ -274,7 +274,7 @@ public class FlowchartChoiceTests
         {
             if (offer.Shape is { } shape)
             {
-                ink.DrawGeometry(System.Windows.Media.Brushes.White, null, shape);
+                ink.DrawGeometry(System.Windows.Media.Brushes.White, null, ((WpfShape)shape).Geometry);
             }
             else
             {
