@@ -205,6 +205,58 @@ public class ContentFileWindowTests
         Assert.IsTrue(window.Document.IsDirty);
     }
 
+    [TestMethod]
+    public void WhatAWriterAdds_GrowsAWindowThatReachesTheEnd_AndMovesItOnPastItsSize()
+    {
+        var text = Lines(2000);
+        var path = Written(text);
+        var file = ContentFile.Open(path, new UTF8Encoding(false), 0, ContentFileAccess.ReadOnly, blockBytes: 4000);
+        file.Scan();
+        var window = ContentFileWindow.Open(file, at: file.Characters, size: Size);
+        var lines = window.LineCount;
+
+        File.AppendAllText(path, "added one\nadded two\n");
+        file.Scan();
+        window.Grew();
+
+        StringAssert.EndsWith(window.Document.Current.ToString(), "added one\nadded two\n", "grown into the window that reaches the end");
+        Assert.AreEqual(text.Length + 20, window.Length);
+        Assert.AreEqual(lines + 2, window.LineCount);
+        Assert.IsFalse(window.Document.CanUndo, "growth is no step to take back");
+        Assert.IsFalse(window.Document.IsDirty, "nor anything to save");
+
+        var more = Lines(3000)[..60_000];
+        File.AppendAllText(path, more);
+        file.Scan();
+        window.Grew();
+
+        Assert.IsTrue(window.Document.Current.Length <= Size + 100, "moved on rather than grown past its size");
+        Assert.AreEqual(window.Length, window.Start + window.Document.Current.Length, "its end still on the file's");
+        StringAssert.EndsWith(window.Document.Current.ToString(), more[^500..]);
+    }
+
+    [TestMethod]
+    public void WhatAWriterAdds_PastAWindowThatDoesNotReachTheEnd_IsHeldAfterIt_AndThereWhenItComes()
+    {
+        var text = Lines(2000);
+        var path = Written(text);
+        var file = ContentFile.Open(path, new UTF8Encoding(false), 0, ContentFileAccess.ReadOnly, blockBytes: 4000);
+        file.Scan();
+        var window = ContentFileWindow.Open(file, at: 0, size: Size);
+        var (shown, lines) = (window.Document.Current.ToString(), window.LineCount);
+
+        File.AppendAllText(path, "added one\nadded two\n");
+        file.Scan();
+        window.Grew();
+
+        Assert.AreEqual(shown, window.Document.Current.ToString(), "the window is left as it was");
+        Assert.AreEqual(lines + 2, window.LineCount, "but the file it is over counts the lines added");
+        Assert.AreEqual("added two", window.Text(window.OffsetOfLine(window.LineCount - 2)!.Value, 9));
+
+        window.MoveTo(window.Length);
+        StringAssert.EndsWith(window.Document.Current.ToString(), text[^200..] + "added one\nadded two\n");
+    }
+
     private static void Write(ContentFileWindow window, int at, string text)
     {
         var before = new EditState(window.Document.Current, at);

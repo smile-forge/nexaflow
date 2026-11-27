@@ -1739,8 +1739,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.File.cs",
-          "class": "TextViewModel",
+          "doc": "src/Nexaflow.Markdown/Editing/ShownFile.cs",
+          "class": "ShownFile",
           "method": "FollowReader"
         }
       ],
@@ -1864,10 +1864,332 @@
           "method": "ReplaceAll"
         }
       ]
+    },
+    "log-viewer-level-highlight": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "ShowLevels"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
+          "class": "LineMarks"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "LevelToggles_AreIndependent_AndReportedToTheAssistant"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "ALevelAskedFor_WashesItsLines_AndOnlyThose"
+          }
+        ]
+      }
+    },
+    "log-viewer-custom-term": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "OnCustomHighlightTermChanged"
+        }
+      ]
+    },
+    "log-viewer-copy-selected": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "CopySelectedLines"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Logs/LogsJourneyTests.cs",
+          "class": "LogsJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelCommandTests.cs",
+          "class": "LogViewModelCommandTests"
+        }
+      ]
+    },
+    "log-viewer-encoding": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "EncodingSelector_OffersTheCommonSet_AndDefaultsToUtf8"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "ChoosingAnEncoding_ReadsTheLogAgainInIt"
+          }
+        ]
+      }
+    },
+    "log-viewer-line-select": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/Views/LineSelectionMargin.cs",
+          "class": "LineSelectionMargin"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "ClickingTheGutter_TogglesThatLine_AndOnlyThatLine"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelTests.cs",
+            "class": "LogViewModelTests",
+            "method": "LinesPickedOut_WhileTheHistoryLoads_StayOnTheirLines"
+          }
+        ]
+      }
+    },
+    "log-viewer-filter": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "OnFilterRegexChanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "ShowFilters"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelCommandTests.cs",
+            "class": "LogViewModelCommandTests",
+            "method": "FilterRegex_ValidPattern_ActivatesFilter"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelCommandTests.cs",
+            "class": "LogViewModelCommandTests",
+            "method": "FilterRegex_InvalidPattern_LeavesFilterInactive"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "TheRegexFilter_VeilsTheLinesItLeavesOut_AndTheTimeFilterThoseOutsideItsRange"
+          }
+        ]
+      }
+    },
+    "log-viewer-time-apply": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelCommandTests.cs",
+            "class": "LogViewModelCommandTests",
+            "method": "ApplyTimeFilter_WithDateAndTime_ComputesBounds"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelCommandTests.cs",
+            "class": "LogViewModelCommandTests",
+            "method": "ApplyTimeFilter_EndDateWithoutTime_ExpandsToEndOfDay"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "ApplyingATimeRange_GoesToTheFirstLineInsideIt"
+          }
+        ]
+      }
+    },
+    "log-viewer-tail-streaming": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/testing.md",
+          "title_path": [
+            "Testing",
+            "Sample files (\u0060test-samples/\u0060)"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "method": "ReadHistoryAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentFile.cs",
+          "class": "ContentFile",
+          "method": "OpenStretch"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelTests.cs",
+            "class": "LogViewModelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelTests.cs",
+            "class": "LogViewModelTests",
+            "method": "ALongLog_IsShownEndFirst_AndItsHistoryPutBeforeIt_ThePageLeftWhereItStood"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogViewModelTests.cs",
+            "class": "LogViewModelTests",
+            "method": "ALogLongerThanADocument_IsShownThroughAWindow_AtItsLiveEnd_AndKeepsGrowing"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentFileTests.cs",
+            "class": "ContentFileTests",
+            "method": "ALongFile_ReadAsItsLastStretchFirst_ThenWhatComesBeforeIt_ComesToTheWholeFile"
+          }
+        ]
+      }
+    },
+    "log-viewer-watch": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "method": "OnFileChanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "method": "TakeUpAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentFileWindow.cs",
+          "class": "ContentFileWindow",
+          "method": "Grew"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "AppendedLines_AreTailedIn_WithoutRereadingTheFile"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Logs/LogSurfaceTests.cs",
+            "class": "LogSurfaceTests",
+            "method": "ALogCutShorter_IsReadAgainFromTheStart"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Editing/ContentFileWindowTests.cs",
+            "class": "ContentFileWindowTests",
+            "method": "WhatAWriterAdds_GrowsAWindowThatReachesTheEnd_AndMovesItOnPastItsSize"
+          }
+        ]
+      }
+    },
+    "log-viewer-search": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Search.cs",
+          "class": "LogViewModel",
+          "method": "SearchAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentMarks.cs",
+          "class": "MatchMarks"
+        }
+      ]
+    },
+    "log-viewer-ai-context": {
+      "links": [
+        {
+          "type": "code",
+          "status": "should",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "GetContext"
+        }
+      ]
+    },
+    "log-viewer-ai-preview": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "CreateContextPreview"
+        }
+      ]
+    },
+    "log-viewer-time-filter": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "ApplyTimeFilter"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "DetectTimestamps"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 96,
+  "changed_sets": 114,
   "touched_nodes": [
     "barcode-editing",
     "code-context-menu",
@@ -1889,6 +2211,19 @@
     "content-text-automation",
     "executable-dependency-viewport",
     "json-text-mode",
+    "log-viewer-ai-context",
+    "log-viewer-ai-preview",
+    "log-viewer-copy-selected",
+    "log-viewer-custom-term",
+    "log-viewer-encoding",
+    "log-viewer-filter",
+    "log-viewer-level-highlight",
+    "log-viewer-line-select",
+    "log-viewer-search",
+    "log-viewer-tail-streaming",
+    "log-viewer-time-apply",
+    "log-viewer-time-filter",
+    "log-viewer-watch",
     "markdown-block-model",
     "markdown-block-picture",
     "markdown-block-undo",

@@ -18,7 +18,7 @@ public sealed partial class TextViewModel
     internal IShellServices Shell => _shell;
 
     /// <summary>How many lines the whole file comes to, as it is written now.</summary>
-    internal long TotalLines => FileLineCount;
+    internal long TotalLines => _shown.LineCount;
 
     /// <summary>
     /// Up to <paramref name="count"/> lines of the whole file from <paramref name="startLine"/> (from one), as written now, each after its
@@ -29,14 +29,14 @@ public sealed partial class TextViewModel
         {
             var first = Math.Max(1, startLine) - 1L;
             var text = new StringBuilder();
-            if (FileOffsetOfLine(first) is not { } start) return Task.FromResult(string.Empty);
+            if (_shown.OffsetOfLine(first) is not { } start) return Task.FromResult(string.Empty);
 
-            var end = FileOffsetOfLine(first + count) ?? FileLength;
-            var lines = FileText(start, (int)Math.Min(int.MaxValue, end - start)).Split('\n');
+            var end = _shown.OffsetOfLine(first + count) ?? _shown.Length;
+            var lines = _shown.Text(start, (int)Math.Min(int.MaxValue, end - start)).Split('\n');
 
             for (var at = 0; at < lines.Length && at < count; at++)
             {
-                if (at == lines.Length - 1 && lines[at].Length == 0 && first + at >= FileLineCount) break;
+                if (at == lines.Length - 1 && lines[at].Length == 0 && first + at >= _shown.LineCount) break;
                 text.Append(first + at + 1).Append('\t').Append(lines[at].TrimEnd('\r')).Append('\n');
             }
 
@@ -71,8 +71,8 @@ public sealed partial class TextViewModel
     internal Task<bool> ApplyAiLineEditAsync(long startLine, long endLine, string newText, CancellationToken ct) =>
         _shell.RunOnUiAsync(() =>
         {
-            var start = FileOffsetOfLine(Math.Clamp(startLine, 0, FileLineCount)) ?? FileLength;
-            var end = endLine < startLine ? start : FileOffsetOfLine(endLine + 1) ?? FileLength;
+            var start = _shown.OffsetOfLine(Math.Clamp(startLine, 0, _shown.LineCount)) ?? _shown.Length;
+            var end = endLine < startLine ? start : _shown.OffsetOfLine(endLine + 1) ?? _shown.Length;
 
             if (_window is { } window)
             {

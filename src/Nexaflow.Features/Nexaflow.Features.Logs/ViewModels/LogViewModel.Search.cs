@@ -1,22 +1,22 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
-using Nexaflow.Search;
 using Nexaflow.Localization;
+using Nexaflow.Markdown.Editing;
+using Nexaflow.Search;
 using System.Globalization;
 
 namespace Nexaflow.Features.Logs.ViewModels;
 
 /// <summary>
-/// The log tab as a searchable page. <c>?</c> scans the whole loaded document through the shared
-/// <see cref="TextSearchMatcher"/>, so a term means here exactly what it means in the text viewer, the
-/// editor and the markdown surface.
+/// The log tab as a searchable page. <c>?</c> reads the whole log a line at a time, off the page, through the same
+/// <see cref="SearchRequest"/> every viewer reads, so a term means here exactly what it means in the text viewer, the editor and the
+/// markdown surface.
 /// <para>
-/// This is a THIRD, independent layer over the log — it neither reads nor writes the regex fade-filter or
-/// the custom highlight term. Those are different questions: the filter dims lines that don't match (and
-/// is deliberately case-insensitive), the custom term is the user's own persistent substring marker, and a
-/// search finds, counts and steps through occurrences of a word. Folding any two together would make one
-/// of them lie.
+/// This is a THIRD, independent layer over the log — it neither reads nor writes the regex fade-filter or the custom highlight term. Those
+/// are different questions: the filter dims lines that don't match (and is deliberately case-insensitive), the custom term is the user's
+/// own persistent marker, and a search finds, counts and steps through occurrences of a word. Folding any two together would make one of
+/// them lie.
 /// </para>
 /// </summary>
 public sealed partial class LogViewModel : ISearchable
@@ -24,29 +24,28 @@ public sealed partial class LogViewModel : ISearchable
     /// <summary>Hits handed to the agent in one call — enough to reason over without flooding its context.</summary>
     private const int SearchHitCap = 200;
 
-    /// <summary>Ceiling on painted highlight spans. A one-character pattern over a large log produces tens
-    /// of thousands of geometries; past a screenful they cost render time and tell the user nothing.</summary>
-    private const int HighlightCap = 5000;
-
     // ── Visible search state (the status-bar chip binds these) ────────────────
 
     [ObservableProperty] private bool   _isSearchActive;
     [ObservableProperty] private int    _searchMatchCount;
     [ObservableProperty] private string _currentSearchTerm = string.Empty;
 
-    private int[]          _matchLines = [];
-    private int            _currentMatchIndex = -1;
-    private SearchRequest? _activeSearch;   // kept so an append or the head landing can re-derive the spans
+    /// <summary>The lines of the whole log the search found, from nought, in order.</summary>
+    private long[] _matchLines = [];
 
-    private IReadOnlyList<(int offset, int length)> _searchHighlights = [];
+    private int _currentMatchIndex = -1;
 
-    /// <summary>Spans the view paints behind matches. Watched via <c>PropertyChanged</c>, like
-    /// <see cref="CustomTermHighlights"/>.</summary>
-    public IReadOnlyList<(int offset, int length)> SearchHighlights
-    {
-        get => _searchHighlights;
-        private set { _searchHighlights = value; OnPropertyChanged(); }
-    }
+    /// <summary>The search shown, kept so the history landing or the log growing can run it again.</summary>
+    private SearchRequest? _activeSearch;
+
+    /// <summary>The lines the agent narrowed the search to, whose matches alone are marked — or null, every line found.</summary>
+    private HashSet<long>? _narrowedTo;
+
+    /// <summary>What the search found, marked on the lines drawn, with the match gone to outlined.</summary>
+    private readonly MatchMarks _matchMarks = new();
+
+    /// <summary>The line of the whole log, from nought, the search last went to — or -1, where it has gone nowhere.</summary>
+    public long CurrentMatchLine => _currentMatchIndex >= 0 && _currentMatchIndex < _matchLines.Length ? _matchLines[_currentMatchIndex] : -1;
 
     // ── ISearchable ───────────────────────────────────────────────────────────
 
@@ -55,8 +54,8 @@ public sealed partial class LogViewModel : ISearchable
       : IsLoadingHead                   ? $"the log file '{FileName}' — the most recent lines (earlier history is still loading)"
       :                                   $"the log file '{FileName}'";
 
-    /// <summary>Mirrors the other document viewers' curve: a term or two is almost certainly a search;
-    /// four is borderline. Past that <see cref="SearchScoring.LooksLikeProse"/> has already bowed out.</summary>
+    /// <summary>Mirrors the other document viewers' curve: a term or two is almost certainly a search; four is borderline. Past that
+    /// <see cref="SearchScoring.LooksLikeProse"/> has already bowed out.</summary>
     public float ScoreQuery(string input) => SearchScoring.TermCount(input) switch
     {
         1 => 0.9f,
@@ -66,56 +65,61 @@ public sealed partial class LogViewModel : ISearchable
         _ => 0f,
     };
 
-    // The document is thread-affine and the agent calls with display:false from its own thread, so BOTH
-    // paths marshal — reading Document.Text off the UI thread is as wrong as writing to it.
+    // What is shown is the page's, so both paths start on its thread — where the log is taken as it stands — and read it off the page.
     public Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
-        => _shell.RunOnUiAsync(() => Task.FromResult(RunSearch(request, display, ct)));
+        => _shell.RunOnUiAsync(() => RunSearchAsync(request, display, ct));
 
     public Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct)
         => _shell.RunOnUiAsync(() => Task.FromResult(NarrowTo(hits)));
 
-    // ── The scan (UI thread only) ─────────────────────────────────────────────
+    // ── The scan ──────────────────────────────────────────────────────────────
 
-    private SearchOutcome RunSearch(SearchRequest request, bool display, CancellationToken ct)
+    private async Task<SearchOutcome> RunSearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
-        if (!TextSearchMatcher.TryCreate(request, out var matcher, out var error))
+        if (!TextSearchMatcher.TryCreate(request, out _, out var error))
             return SearchOutcome.Unsupported(error);
 
-        var body  = Document.Text;
-        var lines = new List<int>();
-        var hits  = new List<SearchHit>();
-        var spans = new List<(int offset, int length)>();
-
-        foreach (var line in matcher.ScanLines(body))
-        {
-            ct.ThrowIfCancellationRequested();
-            lines.Add(line.Index);
-
-            if (hits.Count < SearchHitCap)
-                hits.Add(HitFor(line.Index, line.Text));
-
-            if (display && spans.Count < HighlightCap)
-                foreach (var (index, length) in matcher.Occurrences(line.Text))
-                {
-                    if (spans.Count >= HighlightCap) break;
-                    spans.Add((line.Offset + index, length));
-                }
-        }
+        var hits = new List<SearchHit>();
+        var read = Document.Current;
+        var lines = await ScanAsync(request, ct, hits);
 
         if (display)
         {
             _activeSearch = request;
-            Apply(lines, spans, SearchSyntax.Format(request));
+            _narrowedTo = null;
+            Apply(lines, SearchSyntax.Format(request));
+
+            // The log grew, or its history landed, while it was read: run again over what it is now, so the count is not of what it was.
+            if (!ReferenceEquals(read, Document.Current)) await RescanSearchAsync();
         }
 
-        return Outcome(lines.Count, hits);
+        return Outcome(lines.Length, hits);
     }
 
     /// <summary>
-    /// While the head is still streaming in only the tail is in the document, so say so rather than
-    /// reporting a count that is about to change. We never await the head: it can be gigabytes, and
-    /// <c>SearchAsync</c> is driven both from a keystroke and from the agent loop. <see cref="RescanSearch"/>
-    /// re-runs when it lands, so the number completes itself.
+    /// Every line of the whole log the request matches, from nought — read a line at a time off the page, from the log as it stood when
+    /// the search began — with the first of them as hits, where <paramref name="collect"/> is asked for.
+    /// </summary>
+    private async Task<long[]> ScanAsync(SearchRequest request, CancellationToken ct, List<SearchHit>? collect = null)
+    {
+        var lines = _shown.Lines();
+        var matching = new List<long>();
+
+        await Task.Run(() => lines((line, _, text) =>
+        {
+            if (!request.Matches(text)) return;
+
+            matching.Add(line);
+            if (collect is not null && collect.Count < SearchHitCap) collect.Add(HitFor(line, text));
+        }, ct), ct);
+
+        return [.. matching];
+    }
+
+    /// <summary>
+    /// While the head is still streaming in only the tail is in the document, so say so rather than reporting a count that is about to
+    /// change. We never await the head: it can be gigabytes, and <c>SearchAsync</c> is driven both from a keystroke and from the agent
+    /// loop. The search runs again when it lands, so the number completes itself.
     /// </summary>
     private SearchOutcome Outcome(int total, IReadOnlyList<SearchHit> hits)
     {
@@ -129,83 +133,74 @@ public sealed partial class LogViewModel : ISearchable
         return new SearchOutcome(total, hits, message);
     }
 
-    private static SearchHit HitFor(int line, string text) =>
-        new(line.ToString(CultureInfo.InvariantCulture), Str.Format("Logs.Search.HitLabelFormat", line + 1), text.TrimEnd('\r'));
+    private static SearchHit HitFor(long line, string text) =>
+        new(line.ToString(CultureInfo.InvariantCulture), Str.Format("Logs.Search.HitLabelFormat", line + 1), text);
 
     // ── Display ───────────────────────────────────────────────────────────────
 
-    /// <param name="keepIndex">Match to stay parked on. A live tail re-runs the scan on every append;
-    /// resetting to 0 each time would drag the user back to the top of the log as it grows.</param>
-    private void Apply(IReadOnlyList<int> lines, IReadOnlyList<(int offset, int length)> spans,
-                       string term, int keepIndex = 0)
+    /// <param name="parkedOn">The line of the whole log, from nought, to stay parked on rather than going to the first match — what a search run
+    /// again as a live tail grows does, so the reader is not dragged back up the log on every append.</param>
+    private void Apply(long[] lines, string term, long? parkedOn = null)
     {
-        _matchLines        = [.. lines];
-        _currentMatchIndex = lines.Count > 0 ? Math.Clamp(keepIndex, 0, lines.Count - 1) : -1;
-        SearchHighlights   = spans;
-        SearchMatchCount   = lines.Count;
+        _matchLines        = lines;
+        _currentMatchIndex = lines.Length == 0 ? -1 : parkedOn is { } parked ? Parked(lines, parked) : 0;
+        SearchMatchCount   = lines.Length;
         CurrentSearchTerm  = term;
         IsSearchActive     = true;   // true even at zero matches: "no matches for X" is a result to show
-        if (lines.Count > 0 && keepIndex == 0) RequestScrollToLine(lines[0]);
+
+        if (_activeSearch is { } request && lines.Length > 0)
+            _matchMarks.Show((line, text) => _narrowedTo is { } kept && !kept.Contains(_shown.LinesBefore + line) ? [] : request.Occurrences(text));
+        else
+            _matchMarks.Show(null);
+
+        if (lines.Length > 0 && parkedOn is null) GoToMatch(lines[0]);
     }
 
-    /// <summary>Narrows the match set to the agent's chosen lines — the count, the highlights and
-    /// next/previous all follow it, so "show me only the ones about auth" really does filter the view.</summary>
+    /// <summary>Where among <paramref name="lines"/>, in order, line <paramref name="parked"/> stands — or the first after it, or the last.</summary>
+    private static int Parked(long[] lines, long parked)
+    {
+        var found = Array.BinarySearch(lines, parked);
+        return Math.Min(lines.Length - 1, found >= 0 ? found : ~found);
+    }
+
+    /// <summary>Narrows the match set to the agent's chosen lines — the count, the marks and next/previous all follow it, so "show me only the
+    /// ones about auth" really does filter the view.</summary>
     private bool NarrowTo(IReadOnlyList<SearchHit> hits)
     {
-        var lines = hits.Select(h => int.TryParse(h.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : -1)
+        var lines = hits.Select(h => long.TryParse(h.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : -1)
                         .Where(l => l >= 0)
                         .Distinct()
-                        .OrderBy(l => l)
-                        .ToList();
-        if (lines.Count == 0) return false;
+                        .Order()
+                        .ToArray();
+        if (lines.Length == 0) return false;
 
-        // Re-derive the spans for exactly these lines: the highlights must agree with the narrowed set,
-        // not keep painting the matches the agent discarded.
-        var kept = new HashSet<int>(lines);
-        List<(int offset, int length)> spans = _searchHighlights.Count == 0 ? [] : SpansOn(kept);
-
-        Apply(lines, spans, CurrentSearchTerm);
+        _narrowedTo = [.. lines];
+        Apply(lines, CurrentSearchTerm);
         return true;
     }
 
-    private List<(int offset, int length)> SpansOn(HashSet<int> lines)
+    /// <summary>
+    /// Runs the active search again over the whole log — what the history landing and every append call for: the count is of the whole log
+    /// as it is now, parked on the match it was on.
+    /// </summary>
+    internal async Task RescanSearchAsync()
     {
-        var kept = new List<(int offset, int length)>();
-        foreach (var span in _searchHighlights)
-        {
-            var line = Document.GetLineByOffset(Math.Clamp(span.offset, 0, Document.TextLength)).LineNumber - 1;
-            if (lines.Contains(line)) kept.Add(span);
-        }
-        return kept;
+        if (!IsSearchActive || _activeSearch is not { } request || _narrowedTo is not null) return;
+
+        var parked = Math.Max(0, CurrentMatchLine);
+        var lines = await ScanAsync(request, CancellationToken.None);
+        if (!ReferenceEquals(request, _activeSearch)) return;
+
+        Apply(lines, CurrentSearchTerm, parkedOn: parked);
     }
 
-    /// <summary>
-    /// Re-runs the active search over the whole document. Called wherever the document is mutated: an
-    /// append leaves existing offsets valid but adds lines, and the head landing shifts EVERY offset. One
-    /// full rescan covers both, and costs the same as the <c>ScanForCustomHighlights</c> pass already
-    /// running beside it.
-    /// </summary>
-    internal void RescanSearch()
+    /// <summary>Moves what the search found on by <paramref name="lines"/> — as many as were put before them, when the history lands.</summary>
+    private void MoveSearch(long lines)
     {
-        if (!IsSearchActive || _activeSearch is null) return;
-        if (!TextSearchMatcher.TryCreate(_activeSearch, out var matcher, out _)) return;
+        if (lines == 0) return;
 
-        var body  = Document.Text;
-        var lines = new List<int>();
-        var spans = new List<(int offset, int length)>();
-
-        foreach (var line in matcher.ScanLines(body))
-        {
-            lines.Add(line.Index);
-            if (spans.Count >= HighlightCap) continue;
-            foreach (var (index, length) in matcher.Occurrences(line.Text))
-            {
-                if (spans.Count >= HighlightCap) break;
-                spans.Add((line.Offset + index, length));
-            }
-        }
-
-        Apply(lines, spans, CurrentSearchTerm, keepIndex: Math.Max(_currentMatchIndex, 0));
+        _matchLines = [.. _matchLines.Select(line => line + lines)];
+        if (_narrowedTo is { } kept) _narrowedTo = [.. kept.Select(line => line + lines)];
     }
 
     // ── Navigation / dismissal (the status-bar chip) ──────────────────────────
@@ -224,20 +219,25 @@ public sealed partial class LogViewModel : ISearchable
     {
         if (_matchLines.Length == 0) return;
         _currentMatchIndex = (_currentMatchIndex + delta + _matchLines.Length) % _matchLines.Length;
-        RequestScrollToLine(_matchLines[_currentMatchIndex]);
+        GoToMatch(_matchLines[_currentMatchIndex]);
     }
 
     /// <summary>
-    /// Scrolls to a 0-based line. <c>ScrollToOffset</c> is an observable int, so re-assigning the SAME
-    /// offset raises no change and the view would sit still — stepping onto a repeated target has to
-    /// pass through the ignored -1 first.
+    /// Goes to the first match on line <paramref name="line"/> of the whole log, from nought: the caret at its start, the match outlined, and
+    /// the line in the middle of the page — a window onto a long log brought there first.
     /// </summary>
-    private void RequestScrollToLine(int line0)
+    private void GoToMatch(long line)
     {
-        if (Document.LineCount == 0) return;
-        var offset   = Document.GetLineByNumber(Math.Clamp(line0 + 1, 1, Document.LineCount)).Offset;
-        ScrollToOffset = -1;
-        ScrollToOffset = offset;
+        if (_shown.OffsetOfLine(line) is not { } at) return;
+
+        var offset = _shown.DocumentOffset(at);
+        var document = Document.Current;
+        var (start, end) = document.LineAt(offset);
+        var first = _activeSearch?.Occurrences(document.Slice(start, end - start)) is [var (index, length), ..] ? (start + index, length) : ((int, int)?)null;
+
+        Editor.MoveCaretTo(first?.Item1 ?? start);
+        _matchMarks.LookAt(first);
+        Editor.ScrollToLine(document.LineOf(start), ShownPlace.Centre);
     }
 
     [RelayCommand]
@@ -246,7 +246,8 @@ public sealed partial class LogViewModel : ISearchable
         _matchLines        = [];
         _currentMatchIndex = -1;
         _activeSearch      = null;
-        SearchHighlights   = [];
+        _narrowedTo        = null;
+        _matchMarks.Show(null);
         SearchMatchCount   = 0;
         CurrentSearchTerm  = string.Empty;
         IsSearchActive     = false;

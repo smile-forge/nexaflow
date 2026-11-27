@@ -19,9 +19,9 @@ namespace Nexaflow.Tests.Features.Logs;
 /// Covers the Logs AI-integration surface: an honest <c>GetContext</c> (line count, detected timestamp
 /// span, active filters/highlights), the file-scoped security context, and the client-tool surface —
 /// reading the tail/lines/search results the user sees, plus the view-state tools (regex/time filter,
-/// level highlight, pause/resume tail) that mirror the toolbar. Runs under <see cref="AsyncPump"/> because
-/// the content lives in a thread-affine AvalonEdit <c>TextDocument</c>; the tools marshal their document
-/// access through <see cref="IShellServices.RunOnUiAsync{T}"/>, which the running shell here executes inline.
+/// level highlight, pause/resume tail) that mirror the toolbar. Runs under <see cref="AsyncPump"/>, so what
+/// the page awaits comes back to one thread; the tools read what is shown through
+/// <see cref="IShellServices.RunOnUiAsync{T}"/>, which the running shell here does at once.
 /// </summary>
 [TestClass]
 public class LogAiTests
@@ -33,17 +33,9 @@ public class LogAiTests
         return path;
     }
 
-    /// <summary>A shell whose RunOnUiAsync overloads actually run the delegate — the default substitute
-    /// swallows them, no-opping every UI-marshalled tool (the reads and the filter/highlight/pause writes).</summary>
-    private static IShellServices RunningShell()
-    {
-        var shell = Substitute.For<IShellServices>();
-        shell.RunOnUiAsync(Arg.Any<Action>())
-             .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
-        shell.RunOnUiAsync(Arg.Any<Func<Task<ToolResult>>>())
-             .Returns(ci => ci.Arg<Func<Task<ToolResult>>>()());
-        return shell;
-    }
+    /// <summary>A shell whose RunOnUiAsync does its work at once — a substitute alone would no-op every UI-marshalled tool (the reads and the
+    /// filter/highlight/pause writes).</summary>
+    private static IShellServices RunningShell() => UiRunningShell.Over(Substitute.For<IShellServices>());
 
     [TestMethod]
     [CoversNode("log-viewer-ai-act")]

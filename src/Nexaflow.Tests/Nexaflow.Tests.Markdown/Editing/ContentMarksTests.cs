@@ -92,7 +92,7 @@ public class ContentMarksTests
         editor.Marks.Add(matches);
 
         var asked = new List<string>();
-        matches.Show(line =>
+        matches.Show((_, line) =>
         {
             asked.Add(line);
             var found = new List<(int, int)>();
@@ -116,6 +116,31 @@ public class ContentMarksTests
         matches.Show(null);
         Assert.IsTrue(matches.IsEmpty, "no search, nothing marked");
         Assert.IsNull(matches.LookedAt);
+    }
+
+    [TestMethod]
+    public void LineMarks_AreAskedOnlyOfTheLinesDrawn_AndMarkEachWholeLineTheyName()
+    {
+        var document = new EditedDocument("INFO start\nERROR broke\nINFO more\nERROR again\n");
+        using var editor = new ContentEditor(document);
+        var levels = new LineMarks(ContentMarkKind.LineWash, order: -20);
+        editor.Marks.Add(levels);
+        Assert.IsTrue(levels.IsEmpty);
+
+        var asked = new List<int>();
+        levels.Show((line, text) =>
+        {
+            asked.Add(line);
+            return text.StartsWith("ERROR", StringComparison.Ordinal) ? "Log.Error" : null;
+        });
+
+        // From the middle of the second line to the start of the fourth.
+        var into = new List<ContentMark>();
+        levels.Mark(new ContentMarkRequest(document.Current, 14, 34), into);
+
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, asked);
+        CollectionAssert.AreEqual(new[] { (11, 11), (33, 11) }, into.Select(mark => (mark.Start, mark.Length)).ToArray(), "each line it names, which is washed across its rows");
+        Assert.IsTrue(into.All(mark => mark is { Kind: ContentMarkKind.LineWash, Token: "Log.Error" }));
     }
 
     [TestMethod]

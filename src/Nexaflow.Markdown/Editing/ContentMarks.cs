@@ -278,20 +278,26 @@ public sealed class FoundMarks : ContentMarkLayer
 /// matching however many matches it holds, and what is marked stays true through every edit and every move of a window onto a file. The
 /// match being looked at is outlined as well, and carried through every change while it stands.
 /// </summary>
-public sealed class MatchMarks : ContentMarkLayer
+/// <param name="washToken">What the matches are washed in: what a search found, unless they are something else's — a term a reader asked
+/// to have picked out, say.</param>
+/// <param name="order">Where among the layers they are drawn.</param>
+public sealed class MatchMarks(string washToken = FoundMarks.WashToken, int order = 1000) : ContentMarkLayer
 {
-    /// <summary>What a line's matches are, or null for no search.</summary>
-    private Func<string, IReadOnlyList<(int Index, int Length)>>? _matches;
+    /// <summary>What a line's matches are — asked its line in the document, from nought, and what is written on it — or null for no search.</summary>
+    private Func<int, string, IReadOnlyList<(int Index, int Length)>>? _matches;
 
-    public override int Order => 1000;
+    public override int Order => order;
 
     public override bool IsEmpty => _matches is null;
 
     /// <summary>The match being looked at, where one is.</summary>
     public (int Start, int Length)? LookedAt { get; private set; }
 
-    /// <summary>Marks what <paramref name="matches"/> finds on each line drawn — nothing, where it is null — and looks at none of it yet.</summary>
-    public void Show(Func<string, IReadOnlyList<(int Index, int Length)>>? matches)
+    /// <summary>
+    /// Marks what <paramref name="matches"/> finds on each line drawn — asked the line's place in the document, from nought, and what is written
+    /// on it — nothing, where it is null; and looks at none of it yet.
+    /// </summary>
+    public void Show(Func<int, string, IReadOnlyList<(int Index, int Length)>>? matches)
     {
         _matches = matches;
         this.LookedAt = null;
@@ -317,9 +323,9 @@ public sealed class MatchMarks : ContentMarkLayer
             var (from, to) = document.LineAt(document.OffsetOf(line));
             if (from > end) break;
 
-            foreach (var (index, length) in matches(document.Slice(from, to - from).TrimEnd('\r', '\n')))
+            foreach (var (index, length) in matches(line, document.Slice(from, to - from).TrimEnd('\r', '\n')))
             {
-                into.Add(new ContentMark(ContentMarkKind.Wash, from + index, length, FoundMarks.WashToken));
+                into.Add(new ContentMark(ContentMarkKind.Wash, from + index, length, washToken));
                 if (this.LookedAt == (from + index, length)) into.Add(new ContentMark(ContentMarkKind.Outline, from + index, length, FoundMarks.OutlineToken));
             }
         }
@@ -338,5 +344,53 @@ public sealed class MatchMarks : ContentMarkLayer
         var start = change.Change.Carried(at.Start);
         var end = change.Change.Carried(at.Start + at.Length, leansAfter: true);
         this.LookedAt = end > start ? (start, end - start) : null;
+    }
+}
+
+/// <summary>
+/// Each line drawn marked by what is written on it — a level's wash, a filter's veil, a line picked out — asked only of the lines on screen,
+/// so a document of any length costs a screen of asking. What a line is marked with is the token the function <see cref="Show"/> was given
+/// gives it, or nothing; shown again, every line drawn is asked again.
+/// </summary>
+/// <param name="kind">How a line is marked: across its whole width, as a wash or a veil.</param>
+/// <param name="order">Where among the layers the lines are drawn.</param>
+public sealed class LineMarks(ContentMarkKind kind, int order) : ContentMarkLayer
+{
+    /// <summary>What a line is marked with — asked its line in the document, from nought, and what is written on it — or null for no marking.</summary>
+    private Func<int, string, string?>? _tokenFor;
+
+    public override int Order => order;
+
+    public override bool IsEmpty => _tokenFor is null;
+
+    /// <summary>How a line is marked.</summary>
+    public ContentMarkKind Kind => kind;
+
+    /// <summary>
+    /// Marks each line drawn with the token <paramref name="tokenFor"/> gives it — asked the line's place in the document, from nought, and what
+    /// is written on it without its end — or leaves it where it gives none; null marks nothing. Shown again with the same function, every line
+    /// drawn is asked again: what it answers from has changed.
+    /// </summary>
+    public void Show(Func<int, string, string?>? tokenFor)
+    {
+        _tokenFor = tokenFor;
+        this.Remark();
+    }
+
+    public override void Mark(ContentMarkRequest request, ICollection<ContentMark> into)
+    {
+        if (_tokenFor is not { } tokenFor) return;
+
+        var document = request.Document;
+        var (start, end) = (Math.Clamp(request.Start, 0, document.Length), Math.Clamp(request.End, 0, document.Length));
+
+        for (var line = document.LineOf(start); line < document.LineCount; line++)
+        {
+            var (from, to) = document.LineAt(document.OffsetOf(line));
+            if (from > end) break;
+
+            if (tokenFor(line, document.Slice(from, to - from).TrimEnd('\r', '\n')) is { } token)
+                into.Add(new ContentMark(kind, from, to - from, token));
+        }
     }
 }

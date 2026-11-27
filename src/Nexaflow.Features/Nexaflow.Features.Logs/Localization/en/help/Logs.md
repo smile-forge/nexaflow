@@ -7,14 +7,17 @@ Reads a log file, starting at the newest lines, and keeps up as the file grows. 
 ## Opening a log
 
 - A `.log` file opens here from the [File System](help:FileSystem) page. **As Log** opens any other file here from its actions.
-- A large file opens on its last few kilobytes only, snapped to a clean line start, and the earlier history loads above them in the background. A small one opens whole.
+- A log of any size opens without being held in memory: what is on screen is read from disk as you scroll to it.
+- A large log opens on its last few megabytes, from where a line starts, and the earlier history is read in above them in the background — the page stays on the lines you are reading. A small one opens whole.
 - The status bar says **Loading history…** until the rest has arrived, and the line count beside it counts only what has loaded.
-- Change the encoding with the dropdown at the end of the toolbar. It is detected from the byte-order mark, then from whether the bytes are valid UTF-8.
+- A log too long to hold as one document — past about 500 million characters — is shown a stretch at a time once its history is read, and the stretch moves as you scroll or search; its lines keep the numbers they have in the whole log.
+- The encoding is detected from the byte-order mark, then from whether the bytes are valid UTF-8, and shown in the dropdown at the end of the toolbar. Choose another there to read the log again in it.
+- A log that becomes shorter than what was read — rotated, or cut — is read again from its start.
 
 ## Following and highlighting
 
 - Scroll new lines into view as they land with Follow, on from the moment the tab opens. Turn it off to hold your place. [Show me](locate:Log_Follow)
-- Freeze the view with Pause. Lines that arrive meanwhile are added in one go when you resume, while the file size in the status bar keeps climbing. [Show me](locate:Log_Pause)
+- Freeze the view with Pause. Lines that arrive meanwhile stay on disk and are added in one go when you resume, while the file size in the status bar keeps climbing. [Show me](locate:Log_Pause)
 - Wash whole lines by severity with the five toggles, each independent of the others. `WRN`, `warning`, `CRITICAL`, `ERR`, `DBG`, `TRACE` and `VERBOSE` all reach the right toggle, bracketed, piped or bare. [Show me](locate:Log_HighlightFatal,Log_HighlightError,Log_HighlightWarning,Log_HighlightInfo,Log_HighlightDebug)
 - Mark every occurrence of a word, whatever its case: put it in [the highlight box](locate:Log_HighlightTerm). Lines that have not arrived yet are marked too.
 
@@ -39,9 +42,9 @@ Filters fade lines rather than removing them.
 
 - Search the whole loaded log: type `?` and a term in [the AI bar](locate:AiInputBox). A chip in the status bar carries the count, says what you searched for, steps through the matches and clears the search.
 - Use a word, `time*` for words starting that way, `*out*` for any part of a word, or `/time(out|d out)/` for a regular expression.
-- Painting stops after a few thousand spans; the count does not. New lines are searched as they arrive, and you stay on the match you were reading. Searching leaves the pattern filter and the highlight term untouched.
+- Every match is marked, however many there are, and the one you are on is outlined. New lines are searched as they arrive, and you stay on the match you were reading. Searching leaves the pattern filter and the highlight term untouched.
 - Search before the history has landed and it says only the recent lines were searched; the count completes once the rest arrives.
-- Pick a line: click the thin strip down the left edge, and again to drop it. Picked lines stay tinted as you scroll. Copy them in line order with [the Copy button](locate:Log_CopySelected), which counts them and is greyed out until there is something to copy.
+- Pick a line: click the thin strip down the left edge, and again to drop it. Picked lines stay tinted as you scroll. Copy them in line order with [the Copy button](locate:Log_CopySelected), which counts them and is greyed out until there is something to copy. A picked line stays picked as the history is read in above it.
 
 ## The assistant
 

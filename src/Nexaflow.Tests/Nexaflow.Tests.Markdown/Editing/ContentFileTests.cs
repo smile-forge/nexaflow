@@ -172,6 +172,57 @@ public class ContentFileTests
             Assert.AreEqual(ContentFileHold.WrittenElsewhere, again.HoldForEdit());
     }
 
+    [TestMethod]
+    [DataRow("utf-8")]
+    [DataRow("utf-16")]
+    public void ALongFile_ReadAsItsLastStretchFirst_ThenWhatComesBeforeIt_ComesToTheWholeFile(string name)
+    {
+        var encoding = name == "utf-8" ? new UTF8Encoding(false) : (Encoding)Encoding.Unicode;
+        var text = Lines(4000);
+        var path = Written(text, encoding);
+        var preamble = encoding.GetPreamble().Length;
+
+        using var head = ContentFile.Open(path, encoding, preamble, ContentFileAccess.ReadOnly, blockBytes: 999);
+        var start = head.LineStartByte(new FileInfo(path).Length * 2 / 3);
+
+        // Where a line starts: just after a line feed, or a return no line feed follows.
+        var before = encoding.GetString(File.ReadAllBytes(path), preamble, (int)(start - preamble));
+        Assert.IsTrue(before.EndsWith('\n') || (before.EndsWith('\r') && text[before.Length] != '\n'), $"byte {start} starts a line");
+
+        using var tail = ContentFile.OpenStretch(path, encoding, start, ContentFileAccess.ReadOnly, blockBytes: 999);
+        tail.Scan();
+        Assert.AreEqual(text[before.Length..], ContentDocument.Of(tail).ToString(), "the stretch is the file from where it starts");
+
+        var document = new EditedDocument(ContentDocument.Of(tail));
+        head.Scan(until: start);
+        document.Grow(ContentDocument.Of(head), atStart: true);
+
+        Assert.AreEqual(text, document.Current.ToString());
+        Assert.AreEqual(ContentDocument.Of(text).LineCount, document.Current.LineCount);
+    }
+
+    [TestMethod]
+    public void ALineStart_IsLookedForWhereCharactersStart_AndOneTooFarAlongIsStoodInTheMiddleOfItsLine()
+    {
+        var encoding = new UTF8Encoding(false);
+        var text = "first\n" + new string('é', 700_000) + "\nlast\n";
+        var path = Written(text, encoding);
+        var bytes = File.ReadAllBytes(path);
+
+        using var file = ContentFile.Open(path, encoding, 0, ContentFileAccess.ReadOnly);
+
+        Assert.AreEqual(0, file.LineStartByte(0), "the start of the file starts a line");
+        Assert.AreEqual(6, file.LineStartByte(3), "the next line after a byte in the first");
+        Assert.AreEqual(6, file.LineStartByte(6), "a byte that starts a line is where it starts");
+
+        // A megabyte and more of 'é' after byte 101, half of one of them: no line starts near, so the next character is stood at.
+        var within = file.LineStartByte(101);
+        Assert.IsTrue(within is >= 101 and < 105, $"{within} is just along");
+        Assert.AreNotEqual(0x80, bytes[within] & 0xC0, "and starts a character");
+
+        Assert.AreEqual(bytes.Length, file.LineStartByte(bytes.Length + 10), "never past the end");
+    }
+
     private ContentFile Opened(string text, Encoding encoding, int blockBytes)
     {
         var file = ContentFile.Open(Written(text, encoding), encoding, encoding.GetPreamble().Length, ContentFileAccess.ReadOnly, blockBytes);

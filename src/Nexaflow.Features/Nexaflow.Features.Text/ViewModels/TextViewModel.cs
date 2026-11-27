@@ -57,6 +57,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     /// <summary>This page's view of <see cref="Document"/>: the caret, what is picked out, what a search marks and which lines are on screen.</summary>
     public ContentEditor Editor { get; }
 
+    /// <summary>The whole file the document shows, in its own lines, with the window onto a long one kept round the reader.</summary>
+    private readonly ShownFile _shown;
+
     /// <summary>What the surface reads the file as: plain text, its lines as written.</summary>
     public string WrittenIn => TextParser.Language;
 
@@ -172,7 +175,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
         Document.Changed += OnDocumentChanged;
         Document.PropertyChanged += OnDocumentPropertyChanged;
-        Editor.Scrolled += FollowReader;
+        _shown = new ShownFile(Editor);
     }
 
     partial void OnIsDirtyChanged(bool value) => DirtyChanged?.Invoke(value);
@@ -187,8 +190,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     /// <summary>How many lines the file comes to, and what the first one shown is numbered, said again after any change.</summary>
     private void Recounted()
     {
-        LineCount = (int)Math.Min(int.MaxValue, FileLineCount);
-        FirstLineNumber = LinesBefore + 1;
+        LineCount = (int)Math.Min(int.MaxValue, _shown.LineCount);
+        FirstLineNumber = _shown.LinesBefore + 1;
     }
 
     // ── Loading ───────────────────────────────────────────────────────────────
@@ -286,15 +289,15 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
         if (keep is not { } place) return;
 
-        GoToFileLine(place.Top, ShownPlace.Top);
-        if (FileOffsetOfLine(Math.Min(place.Caret, FileLineCount - 1)) is { } caret) Editor.MoveCaretTo(DocumentOffset(caret));
+        _shown.GoToLine(place.Top, ShownPlace.Top);
+        if (_shown.OffsetOfLine(Math.Min(place.Caret, _shown.LineCount - 1)) is { } caret) Editor.MoveCaretTo(_shown.DocumentOffset(caret));
     }
 
     /// <summary>Where the caret and the top of the page stand, as lines of the file — what reading it again keeps.</summary>
     private (long Caret, long Top) Place()
     {
         var document = Document.Current;
-        return (FileLineOf(Editor.Caret), LinesBefore + Math.Min(Editor.ShownLines.First, Math.Max(0, document.LineCount - 1)));
+        return (_shown.LineOf(Editor.Caret), _shown.LinesBefore + Math.Min(Editor.ShownLines.First, Math.Max(0, document.LineCount - 1)));
     }
 
     /// <summary>Reflects the encoding the file was found in in the selector, without reading it again.</summary>
@@ -536,7 +539,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _shell.ShowPrompt(Str.Get("Text.Viewer.GoToLine.Title"), Str.Format("Text.Viewer.GoToLine.PromptFormat", max), string.Empty,
             onConfirm: text =>
             {
-                if (int.TryParse(text?.Trim(), out var line) && line >= 1) GoToFileLine(Math.Min(line, max) - 1, ShownPlace.Centre);
+                if (int.TryParse(text?.Trim(), out var line) && line >= 1) _shown.GoToLine(Math.Min(line, max) - 1, ShownPlace.Centre);
                 else _shell.ShowError(Str.Get("Text.Viewer.GoToLine.Invalid"));
             },
             onCancel: () => { });
@@ -548,7 +551,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     {
         var fileName = _vfs.GetDisplayName(FilePath);
         var dirty    = IsDirty ? " (unsaved edits)" : IsEditing ? " (editing)" : string.Empty;
-        var (first, lines) = VisibleLines();
+        var (first, lines) = _shown.ShownLines();
 
         var numbered = new StringBuilder();
         for (var at = 0; at < lines.Count; at++)
@@ -615,11 +618,11 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _searchCts?.Cancel();
         Document.Changed -= OnDocumentChanged;
         Document.PropertyChanged -= OnDocumentPropertyChanged;
-        Editor.Scrolled -= FollowReader;
+        _shown.Dispose();
         Editor.Dispose();
         _file?.Dispose();
     }
 
     /// <summary>Puts the text the page shows on the clipboard; false while another application holds it open.</summary>
-    public Task<bool> CopyVisibleTextAsync() => _shell.Clipboard.WriteAsync(ComposedPayload.OfText(string.Join("\n", VisibleLines().Lines)));
+    public Task<bool> CopyVisibleTextAsync() => _shell.Clipboard.WriteAsync(ComposedPayload.OfText(string.Join("\n", _shown.ShownLines().Lines)));
 }

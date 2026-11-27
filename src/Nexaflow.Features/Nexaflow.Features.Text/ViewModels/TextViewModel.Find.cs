@@ -149,7 +149,7 @@ public sealed partial class TextViewModel
             SearchMatchCount   = count;
             IsSearchActive     = count > 0;
             _currentMatchIndex = count > 0 ? 0 : -1;
-            _matchMarks.Show(count > 0 ? request.Occurrences : null);
+            _matchMarks.Show(count > 0 ? (int _, string text) => request.Occurrences(text) : null);
             if (count > 0) NavigateToMatchLine(lines[0]);
         }
         catch (OperationCanceledException) { }
@@ -162,7 +162,7 @@ public sealed partial class TextViewModel
     /// </summary>
     private async Task<(long[] lines, int count)> ScanAsync(SearchRequest request, CancellationToken ct, List<SearchHit>? collect = null, int collectCap = 0)
     {
-        var lines = FileLines();
+        var lines = _shown.Lines();
         var matching = new List<long>();
 
         await Task.Run(() => lines((line, _, text) =>
@@ -255,18 +255,9 @@ public sealed partial class TextViewModel
         foreach (var line in _matchingLineNumbers)
         {
             if (hits.Count >= SearchHitCap) break;
-            hits.Add(HitFor(line, FileLineText(line)));
+            hits.Add(HitFor(line, _shown.LineText(line)));
         }
         return hits;
-    }
-
-    /// <summary>What is written on line <paramref name="line"/> of the whole file, without its line end.</summary>
-    private string FileLineText(long line)
-    {
-        if (FileOffsetOfLine(line) is not { } start) return string.Empty;
-
-        var end = FileOffsetOfLine(line + 1) ?? FileLength;
-        return FileText(start, (int)Math.Min(int.MaxValue, end - start)).TrimEnd('\r', '\n');
     }
 
     private IReadOnlyList<double> MarksFor(long[] lines)
@@ -309,7 +300,7 @@ public sealed partial class TextViewModel
         var n = _matchingLineNumbers.Length;
         if (n == 0) return;
 
-        var caretLine = FileLineOf(Editor.Caret);
+        var caretLine = _shown.LineOf(Editor.Caret);
         int idx;
         if (forward)
         {
@@ -342,7 +333,7 @@ public sealed partial class TextViewModel
     {
         if (MatchOnLine(line) is not { } match)
         {
-            GoToFileLine(line, ShownPlace.Nearest);
+            _shown.GoToLine(line, ShownPlace.Nearest);
             return;
         }
 
@@ -354,10 +345,10 @@ public sealed partial class TextViewModel
     /// <summary>The first match on line <paramref name="line"/> of the whole file, where it stands in the document — the window brought there first.</summary>
     private (int Start, int Length)? MatchOnLine(long line)
     {
-        if (_activeRequest is null || FileOffsetOfLine(line) is not { } at) return null;
+        if (_activeRequest is null || _shown.OffsetOfLine(line) is not { } at) return null;
 
         var document = Document.Current;
-        var (from, to) = document.LineAt(DocumentOffset(at));
+        var (from, to) = document.LineAt(_shown.DocumentOffset(at));
         document = Document.Current;
 
         foreach (var (index, length) in _activeRequest.Occurrences(document.Slice(from, to - from).TrimEnd('\r', '\n')))
@@ -471,7 +462,7 @@ public sealed partial class TextViewModel
         var request = _activeRequest ?? BuildFindRequest(FindText);
         var (regex, replacement) = (_activeRegex, ReplaceText);
 
-        var n = ReplaceAcross(0, Math.Max(0, FileLineCount - 1), text =>
+        var n = ReplaceAcross(0, Math.Max(0, _shown.LineCount - 1), text =>
             request.Occurrences(text).Select(match => (match.Index, match.Length,
                 regex is null ? replacement : regex.Match(text, match.Index, match.Length).Result(replacement))));
 
@@ -511,9 +502,9 @@ public sealed partial class TextViewModel
     /// </summary>
     private int ReplaceAcross(long fromLine, long toLine, Func<string, IEnumerable<(int Index, int Length, string With)>> replacements)
     {
-        if (fromLine > toLine || FileOffsetOfLine(fromLine) is not { } at) return 0;
+        if (fromLine > toLine || _shown.OffsetOfLine(fromLine) is not { } at) return 0;
 
-        var stop = FileOffsetOfLine(toLine + 1) ?? FileLength;
+        var stop = _shown.OffsetOfLine(toLine + 1) ?? _shown.Length;
         var count = 0;
 
         while (at < stop)

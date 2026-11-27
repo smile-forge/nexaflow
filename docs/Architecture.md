@@ -988,8 +988,7 @@ re-rolling them.
 
 | Strategy | Canonical reader | When |
 |----------|------------------|------|
-| Tail-first + background head-load | `Logs/ViewModels/LogViewModel.cs` | append-only files where the recent end matters most |
-| File-backed document over a block table, through a moving window past `int` reach | `Markdown/Editing/ContentFile.cs`, `ContentFileWindow.cs` (Text viewer) | text read and edited anywhere: one scan counts the lines, a screen then costs a screen, edits are held over the file's own characters until a save streams them out |
+| File-backed document over a block table, through a moving window past `int` reach | `Markdown/Editing/ContentFile.cs`, `ContentFileWindow.cs`, `ShownFile.cs` (Text and Logs viewers) | text read anywhere: one scan counts the lines, a screen then costs a screen; the Text viewer holds edits over the file's own characters until a save streams them out, and the log viewer shows a long log's end first (`ContentFile.OpenStretch`), reads its history in behind, and takes up what a writer appends (`ContentFile.Scan`, `ContentFileWindow.Grew`) |
 | Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
 | Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
 | One rectangular selection per window | `IO.Hdf5/PureHdf/PureHdfSource.cs` (`ReadBlock`) | N-D arrays: a table window is one hyperslab read, and `Hdf5Selection.Walk` streams a whole dataset in C order through bounded memory |

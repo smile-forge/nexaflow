@@ -959,12 +959,14 @@ tree — that is the maintenance step.
 `Features.Common` (contracts) has no test folder of its own; its client-tool wire-protocol parser
 (`ClientBlockParser`) and the agent loop are tested in `Tests.Core` (`Unit/ClientTools/`).
 
-The windowed-reader view-models load across `await` points, so `LogViewModel`/`TextViewModel` tests run
-under `Infrastructure/AsyncPump.cs` (a single-threaded synchronization context): the log loads into a
-thread-affine AvalonEdit `TextDocument`, and the Text viewer's continuations come back to one thread as
-they do on its page. A Text test that drives the assistant's tools hands the page `UiRunningShell`, whose
-`RunOnUiAsync` does its work at once — a substitute alone hands back a default task and never does it. `LogViewModel`'s background head-reassembly needs a live UI
-`Dispatcher`, so that one path is left to the UI smoke rather than a unit test.
+The file-reading view-models load and read off the page across `await` points, so `LogViewModel`/`TextViewModel`
+tests run under `Infrastructure/AsyncPump.cs` (a single-threaded synchronization context): their continuations
+come back to one thread as they do on the page. Each takes a smaller window and, for Logs, a smaller tail than it
+ships with, so a short file is read the way a long one is. Three helpers in the suite's `Infrastructure/` stand in
+for what a running shell and surface give a page: `UiRunningShell`, whose `RunOnUiAsync` does its work at once (a
+substitute alone hands back a default task and never does it); `ScrollRecorder`, attached to a page's editor as its
+view, which keeps the lines the page asked to be put on screen; and `EditorMarks`, what the editor's mark layers
+make over the whole document — what a level wash, a filter veil or a search would draw.
 
 ### Core shell (`Nexaflow.Tests.Core`)
 

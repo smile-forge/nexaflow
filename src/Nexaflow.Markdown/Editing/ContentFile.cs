@@ -79,15 +79,16 @@ public sealed class ContentFile : IDisposable
     private bool _held;
     private bool _disposed;
 
-    private ContentFile(string path, SafeFileHandle handle, Encoding encoding, int preamble, ContentFileAccess access, int blockBytes)
+    private ContentFile(string path, SafeFileHandle handle, Encoding encoding, int preamble, long from, ContentFileAccess access, int blockBytes)
     {
         this.Path = path;
         this.Encoding = encoding;
         this.Preamble = preamble;
+        this.From = from;
         this.Access = access;
         _handle = handle;
         _blockBytes = blockBytes;
-        _scanned = preamble;
+        _scanned = from;
         _written = File.GetLastWriteTimeUtc(path);
     }
 
@@ -99,6 +100,12 @@ public sealed class ContentFile : IDisposable
 
     /// <summary>How many bytes the encoding's mark at its start takes, which no block holds.</summary>
     public int Preamble { get; }
+
+    /// <summary>
+    /// Where its first block starts, in bytes: just past the mark at the start of the file, or — for a stretch of it (<see cref="OpenStretch"/>)
+    /// — where the stretch starts. Its characters are counted from there.
+    /// </summary>
+    public long From { get; }
 
     /// <summary>What it was opened to do.</summary>
     public ContentFileAccess Access { get; }
@@ -131,19 +138,33 @@ public sealed class ContentFile : IDisposable
     {
         if (!Reads(encoding)) throw new ArgumentException($"{encoding.WebName} cannot be read a block at a time", nameof(encoding));
 
-        return new ContentFile(path, Shared(path), encoding, preamble, access, Math.Max(blockBytes, 16));
+        return new ContentFile(path, Shared(path), encoding, preamble, preamble, access, Math.Max(blockBytes, 16));
+    }
+
+    /// <summary>
+    /// Opens the file at <paramref name="path"/>, written in <paramref name="encoding"/>, as the stretch of it from byte <paramref name="from"/> to
+    /// its end, however far that grows — where a line starts near the end of a long log (<see cref="LineStartByte"/>), say, so its last lines
+    /// are shown before the rest is read. Shared with other readers and writers as <see cref="Open"/> is, and scanning none of it yet; a document
+    /// over it is that stretch alone, its characters counted from <paramref name="from"/>.
+    /// </summary>
+    public static ContentFile OpenStretch(string path, Encoding encoding, long from, ContentFileAccess access, int blockBytes = BlockBytes)
+    {
+        if (!Reads(encoding)) throw new ArgumentException($"{encoding.WebName} cannot be read a block at a time", nameof(encoding));
+
+        return new ContentFile(path, Shared(path), encoding, 0, Math.Max(0, from), access, Math.Max(blockBytes, 16));
     }
 
     /// <summary>
     /// Scans up to <paramref name="most"/> more blocks from where scanning last stopped — the file as it was opened, or what another program
-    /// has written to its end since — and says how many it added. Nothing past the last character finished is taken, so a character being
+    /// has written to its end since — and no further than byte <paramref name="until"/>, where a stretch of the file shown already starts
+    /// (<see cref="OpenStretch"/>); and says how many it added. Nothing past the last character finished is taken, so a character being
     /// written is taken up once it is whole.
     /// </summary>
-    public int Scan(int most = int.MaxValue, CancellationToken cancel = default)
+    public int Scan(int most = int.MaxValue, CancellationToken cancel = default, long until = long.MaxValue)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var end = RandomAccess.GetLength(_handle);
+        var end = Math.Min(RandomAccess.GetLength(_handle), until);
         var bytes = new byte[_blockBytes + 4];
         var chars = new char[this.Encoding.GetMaxCharCount(bytes.Length)];
         var added = 0;
@@ -184,6 +205,44 @@ public sealed class ContentFile : IDisposable
         return added;
     }
 
+    /// <summary>How far along a line start is looked for, in bytes, before one is stood in the middle of.</summary>
+    private const int LineSearchBytes = 1 << 20;
+
+    /// <summary>
+    /// Where the first line that starts at or after byte <paramref name="at"/> starts, in bytes — just after a line feed, or a return no line
+    /// feed follows, read in the file's encoding — looked for no further than a megabyte along; a line longer than that is stood in the middle
+    /// of, where a character starts. Never before <see cref="From"/>, which a line is taken to start at, nor past the end of the file.
+    /// </summary>
+    public long LineStartByte(long at)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var end = RandomAccess.GetLength(_handle);
+        var (feed, back) = (this.Encoding.GetBytes("\n"), this.Encoding.GetBytes("\r"));
+        var unit = feed.Length;
+
+        // Characters of the encodings a block can be cut out of are found only where their units start, counted from where the first does.
+        at = Math.Clamp(at, this.From, end);
+        at = Math.Min(end, this.From + ((at - this.From + unit - 1) / unit * unit));
+        if (at <= this.From || at >= end) return at;
+
+        // From the unit before it, which says whether a line starts at it.
+        var bytes = new byte[(int)Math.Min(LineSearchBytes + (2 * unit), end - (at - unit))];
+        var read = RandomAccess.Read(_handle, bytes, at - unit);
+
+        for (var index = 0; index + unit <= read; index += unit)
+        {
+            var unitAt = bytes.AsSpan(index, unit);
+            if (unitAt.SequenceEqual(feed)) return at - unit + index + unit;
+
+            // A return ends a line unless a line feed follows it, which then does.
+            if (unitAt.SequenceEqual(back) && (index + (2 * unit) > read || !bytes.AsSpan(index + unit, unit).SequenceEqual(feed)))
+                return at - unit + index + unit;
+        }
+
+        return at + this.CharacterStart(bytes.AsSpan(unit, Math.Max(0, read - unit)));
+    }
+
     /// <summary>
     /// The characters of blocks <paramref name="first"/> up to <paramref name="last"/> (one past the last), counted from the start of the file —
     /// where a document over those blocks starts and how long it is.
@@ -196,6 +255,27 @@ public sealed class ContentFile : IDisposable
             for (var at = 0; at < last; at++) (start, length) = at < first ? (start + _blocks[at].Chars, 0) : (start, length + _blocks[at].Chars);
 
             return (start, length);
+        }
+    }
+
+    /// <summary>
+    /// How many line breaks blocks <paramref name="first"/> up to <paramref name="last"/> (one past the last) hold — a return and a line feed
+    /// together being one, wherever a block cuts between them: how many lines a document over them has, less one.
+    /// </summary>
+    public long LineBreaksOf(int first, int last)
+    {
+        lock (_gate)
+        {
+            var (breaks, before) = (0L, '\0');
+
+            for (var at = Math.Max(0, first); at < Math.Min(last, _blocks.Count); at++)
+            {
+                var block = _blocks[at];
+                breaks += block.Breaks - (before == '\r' && block.First == '\n' ? 1 : 0);
+                before = block.Last;
+            }
+
+            return breaks;
         }
     }
 
@@ -446,6 +526,26 @@ public sealed class ContentFile : IDisposable
                 return at;
         }
     }
+    /// <summary>How far into <paramref name="bytes"/> the first character that starts in them starts: past the bytes that only finish one.</summary>
+    private int CharacterStart(ReadOnlySpan<byte> bytes)
+    {
+        switch (this.Encoding)
+        {
+            case UTF8Encoding:
+                var at = 0;
+                while (at < bytes.Length && at < 4 && (bytes[at] & 0xC0) == 0x80) at++;
+                return at;
+
+            case UnicodeEncoding:
+                if (bytes.Length < 2) return 0;
+                var unit = this.Encoding.CodePage == 1201 ? (bytes[0] << 8) | bytes[1] : bytes[0] | (bytes[1] << 8);
+                return unit is >= 0xDC00 and <= 0xDFFF ? 2 : 0;
+
+            default:
+                return 0;
+        }
+    }
+
     /// <summary>How many of <paramref name="bytes"/>, the last there is, end on a whole character.</summary>
     private int Whole(ReadOnlySpan<byte> bytes) => this.Encoding switch
     {

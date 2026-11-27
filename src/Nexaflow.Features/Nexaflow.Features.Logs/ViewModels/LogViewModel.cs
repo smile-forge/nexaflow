@@ -1,24 +1,32 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using ICSharpCode.AvalonEdit.Document;
 using Nexaflow.Features.Common;
-using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Logs.Parsing;
 using Nexaflow.IO.Common;
+using Nexaflow.Localization;
 using Nexaflow.Localization.Formatting;
-using System.Globalization;
+using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.PlainText;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
-using Nexaflow.Visuals.Common.Controls;
-using Nexaflow.Localization;
-using Nexaflow.IO.Common.Locations;
-using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Logs.ViewModels;
 
+/// <summary>
+/// The log viewer: a log of any size shown read-only over its blocks on disk (<see cref="ContentFile"/>), shared with the program writing
+/// it. Its last few megabytes are shown at once and the history before them is read in behind, so a log opens on its live end however long
+/// it is; one too long for a document is then shown through a window onto it that moves where the reader goes. What the writer adds is
+/// scanned in as it lands — never read again from the start — and what is marked on the lines (levels, the filter, a term, a search, the
+/// lines picked out) is worked out only for the lines on screen.
+/// </summary>
 public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageViewModel, IContextPreview
 {
+    /// <summary>How much of a long log's end is read before it is shown, the rest read in behind.</summary>
+    private const int TailBytes = 4 * 1024 * 1024;
+
+    /// <summary>How much of the file's start is read to tell its encoding and its format.</summary>
+    private const int HeadBytes = 4096;
+
     // ── File ──────────────────────────────────────────────────────────────────
 
     [ObservableProperty] private string _filePath     = string.Empty;
@@ -26,9 +34,28 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
     [ObservableProperty] private string _fileSizeText = string.Empty;
     [ObservableProperty] private int    _lineCount;
 
+    /// <summary>The number the document's first line has in the whole file: one, unless a window onto a long log stands further on.</summary>
+    [ObservableProperty] private long _firstLineNumber = 1;
+
     // ── Document ──────────────────────────────────────────────────────────────
 
-    public TextDocument Document { get; } = new();
+    /// <summary>The log as shown: the file's own characters, read over its blocks, never written in.</summary>
+    public EditedDocument Document { get; } = new();
+
+    /// <summary>The one view of it: the caret, what is picked out, where the page stands, and what is marked.</summary>
+    public ContentEditor Editor { get; }
+
+    /// <summary>What the log is read as: lines of text, coloured by the marks rather than a grammar.</summary>
+    public string WrittenIn => TextParser.Language;
+
+    /// <summary>The whole log in its own lines, with the window onto a long one kept round the reader.</summary>
+    private readonly ShownFile _shown;
+
+    /// <summary>How many characters a document holds before a log is shown through a window instead.</summary>
+    private readonly int _windowSize;
+
+    /// <summary>How much of a long log's end is shown before the rest is read.</summary>
+    private readonly int _tailBytes;
 
     // ── Encoding ──────────────────────────────────────────────────────────────
 
@@ -42,99 +69,93 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         new(Str.Get("Logs.Encoding.SystemDefault"), Encoding.Default),
     ];
 
+    /// <summary>Whether the reader chose the encoding, rather than it being what the file's first bytes said.</summary>
+    private bool _encodingChosen;
+
+    /// <summary>Whether the selector is being set to what the file was found in, which reads nothing again.</summary>
+    private bool _applyingEncoding;
+
     // ── Parser ────────────────────────────────────────────────────────────────
 
     [ObservableProperty] private ILogParser _activeParser = new RawTextLogParser();
 
     // ── Loading ───────────────────────────────────────────────────────────────
 
+    /// <summary>Whether only the end of the log is shown yet, the history before it still being read.</summary>
     [ObservableProperty] private bool _isLoadingHead;
-    private Encoding _activeEncoding = Encoding.UTF8;
-    private long     _tailStartByte;
-    private long     _lastKnownFileSize;
-    private CancellationTokenSource? _headLoadCts;
+
+    /// <summary>The file grown into what is shown as a writer adds to it: the end of a long log, or the whole of it — read where it is.</summary>
+    private ContentFile? _file;
+
+    /// <summary>The history before the end shown first, while it is being read.</summary>
+    private ContentFile? _history;
+
+    /// <summary>Every file opened for what is shown, let go of when it is read again or the page closes.</summary>
+    private readonly List<ContentFile> _files = [];
+
+    /// <summary>Where the file is on this disk, read where it is; for one in an archive or on a location, the copy read here.</summary>
+    private string? _onDisk;
+
+    /// <summary>Whether the file is read where it is, so what a writer appends is scanned in rather than the file copied again.</summary>
+    private bool _live;
+
+    private CancellationTokenSource? _loadCts;
 
     // ── Monitoring ────────────────────────────────────────────────────────────
 
     [ObservableProperty] private bool _isMonitoring    = true;
     [ObservableProperty] private bool _isPaused;
     [ObservableProperty] private bool _isAutoScrolling = true;
-    private string                  _pendingAppendContent = string.Empty;
     private IFileWatch?             _watch;
     private readonly IShellServices _shell;
 
     /// <summary>The runtime's file system the log is read through — on disk, in an archive or on a location.</summary>
     private readonly IVirtualFileSystem _vfs;
 
-    // ── Level highlighting ────────────────────────────────────────────────────
+    /// <summary>Whether what was added is being taken up, and whether more was added meanwhile.</summary>
+    private bool _growing, _growAgain;
 
-    [ObservableProperty] private bool _highlightFatal;
-    [ObservableProperty] private bool _highlightError;
-    [ObservableProperty] private bool _highlightWarning;
-    [ObservableProperty] private bool _highlightInfo;
-    [ObservableProperty] private bool _highlightDebug;
-
-    // ── Custom term ───────────────────────────────────────────────────────────
-
-    [ObservableProperty] private string _customHighlightTerm = string.Empty;
-
-    private IReadOnlyList<(int offset, int length)> _customTermHighlights = [];
-    public IReadOnlyList<(int offset, int length)> CustomTermHighlights
-    {
-        get => _customTermHighlights;
-        private set { _customTermHighlights = value; OnPropertyChanged(); }
-    }
-
-    // ── Regex filter ─────────────────────────────────────────────────────────
-
-    [ObservableProperty] private string _filterRegex  = string.Empty;
-    [ObservableProperty] private bool   _isFilterActive;
-    [ObservableProperty] private Regex? _activeFilter;
-
-    // ── Time filter ───────────────────────────────────────────────────────────
-
-    [ObservableProperty] private bool      _hasTimestamps;
-    [ObservableProperty] private DateTime? _filterStartDate;
-    [ObservableProperty] private string    _filterStartTime = string.Empty;
-    [ObservableProperty] private DateTime? _filterEndDate;
-    [ObservableProperty] private string    _filterEndTime   = string.Empty;
-    [ObservableProperty] private DateTime? _filterStart;
-    [ObservableProperty] private DateTime? _filterEnd;
-
-    // Detected timestamp span of the loaded lines, cached on load/head/append (all on the UI thread) so
-    // GetContext can report it without reading the thread-affine document off the UI thread.
-    private DateTime? _detectedFirstTimestamp;
-    private DateTime? _detectedLastTimestamp;
-
-    // ── Navigation ────────────────────────────────────────────────────────────
-
-    // Set to a document offset to trigger scroll; code-behind watches and centres.
-    [ObservableProperty] private int _scrollToOffset = -1;
-
-    // ── Line selection ────────────────────────────────────────────────────────
-
-    private readonly HashSet<int> _selectedLineNumbers = [];
-    [ObservableProperty] private int _selectedLineCount;
-
-    public IReadOnlySet<int> SelectedLineNumbers => _selectedLineNumbers;
-
-    // ── Events ────────────────────────────────────────────────────────────────
-
-    /// <summary>Fires when the view should scroll to the bottom (new appended content).</summary>
-    public event EventHandler? ScrollToBottomRequested;
+    private bool _disposed;
 
     // ──────────────────────────────────────────────────────────────────────────
 
-    public LogViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs)
+    public LogViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs) : this(filePath, shell, vfs, ContentFileWindow.DefaultSize, TailBytes)
+    {
+    }
+
+    /// <summary>A log viewer that shows a log longer than <paramref name="windowSize"/> characters through a window, and one longer than
+    /// <paramref name="tailBytes"/> bytes end first — sizes the tests make small, to show a short file the way a long one is.</summary>
+    internal LogViewModel(string filePath, IShellServices shell, IVirtualFileSystem vfs, int windowSize, int tailBytes)
     {
         _shell = shell;
         _vfs   = vfs;
+        _windowSize = Math.Max(1, windowSize);
+        _tailBytes = Math.Max(1, tailBytes);
         _selectedEncoding = AvailableEncodings[0];
         FilePath = filePath;
         FileName = vfs.GetDisplayName(filePath);
+
+        Editor = new ContentEditor(Document);
+        _shown = new ShownFile(Editor);
+        Lined();
+
+        Document.Changed += (_, _) => Recounted();
+    }
+
+    /// <summary>How many lines the log comes to, and what the first one shown is numbered, said again after any change.</summary>
+    private void Recounted()
+    {
+        LineCount = (int)Math.Min(int.MaxValue, _shown.LineCount);
+        FirstLineNumber = _shown.LinesBefore + 1;
     }
 
     // ── Loading ───────────────────────────────────────────────────────────────
+
+    /// <summary>What opening the log found: its encoding, its first bytes, and what is shown at once — and the history to read in behind.</summary>
+    private readonly record struct Opening(Encoding Encoding, int Preamble, byte[] Head, ContentFile? Shown, ContentFile? History, string? Whole);
+
+    /// <summary>How many bytes the encoding's mark at the start of the log takes.</summary>
+    private int _preamble;
 
     public async Task LoadAsync(CancellationToken ct)
     {
@@ -144,196 +165,211 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         {
             if (await _vfs.GetEntryAsync(FilePath, ct) is not { IsDirectory: false } entry) return;
 
-            _headLoadCts?.Cancel();
-            _headLoadCts = new CancellationTokenSource();
+            _loadCts?.Cancel();
+            _loadCts = new CancellationTokenSource();
+            var loading = _loadCts.Token;
 
-            var fileSize = entry.Size;
-            _lastKnownFileSize = fileSize;
-            FileSizeText       = FormatSize(fileSize);
+            FileSizeText = SizeFormatter.FormatBytes(entry.Size);
+            _live = _vfs.ResolveOnDisk(FilePath) is not null;
+            _onDisk = await _vfs.MaterializeFileAsync(FilePath, ct);
 
-            // One open for the probe and what is shown first — on a location each open is a round trip.
-            byte[] head;
-            await using (var fs = await _vfs.OpenReadAsync(FilePath, fileSize <= 4096 ? ReadIntent.Whole : ReadIntent.Random, ct))
-            {
-                // The shared sniffer (BOM + UTF-8 validity scan + UTF-16 heuristic), so every viewer detects encoding
-                // identically — over the head read here, which also votes for the parser.
-                head = new byte[(int)Math.Min(4096, fileSize)];
-                await fs.ReadExactlyAsync(head, ct);
-                _activeEncoding = EncodingDetector.Detect(new MemoryStream(head, writable: false)).Encoding;
+            var (onDisk, chosen, tail) = (_onDisk, _encodingChosen ? SelectedEncoding.Encoding : null, _tailBytes);
+            var opening = await Task.Run(() => Opened(onDisk, chosen, tail, ct), ct);
+            if (_disposed) { Closed(opening); return; }
 
-                if (fileSize <= 4096)
-                {
-                    // Small file: read entirely
-                    fs.Position = 0;
-                    using var sr  = new StreamReader(fs, _activeEncoding, leaveOpen: true);
-                    Document.Text = await sr.ReadToEndAsync(ct);
-                    _tailStartByte = 0;
-                }
-                else
-                {
-                    // Large file: tail-first
-                    await LoadTailAsync(fs, fileSize, ct);
-                }
-            }
-
-            SelectParser(head);
-            DetectTimestamps();
-            LineCount = Document.LineCount;
-
+            Show(opening);
             if (IsMonitoring) StartMonitoring();
-
-            // Background-load the head for large files
-            if (_tailStartByte > 0)
-                _ = LoadHeadAsync(_headLoadCts.Token);
+            if (_history is not null) _ = ReadHistoryAsync(loading);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            Document.Text = Str.Format("Logs.Document.LoadFailedFormat", ex.Message);
+            Show(new Opening(Encoding.UTF8, 0, [], null, null, Str.Format("Logs.Document.LoadFailedFormat", ex.Message)));
         }
     }
 
-    private async Task LoadTailAsync(Stream fs, long fileSize, CancellationToken ct)
+    /// <summary>
+    /// The log on this disk at <paramref name="onDisk"/>, in <paramref name="chosen"/> or what its first bytes say: scanned whole where it is no
+    /// longer than <paramref name="tailBytes"/>, and otherwise its end from where a line starts, the history before it opened to be read in
+    /// behind. In an encoding a block cannot be cut out of (<see cref="ContentFile.Reads"/>) it is read whole.
+    /// </summary>
+    [LocalDiskOnly("the log as it is on this disk - MaterializeFileAsync copies an archive's entry or a location's file here first, and a file on this disk is itself")]
+    private static Opening Opened(string onDisk, Encoding? chosen, int tailBytes, CancellationToken ct)
     {
+        byte[] head;
+        Encoding encoding;
 
-        // Seek 4 KB back from end; find first \n to start on a clean line
-        var seekPoint = fileSize - 4096;
-        fs.Seek(seekPoint, SeekOrigin.Begin);
-        var buf  = new byte[4096];
-        var read = await fs.ReadAsync(buf.AsMemory(0, 4096), ct);
+        using (var stream = new FileStream(onDisk, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+        {
+            head = new byte[(int)Math.Min(HeadBytes, stream.Length)];
+            stream.ReadExactly(head);
+            encoding = chosen ?? EncodingDetector.Detect(new MemoryStream(head, writable: false)).Encoding;
+        }
 
-        var nlIdx      = Array.IndexOf(buf, (byte)'\n', 0, read);
-        _tailStartByte = nlIdx >= 0 ? seekPoint + nlIdx + 1 : seekPoint;
+        var mark = encoding.GetPreamble();
+        var preamble = mark.Length > 0 && head.AsSpan().StartsWith(mark) ? mark.Length : 0;
 
-        // Load from tailStart to EOF
-        fs.Seek(_tailStartByte, SeekOrigin.Begin);
-        using var reader    = new StreamReader(fs, _activeEncoding, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-        var tailContent     = await reader.ReadToEndAsync(ct);
-        Document.Text       = tailContent;
-        IsLoadingHead       = true;
+        if (!ContentFile.Reads(encoding)) return new Opening(encoding, preamble, head, null, null, File.ReadAllText(onDisk, encoding));
+
+        var whole = ContentFile.Open(onDisk, encoding, preamble, ContentFileAccess.ReadOnly);
+        try
+        {
+            var length = new FileInfo(onDisk).Length;
+            var start = length - preamble > tailBytes ? whole.LineStartByte(length - tailBytes) : preamble;
+
+            if (start <= preamble)
+            {
+                whole.Scan(cancel: ct);
+                return new Opening(encoding, preamble, head, whole, null, null);
+            }
+
+            var tail = ContentFile.OpenStretch(onDisk, encoding, start, ContentFileAccess.ReadOnly);
+            try
+            {
+                tail.Scan(cancel: ct);
+            }
+            catch
+            {
+                tail.Dispose();
+                throw;
+            }
+
+            return new Opening(encoding, preamble, head, tail, whole, null);
+        }
+        catch
+        {
+            whole.Dispose();
+            throw;
+        }
     }
 
-    private async Task LoadHeadAsync(CancellationToken ct)
+    /// <summary>Shows what opening found in place of whatever was, letting go of the files that showed it — and stands at the live end where following.</summary>
+    private void Show(Opening opening)
     {
-        if (_tailStartByte <= 0) { IsLoadingHead = false; return; }
+        var before = _files.ToList();
+        _files.Clear();
+
+        (_file, _history, _preamble) = (opening.Shown, opening.History, opening.Preamble);
+        if (_file is not null) _files.Add(_file);
+        if (_history is not null) _files.Add(_history);
+
+        if (_file is { } shown) Document.Load(ContentDocument.Of(shown));
+        else Document.Load(opening.Whole ?? string.Empty);
+
+        foreach (var file in before) file.Dispose();
+
+        if (!_encodingChosen) SyncEncodingSelection(opening.Encoding);
+        IsLoadingHead = _history is not null;
+        _selectedLines.Clear();
+        Reselected();
+
+        SelectParser(opening.Head);
+        DetectTimestamps();
+        Recounted();
+        if (IsAutoScrolling) FollowEnd();
+    }
+
+    private static void Closed(Opening opening)
+    {
+        opening.Shown?.Dispose();
+        opening.History?.Dispose();
+    }
+
+    /// <summary>
+    /// Reads the history before the end shown first, and puts it before it: grown in at the start where the two fit in one document — the
+    /// page left on the lines it stood on — and otherwise read on to the end, the whole log then shown through a window standing where the
+    /// reader was. Lines picked out move with the lines put before them.
+    /// </summary>
+    private async Task ReadHistoryAsync(CancellationToken ct)
+    {
+        if (_history is not { } history || _file is not { } tail) return;
 
         try
         {
-            // Read in 64 KB chunks to avoid a single massive allocation
-            var sb         = new StringBuilder((int)Math.Min(_tailStartByte, 64 * 1024 * 1024));
-            var buf        = new byte[65536];
-            var totalBytes = 0L;
+            var until = tail.From;
+            await Task.Run(() => history.Scan(cancel: ct, until: until), ct);
+            if (ct.IsCancellationRequested || !ReferenceEquals(history, _history)) return;
 
-            await using var fs = await _vfs.OpenReadAsync(FilePath, ReadIntent.Sequential, ct);
-            while (totalBytes < _tailStartByte)
+            var before = history.LineBreaksOf(0, history.BlockCount);
+
+            if (history.Characters + tail.Characters <= _windowSize)
             {
-                ct.ThrowIfCancellationRequested();
-                var toRead = (int)Math.Min(buf.Length, _tailStartByte - totalBytes);
-                var n      = await fs.ReadAsync(buf.AsMemory(0, toRead), ct);
-                if (n == 0) break;
-                sb.Append(_activeEncoding.GetString(buf, 0, n));
-                totalBytes += n;
+                var top = Editor.ShownLines.First;
+                Document.Grow(ContentDocument.Of(history), atStart: true);
+                _history = null;
+
+                if (!IsAutoScrolling) Editor.ScrollToLine((int)Math.Min(int.MaxValue, top + before), ShownPlace.Top);
+            }
+            else
+            {
+                var shift = history.Characters;
+                var (caret, top) = (shift + Editor.Caret, shift + Document.Current.OffsetOf(Editor.ShownLines.First));
+
+                // Read on past where the end shown starts, to the end: the whole log, which no document holds.
+                await Task.Run(() => history.Scan(cancel: ct), ct);
+                if (ct.IsCancellationRequested || !ReferenceEquals(history, _history)) return;
+
+                ContentFileWindow.Open(history, Document, caret, _windowSize);
+                _files.Remove(tail);
+                tail.Dispose();
+                (_file, _history) = (history, null);
+
+                Editor.MoveCaretTo(_shown.DocumentOffset(caret));
+                if (!IsAutoScrolling) Editor.ScrollToLine(Document.Current.LineOf(_shown.DocumentOffset(top)), ShownPlace.Top);
             }
 
-            var headContent = sb.ToString();
-
-            // The awaits above resumed on the UI thread (LoadAsync started there), so update directly.
-            Document.Insert(0, headContent);
+            MoveSelection(before);
+            MoveSearch(before);
             IsLoadingHead = false;
-            LineCount     = Document.LineCount;
-            ScanForCustomHighlights();
-            RescanSearch();   // inserting at 0 shifted every offset — and the count is now the whole file
-            if (HasTimestamps) ScanForTimeRange(); // refresh with oldest entries now available
-            ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
+            Recounted();
+            if (HasTimestamps) ScanForTimeRange();
+            await RescanSearchAsync();
+            if (IsAutoScrolling) FollowEnd();
+
+            // What was written while the history was read.
+            if (!IsPaused) await TakeUpAsync();
         }
-        catch (OperationCanceledException) { IsLoadingHead = false; }
-        catch                              { IsLoadingHead = false; }
+        catch (OperationCanceledException) { }
+        catch (IOException) { IsLoadingHead = false; }
     }
 
-    // ── Encoding detection ────────────────────────────────────────────────────
+    /// <summary>Puts the page at the live end: the last line on screen, a window onto a long log moved there first.</summary>
+    private void FollowEnd()
+    {
+        if (Document.Window is { } window && !window.Covers(window.Length, window.Length)) window.MoveTo(window.Length);
+        Editor.ScrollToLine(Math.Max(0, Document.Current.LineCount - 1), ShownPlace.Nearest);
+    }
+
+    // ── Encoding ──────────────────────────────────────────────────────────────
+
+    /// <summary>Reflects the encoding the log was found in in the selector, without reading it again.</summary>
+    private void SyncEncodingSelection(Encoding found)
+    {
+        var option = AvailableEncodings.Find(each => each.Encoding.CodePage == found.CodePage);
+        if (option is null || ReferenceEquals(option, SelectedEncoding)) return;
+
+        _applyingEncoding = true;
+        SelectedEncoding = option;
+        _applyingEncoding = false;
+    }
+
+    partial void OnSelectedEncodingChanged(EncodingOption value)
+    {
+        if (_applyingEncoding) return;
+
+        _encodingChosen = true;
+        _ = LoadAsync(CancellationToken.None);
+    }
 
     // ── Parser selection ──────────────────────────────────────────────────────
 
-    /// <summary>The parser the file's first bytes and first line vote for.</summary>
+    /// <summary>The parser the file's first bytes and the first line shown vote for.</summary>
     private void SelectParser(byte[] head)
     {
-        var firstLine = Document.LineCount > 0
-            ? Document.GetText(Document.GetLineByNumber(1))
-            : string.Empty;
+        var document = Document.Current;
+        var (start, end) = document.LineAt(0);
 
-        ActiveParser = LogParserRegistry.SelectParser(head.AsSpan(0, Math.Min(16, head.Length)), firstLine);
-    }
-
-    // ── Timestamp detection ───────────────────────────────────────────────────
-
-    private void DetectTimestamps()
-    {
-        if (Document.LineCount == 0) { HasTimestamps = false; return; }
-
-        var sampleCount = Math.Min(20, Document.LineCount);
-        var matches     = 0;
-
-        // Ask the parser that was just selected, not a fixed regex — a JSON log carries its timestamp in a
-        // field, so a text-shaped probe would decide the file has none and hide the time filter.
-        for (var i = 1; i <= sampleCount; i++)
-        {
-            var line = Document.GetLineByNumber(i);
-            var text = Document.GetText(line.Offset, line.Length).Trim();
-            if (text.Length > 0 && ActiveParser.ParseLine(text).Timestamp.HasValue) matches++;
-        }
-
-        HasTimestamps = matches >= Math.Max(3, sampleCount / 2);
-        if (HasTimestamps) ScanForTimeRange();
-    }
-
-    // Scans all loaded lines for the first and last parseable timestamps and
-    // pre-populates the date/time filter fields (without applying the filter).
-    private void ScanForTimeRange()
-    {
-        var (first, last) = ScanTimestampRange();
-        _detectedFirstTimestamp = first;
-        _detectedLastTimestamp  = last;
-
-        if (first.HasValue)
-        {
-            FilterStartDate = first.Value.Date;
-            FilterStartTime = first.Value.ToString("HH:mm:ss");
-        }
-        if (last.HasValue)
-        {
-            FilterEndDate = last.Value.Date;
-            FilterEndTime = last.Value.ToString("HH:mm:ss");
-        }
-    }
-
-    // Finds the first and last parseable timestamps across the loaded lines (document read — UI thread).
-    private (DateTime? First, DateTime? Last) ScanTimestampRange()
-    {
-        DateTime? first = null, last = null;
-
-        for (var i = 1; i <= Document.LineCount && !first.HasValue; i++)
-        {
-            try
-            {
-                var dl     = Document.GetLineByNumber(i);
-                var parsed = ActiveParser.ParseLine(Document.GetText(dl.Offset, dl.Length));
-                if (parsed.Timestamp.HasValue) first = parsed.Timestamp.Value;
-            }
-            catch { break; }
-        }
-
-        for (var i = Document.LineCount; i >= 1 && !last.HasValue; i--)
-        {
-            try
-            {
-                var dl     = Document.GetLineByNumber(i);
-                var parsed = ActiveParser.ParseLine(Document.GetText(dl.Offset, dl.Length));
-                if (parsed.Timestamp.HasValue) last = parsed.Timestamp.Value;
-            }
-            catch { break; }
-        }
-
-        return (first, last);
+        ActiveParser = LogParserRegistry.SelectParser(head.AsSpan(0, Math.Min(16, head.Length)), document.Slice(start, end - start));
     }
 
     // ── File monitoring ───────────────────────────────────────────────────────
@@ -345,44 +381,106 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         _watch = _shell.WatchFile(FilePath, OnFileChanged);
     }
 
-    // Invoked by the shell on this workspace's UI thread when the watched file changes.
+    /// <summary>
+    /// The watched log changed: its size said again, and — unless the tail is paused — what was appended taken up. A log that came to be
+    /// shorter than what was read was rotated or cut, and is read again; so is one not read where it is, whose copy here is made again.
+    /// </summary>
     private async void OnFileChanged()
     {
-        if (!IsMonitoring) return;
+        if (!IsMonitoring || _disposed) return;
 
-        long newSize;
-        try   { if (await _vfs.GetEntryAsync(FilePath) is not { } changed) return; newSize = changed.Size; }
+        long size;
+        try   { if (await _vfs.GetEntryAsync(FilePath) is not { } changed) return; size = changed.Size; }
         catch { return; }
 
-        if (newSize <= _lastKnownFileSize) return;
+        FileSizeText = SizeFormatter.FormatBytes(size);
 
-        // Read only newly appended bytes
-        var newByteCount = (int)(newSize - _lastKnownFileSize);
-        var buf          = new byte[newByteCount];
+        if (!_live || (_file is { } file && size < file.Scanned))
+        {
+            await LoadAsync(CancellationToken.None);
+            return;
+        }
+
+        if (!IsPaused) await TakeUpAsync();
+    }
+
+    /// <summary>
+    /// Takes up what has been appended to the log since it was last read: scanned off the page, then grown into what is shown — at its end,
+    /// or after a window onto a long log — and followed where following. A log grown past what one document holds moves into a window.
+    /// </summary>
+    private async Task TakeUpAsync()
+    {
+        if (_growing)
+        {
+            _growAgain = true;
+            return;
+        }
+
+        _growing = true;
+
         try
         {
-            await using var fs = await _vfs.OpenReadAsync(FilePath, ReadIntent.Random);
-            fs.Seek(_lastKnownFileSize, SeekOrigin.Begin);
-            var read       = await fs.ReadAsync(buf.AsMemory(0, newByteCount));
-            var newContent = _activeEncoding.GetString(buf, 0, read);
-            _lastKnownFileSize = newSize;
-            FileSizeText       = FormatSize(newSize);
+            do
+            {
+                _growAgain = false;
+                if (_file is not { } file || _history is not null) return;
 
-            if (!IsPaused)
-            {
-                Document.Insert(Document.TextLength, newContent);
-                LineCount = Document.LineCount;
-                ScanForCustomHighlights();
-                RescanSearch();
-                if (IsAutoScrolling) ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
+                var blocks = file.BlockCount;
+                await Task.Run(() => file.Scan());
+                if (_disposed || !ReferenceEquals(file, _file)) return;
+
+                if (Document.Window is { } window) window.Grew();
+                else if (file.BlockCount > blocks) Document.Grow(ContentDocument.Of(file, blocks));
+                else continue;
+
+                if (Document.Window is null && Document.Current.Length > _windowSize) await MoveIntoWindowAsync();
+
+                await RescanSearchAsync();
+                if (IsAutoScrolling) FollowEnd();
             }
-            else
-            {
-                _pendingAppendContent += newContent;
-                _lastKnownFileSize     = newSize;
-            }
+            while (_growAgain && !_disposed);
         }
-        catch { /* file may be locked briefly */ }
+        catch (IOException) { }
+        finally
+        {
+            _growing = false;
+        }
+    }
+
+    /// <summary>
+    /// Shows a log grown past what one document holds through a window onto the whole of it, standing where the reader is: the whole file
+    /// scanned once more off the page, its earlier stretches then let go of.
+    /// </summary>
+    private async Task MoveIntoWindowAsync()
+    {
+        if (_onDisk is not { } path || _file is not { } shown) return;
+
+        var whole = ContentFile.Open(path, shown.Encoding, _preamble, ContentFileAccess.ReadOnly);
+        var caret = Editor.Caret;
+
+        try
+        {
+            await Task.Run(() => whole.Scan());
+        }
+        catch
+        {
+            whole.Dispose();
+            throw;
+        }
+
+        if (_disposed || !ReferenceEquals(shown, _file))
+        {
+            whole.Dispose();
+            return;
+        }
+
+        ContentFileWindow.Open(whole, Document, caret, _windowSize);
+        foreach (var file in _files) file.Dispose();
+        _files.Clear();
+        _files.Add(whole);
+        _file = whole;
+
+        Editor.MoveCaretTo(_shown.DocumentOffset(caret));
     }
 
     [RelayCommand]
@@ -395,491 +493,21 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
     partial void OnIsPausedChanged(bool value)
     {
-        if (!value && _pendingAppendContent.Length > 0)
-        {
-            Document.Insert(Document.TextLength, _pendingAppendContent);
-            _pendingAppendContent = string.Empty;
-            LineCount = Document.LineCount;
-            ScanForCustomHighlights();
-            RescanSearch();
-            if (IsAutoScrolling) ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    // ── Level highlighting ────────────────────────────────────────────────────
-
-    // Property-changed partials just raise PropertyChanged so the code-behind
-    // can rebuild the colorizer's EnabledLevels set.
-    partial void OnHighlightFatalChanged(bool value)   => OnPropertyChanged(nameof(HighlightFatal));
-    partial void OnHighlightErrorChanged(bool value)   => OnPropertyChanged(nameof(HighlightError));
-    partial void OnHighlightWarningChanged(bool value) => OnPropertyChanged(nameof(HighlightWarning));
-    partial void OnHighlightInfoChanged(bool value)    => OnPropertyChanged(nameof(HighlightInfo));
-    partial void OnHighlightDebugChanged(bool value)   => OnPropertyChanged(nameof(HighlightDebug));
-
-    // ── Custom term highlight ─────────────────────────────────────────────────
-
-    partial void OnCustomHighlightTermChanged(string value) => ScanForCustomHighlights();
-
-    private void ScanForCustomHighlights()
-    {
-        var term = CustomHighlightTerm;
-        if (string.IsNullOrWhiteSpace(term)) { CustomTermHighlights = []; return; }
-
-        var hits  = new List<(int, int)>();
-        var text  = Document.Text;
-        var start = 0;
-        while (true)
-        {
-            var idx = text.IndexOf(term, start, StringComparison.OrdinalIgnoreCase);
-            if (idx < 0) break;
-            hits.Add((idx, term.Length));
-            start = idx + term.Length;
-        }
-        CustomTermHighlights = hits;
-    }
-
-    // ── Regex filter ─────────────────────────────────────────────────────────
-
-    partial void OnFilterRegexChanged(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            ActiveFilter   = null;
-            IsFilterActive = false;
-            return;
-        }
-        try
-        {
-            ActiveFilter   = new Regex(value, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            IsFilterActive = true;
-        }
-        catch
-        {
-            // Invalid regex — keep filter active with null so code-behind handles gracefully
-            ActiveFilter   = null;
-            IsFilterActive = false;
-        }
-    }
-
-    [RelayCommand]
-    private void ClearFilter()
-    {
-        FilterRegex    = string.Empty;
-        ActiveFilter   = null;
-        IsFilterActive = false;
-    }
-
-    // ── Time filter ───────────────────────────────────────────────────────────
-
-    [RelayCommand]
-    private void ApplyTimeFilter()
-    {
-        DateTime? start = null, end = null;
-
-        if (FilterStartDate.HasValue)
-        {
-            var d = FilterStartDate.Value.Date;
-            if (TimeSpan.TryParse(FilterStartTime, out var t)) d = d.Add(t);
-            start = d;
-        }
-
-        if (FilterEndDate.HasValue)
-        {
-            var d = FilterEndDate.Value.Date;
-            if (TimeSpan.TryParse(FilterEndTime, out var t)) d = d.Add(t);
-            else d = d.AddDays(1).AddTicks(-1); // end of day if no time given
-            end = d;
-        }
-
-        FilterStart = start;
-        FilterEnd   = end;
-
-        ScrollToFirstFilteredLine();
-    }
-
-    private void ScrollToFirstFilteredLine()
-    {
-        for (var i = 1; i <= Document.LineCount; i++)
-        {
-            try
-            {
-                var dl     = Document.GetLineByNumber(i);
-                var text   = Document.GetText(dl.Offset, dl.Length);
-                var parsed = ActiveParser.ParseLine(text);
-                if (!parsed.Timestamp.HasValue) continue;
-
-                var ts     = parsed.Timestamp.Value;
-                var passes = true;
-                if (FilterStart.HasValue && ts < FilterStart.Value) passes = false;
-                if (FilterEnd.HasValue   && ts > FilterEnd.Value)   passes = false;
-
-                if (passes) { ScrollToOffset = dl.Offset; return; }
-            }
-            catch { break; }
-        }
-    }
-
-    [RelayCommand]
-    private void ClearTimeFilter()
-    {
-        FilterStartDate = null;
-        FilterStartTime = string.Empty;
-        FilterEndDate   = null;
-        FilterEndTime   = string.Empty;
-        FilterStart     = null;
-        FilterEnd       = null;
-    }
-
-    // ── Line selection ────────────────────────────────────────────────────────
-
-    public void ToggleLineSelection(int lineNumber)
-    {
-        if (!_selectedLineNumbers.Remove(lineNumber))
-            _selectedLineNumbers.Add(lineNumber);
-
-        SelectedLineCount = _selectedLineNumbers.Count;
-        OnPropertyChanged(nameof(SelectedLineNumbers));
-        // Each click copies what is now selected; the copy lands when the clipboard takes it, and a busy one keeps the last.
-        _ = AutoCopySelectedLinesAsync();
-    }
-
-    private async Task AutoCopySelectedLinesAsync()
-    {
-        if (_selectedLineNumbers.Count == 0) return;
-
-        var lines = _selectedLineNumbers
-            .OrderBy(n => n)
-            .Select(n =>
-            {
-                try
-                {
-                    var dl = Document.GetLineByNumber(n);
-                    return Document.GetText(dl.Offset, dl.Length);
-                }
-                catch { return string.Empty; }
-            })
-            .Where(l => l.Length > 0);
-
-        await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(string.Join(Environment.NewLine, lines)));
-    }
-
-    [RelayCommand(CanExecute = nameof(HasSelectedLines))]
-    private async Task CopySelectedLines()
-    {
-        var lines = _selectedLineNumbers
-            .OrderBy(n => n)
-            .Select(n =>
-            {
-                try
-                {
-                    var dl = Document.GetLineByNumber(n);
-                    return Document.GetText(dl.Offset, dl.Length);
-                }
-                catch { return string.Empty; }
-            })
-            .Where(l => l.Length > 0);
-
-        await _shell.Clipboard.WriteAsync(ComposedPayload.OfText(string.Join(Environment.NewLine, lines)));
-    }
-
-    private bool HasSelectedLines() => SelectedLineCount > 0;
-
-    partial void OnSelectedLineCountChanged(int value) => CopySelectedLinesCommand.NotifyCanExecuteChanged();
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
-
-    // ── IPageViewModel ────────────────────────────────────────────────────────
-
-    public string GetContext()
-    {
-        if (string.IsNullOrEmpty(FilePath)) return "Log viewer: no file loaded.";
-
-        var sb = new StringBuilder();
-        sb.Append($"Log file '{FileName}' ({FileSizeText}) at '{FilePath}'. ");
-        sb.Append($"{LineCount} line(s) loaded");
-        if (IsLoadingHead)
-            sb.Append(" — currently only the tail (most recent lines); the head is still streaming in");
-        sb.Append($". Format: {ActiveParser.FormatName}. ");
-
-        if (_detectedFirstTimestamp.HasValue && _detectedLastTimestamp.HasValue)
-            sb.Append($"Timestamps span {_detectedFirstTimestamp:yyyy-MM-dd HH:mm:ss} to {_detectedLastTimestamp:yyyy-MM-dd HH:mm:ss}. ");
-        else if (HasTimestamps)
-            sb.Append("Lines carry timestamps. ");
-        else
-            sb.Append("No timestamps detected. ");
-
-        if (IsMonitoring)
-            sb.Append(IsPaused ? "The live tail is paused. " : "Live-tailing the file for new lines. ");
-        else
-            sb.Append("Live monitoring is off. ");
-
-        var active = new List<string>();
-        if (IsFilterActive && !string.IsNullOrWhiteSpace(FilterRegex))
-            active.Add($"regex filter /{FilterRegex}/");
-        if (FilterStart.HasValue || FilterEnd.HasValue)
-            active.Add($"time filter {(FilterStart?.ToString("yyyy-MM-dd HH:mm:ss") ?? "…")} .. {(FilterEnd?.ToString("yyyy-MM-dd HH:mm:ss") ?? "…")}");
-        var levels = EnabledHighlightLevels();
-        if (levels.Count > 0)
-            active.Add($"level highlight: {string.Join(", ", levels)}");
-        if (!string.IsNullOrWhiteSpace(CustomHighlightTerm))
-            active.Add($"term highlight \"{CustomHighlightTerm}\"");
-
-        sb.Append(active.Count > 0
-            ? $"Active view filters/highlights — {string.Join("; ", active)} (non-matching lines are faded, not removed). "
-            : "No filters or highlights active. ");
-
-        if (SelectedLineCount > 0)
-            sb.Append($"{SelectedLineCount} line(s) selected. ");
-
-        sb.Append("Use read_tail / read_lines to read the log content and search_page to find lines; "
-                + "set_regex_filter / set_time_filter / highlight_levels / set_tail_paused mirror the toolbar controls.");
-        return sb.ToString();
-    }
-
-    /// <summary>The most lines the context preview shows.</summary>
-    private const int PreviewLineCount = 20;
-
-    /// <summary>Where the context preview cuts a long line; it never wraps.</summary>
-    private const int PreviewLineLength = 200;
-
-    /// <summary>
-    /// A reminder of the log for the conversation context panel: its size and length, then the lines the user
-    /// selected — or, with none selected, the last lines, where a tailing log is read. The panel's header names the
-    /// file. A fresh control each time the chip is selected, per the contract; it copies what it shows. On the UI
-    /// thread, which owns the document.
-    /// </summary>
-    public object CreateContextPreview()
-    {
-        var meta = SelectedLineCount > 0
-            ? LineCount == 1
-                ? Str.Format("Logs.Preview.LineSelectedFormat", FileSizeText, LineCount, SelectedLineCount)
-                : Str.Format("Logs.Preview.LinesSelectedFormat", FileSizeText, LineCount, SelectedLineCount)
-            : LineCount == 1
-                ? Str.Format("Logs.Preview.LineFormat", FileSizeText, LineCount)
-                : Str.Format("Logs.Preview.LinesFormat", FileSizeText, LineCount);
-        return new TextContextPreview(meta, string.Join("\n", PreviewLines()));
-    }
-
-    private IEnumerable<string> PreviewLines()
-    {
-        var last = Document.LineCount;
-        if (last > 1 && Document.GetLineByNumber(last).Length == 0) last--;   // the file's closing newline
-
-        var numbers = _selectedLineNumbers.Count > 0
-            ? _selectedLineNumbers.Where(n => n >= 1 && n <= last).Order().Take(PreviewLineCount)
-            : Enumerable.Range(Math.Max(1, last - PreviewLineCount + 1), Math.Min(PreviewLineCount, last));
-
-        foreach (var number in numbers)
-        {
-            var line = Document.GetLineByNumber(number);
-            yield return Document.GetText(line.Offset, Math.Min(line.Length, PreviewLineLength));
-        }
-    }
-
-    /// <summary>File-path scope boundary — keeps two log tabs on different files distinguishable when pinned.</summary>
-    public string? GetSecurityContext() => FilePath;
-
-    /// <summary>The log this tab shows.</summary>
-    public ContextGrant GetContextGrant() => ContextGrant.OfFile(FilePath);
-
-    public IReadOnlyList<IClientTool> GetClientTools() =>
-    [
-        // ── Read / explore (auto-run) — the log content the model couldn't reach before ──
-        new DelegateClientTool(
-            "read_tail",
-            "Read the most recent (bottom) lines of the loaded log — the live tail. For a large file only the "
-          + "already-loaded portion is available until the head finishes streaming in.",
-            [ new ClientToolParameter("lines", "How many trailing lines to return (default 100).", Required: false, Type: "number") ],
-            ToolSafety.SafeOperation,
-            (args, _) => OnUi(() =>
-            {
-                var total = Document.LineCount;
-                if (total == 0) return ToolResult.Ok("empty", "(the log is empty)");
-                var n     = Math.Clamp(ToolArgs.Int(args, "lines", 100), 1, 5000);
-                var start = Math.Max(1, total - n + 1);
-                return ToolResult.Ok($"read lines {start}–{total} of {total}", ReadLineRange(start, total));
-            })),
-
-        new DelegateClientTool(
-            "read_lines",
-            "Read a specific 1-based line range from the loaded log.",
-            [
-                new ClientToolParameter("start", "First line number (1-based)."),
-                new ClientToolParameter("count", "How many lines to read (default 100).", Required: false, Type: "number"),
-            ],
-            ToolSafety.SafeOperation,
-            (args, _) => OnUi(() =>
-            {
-                var total = Document.LineCount;
-                if (total == 0) return ToolResult.Ok("empty", "(the log is empty)");
-                var start = Math.Clamp(ToolArgs.Int(args, "start", 1), 1, total);
-                var count = Math.Clamp(ToolArgs.Int(args, "count", 100), 1, 5000);
-                var end   = Math.Min(total, start + count - 1);
-                return ToolResult.Ok($"read lines {start}–{end} of {total}", ReadLineRange(start, end));
-            })),
-
-        // No search tool here: the page declares ISearchable, so the shell attaches search_page /
-        // show_search_results automatically. A hand-rolled one drifted from what "?" means to the user —
-        // it matched a bare term as a substring rather than the word it spells, ignored match-case, and
-        // reported a bad pattern as a tool error instead of an unsupported search.
-
-        new DelegateClientTool(
-            "read_selected_lines",
-            "Read the lines the user has selected (checked in the gutter), in order.",
-            [],
-            ToolSafety.SafeOperation,
-            (_, _) => OnUi(() =>
-            {
-                if (_selectedLineNumbers.Count == 0)
-                    return ToolResult.Ok("no selection", "The user has not selected any lines.");
-                var total = Document.LineCount;
-                var lines = _selectedLineNumbers.OrderBy(n => n)
-                    .Where(n => n >= 1 && n <= total)
-                    .Select(n => { var dl = Document.GetLineByNumber(n); return $"{n}: {Document.GetText(dl.Offset, dl.Length)}"; });
-                return ToolResult.Ok($"{_selectedLineNumbers.Count} selected line(s)", string.Join("\n", lines));
-            })),
-
-        // ── View state (auto-run) — mirror the user's filter / highlight / tail controls (reversible, faded) ──
-        new DelegateClientTool(
-            "set_regex_filter",
-            "Set or clear the regex filter that fades non-matching lines — the same box the user types in. Pass "
-          + "an empty pattern to clear it. Lines are faded, never removed from the file.",
-            [ new ClientToolParameter("pattern", "A regular expression; empty clears the filter.", Required: false) ],
-            ToolSafety.SafeOperation,
-            async (args, _) =>
-            {
-                var pattern = ToolArgs.Str(args, "pattern", "regex", "filter") ?? string.Empty;
-                await _shell.RunOnUiAsync(() => FilterRegex = pattern);
-                if (pattern.Length == 0) return ToolResult.Ok("filter cleared", "Cleared the regex filter.");
-                return IsFilterActive
-                    ? ToolResult.Ok($"filtering /{pattern}/", $"Applied regex filter '{pattern}'. Non-matching lines are faded.")
-                    : ToolResult.Error($"'{pattern}' is not a valid regular expression.");
-            }),
-
-        new DelegateClientTool(
-            "set_time_filter",
-            "Fade lines whose timestamp falls outside a range (only meaningful when the log has timestamps), or "
-          + "clear it. Pass ISO-8601 date/times; omit both start and end to clear.",
-            [
-                new ClientToolParameter("start", "Range start, e.g. 2024-01-15T10:00:00 (optional).", Required: false),
-                new ClientToolParameter("end", "Range end, e.g. 2024-01-15T11:00:00 (optional).", Required: false),
-            ],
-            ToolSafety.SafeOperation,
-            async (args, _) =>
-            {
-                var startStr = ToolArgs.Str(args, "start", "from");
-                var endStr   = ToolArgs.Str(args, "end", "to");
-                if (startStr is null && endStr is null)
-                {
-                    await _shell.RunOnUiAsync(() => ClearTimeFilterCommand.Execute(null));
-                    return ToolResult.Ok("time filter cleared", "Cleared the time filter.");
-                }
-
-                DateTime start = default, end = default;
-                if (startStr is not null &&
-                    !DateTime.TryParse(startStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out start))
-                    return ToolResult.Error($"Could not parse start time '{startStr}'.");
-                if (endStr is not null &&
-                    !DateTime.TryParse(endStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out end))
-                    return ToolResult.Error($"Could not parse end time '{endStr}'.");
-
-                await _shell.RunOnUiAsync(() =>
-                {
-                    if (startStr is not null) { FilterStartDate = start.Date; FilterStartTime = start.ToString("HH:mm:ss"); }
-                    if (endStr   is not null) { FilterEndDate   = end.Date;   FilterEndTime   = end.ToString("HH:mm:ss"); }
-                    ApplyTimeFilterCommand.Execute(null);
-                });
-                return ToolResult.Ok("time filter applied",
-                    $"Filtering to timestamps in [{FilterStart?.ToString("s") ?? "…"} .. {FilterEnd?.ToString("s") ?? "…"}]. "
-                  + "Lines outside the range are faded.");
-            }),
-
-        new DelegateClientTool(
-            "highlight_levels",
-            "Set which severity levels are colour-highlighted (Fatal, Error, Warning, Info, Debug). Pass a "
-          + "comma-separated list to enable exactly those; an empty value turns all level highlighting off.",
-            [ new ClientToolParameter("levels", "Comma-separated levels, e.g. \"error,warning\"; empty turns all off.", Required: false) ],
-            ToolSafety.SafeOperation,
-            async (args, _) =>
-            {
-                var raw    = ToolArgs.Str(args, "levels", "level") ?? string.Empty;
-                var wanted = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                                .Select(x => x.ToLowerInvariant()).ToHashSet();
-                await _shell.RunOnUiAsync(() =>
-                {
-                    HighlightFatal   = wanted.Contains("fatal")   || wanted.Contains("critical");
-                    HighlightError   = wanted.Contains("error")   || wanted.Contains("err");
-                    HighlightWarning = wanted.Contains("warning") || wanted.Contains("warn");
-                    HighlightInfo    = wanted.Contains("info");
-                    HighlightDebug   = wanted.Contains("debug")   || wanted.Contains("trace");
-                });
-                var on = EnabledHighlightLevels();
-                return ToolResult.Ok(
-                    on.Count > 0 ? $"highlighting {string.Join(", ", on)}" : "highlighting off",
-                    on.Count > 0 ? $"Highlighting levels: {string.Join(", ", on)}." : "Turned off all level highlighting.");
-            }),
-
-        new DelegateClientTool(
-            "set_tail_paused",
-            "Pause or resume the live tail (whether newly-appended lines are shown as the file grows). Resuming "
-          + "flushes lines that arrived while paused. Display only — the file is untouched.",
-            [ new ClientToolParameter("paused", "true to pause, false to resume.", Type: "boolean") ],
-            ToolSafety.SafeOperation,
-            async (args, _) =>
-            {
-                var paused = ToolArgs.Bool(args, "paused", true);
-                await _shell.RunOnUiAsync(() => IsPaused = paused);
-                return ToolResult.Ok(paused ? "tail paused" : "tail resumed",
-                    paused ? "Paused the live tail." : "Resumed the live tail.");
-            }),
-    ];
-
-    // Runs a document-reading tool body on the workspace UI thread (the document is thread-affine),
-    // returning its result — features never touch the dispatcher directly.
-    private Task<ToolResult> OnUi(Func<ToolResult> read) => _shell.RunOnUiAsync(() => Task.FromResult(read()));
-
-    private string ReadLineRange(int startLine, int endLine)
-    {
-        var sb = new StringBuilder();
-        for (var i = startLine; i <= endLine; i++)
-        {
-            var dl = Document.GetLineByNumber(i);
-            sb.Append(i).Append(": ").Append(Document.GetText(dl.Offset, dl.Length)).Append('\n');
-        }
-        return sb.ToString();
-    }
-
-    private List<string> EnabledHighlightLevels()
-    {
-        var levels = new List<string>(5);
-        if (HighlightFatal)   levels.Add("Fatal");
-        if (HighlightError)   levels.Add("Error");
-        if (HighlightWarning) levels.Add("Warning");
-        if (HighlightInfo)    levels.Add("Info");
-        if (HighlightDebug)   levels.Add("Debug");
-        return levels;
-    }
-
-    public IContext? GetContextObject()
-    {
-        if (string.IsNullOrEmpty(FilePath)) return null;
-        var dir = Path.GetDirectoryName(FilePath);
-        if (string.IsNullOrEmpty(dir)) return null;
-        return new FileSystemContext
-        {
-            RootPath      = dir,
-            CurrentPath   = dir,
-            SelectedItems = [FilePath]
-        };
+        // Resuming takes up everything written while the tail was paused — held on disk meanwhile, not here.
+        if (!value) _ = TakeUpAsync();
     }
 
     // ── Dispose ───────────────────────────────────────────────────────────────
 
     public void Dispose()
     {
-        _headLoadCts?.Cancel();
+        _disposed = true;
+        _loadCts?.Cancel();
         _watch?.Dispose();
+        _shown.Dispose();
+        Editor.Dispose();
+
+        foreach (var file in _files) file.Dispose();
+        _files.Clear();
     }
 }

@@ -51,6 +51,9 @@ public sealed class ContentFileWindow
     /// <summary>How many line breaks stand after the window.</summary>
     private long _breaksAfter;
 
+    /// <summary>How many of the file's characters the window has taken up — all those scanned when it last did.</summary>
+    private long _taken;
+
     private ContentFileWindow(ContentFile file, int size, EditedDocument document)
     {
         this.File = file;
@@ -99,6 +102,7 @@ public sealed class ContentFileWindow
         if (end < total) window._after = [new Outside(end, total - end, null)];
 
         window.Start = start;
+        window._taken = total;
         window.Document.Load(window.Original(start, end - start));
         window.Document.Window = window;
         window.Counted();
@@ -151,6 +155,35 @@ public sealed class ContentFileWindow
         this.Start = to;
         this.Counted();
         this.Document.Move(new ContentChange(writes, 0), to - start);
+    }
+
+    /// <summary>
+    /// Takes up what has been added to the end of the file since the window last did — what a writer appended, scanned since
+    /// (<see cref="ContentFile.Scan"/>): grown into the window where it reaches the end of the file, otherwise held after it. A window grown past
+    /// its size moves on so it holds no more than that, its end on the file's. Growth is no edit: nothing of it is taken back.
+    /// </summary>
+    public void Grew()
+    {
+        var total = this.File.Characters;
+        var (from, added) = (_taken, total - _taken);
+        if (added <= 0) return;
+
+        _taken = total;
+
+        // Into the window where it reaches the end and holds nothing written, which growing it would save over.
+        if (_after.Count == 0 && !this.Document.IsDirty)
+        {
+            this.Document.Grow(this.Original(from, added));
+            if (this.Document.Current.Length > this.Size) this.MoveTo(this.Length);
+
+            return;
+        }
+
+        var stretch = new Outside(from, added, null);
+        if (_after.Count > 0 && _after[^1] is { Held: null } last && last.From + last.Length == from) _after[^1] = last with { Length = last.Length + added };
+        else _after.Add(stretch);
+
+        _breaksAfter += this.BreaksIn(stretch);
     }
 
     /// <summary>
@@ -217,6 +250,7 @@ public sealed class ContentFileWindow
     {
         var (start, length, total) = (this.Start, this.Document.Current.Length, saved.Characters);
         this.File = saved;
+        _taken = total;
         _before = start > 0 ? [new Outside(0, start, null)] : [];
         _after = start + length < total ? [new Outside(start + length, total - start - length, null)] : [];
 

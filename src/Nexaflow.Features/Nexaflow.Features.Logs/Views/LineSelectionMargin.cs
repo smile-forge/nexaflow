@@ -1,6 +1,6 @@
-using ICSharpCode.AvalonEdit.Editing;
-using ICSharpCode.AvalonEdit.Rendering;
+using Nexaflow.Features.Logs.ViewModels;
 using Nexaflow.Localization;
+using Nexaflow.Visuals.Text.Markdown;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -8,134 +8,76 @@ using System.Windows.Media;
 namespace Nexaflow.Features.Logs.Views;
 
 /// <summary>
-/// A thin left margin that lets the user click to toggle whole-line selection.
-/// Selected lines are indicated by a coloured bar; hovered lines show a lighter
-/// preview. Attach via <c>Editor.TextArea.LeftMargins.Insert(0, margin)</c>.
+/// A thin margin beside the log where a press picks a whole line out, or lets it go: a bar beside each line picked out, a lighter one
+/// beside the line under the pointer. The lines are the page's, numbered as lines of the whole log, so a line stays picked out whatever is
+/// read in before it or however a window onto a long log moves.
 /// </summary>
-public sealed class LineSelectionMargin : AbstractMargin
+public sealed class LineSelectionMargin : ContentMargin
 {
-    // Themed (Log.Selection / Log.SelectionHover); resolved lazily via FindResource, which throws
-    // (naming the key) if a token is missing — no silent literal fallback.
-    private Brush? _selection;
-    private Brush? _hover;
-    private Brush SelectionBrush => _selection ??= (Brush)FindResource("Log.Selection");
-    private Brush HoverBrush      => _hover     ??= (Brush)FindResource("Log.SelectionHover");
+    /// <summary>How wide it stands.</summary>
+    private const double Wide = 14;
 
-    private readonly Action<int>             _toggleSelection;
-    private readonly Func<IReadOnlySet<int>> _getSelected;
-    private int? _hoveredLine;
+    private readonly LogViewModel _log;
 
-    public LineSelectionMargin(
-        Action<int>             toggleSelection,
-        Func<IReadOnlySet<int>> getSelected)
+    /// <summary>The line under the pointer, numbered as a line of the whole log — or null, where it is over none.</summary>
+    private long? _hovered;
+
+    // Themed (Log.Selection / Log.SelectionHover), resolved where it is drawn, so a theme switch retints it.
+    private Brush SelectionBrush => (Brush)FindResource("Log.Selection");
+    private Brush HoverBrush     => (Brush)FindResource("Log.SelectionHover");
+
+    public LineSelectionMargin(LogViewModel log)
     {
-        _toggleSelection = toggleSelection;
-        _getSelected     = getSelected;
-        Cursor           = Cursors.Hand;
-        ToolTip          = Str.Get("Logs.Margin.SelectLineTip");
+        _log    = log;
+        Cursor  = Cursors.Hand;
+        ToolTip = Str.Get("Logs.Margin.SelectLineTip");
     }
 
-    // ── AbstractMargin wiring ─────────────────────────────────────────────────
+    protected override Size MeasureOverride(Size availableSize) => new(Wide, 0);
 
-    // Subscribe to the TextView events that require a repaint so the margin
-    // stays in sync as the user scrolls or the document changes.
-    protected override void OnTextViewChanged(TextView? oldTextView, TextView? newTextView)
+    protected override void Draw(DrawingContext drawing, IReadOnlyList<ShownLine> lines)
     {
-        if (oldTextView is not null)
+        // The whole of it takes a press, whatever is drawn on it.
+        drawing.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));
+
+        foreach (var line in lines)
         {
-            oldTextView.VisualLinesChanged  -= OnRedrawRequired;
-            oldTextView.ScrollOffsetChanged -= OnRedrawRequired;
+            var number = Numbered(line);
+            var brush = _log.IsLineSelected(number) ? SelectionBrush : number == _hovered ? HoverBrush : null;
+
+            if (brush is not null) drawing.DrawRectangle(brush, null, new Rect(1, line.Top, Math.Max(0, ActualWidth - 2), line.Height));
         }
-        base.OnTextViewChanged(oldTextView, newTextView);
-        if (newTextView is not null)
-        {
-            newTextView.VisualLinesChanged  += OnRedrawRequired;
-            newTextView.ScrollOffsetChanged += OnRedrawRequired;
-        }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs args)
+    {
+        base.OnMouseMove(args);
+
+        var hovered = LineAt(args.GetPosition(this).Y) is { } line ? Numbered(line) : (long?)null;
+        if (hovered == _hovered) return;
+
+        _hovered = hovered;
         InvalidateVisual();
     }
 
-    private void OnRedrawRequired(object? sender, EventArgs e) => InvalidateVisual();
-
-    // Ensure clicks register even when we draw no background in some areas.
-    protected override HitTestResult HitTestCore(PointHitTestParameters hitTestParameters)
-        => new PointHitTestResult(this, hitTestParameters.HitPoint);
-
-    // ── Layout ────────────────────────────────────────────────────────────────
-
-    protected override Size MeasureOverride(Size availableSize) => new(14, 0);
-
-    // ── Rendering ─────────────────────────────────────────────────────────────
-
-    protected override void OnRender(DrawingContext drawingContext)
+    protected override void OnMouseLeave(MouseEventArgs args)
     {
-        var tv = TextView;
-        if (tv is null) return;
-        tv.EnsureVisualLines();
+        base.OnMouseLeave(args);
 
-        var selected    = _getSelected();
-        var renderWidth = ActualWidth;
-
-        foreach (var vl in tv.VisualLines)
-        {
-            var lineNum = vl.FirstDocumentLine.LineNumber;
-            var top     = vl.GetTextLineVisualYPosition(vl.TextLines[0], VisualYPosition.TextTop)
-                          - tv.ScrollOffset.Y;
-            var height  = vl.Height;
-            var rect    = new Rect(1, top, renderWidth - 2, height);
-
-            if (selected.Contains(lineNum))
-                drawingContext.DrawRectangle(SelectionBrush, null, rect);
-            else if (lineNum == _hoveredLine)
-                drawingContext.DrawRectangle(HoverBrush, null, rect);
-        }
-    }
-
-    // ── Mouse events ──────────────────────────────────────────────────────────
-
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        var line = HitLine(e.GetPosition(this));
-        if (line != _hoveredLine) { _hoveredLine = line; InvalidateVisual(); }
-    }
-
-    protected override void OnMouseLeave(MouseEventArgs e)
-    {
-        _hoveredLine = null;
+        _hovered = null;
         InvalidateVisual();
     }
 
-    protected override void OnMouseDown(MouseButtonEventArgs e)
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs args)
     {
-        if (e.ChangedButton != MouseButton.Left) return;
-        var lineNum = HitLine(e.GetPosition(this));
-        if (lineNum is null) return;
+        base.OnMouseLeftButtonDown(args);
+        if (LineAt(args.GetPosition(this).Y) is not { } line) return;
 
-        _toggleSelection(lineNum.Value);
-
+        _log.ToggleLineSelection(Numbered(line));
         InvalidateVisual();
-        e.Handled = true;
+        args.Handled = true;
     }
 
-    // ── Hit-testing ───────────────────────────────────────────────────────────
-
-    private int? HitLine(Point marginPoint)
-    {
-        var tv = TextView;
-        if (tv is null) return null;
-
-        // Translate to TextView viewport coordinates, then add scroll offset to get
-        // document Y — visual line positions are in document (not viewport) space.
-        var posInTv   = this.TranslatePoint(marginPoint, tv);
-        var documentY = posInTv.Y + tv.ScrollOffset.Y;
-
-        foreach (var vl in tv.VisualLines)
-        {
-            var top    = vl.GetTextLineVisualYPosition(vl.TextLines[0], VisualYPosition.TextTop);
-            var bottom = top + vl.Height;
-            if (documentY >= top && documentY < bottom)
-                return vl.FirstDocumentLine.LineNumber;
-        }
-        return null;
-    }
+    /// <summary><paramref name="line"/>, a line on the page, numbered as a line of the whole log from one.</summary>
+    private long Numbered(ShownLine line) => _log.FirstLineNumber - 1 + line.Number;
 }

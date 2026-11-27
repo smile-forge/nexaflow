@@ -3,7 +3,7 @@ using System.Runtime.ExceptionServices;
 
 using Nexaflow.Features.Common;
 
-namespace Nexaflow.Tests.Features.Text;
+namespace Nexaflow.Tests.Features.Infrastructure;
 
 /// <summary>
 /// A shell that does what a page hands its UI thread there and then, on the caller's thread — every <c>RunOnUiAsync</c>, whatever its work
