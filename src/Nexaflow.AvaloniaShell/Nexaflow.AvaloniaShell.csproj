@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A spike: a second UI toolkit, Avalonia, hosting the WPF-free session through the public surface of Nexaflow.Host,
+    Nexaflow.Session and Nexaflow.Assistant alone - no InternalsVisibleTo - to find out what that surface lacks.
+    FINDINGS.md is its report. It fills ShellPlatform with Avalonia's pieces and draws one shell window over a workspace.
+
+    The features referenced here land beside the exe only so the feature catalogue finds them: their views are WPF, so a
+    page is drawn by an Avalonia view of this assembly where there is one ([AvaloniaViewFor]), and as the gap otherwise.
+    Referencing them brings the WindowsDesktop (WPF) framework into the process with them.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- At least Nexaflow.Host's OS version, as every project referencing it. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The session, the assistant and the composition root over them: the only Nexaflow code this app compiles against. -->
+    <ProjectReference Include="..\Nexaflow.Host\Nexaflow.Host.csproj" />
+
+    <!-- Two features for the catalogue to find: Processes, whose view-model an Avalonia view here draws, and Scratchpad,
+         which none does. -->
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Processes\Nexaflow.Features.Processes.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
+
+    <!-- The helper exes the session starts, copied beside the app as Nexaflow.Core has them (CopyHelperExes). -->
+    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="PrivilegeBridge" />
+    <ProjectReference Include="..\Nexaflow.AiHost\Nexaflow.AiHost\Nexaflow.AiHost.csproj" ReferenceOutputAssembly="false" Private="false" HelperFolder="AiHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The ribbon a workspace starts with: RibbonLayoutService reads it beside the exe, and it ships in Nexaflow.Core. -->
+    <Content Include="..\Nexaflow.Core\Ribbon\default-ribbon.json" Link="Ribbon\default-ribbon.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Every theme as the WPF app defines it: the palettes, the region tokens and each theme's overrides and scenes, Core's own
+         files embedded unchanged and read by ShellTheme, so the two apps share one definition of each theme. -->
+    <EmbeddedResource Include="..\Nexaflow.Core\Themes\Colors.*.xaml;..\Nexaflow.Core\Themes\Theme.*.xaml;..\Nexaflow.Core\Themes\Tokens.xaml"
+                      Link="Themes\%(Filename)%(Extension)" LogicalName="Themes.%(Filename)%(Extension)" />
+    <!-- The bundled Fluent icon font, Nexaflow.Visuals.Icons' own file, for ribbon icons of the Fluent sets. -->
+    <AvaloniaResource Include="..\Nexaflow.Visuals.Icons\Assets\Fonts\FluentSystemIcons-Resizable.ttf" Link="Assets\Fonts\FluentSystemIcons-Resizable.ttf" />
+  </ItemGroup>
+
+  <!-- Language packs: Languages\Nexaflow.Language.<code>.dll, which LanguageManager reads beside the exe. -->
+  <Import Project="..\Nexaflow.Languages\LanguagePacks.Deploy.targets" />
+
+</Project>

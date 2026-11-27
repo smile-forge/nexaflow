@@ -414,6 +414,9 @@
   <Project Path="src/Nexaflow.Host/Nexaflow.Host.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="src/Nexaflow.AvaloniaShell/Nexaflow.AvaloniaShell.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="src/Nexaflow.Interaction/Nexaflow.Interaction.csproj">
           <Platform Project="x64" />
         </Project>

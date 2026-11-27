@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Nexaflow.Features.Processes.ViewModels;assembly=Nexaflow.Features.Processes"
+             x:Class="Nexaflow.AvaloniaShell.Views.ProcessesView"
+             x:DataType="vm:ProcessesViewModel">
+  <DockPanel Margin="8">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
+      <TextBox Text="{Binding FilterText}" PlaceholderText="Filter" Width="260" Padding="10,6" FontSize="13" CornerRadius="7"
+               Background="{DynamicResource Surface2Brush}" BorderBrush="{DynamicResource BorderBrush}" Foreground="{DynamicResource TextBrush}" />
+      <TextBlock VerticalAlignment="Center" Text="{Binding ProcessCount, StringFormat='{}{0} processes'}" />
+      <TextBlock VerticalAlignment="Center" Text="{Binding SystemCpuPercent, StringFormat='CPU {0:0.0}%'}" />
+      <TextBlock VerticalAlignment="Center" Text="{Binding MemoryLoadPercent, StringFormat='Memory {0:0}%'}" />
+      <CheckBox Content="Tree" IsChecked="{Binding TreeMode}" />
+    </StackPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,80,80,120" Margin="12,0,12,4">
+      <Grid.Styles>
+        <Style Selector="TextBlock">
+          <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        </Style>
+      </Grid.Styles>
+      <TextBlock Grid.Column="0" Text="Name" />
+      <TextBlock Grid.Column="1" Text="PID" />
+      <TextBlock Grid.Column="2" Text="CPU" />
+      <TextBlock Grid.Column="3" Text="Working set" />
+    </Grid>
+    <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" Background="Transparent" Foreground="{DynamicResource TextBrush}">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:ProcessRowViewModel">
+          <Grid ColumnDefinitions="*,80,80,120">
+            <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="{Binding Pid}" />
+            <TextBlock Grid.Column="2" Text="{Binding CpuText}" />
+            <TextBlock Grid.Column="3" Text="{Binding WorkingSet, StringFormat='{}{0:N0}'}" />
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</UserControl>
