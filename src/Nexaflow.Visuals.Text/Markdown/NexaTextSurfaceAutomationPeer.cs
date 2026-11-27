@@ -23,12 +23,18 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// held as one string (<see cref="ContentDocument.RopeFrom"/>); past that its value is that much of the start, and the text pattern is the
 /// way into the rest.
 /// </para>
+/// <para>
+/// <strong>A pane it scrolls.</strong> Content that scrolls itself is scrolled as any pane is (<see cref="IScrollProvider"/>): by a step,
+/// a page or to a share of the way, through the same view its bars and the wheel move — so a screen reader or a test moves through it as
+/// a reader does.
+/// </para>
 /// </summary>
-internal sealed class NexaTextSurfaceAutomationPeer(NexaTextSurface owner) : UserControlAutomationPeer(owner), IValueProvider, ITextProvider
+internal sealed class NexaTextSurfaceAutomationPeer(NexaTextSurface owner) : UserControlAutomationPeer(owner), IValueProvider, ITextProvider, IScrollProvider
 {
     public override object? GetPattern(PatternInterface patternInterface) => patternInterface switch
     {
         PatternInterface.Value or PatternInterface.Text => this,
+        PatternInterface.Scroll when owner.Engine.Scrolls => this,
         _ => base.GetPattern(patternInterface),
     };
 
@@ -102,6 +108,85 @@ internal sealed class NexaTextSurfaceAutomationPeer(NexaTextSurface owner) : Use
     }
 
     internal IRawElementProviderSimple Provider => ProviderFromPeer(this);
+
+    // ── Scroll ──────────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public bool VerticallyScrollable => owner.ScrollableHeight >= 1;
+
+    /// <inheritdoc/>
+    public bool HorizontallyScrollable => owner.ScrollableWidth >= 1;
+
+    /// <inheritdoc/>
+    public double VerticalScrollPercent => this.VerticallyScrollable ? Math.Clamp(100 * owner.VerticalOffset / owner.ScrollableHeight, 0, 100) : ScrollPatternIdentifiers.NoScroll;
+
+    /// <inheritdoc/>
+    public double HorizontalScrollPercent => this.HorizontallyScrollable ? Math.Clamp(100 * owner.HorizontalOffset / owner.ScrollableWidth, 0, 100) : ScrollPatternIdentifiers.NoScroll;
+
+    /// <inheritdoc/>
+    public double VerticalViewSize => owner.ExtentHeight > 0 ? Math.Min(100, 100 * owner.ViewportHeight / owner.ExtentHeight) : 100;
+
+    /// <inheritdoc/>
+    public double HorizontalViewSize => owner.ExtentWidth > 0 ? Math.Min(100, 100 * owner.ViewportWidth / owner.ExtentWidth) : 100;
+
+    /// <summary>The view moved by a step — a notch of the wheel — or a page, either way, along whichever way is asked.</summary>
+    public void Scroll(ScrollAmount horizontalAmount, ScrollAmount verticalAmount)
+    {
+        if (!this.IsEnabled()) throw new ElementNotEnabledException();
+
+        if (horizontalAmount != ScrollAmount.NoAmount)
+        {
+            if (!this.HorizontallyScrollable) throw new InvalidOperationException("The view does not slide sideways.");
+            owner.ScrollToHorizontalOffset(owner.HorizontalOffset + Stepped(horizontalAmount, owner.ViewportWidth));
+        }
+
+        if (verticalAmount != ScrollAmount.NoAmount)
+        {
+            if (!this.VerticallyScrollable) throw new InvalidOperationException("The view does not scroll.");
+            owner.ScrollToVerticalOffset(owner.VerticalOffset + Stepped(verticalAmount, owner.ViewportHeight));
+        }
+    }
+
+    /// <summary>The view moved to a share of the way along, either way — <see cref="ScrollPatternIdentifiers.NoScroll"/> leaving that way as it is.</summary>
+    public void SetScrollPercent(double horizontalPercent, double verticalPercent)
+    {
+        if (!this.IsEnabled()) throw new ElementNotEnabledException();
+
+        if (horizontalPercent != ScrollPatternIdentifiers.NoScroll) owner.ScrollToHorizontalOffset(owner.ScrollableWidth * Share(horizontalPercent));
+        if (verticalPercent != ScrollPatternIdentifiers.NoScroll) owner.ScrollToVerticalOffset(owner.ScrollableHeight * Share(verticalPercent));
+    }
+
+    /// <summary>How far <paramref name="amount"/> moves a view <paramref name="view"/> long: a notch of the wheel, or the view's length.</summary>
+    private static double Stepped(ScrollAmount amount, double view) => amount switch
+    {
+        ScrollAmount.SmallDecrement => -NexaTextSurface.Notch,
+        ScrollAmount.SmallIncrement => NexaTextSurface.Notch,
+        ScrollAmount.LargeDecrement => -Math.Max(1, view),
+        ScrollAmount.LargeIncrement => Math.Max(1, view),
+        _ => 0,
+    };
+
+    /// <summary>A percentage as the share of the way it says, refused outside nought to a hundred.</summary>
+    private static double Share(double percent) =>
+        percent is >= 0 and <= 100 ? percent / 100 : throw new ArgumentOutOfRangeException(nameof(percent), percent, "A share of the way runs from 0 to 100.");
+
+    /// <summary>Where the view stood as a screen reader was last told, null before it has been told anything.</summary>
+    private (double Across, double Down, double Wide, double Tall, bool Slides, bool Scrolls)? _told;
+
+    /// <summary>Tells whoever is listening that the view moved, or what it stands over changed size — each thing that changed since last told.</summary>
+    internal void Scrolled()
+    {
+        var now = (this.HorizontalScrollPercent, this.VerticalScrollPercent, this.HorizontalViewSize, this.VerticalViewSize, this.HorizontallyScrollable, this.VerticallyScrollable);
+        var was = _told ?? now;
+        _told = now;
+
+        if (was.Across != now.Item1) this.RaisePropertyChangedEvent(ScrollPatternIdentifiers.HorizontalScrollPercentProperty, was.Across, now.Item1);
+        if (was.Down != now.Item2) this.RaisePropertyChangedEvent(ScrollPatternIdentifiers.VerticalScrollPercentProperty, was.Down, now.Item2);
+        if (was.Wide != now.Item3) this.RaisePropertyChangedEvent(ScrollPatternIdentifiers.HorizontalViewSizeProperty, was.Wide, now.Item3);
+        if (was.Tall != now.Item4) this.RaisePropertyChangedEvent(ScrollPatternIdentifiers.VerticalViewSizeProperty, was.Tall, now.Item4);
+        if (was.Slides != now.Item5) this.RaisePropertyChangedEvent(ScrollPatternIdentifiers.HorizontallyScrollableProperty, was.Slides, now.Item5);
+        if (was.Scrolls != now.Item6) this.RaisePropertyChangedEvent(ScrollPatternIdentifiers.VerticallyScrollableProperty, was.Scrolls, now.Item6);
+    }
 }
 
 /// <summary>

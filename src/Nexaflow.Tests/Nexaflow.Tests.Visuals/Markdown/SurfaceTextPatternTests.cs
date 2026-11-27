@@ -63,6 +63,33 @@ public class SurfaceTextPatternTests
         Assert.AreEqual(ContentDocument.RopeFrom, value.Value.Length);
     });
 
+    [TestMethod]
+    public void ALongDocument_IsAPaneAScreenReaderScrolls_ByAPage_AndToTheEnd() => UiThread.Run(() => MarkdownEditorHarness.Run(
+        string.Join("\n", Enumerable.Range(1, 400).Select(line => $"line {line}")), surface =>
+    {
+        var scroll = (IScrollProvider)UIElementAutomationPeer.CreatePeerForElement(surface).GetPattern(PatternInterface.Scroll);
+
+        Assert.IsTrue(scroll.VerticallyScrollable);
+        Assert.AreEqual(0, scroll.VerticalScrollPercent, 0.01);
+        Assert.IsTrue(scroll.VerticalViewSize is > 0 and < 100, $"the view is {scroll.VerticalViewSize}% of the page");
+
+        scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
+        MarkdownEditorHarness.Pump();
+        Assert.AreEqual(surface.ViewportHeight, surface.VerticalOffset, 1, "a page on is the view's height on");
+
+        scroll.SetScrollPercent(ScrollPatternIdentifiers.NoScroll, 100);
+        MarkdownEditorHarness.Pump();
+        Assert.AreEqual(100, scroll.VerticalScrollPercent, 0.5);
+    }, AsTyped));
+
+    [TestMethod]
+    public void ContentShownWhole_IsNoPaneOfItsOwn() => UiThread.Run(() =>
+    {
+        var surface = new NexaTextSurface { WrittenIn = ContentLanguages.AsTyped, Document = new EditedDocument("short") };
+
+        Assert.IsNull(UIElementAutomationPeer.CreatePeerForElement(surface).GetPattern(PatternInterface.Scroll), "whatever holds it scrolls it");
+    });
+
     private static ITextProvider Provider(NexaTextSurface surface) =>
         (ITextProvider)UIElementAutomationPeer.CreatePeerForElement(surface).GetPattern(PatternInterface.Text);
 

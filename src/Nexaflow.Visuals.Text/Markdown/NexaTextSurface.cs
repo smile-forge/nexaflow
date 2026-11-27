@@ -19,6 +19,7 @@ using Nexaflow.Markdown.Editing;
 using System.Windows.Threading;
 using System.Collections.ObjectModel;
 using System.Windows.Controls.Primitives;
+using System.Windows.Automation.Peers;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -200,6 +201,9 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         Moved();
         Remargined();
         Reported();
+
+        // A screen reader following where the view stands is told it moved, as it is told of any pane it scrolls.
+        if (AutomationPeer.ListenerExists(AutomationEvents.PropertyChanged) && UIElementAutomationPeer.FromElement(this) is NexaTextSurfaceAutomationPeer peer) peer.Scrolled();
     }
 
     /// <summary><paramref name="bar"/> set to stand for a view <paramref name="view"/> long at <paramref name="at"/> through <paramref name="extent"/>, shown as <paramref name="shown"/> says.</summary>
@@ -216,7 +220,7 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
     }
 
     /// <summary>How far a notch of the wheel scrolls, on the screen — as far as the system says, three lines of sixteen pixels unless it says otherwise.</summary>
-    private static double Notch => Math.Max(1, SystemParameters.WheelScrollLines) * 16;
+    internal static double Notch => Math.Max(1, SystemParameters.WheelScrollLines) * 16;
 
     /// <summary>
     /// The wheel turned over the page: content that scrolls itself scrolls by it — sideways with Shift held, where it slides — until it can go
@@ -556,6 +560,15 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
 
     /// <summary>Scrolls the view so its top stands <paramref name="offset"/> down, as its bar counts it.</summary>
     internal void ScrollToVerticalOffset(double offset) => _engine.ScrollTo(offset / _shown.Zoom);
+
+    /// <summary>Where the view's left edge stands, as its sideways bar counts it, in this surface's pixels.</summary>
+    internal double HorizontalOffset => _engine.ScrolledAcross * _shown.Zoom;
+
+    /// <summary>How far along the view's left edge can go, as its sideways bar counts it.</summary>
+    internal double ScrollableWidth => Math.Max(0, ExtentWidth - ViewportWidth);
+
+    /// <summary>Slides the view so its left edge stands <paramref name="offset"/> along, as its sideways bar counts it.</summary>
+    internal void ScrollToHorizontalOffset(double offset) => _engine.SlideViewTo(offset / _shown.Zoom);
 
     /// <summary>Forgets what the reader had opened and chosen in every diagram here, and draws them as their sources say.</summary>
     public void ResetDiagramViews()

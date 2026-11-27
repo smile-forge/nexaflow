@@ -128,8 +128,9 @@ public class CodeJourneyTests : UiJourneyTestBase
             Assert.IsNotNull(map, "The code map panel did not open.");
 
             // The diagram is drawn rather than built from controls, so its rows are not elements to find. What the wheel is
-            // to move is the panel, and the panel is scrollable only once the diagram has been laid out taller than it.
-            var scroller = WaitFor(() => map!.FindAllDescendants().FirstOrDefault(e =>
+            // to move is the panel — the map is the pane it scrolls — and it is scrollable only once the diagram has been laid
+            // out taller than it.
+            var scroller = WaitFor(() => new[] { map! }.Concat(map!.FindAllDescendants()).FirstOrDefault(e =>
                 e.Patterns.Scroll.PatternOrDefault is { VerticallyScrollable.Value: true }), 10);
             Assert.IsNotNull(scroller, "The code map never grew taller than its panel, so the diagram did not render.");
             var scroll = scroller!.Patterns.Scroll.Pattern;
