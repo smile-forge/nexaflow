@@ -314,6 +314,9 @@ public sealed class FoundMarks(string washToken = FoundMarks.WashToken, int orde
     /// </summary>
     public override void Carry(ContentSourceChange change)
     {
+        // Nothing placed and nothing looked at: a keystroke asks nothing of the change.
+        if (this.LookedAt is null && _places.Count == 0) return;
+
         if (change.Kind == ContentChangeKind.Loaded)
         {
             (this.LookedAt, _places, _longest) = (null, [], 0);
