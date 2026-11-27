@@ -445,6 +445,9 @@ public sealed partial class ContentEngine
     {
         if (_readOnly) return false;
 
+        // Let go below everything laid, it is written at the end.
+        if (at.Y > _laid.Size.Height) at = new LayoutPoint(_laid.Size.Width, System.Math.Max(0, _laid.Size.Height - 1));
+
         TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
 
         if (words.Length > 0 && Edited(EditKind.Dropping, words, Landing, _laid.Root.PieceAt(at)) is { } dropped)

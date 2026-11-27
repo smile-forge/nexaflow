@@ -213,4 +213,33 @@ public sealed partial class ContentEngine
 
     /// <summary>How far the view could scroll through when it was last said to have moved.</summary>
     private LayoutSize _extentTold;
+
+    /// <summary>
+    /// The width the content is laid in where what holds it gives it as much as it asks for, because it slides sideways — a code page whose
+    /// lines are kept whole — or null where it is laid in whatever it is given. Laid in this, it asks for as much as its widest line reaches.
+    /// </summary>
+    internal double? SlidingRoom { get; set; }
+
+    /// <summary>The width a page of reading is set in, where nothing gives the content a width to keep to.</summary>
+    private const double PageRoom = 680;
+
+    /// <summary>
+    /// The width the content is laid in when <paramref name="offered"/> is what it is given: the room it slides in, where it slides and is given
+    /// as much as it asks for; what it is given, where that is a width; none to keep to, where it is given none and may be as wide as it comes to
+    /// (<paramref name="unlimited"/>); and otherwise a page of reading.
+    /// </summary>
+    internal double RoomOffered(double offered, bool unlimited) =>
+        SlidingRoom is { } sliding && double.IsPositiveInfinity(offered) ? sliding
+        : offered is > 0 and < double.PositiveInfinity ? offered
+        : unlimited && double.IsPositiveInfinity(offered) ? double.PositiveInfinity
+        : PageRoom;
+
+    /// <summary>Page Up or Page Down, for content that scrolls itself: its view moved a screen up or down. False where it has no view of its own.</summary>
+    private bool PagedView(bool up)
+    {
+        if (!Scrolls || OnScreen is not { } view) return false;
+
+        ScrollBy((up ? -1 : 1) * view.Height);
+        return true;
+    }
 }

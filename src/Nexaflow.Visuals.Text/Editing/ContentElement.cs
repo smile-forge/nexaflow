@@ -357,7 +357,7 @@ public class ContentElement : FrameworkElement
     /// Whether there is a caret to draw: where something is being carried, the place it would land; otherwise the caret this has
     /// taken, in content that is written in — and not while whole things are chosen, a slice or a node, which is no place to write.
     /// </summary>
-    internal bool ShowsCaret => !IsReadOnly && (_engine.Dropping is not null || (HasCaret && !_engine.ChoseWhole));
+    internal bool ShowsCaret => _engine.DrawsCaret(HasCaret);
 
     /// <summary>Where the caret sits, as an offset into <see cref="Source"/>.</summary>
     public int Caret => State.Caret;
@@ -389,9 +389,8 @@ public class ContentElement : FrameworkElement
 
     // Somewhere written, or a hole standing where something is still to be written - which is somewhere to write too.
 
-    /// <summary>Whether the caret belongs in this content at all. Asked of the tree rather than declared, since a piece naming a stretch of source is one somebody typed — a barcode that only prints a worked-out number has none.</summary>
-    public bool AcceptsCaret =>
-            State.Document.Length == 0 || Laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == LayoutText.HoleKind));
+    /// <summary>Whether the caret belongs in this content at all (<see cref="ContentEngine.AcceptsCaret"/>).</summary>
+    public bool AcceptsCaret => _engine.AcceptsCaret;
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
     private static Brush Wash(LayoutStyle palette)
@@ -570,37 +569,15 @@ public class ContentElement : FrameworkElement
         return true;
     }
 
-    /// <summary>How far past a written run the pointer still counts as inside it — just over half the widest gap on a formula's line, so moving along one never flickers to an arrow between glyphs.</summary>
-    private const double PointerReach = 4.0;
-
     /// <summary>
-    /// What the pointer is over <paramref name="at"/>: what the language says a press there would take hold of, a bar over what can be
-    /// written in and an arrow elsewhere — and whatever the piece there says while it is pointed at (<see cref="LayoutPiece.Tip"/>).
+    /// What the pointer is over <paramref name="at"/>, and whatever the piece there says while it is pointed at (<see cref="ContentEngine.PointedAt"/>).
     /// </summary>
     protected virtual Cursor Pointing(LayoutPoint at)
     {
-        var piece = Laid.Root.PieceAt(at);
-        Tip(Says(piece));
+        var (shape, tip) = _engine.PointedAt(at);
+        Tip(tip);
 
-        if (!IsReadOnly && _engine.Gripping(piece, at) is { } grip) return WpfInput.Pointer(grip);
-
-        return !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
-    }
-
-    /// <summary>
-    /// What <paramref name="piece"/> says while pointed at: the tip its builder put in the tree's tips for it, or for what it is drawn in
-    /// (<see cref="LayoutPiece.Tip"/>) — else all of its words, where they are set cut short to fit (<see cref="IShapedText.CutShort"/>).
-    /// Read off the layout alone, when the pointer arrives — nothing of it is laid out, and nothing is asked of the source.
-    /// </summary>
-    private static string? Says(LayoutPiece piece)
-    {
-        if (!piece.Exists) return null;
-
-        for (var at = piece; at.Exists; at = at.Parent)
-            if (at.Tip is { } tip) return tip;
-
-        // Words set cut short to fit their room still hold all of what they say, so that is what they say when pointed at.
-        return piece.Words is { Glyphs: { CutShort: true } cut } ? cut.Text : null;
+        return WpfInput.Pointer(shape);
     }
 
     /// <summary>What the piece under the pointer says while it is pointed at (<see cref="Tip"/>); null where it says nothing.</summary>
@@ -657,13 +634,8 @@ public class ContentElement : FrameworkElement
     /// <summary>What the pointer is over a point on this content: a bar only where something can be written in.</summary>
     public Cursor? PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
 
-    /// <summary>
-    /// The pieces that answer to a gesture and are covered by what is picked out — empty where nothing is, which is
-    /// what makes "for one item" and "for a selection of them" the same question asked twice.
-    /// </summary>
-    protected IReadOnlyList<LayoutPiece> Selected() =>
-        [.. Laid.Root.SelfAndDescendants()
-                 .Where(piece => piece.Acts is not null && piece.Sits() is { Length: > 0 } sits && _engine.Covers(sits.Start))];
+    /// <summary>The pieces that answer to a gesture and are covered by what is picked out (<see cref="ContentEngine.ActsSelected"/>).</summary>
+    protected IReadOnlyList<LayoutPiece> Selected() => _engine.ActsSelected();
 
     /// <summary>The pointer moved while pressed.</summary>
     public void ExtendPointerSelect(Point pointInElement)
@@ -813,7 +785,7 @@ public class ContentElement : FrameworkElement
         _engine.Input(new ContentHover(over));
 
         // The corner is faint until the pointer is on it, and whole once it is.
-        var onCorner = _engine.Corner?.Root.Bounds.Contains(over) == true;
+        var onCorner = _engine.OnCorner(over);
         if (onCorner != _onCorner) { _onCorner = onCorner; InvalidateVisual(); }
 
         if (_pressing) ExtendPointerSelect(e.GetPosition(this));
@@ -880,18 +852,19 @@ public class ContentElement : FrameworkElement
 
     // ── Layout and painting ─────────────────────────────────────────────────
 
-    /// <summary>
-    /// The width the content is laid in where what holds it gives it as much as it asks for, because it slides sideways — a code page whose
-    /// lines are kept whole — or null where it is laid in whatever it is given. Laid in this, it asks for as much as its widest line reaches.
-    /// </summary>
-    internal double? SlidingRoom { get; set; }
+    /// <summary>The width the content is laid in while what holds it slides sideways (<see cref="ContentEngine.SlidingRoom"/>).</summary>
+    internal double? SlidingRoom
+    {
+        get => _engine.SlidingRoom;
+        set => _engine.SlidingRoom = value;
+    }
+
+    /// <summary>A point in this element's own pixels as a point in the content, measured from the view where there is one.</summary>
+    internal LayoutPoint InContent(Point pointInElement) => Unscaled(pointInElement);
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        var room = SlidingRoom is { } sliding && double.IsPositiveInfinity(availableSize.Width) ? sliding
-                 : availableSize.Width is > 0 and < double.PositiveInfinity ? availableSize.Width
-                 : UnlimitedWidth && double.IsPositiveInfinity(availableSize.Width) ? double.PositiveInfinity
-                 : 680;
+        var room = _engine.RoomOffered(availableSize.Width, UnlimitedWidth);
 
         _measuring = true;
         try { _engine.Fit(room); }
@@ -935,7 +908,7 @@ public class ContentElement : FrameworkElement
         Slide(_paintedFrom);
         var by = ViewShift;
 
-        if (_engine.Preview is { } preview) PaintPreview(dc, preview.Laid, (preview.Start, preview.End), by);
+        if (_engine.Preview is { } preview) PaintPreview(dc, preview.Laid, by);
         else PaintContent(dc, by);
 
         // Over everything, the buttons in the corner of the block the pointer is over.
@@ -979,7 +952,7 @@ public class ContentElement : FrameworkElement
             else if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(LayoutRect.Offset(ink, by).ToWpf(), WashPad, WashPad));
         }
 
-        Waves(dc, laid, _painted, by);
+        Waves(dc, by);
 
         PaintOver(dc);
         PaintMarks(dc, laid, state, by);
@@ -988,24 +961,10 @@ public class ContentElement : FrameworkElement
         if (_engine.Marking is { } marked)
             dc.DrawRectangle(null, new Pen(Palette.Accent.Brush(), MarkThickness), Rect.Inflate(LayoutRect.Offset(marked, by).ToWpf(), MarkThickness, MarkThickness));
 
-        var dropping = _engine.Dropping;
         if (!ShowsCaret || !_caretVisible) return;
 
-        // While something is being carried the caret shows where it would land, not where it was picked
-        // up from — that is the one thing the reader needs to see before letting go.
-        var caret = dropping is not null || _engine.At < 0
-            ? laid.Root.CaretRect(dropping ?? state.Caret)
-            : laid.Places[_engine.At].CaretRect();
-
-        DrawCaret(dc, caret.X + by.X, caret.Y + by.Y, caret.Height);
-
-        // A block of columns has a caret on every line of it, where typing writes.
-        if (state.Selected is ColumnRanges block)
-            foreach (var row in block)
-            {
-                var at = laid.Root.CaretRect(block.Caret.Column == block.Low ? row.Start : row.End);
-                if (!at.IsEmpty) DrawCaret(dc, at.X + by.X, at.Y + by.Y, at.Height);
-            }
+        // Where the engine says the carets stand: where something carried would land, and a caret on every line of a block of columns.
+        foreach (var caret in _engine.CaretsShown()) DrawCaret(dc, caret.X + by.X, caret.Y + by.Y, caret.Height);
     }
 
     /// <summary>The theme token the line the caret is on is washed in.</summary>
@@ -1028,29 +987,30 @@ public class ContentElement : FrameworkElement
 
     /// <summary>
     /// The marks laid over the view of the document (<see cref="ContentEditor.Marks"/>), each drawn as it says in the ink its token is in the
-    /// theme — asked only about the stretch near the screen — and, first, the line the caret is on where that is washed.
+    /// theme — asked only about the stretch near the screen (<see cref="ContentEngine.MarksNear"/>) — and, first, the line the caret is on where
+    /// that is washed.
     /// </summary>
     private void PaintMarks(DrawingContext dc, Laid laid, EditState state, LayoutVector by)
     {
-        var marks = _engine.EditorIfAny?.Marks is { } layers && layers.Any(layer => !layer.IsEmpty) ? layers : null;
+        if (_engine.NearScreen(_painted) is not { } near) return;
+
         var caretLine = HighlightsCaretLine && !state.HasSelection;
+        var marks = _engine.MarksNear(near);
         if ((marks is null || marks.Count == 0) && !caretLine) return;
 
-        var document = state.Document;
-        if (NearScreen(laid, document.Length) is not (var start, var end)) return;
         // A wash across the page runs from its left edge on screen to past the end of its longest line, however far it has slid.
         var width = Math.Max(RenderSize.Width / Scale, laid.Size.Width + by.X);
         var inks = new Dictionary<string, Brush>(StringComparer.Ordinal);
 
         if (caretLine)
-            foreach (var (top, tall) in Rows(laid, document, state.Caret, state.Caret, start, end))
+            foreach (var (top, tall) in _engine.RowsOfLines(state.Caret, state.Caret, near))
                 dc.DrawRectangle(Ink(inks, CaretLineToken, Palette.TextMuted), null, new Rect(0, top + by.Y, width, tall));
 
         if (marks is null || marks.Count == 0) return;
 
         Pen? hairline = null;
 
-        foreach (var mark in marks.Mark(new ContentMarkRequest(document, start, end) { Syntax = _engine.ShownSyntax }))
+        foreach (var mark in marks)
         {
             switch (mark.Kind)
             {
@@ -1066,66 +1026,21 @@ public class ContentElement : FrameworkElement
                     break;
 
                 case ContentMarkKind.Underbar:
-                if ((mark.Colour is { } colour ? Colour(colour) : Named(inks, mark.Token)) is not { } bar) break;
+                    if ((mark.Colour is { } colour ? Colour(colour) : Named(inks, mark.Token)) is not { } bar) break;
 
-                // Edged by a hairline, so a white or nearly clear colour is still a mark rather than nothing.
-                hairline ??= Hairline(Ink(inks, "BorderBrush", Palette.TextMuted));
-                var thick = Math.Max(2, Palette.TextSize / 6.75);
-                foreach (var run in laid.Root.RangeRects(mark.Start, mark.Length))
-                    dc.DrawRectangle(bar, hairline, new Rect(run.X + by.X, run.Y + by.Y + run.Height - thick, run.Width, thick));
-                break;
+                    // Edged by a hairline, so a white or nearly clear colour is still a mark rather than nothing.
+                    hairline ??= Hairline(Ink(inks, "BorderBrush", Palette.TextMuted));
+                    var thick = Math.Max(2, Palette.TextSize / 6.75);
+                    foreach (var run in laid.Root.RangeRects(mark.Start, mark.Length))
+                        dc.DrawRectangle(bar, hairline, new Rect(run.X + by.X, run.Y + by.Y + run.Height - thick, run.Width, thick));
+                    break;
 
                 case ContentMarkKind.LineWash or ContentMarkKind.Veil:
                     var ground = Ink(inks, mark.Token, Palette.TextMuted);
-                    foreach (var (top, tall) in Rows(laid, document, mark.Start, mark.End, start, end))
+                    foreach (var (top, tall) in _engine.RowsOfLines(mark.Start, mark.End, near))
                         dc.DrawRectangle(ground, null, new Rect(0, top + by.Y, width, tall));
                     break;
             }
-        }
-    }
-
-    /// <summary>
-/// The stretch of the document drawn round the screen — what was painted round it last — which is all a mark is worked out for: from the
-/// first place laid on it to the first laid below it, or, where nothing laid stands below it, to the last place laid at all, which stands
-/// above the band's bottom. Null before anything has said where the screen is, so nothing is marked until it does, and being told paints
-/// again (<see cref="OnScreen"/>). Never the whole document, nor on to its end past what is laid of one read a stretch at a time: a long one
-/// would cost a mark for every line it holds.
-/// </summary>
-private (int Start, int End)? NearScreen(Laid laid, int length)
-    {
-        if (_painted is not { } near) return null;
-
-        var from = laid.Root.StopBelow(near.Y);
-        var to = laid.Root.StopBelow(near.Y + near.Height);
-        var last = laid.Stops is { Count: > 0 } stops ? stops[^1] : length;
-
-        return (from < 0 ? last : from, to < 0 ? last : to);
-    }
-
-    /// <summary>
-    /// Where the rows of every line from the one holding <paramref name="from"/> to the one holding <paramref name="to"/> stand — only those
-    /// between <paramref name="low"/> and <paramref name="high"/>, the stretch near the screen: each line's top and how tall its rows come to,
-    /// a line with nothing on it as tall as a caret standing in it.
-    /// </summary>
-    private static IEnumerable<(double Top, double Tall)> Rows(Laid laid, ContentDocument document, int from, int to, int low, int high)
-    {
-        var (first, last) = (document.LineOf(Math.Max(from, low)), document.LineOf(Math.Min(Math.Max(to, from), high)));
-        if (Math.Max(to, from) < low || from > high) yield break;
-
-        for (var line = first; line <= last; line++)
-        {
-            var (start, end) = document.LineAt(document.OffsetOf(line));
-            var rects = end > start ? laid.Root.RangeRects(start, end - start) : [];
-
-            if (rects.Count == 0)
-            {
-                var caret = laid.Root.CaretRect(start);
-                if (!caret.IsEmpty) yield return (caret.Y, caret.Height);
-                continue;
-            }
-
-            var (top, bottom) = (rects.Min(rect => rect.Y), rects.Max(rect => rect.Y + rect.Height));
-            yield return (top, bottom - top);
         }
     }
 
@@ -1172,52 +1087,16 @@ private (int Start, int End)? NearScreen(Laid laid, int length)
     }
 
     /// <summary>
-    /// A wave under whatever could not be read, drawn over the content rather than instead of it: the parts that did read are
-    /// still worth looking at, and the reader needs to see which part is not. Only the waves near <paramref name="near"/> are
-    /// drawn, where something says what is on screen — all of them where nothing does — each measured from where the page is drawn from
-    /// (<paramref name="by"/>).
+    /// A wave under whatever could not be read, drawn over the content rather than instead of it: the parts that did read are still worth looking
+    /// at, and the reader needs to see which part is not. Only the waves the engine says are near what is painted (<see cref="ContentEngine.WavesNear"/>),
+    /// each measured from where the page is drawn from (<paramref name="by"/>).
     /// </summary>
-    private void Waves(DrawingContext dc, Laid laid, LayoutRect? near, LayoutVector by)
+    private void Waves(DrawingContext dc, LayoutVector by)
     {
-        if (!ReferenceEquals(_squiggledIn, laid))
-            (_squiggles, _squiggledIn) = (new Squiggled?[laid.Trouble.Count], laid);
-
-        for (var at = 0; at < laid.Trouble.Count; at++)
-        {
-            var trouble = laid.Trouble[at];
-
-            // Worked out the first time anything it was drawn under comes near the screen, and kept from then on.
-            if (_squiggles[at] is not { } squiggled)
-            {
-                if (near is { } area && !LayoutQuery.SittingIn(laid.Root, trouble.Start, trouble.Start + trouble.Length, area).Any()) continue;
-
-                _squiggles[at] = squiggled = WaveUnder(laid, trouble);
-            }
-
-            if (squiggled.Runs.Count > 0 && (near is not { } painted || painted.IntersectsWith(squiggled.Under)))
-                dc.DrawGeometry(null, trouble.Severity == LayoutSeverity.Error ? ErrorWave : WarningWave,
-                                Squiggle.Under(squiggled.Runs.Select(run => LayoutRect.Offset(run, by).ToWpf())));
-        }
+        foreach (var wave in _engine.WavesNear(_painted))
+            dc.DrawGeometry(null, wave.Severity == LayoutSeverity.Error ? ErrorWave : WarningWave,
+                            Squiggle.Under(wave.Runs.Select(run => LayoutRect.Offset(run, by).ToWpf())));
     }
-
-    /// <summary>What <paramref name="trouble"/> blames is drawn as, and the stretch of the page that covers — nothing, where that drew nothing.</summary>
-    private static Squiggled WaveUnder(Laid laid, LayoutDiagnostic trouble)
-    {
-        var runs = LayoutQuery.Clusters(laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
-        if (runs.Count == 0) return new Squiggled(LayoutRect.Empty, []);
-
-        var under = runs.Aggregate(LayoutRect.Union);
-        return new Squiggled(LayoutRect.Inflate(under, 0, 4), runs);
-    }
-
-    /// <summary>
-    /// What each wave the layout in <see cref="_squiggledIn"/> draws is drawn under, by where it stands in its trouble — null for one never
-    /// yet near the screen. Kept for that layout rather than asked of it at every paint, since a long document is painted again every time it
-    /// is scrolled, and what the waves are under is the same until it is laid again.
-    /// </summary>
-    private Squiggled?[] _squiggles = [];
-    private Laid? _squiggledIn;
-
     /// <summary>What a wave is drawn with, in the colour of what it is under.</summary>
     private Pen ErrorWave => _errorPen ??= Frozen(new Pen(Palette.Danger.Brush(), 1.0));
     private Pen WarningWave => _warningPen ??= Frozen(new Pen(Palette.Warning.Brush(), 1.0));
@@ -1229,12 +1108,6 @@ private (int Start, int End)? NearScreen(Laid laid, int length)
         pen.Freeze();
         return pen;
     }
-
-    /// <summary>
-    /// What a wave is drawn under, kept for the layout: the runs of what could not be read, where they stand on the page, and the stretch of
-    /// the page they cover. The wave itself is made as it is drawn, measured from the view — what a long document is scrolled through.
-    /// </summary>
-    private readonly record struct Squiggled(LayoutRect Under, IReadOnlyList<LayoutRect> Runs);
 
     /// <summary>
     /// The part of the element on screen, in its own coordinates — what whatever scrolls it says it is showing — or null where
@@ -1267,40 +1140,23 @@ private (int Start, int End)? NearScreen(Laid laid, int length)
     protected virtual void PaintOver(DrawingContext dc) { }
 
     /// <summary>Draws the content as it would read after the drop, with the carried part in the accent colour — once it's merged in (braces, spacing and all) nothing else would distinguish it.</summary>
-    private void PaintPreview(DrawingContext dc, Laid preview, (int Start, int End) moved, LayoutVector by)
+    private void PaintPreview(DrawingContext dc, Laid preview, LayoutVector by)
     {
         WpfPainter.Paint(dc, preview.Root, Palette.Text.Brush(), by: by);
 
         // Over the top rather than instead of: painting all of it and then the carried part again is what
         // keeps this to two calls, and the second colour is the one that shows.
-        foreach (var piece in Carried(preview, moved))
+        foreach (var piece in _engine.PiecesCarried())
             WpfPainter.PaintOne(dc, piece, Palette.Accent.Brush(), by);
     }
 
-    /// <summary>The outermost pieces of <paramref name="preview"/> lying wholly inside what is carried — outermost so a piece and its children aren't painted twice.</summary>
-    private static IEnumerable<LayoutPiece> Carried(Laid preview, (int Start, int End) moved)
-    {
-        var (start, end) = moved;
-        if (end <= start) yield break;
-
-        var taken = new List<LayoutPiece>();
-        foreach (var piece in preview.Root.SelfAndDescendants())
-        {
-            if (piece.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;
-            if (taken.Any(already => piece.Ancestors().Contains(already))) continue;
-
-            taken.Add(piece);
-            yield return piece;
-        }
-    }
-
     /// <summary>The caret itself. One place, so content that is empty draws the same one as any other.</summary>
-    private void DrawCaret(DrawingContext dc, double x, double y, double height)
-    {
-        var pen = new Pen(Palette.Accent.Brush(), 1.4);
-        pen.Freeze();
-        dc.DrawLine(pen, new Point(x, y), new Point(x, y + Math.Max(height, 1)));
-    }
+    private void DrawCaret(DrawingContext dc, double x, double y, double height) =>
+        dc.DrawLine(CaretPen, new Point(x, y), new Point(x, y + Math.Max(height, 1)));
+
+    /// <summary>What the caret is drawn with, in the accent.</summary>
+    private Pen CaretPen => _caretPen ??= Frozen(new Pen(Palette.Accent.Brush(), 1.4));
+    private Pen? _caretPen;
 
     /// <summary>A point in the element's own pixels, read as a point in the content's — on the page, where the view stands over part of it.</summary>
     protected LayoutPoint Unscaled(Point point)

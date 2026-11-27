@@ -141,22 +141,7 @@ public sealed partial class NexaTextSurface : IDropTarget, IPasteTarget
         }
         if (string.IsNullOrEmpty(words) && string.IsNullOrEmpty(markdown)) return;
 
-        var size = _shown.Laid.Size;
-        var at = Spot(pointInEditor) ?? new Point(size.Width, Math.Max(0, size.Height - 1));
-        _engine.Brought(words ?? string.Empty, markdown ?? string.Empty, at.ToLayout());
-    }
-
-    /// <summary>
-    /// <paramref name="pointInEditor"/> in the content's own units, or null where it is past the end of what was laid. All this
-    /// control does with a point: which piece of the content is under it is the engine's, which laid it.
-    /// </summary>
-    private Point? Spot(Point pointInEditor)
-    {
-        var at = TranslatePoint(pointInEditor, _shown);
-        var zoom = _shown.Zoom;
-        var point = new Point(at.X / zoom, at.Y / zoom);
-
-        return point.Y > _shown.Laid.Size.Height ? null : point;
+        _engine.Brought(words ?? string.Empty, markdown ?? string.Empty, _shown.InContent(TranslatePoint(pointInEditor, _shown)));
     }
 
     // ── The formula the caret is in ─────────────────────────────────────────

@@ -75,32 +75,18 @@ public sealed partial class NexaTextSurface
     /// </summary>
     public void SelectAll() => _engine.SelectAll();
 
-    /// <summary>Page Up or Page Down: the view moved a screen up or down — for content that scrolls itself; content shown whole is scrolled by whatever holds it.</summary>
-    private bool Paged(bool up)
-    {
-        if (_engine.Scrolls) _engine.ScrollBy((up ? -1 : 1) * (_shown.ActualHeight / _shown.Zoom));
+    /// <summary>
+    /// Page Up or Page Down the engine left to this: content shown whole is scrolled by whatever holds it, so the key is taken and nothing more
+    /// is done (<see cref="ContentEngine.PagedView"/> pages content that scrolls itself).
+    /// </summary>
+    private static bool Paged(bool up) => true;
 
-        return true;
-    }
-
-    /// <summary>Brings the caret onto the page, wherever an edit or a key left it.</summary>
+    /// <summary>Brings the caret onto the page, wherever an edit or a key left it (<see cref="ContentEngine.RevealCaret"/>).</summary>
     private void Reveal()
     {
         if (!_shown.HasCaret || _writingGiven) return;
 
-        // A box slid away from the caret slides to it first, so where it stands on the page is where it stands once slid.
-        _engine.SlideOnto(_shown.Caret);
-
-        var at = _shown.Laid.Root.CaretRect(_shown.Caret);
-        if (at.IsEmpty) return;
-
-        // The view moves no further than it must, as the caret goes; content shown whole asks whatever holds it to.
-        if (_engine.Scrolls)
-        {
-            _engine.KeepInView(at);
-            return;
-        }
-
-        _shown.BringIntoView(_shown.FromContent(at));
+        // Content shown whole asks whatever holds it to.
+        if (_engine.RevealCaret() is { } at) _shown.BringIntoView(_shown.FromContent(at));
     }
 }

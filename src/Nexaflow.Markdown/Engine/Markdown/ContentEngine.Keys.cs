@@ -100,7 +100,7 @@ public sealed partial class ContentEngine : IContentEditorView
             // A step up or down of whatever the content makes one of — an octave, in a tune — and failing that a page of
             // whatever shows it. Above the question of writing, because paging a document nobody may write in still pages it.
             case EditingKey.PageUp or EditingKey.PageDown:
-                return Stepped(key == EditingKey.PageUp) || this.Events?.OnPage(key == EditingKey.PageUp) == true;
+                return Stepped(key == EditingKey.PageUp) || PagedView(key == EditingKey.PageUp) || this.Events?.OnPage(key == EditingKey.PageUp) == true;
         }
 
         if (_readOnly) return false;
