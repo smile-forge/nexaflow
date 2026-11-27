@@ -9,7 +9,7 @@ using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
-using Nexaflow.Visuals.Icons;
+
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;

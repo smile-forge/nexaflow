@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
+
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
@@ -9,7 +9,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Export;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.Layout.Prose;
-using Nexaflow.Visuals.Text.Painting;
+
 
 namespace Nexaflow.Visuals.Text.Markdown.Printing;
 
@@ -59,7 +59,7 @@ public sealed record PaperPage(IReadOnlyList<PaperBand> Bands)
 public static class PaperPages
 {
     /// <summary><paramref name="laid"/> cut into sheets of <paramref name="room"/>, in device-independent pixels, in reading order — one at least.</summary>
-    public static IReadOnlyList<PaperPage> Cut(Laid laid, Size room)
+    public static IReadOnlyList<PaperPage> Cut(Laid laid, LayoutSize room)
     {
         if (!(room.Width > 0) || !(room.Height > 0)) throw new ArgumentOutOfRangeException(nameof(room), room, "A sheet has room on it.");
 

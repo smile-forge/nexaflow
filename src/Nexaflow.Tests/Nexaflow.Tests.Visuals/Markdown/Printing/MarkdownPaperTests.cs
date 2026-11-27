@@ -34,7 +34,7 @@ public class MarkdownPaperTests
     public void TheSheetsMeet_FromTheTopOfTheDocumentToItsFoot() => UiThread.Run(() =>
     {
         var laid = Laid(Prose(40));
-        var pages = PaperPages.Cut(laid, Room);
+        var pages = PaperPages.Cut(laid, new LayoutSize(Room.Width, Room.Height));
         var bands = pages.SelectMany(page => page.Bands).ToList();
 
         Assert.IsTrue(pages.Count > 2, $"forty paragraphs on sheets {Room.Height} tall take more than two of them, not {pages.Count}");
@@ -55,7 +55,7 @@ public class MarkdownPaperTests
 
         foreach (var height in new[] { 120.0, 173, 240, 301 })
         {
-            var pages = PaperPages.Cut(laid, new Size(Room.Width, height));
+            var pages = PaperPages.Cut(laid, new LayoutSize(Room.Width, height));
 
             foreach (var line in Words(laid))
                 Assert.IsFalse(Cuts(pages, line), $"on sheets {height} tall, the line at {line} is cut");
@@ -70,7 +70,7 @@ public class MarkdownPaperTests
 
         foreach (var height in Enumerable.Range(0, 12).Select(step => 270.0 + (step * 9)))
         {
-            var pages = PaperPages.Cut(laid, new Size(Room.Width, height));
+            var pages = PaperPages.Cut(laid, new LayoutSize(Room.Width, height));
 
             Assert.IsFalse(Cuts(pages, diagram), $"on sheets {height} tall, the diagram at {diagram} is cut");
             Assert.AreEqual(1.0, Holding(pages, diagram).Scale, "a diagram that fits a sheet is drawn at its size");
@@ -88,7 +88,7 @@ public class MarkdownPaperTests
 
         foreach (var height in Enumerable.Range(0, 30).Select(step => 140.0 + (step * 7)))
         {
-            var pages = PaperPages.Cut(laid, new Size(Room.Width, height));
+            var pages = PaperPages.Cut(laid, new LayoutSize(Room.Width, height));
 
             foreach (var page in pages.Take(pages.Count - 1))
             {
@@ -105,7 +105,7 @@ public class MarkdownPaperTests
         var flow = "```mermaid\nflowchart TD\n" + string.Join("\n", Enumerable.Range(0, 20).Select(n => $"  N{n} --> N{n + 1}")) + "\n```\n\n";
         var laid = Laid(Prose(2) + flow + Prose(2));
         var diagram = Drawn(laid, "Diagram");
-        var pages = PaperPages.Cut(laid, Room);
+        var pages = PaperPages.Cut(laid, new LayoutSize(Room.Width, Room.Height));
         var holding = Holding(pages, diagram);
         var sheet = pages.Single(page => page.Bands.Contains(holding));
 
@@ -125,7 +125,7 @@ public class MarkdownPaperTests
         var table = "| " + string.Join(" | ", columns.Select(n => $"column{n}")) + " |\n|" + string.Concat(columns.Select(_ => "---|")) + "\n| "
                   + string.Join(" | ", columns.Select(n => $"v{n}")) + " |\n";
         var laid = Laid(Prose(2) + table + "\n" + Prose(4));
-        var pages = PaperPages.Cut(laid, Room);
+        var pages = PaperPages.Cut(laid, new LayoutSize(Room.Width, Room.Height));
         var wide = Words(laid).Where(line => line.Right > Room.Width).ToList();
 
         Assert.IsTrue(wide.Count > 0, "the table is wider than a sheet");

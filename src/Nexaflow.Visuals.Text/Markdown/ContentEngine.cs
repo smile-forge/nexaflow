@@ -13,9 +13,9 @@ using Nexaflow.Markdown.Prose;
 using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
-using Nexaflow.Visuals.Text.Painting;
+
 using System.Runtime.CompilerServices;
-using System.Windows.Media;
+
 using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Text.Markdown.WordCloud.Stages;
 

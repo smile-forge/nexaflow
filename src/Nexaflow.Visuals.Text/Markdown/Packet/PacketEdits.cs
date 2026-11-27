@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-using System.Windows.Input;
+
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
