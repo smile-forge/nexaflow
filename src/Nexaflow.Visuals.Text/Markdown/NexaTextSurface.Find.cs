@@ -29,16 +29,24 @@ namespace Nexaflow.Visuals.Text.Markdown;
 public sealed partial class NexaTextSurface
 {
     /// <summary>Everywhere the document says what was looked for, in the order a reader comes to them.</summary>
-    public IReadOnlyList<(int Start, int Length)> Found { get; private set; } = [];
+    public IReadOnlyList<(int Start, int Length)> Found => _finding?.Places ?? [];
 
     /// <summary>Which of them is being looked at, or -1 for none.</summary>
-    public int At { get; private set; } = -1;
+    public int At => _finding?.At ?? -1;
+
+    /// <summary>
+    /// What was looked for and found, a place at a time — the shared search over a document held whole, washed over this view's document by its
+    /// own marks and gone to by bringing each place onto the page. Made the first time anything is looked for.
+    /// </summary>
+    private PlaceFind Finding => _finding ??= new PlaceFind(() => _engine.State.Document, () => _engine.Editor.Found, place => _shown.Show(place));
+
+    private PlaceFind? _finding;
 
     /// <summary>
     /// Looks for <paramref name="term"/> and goes to the first place it is — both where it is written and where it is only
     /// drawn, which is what a reader means by what the page says.
     /// </summary>
-    public int Find(string? term) => Looked(() => _engine.ReadsAsDrawn
+    public int Find(string? term) => Finding.Find(() => _engine.ReadsAsDrawn
         ? MarkdownFind.Drawn(_engine.DrawnWords, term)
         : MarkdownFind.In(_shown.Laid, _shown.Markdown, term));
 
@@ -49,8 +57,8 @@ public sealed partial class NexaTextSurface
     /// </summary>
     public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences, int from = 0) =>
         Lined && occurrences is { } inLines
-            ? Looked(() => ContentSearch.Lines(_engine.State.Document, inLines), from, inLines)
-            : Looked(() => _engine.ReadsAsDrawn
+            ? Finding.Find(new LineQuery(inLines), from)
+            : Finding.Find(() => _engine.ReadsAsDrawn
                 ? _engine.DrawnWords.Every(occurrences)
                 : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences), from);
 
@@ -74,99 +82,26 @@ public sealed partial class NexaTextSurface
         return [.. Enumerable.Range(0, Found.Count).Select(at => new RenderedMatch(at, Preview(at)))];
     }
 
-    private int Looked(Func<IReadOnlyList<(int Start, int Length)>> looking, int from = 0,
-                       Func<string, IReadOnlyList<(int Index, int Length)>>? inLines = null)
-    {
-        _lookedFor = looking;
-        _lookedInLines = inLines;
-        _foundIn = _engine.State.Document;
-
-        Found = looking();
-        At = -1;
-
-        Washed();
-
-        if (Found.Count > 0) Goes(FirstAtOrAfter(from));
-
-        return Found.Count;
-    }
-
-    /// <summary>
-    /// What was looked for, to be asked again of the document as it comes to read; null where nothing is being looked for, or a
-    /// host has narrowed what was found to a list of its own (<see cref="Restrict"/>), which asking again would undo.
-    /// </summary>
-    private Func<IReadOnlyList<(int Start, int Length)>>? _lookedFor;
-
-    /// <summary>The version of the document <see cref="Found"/> was found in.</summary>
-    private ContentDocument? _foundIn;
-
-    /// <summary>What was looked for a line at a time, for content laid line by line — found again after an edit only where it wrote.</summary>
-    private Func<string, IReadOnlyList<(int Index, int Length)>>? _lookedInLines;
-
     /// <summary>
     /// What was found, found again in the document as it now reads — written in here, written in somewhere else, taken back — with
     /// the one being looked at kept to where its place went. Nothing is scrolled to or picked out: the reader is writing, not
     /// looking. Done before the page says it was laid out (<see cref="PreRender"/>), so whoever reads what was found then reads it
     /// as it is; and only where the document is another version than the one searched, so laying out again to scroll costs nothing.
     /// </summary>
-    private void Refound()
-    {
-        if (_lookedFor is not { } looking || _foundIn is not { } before) return;
-
-        var now = _engine.State.Document;
-        if (ReferenceEquals(before, now)) return;
-
-        var change = ContentDocument.Between(before, now);
-        var was = At < 0 ? 0 : change?.Carried(Found[At].Start) ?? Found[At].Start;
-
-        _foundIn = now;
-        Found = _lookedInLines is { } inLines ? ContentSearch.Again(before, now, Found, inLines) : looking();
-        At = Found.Count == 0 ? -1 : FirstAtOrAfter(was);
-
-        Washed();
-    }
-
-    /// <summary>The first place found at or after <paramref name="from"/> in the source, or the first of them all where none is.</summary>
-    private int FirstAtOrAfter(int from)
-    {
-        for (var at = 0; at < Found.Count; at++)
-            if (Found[at].Start >= from) return at;
-
-        return 0;
-    }
+    private void Refound() => _finding?.Refind();
 
     /// <summary>
     /// Narrows what is shown to the places named by their order in <see cref="Found"/>, and says how many are left — for a
     /// host whose own list of results has been filtered since.
     /// </summary>
-    public int Restrict(IReadOnlySet<int> keep)
-    {
-        var kept = Found.Where((_, at) => keep.Contains(at)).ToList();
-
-        _lookedFor = null;
-        Found = kept;
-        At = kept.Count > 0 ? 0 : -1;
-
-        Washed();
-
-        if (At >= 0) _shown.Show(Found[At]);
-
-        return kept.Count;
-    }
+    public int Restrict(IReadOnlySet<int> keep) => Finding.Restrict(keep);
 
     /// <summary>
     /// Shows <paramref name="places"/>, which a host found itself, with the one at <paramref name="at"/> the one being looked at — moving
-    /// nothing, since the host says when to go to one (<see cref="PickOut"/>). Finding them again as the document comes to read is the
-    /// host's to do too: it found them.
+    /// nothing, since the host says when to go to one (<see cref="PickOut"/>). They are carried through each edit, not found again: the host
+    /// found them.
     /// </summary>
-    public void ShowFound(IReadOnlyList<(int Start, int Length)> places, int at)
-    {
-        _lookedFor = null;
-        Found = places;
-        At = places.Count == 0 ? -1 : Math.Clamp(at, -1, places.Count - 1);
-
-        Washed();
-    }
+    public void ShowFound(IReadOnlyList<(int Start, int Length)> places, int at) => Finding.Show(places, at);
 
     /// <summary>Picks out <paramref name="place"/> and brings it onto the page, as going to a place found does.</summary>
     public bool PickOut((int Start, int Length) place) => _shown.Show(place);
@@ -224,48 +159,22 @@ public sealed partial class NexaTextSurface
     }
 
     /// <summary>The next place, coming back round to the first.</summary>
-    public bool Next() => Goes(At + 1);
+    public bool Next() => Finding.Next();
 
     /// <summary>The one before, coming back round to the last.</summary>
-    public bool Previous() => Goes(At - 1);
+    public bool Previous() => Finding.Previous();
 
     /// <summary>Steps to the next place (<paramref name="delta"/> of one) or the one before.</summary>
-    public void StepSearch(int delta)
-    {
-        if (delta >= 0) Next();
-        else Previous();
-    }
+    public void StepSearch(int delta) => Finding.Step(delta >= 0 ? +1 : -1);
 
     /// <summary>Stops looking, which is a repaint and nothing else.</summary>
-    public void Stop()
-    {
-        _lookedFor = null;
-        Found = [];
-        At = -1;
-
-        Washed();
-    }
-
-    /// <summary>What was found washed over the view of the document, the one looked at outlined — a repaint, and nothing written.</summary>
-    private void Washed() => _engine.Editor.Found.Show(Found, At);
+    public void Stop() => Finding.Clear();
 
     /// <summary>The same, as a host that has finished searching says it.</summary>
     public void ClearSearch() => Stop();
 
     /// <summary>Narrows what is shown to the given places; what a host with its own filtered list asks.</summary>
     public int RestrictSearch(IReadOnlySet<int> keep) => Restrict(keep);
-
-    private bool Goes(int to)
-    {
-        if (Found.Count == 0) return false;
-
-        At = (to + Found.Count) % Found.Count;
-
-        Washed();
-        _shown.Show(Found[At]);
-
-        return true;
-    }
 
     // ── Going to a place ────────────────────────────────────────────────────
 

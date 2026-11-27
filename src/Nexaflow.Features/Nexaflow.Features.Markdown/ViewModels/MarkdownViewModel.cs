@@ -576,7 +576,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     private void Wrote(ContentSourceChange change)
     {
         Recounted(change);
-        RefoundInSource(Document.ToString());
+        RefoundInSource();
         OnPropertyChanged(nameof(Markdown));
     }
 

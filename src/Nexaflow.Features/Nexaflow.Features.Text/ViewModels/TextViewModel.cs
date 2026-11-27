@@ -171,11 +171,12 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         FileName = vfs.GetDisplayName(filePath);
 
         Editor = new ContentEditor(Document);
-        Editor.Marks.Add(_matchMarks);
 
         Document.Changed += OnDocumentChanged;
         Document.PropertyChanged += OnDocumentPropertyChanged;
         _shown = new ShownFile(Editor);
+        _find = new FileFind(_shown, Editor.Found);
+        _find.Changed += OnFindChanged;
     }
 
     partial void OnIsDirtyChanged(bool value) => DirtyChanged?.Invoke(value);
@@ -436,7 +437,6 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
     /// <summary>Reads the file again, the caret and the page kept on the lines they stood on, and the search run again where one is showing.</summary>
     private async Task ReloadAsync()
     {
-        _searchCts?.Cancel();
         await LoadAsync(Place(), CancellationToken.None);
         if (IsSearchActive) await ReRunSearchAsync();
     }
@@ -616,7 +616,8 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
         _disposed = true;
         _findDebounceCts?.Cancel();
         _watch?.Dispose();
-        _searchCts?.Cancel();
+        _find.Changed -= OnFindChanged;
+        _find.Dispose();
         Document.Changed -= OnDocumentChanged;
         Document.PropertyChanged -= OnDocumentPropertyChanged;
         _shown.Dispose();

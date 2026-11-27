@@ -137,6 +137,10 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
         Editor = new ContentEditor(Document);
         if (_grammar is not null) Editor.Marks.Add(new ColourSwatchMarks(_grammar));
 
+        _searched = new ShownFile(Editor);
+        _find = new FileFind(_searched, Editor.Found);
+        _find.Changed += OnFindChanged;
+
         Document.Changed += OnDocumentChanged;
         Document.PropertyChanged += OnDocumentPropertyChanged; // dirty = "differs from the saved state"
         Editor.SelectionChanged += OnEditorSelectionChanged;
@@ -258,7 +262,6 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     private void OnDocumentChanged(object? sender, ContentSourceChange change)
     {
         LineCount = Document.Current.LineCount;
-        if (_shownSearch is not null) SearchAgainSoon();
     }
 
     // Dirty follows the document, which compares what it holds with what was saved — so undoing every edit back to the saved state clears
@@ -776,9 +779,11 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     public void Dispose()
     {
         Document.Changed -= OnDocumentChanged;
-        _searchAgain?.Cancel();
         Document.PropertyChanged -= OnDocumentPropertyChanged;
         Editor.SelectionChanged -= OnEditorSelectionChanged;
+        _find.Changed -= OnFindChanged;
+        _find.Dispose();
+        _searched.Dispose();
         Editor.Dispose();
         _watch?.Dispose();
         _file?.Dispose();

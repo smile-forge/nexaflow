@@ -26,6 +26,9 @@ public sealed class ShownFile : IDisposable
         editor.Scrolled += this.FollowReader;
     }
 
+    /// <summary>The view the file is shown in: its caret, and where its page stands.</summary>
+    public ContentEditor Editor => _editor;
+
     /// <summary>The page's document: the file, or a window onto it.</summary>
     public EditedDocument Document => _editor.Document;
 
@@ -118,6 +121,13 @@ public sealed class ShownFile : IDisposable
 
         window.Reach(fileOffset, fileOffset);
         return (int)Math.Clamp(fileOffset - window.Start, 0, this.Document.Current.Length);
+    }
+
+    /// <summary>Where in the document <paramref name="fileOffset"/>, an offset in the whole file, stands — or null, where the document does not hold it; nothing is moved.</summary>
+    public int? HeldOffset(long fileOffset)
+    {
+        var at = fileOffset - (this.Document.Window?.Start ?? 0);
+        return fileOffset < 0 || at < 0 || at > this.Document.Current.Length ? null : (int)at;
     }
 
     /// <summary>Which line of the whole file <paramref name="documentOffset"/> stands on, counting from nought.</summary>

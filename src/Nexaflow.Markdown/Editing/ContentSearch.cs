@@ -31,9 +31,10 @@ public static class ContentSearch
             cancel.ThrowIfCancellationRequested();
 
             var (start, stop) = document.LineAt(document.OffsetOf(line));
-            if (stop == start) continue;
+            var text = document.Slice(start, stop - start).TrimEnd('\r', '\n');
+            if (text.Length == 0) continue;
 
-            foreach (var (index, length) in occurrences(document.Slice(start, stop - start)))
+            foreach (var (index, length) in occurrences(text))
                 if (length > 0) found.Add((start + index, length));
         }
 

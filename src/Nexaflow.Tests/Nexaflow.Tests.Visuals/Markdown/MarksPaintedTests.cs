@@ -40,7 +40,7 @@ public class MarksPaintedTests
             surface.Find("fish");
 
             Assert.AreEqual(2, surface.Editor.Found.Places.Count);
-            Assert.AreEqual(surface.At, surface.Editor.Found.At);
+            Assert.AreEqual(surface.Found[surface.At], surface.Editor.Found.LookedAt);
 
             surface.Stop();
             Assert.AreEqual(0, surface.Editor.Found.Places.Count);
