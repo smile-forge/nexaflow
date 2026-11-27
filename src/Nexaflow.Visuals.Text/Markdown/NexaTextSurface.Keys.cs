@@ -73,11 +73,10 @@ public sealed partial class NexaTextSurface
     /// </summary>
     public void SelectAll() => _engine.SelectAll();
 
-    /// <summary>A page further up or down, which is as tall as what the content is shown in — what the engine asks for where a page key meant nothing to the content.</summary>
+    /// <summary>Page Up or Page Down: the view moved a screen up or down — for content that scrolls itself; content shown whole is scrolled by whatever holds it.</summary>
     private bool Paged(bool up)
     {
-        if (up) _scroller.PageUp();
-        else _scroller.PageDown();
+        if (_engine.Scrolls) _engine.ScrollBy((up ? -1 : 1) * (_shown.ActualHeight / _shown.Zoom));
 
         return true;
     }
@@ -93,7 +92,13 @@ public sealed partial class NexaTextSurface
         var at = _shown.Laid.Root.CaretRect(_shown.Caret);
         if (at.IsEmpty) return;
 
-        var zoom = _shown.Zoom;
-        _shown.BringIntoView(new Rect(at.X * zoom, at.Y * zoom, Math.Max(at.Width * zoom, 1), Math.Max(at.Height * zoom, 1)));
+        // The view moves no further than it must, as the caret goes; content shown whole asks whatever holds it to.
+        if (_engine.Scrolls)
+        {
+            _engine.KeepInView(at);
+            return;
+        }
+
+        _shown.BringIntoView(_shown.FromContent(at));
     }
 }

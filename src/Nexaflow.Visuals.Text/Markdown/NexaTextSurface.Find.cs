@@ -330,11 +330,9 @@ public sealed partial class NexaTextSurface
     {
         get
         {
-            if (_scroller.ViewportHeight <= 0) return -1;
+            if (_shown.ActualHeight <= 0) return -1;
 
-            var top = _scroller.TranslatePoint(new Point(0, 0), _shown).Y;
-
-            return _shown.Laid.Root.StopBelow(top / _shown.Zoom);
+            return _shown.Laid.Root.StopBelow(_engine.ViewOrigin.Y);
         }
     }
 
@@ -350,7 +348,7 @@ public sealed partial class NexaTextSurface
     /// </summary>
     public bool ShowFrom(int offset)
     {
-        if (offset < 0 || _scroller.ViewportHeight <= 0) return false;
+        if (offset < 0 || _shown.ActualHeight <= 0) return false;
 
         // A long document lays where it is asked, and nothing before it, first.
         _engine.Uncover(offset);
@@ -375,11 +373,16 @@ public sealed partial class NexaTextSurface
         var at = root.CaretRect(stops[low]);
         if (at.IsEmpty) return false;
 
-        // How far below the top of the page it stands now, which is how much further down the document to stand.
-        var below = _shown.TranslatePoint(new Point(0, at.Y * _shown.Zoom), _scroller).Y;
-
-        _scroller.ScrollToVerticalOffset(_scroller.VerticalOffset + below);
-        PageMoving(scrolling: false);
+        // Content that scrolls itself stands its view's top there; content shown whole has whatever holds it bring it onto the screen.
+        if (_engine.Scrolls)
+        {
+            _engine.TopAt(at.Y);
+        }
+        else
+        {
+            _shown.BringIntoView(_shown.FromContent(at));
+            PageMoving();
+        }
 
         return true;
     }
@@ -400,12 +403,12 @@ public sealed partial class NexaTextSurface
     /// </summary>
     public bool ShowsWhole((int Start, int Length) block)
     {
-        if (block.Length <= 0 || _scroller.ViewportHeight <= 0) return false;
+        if (block.Length <= 0 || _shown.ActualHeight <= 0) return false;
         if (_engine.Blocked(block.Start) is not { } part) return false;
 
         var where = _engine.Where(part);
 
-        return !where.IsEmpty && where.Height * _shown.Zoom <= _scroller.ViewportHeight;
+        return !where.IsEmpty && where.Height * _shown.Zoom <= _shown.ActualHeight;
     }
 
     /// <summary>
@@ -416,12 +419,12 @@ public sealed partial class NexaTextSurface
     /// </summary>
     public bool ShowsAtOnce((int Start, int Length) stretch)
     {
-        if (stretch.Length <= 0 || _scroller.ViewportHeight <= 0) return false;
+        if (stretch.Length <= 0 || _shown.ActualHeight <= 0) return false;
 
         var root = _shown.Laid.Root;
         var (first, last) = (root.CaretRect(stretch.Start), root.CaretRect(stretch.Start + stretch.Length));
 
-        return !first.IsEmpty && !last.IsEmpty && (last.Bottom - first.Y) * _shown.Zoom <= _scroller.ViewportHeight;
+        return !first.IsEmpty && !last.IsEmpty && (last.Bottom - first.Y) * _shown.Zoom <= _shown.ActualHeight;
     }
 
     /// <summary>

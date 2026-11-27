@@ -39,29 +39,17 @@ public sealed partial class NexaTextSurface
     /// </summary>
     public ScrollBarVisibility HorizontalScrollBarVisibility
     {
-        get => _scroller.HorizontalScrollBarVisibility;
+        get => _horizontal;
         set
         {
-            _scroller.HorizontalScrollBarVisibility = value;
+            if (_horizontal == value) return;
+
+            _horizontal = value;
+            _engine.ViewSlides = value != ScrollBarVisibility.Disabled;
+
             Slid();
+            Synced();
         }
-    }
-
-    /// <summary>Takes up the page sliding sideways: laid in its width as it changes, and turned sideways by the wheel with Shift held.</summary>
-    private void Sliding()
-    {
-        _scroller.ScrollChanged += (_, args) =>
-        {
-            if (args.ViewportWidthChange != 0) Slid();
-        };
-
-        _scroller.PreviewMouseWheel += (_, args) =>
-        {
-            if (args.Handled || Keyboard.Modifiers != ModifierKeys.Shift || _scroller.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled) return;
-
-            _scroller.ScrollToHorizontalOffset(_scroller.HorizontalOffset - args.Delta);
-            args.Handled = true;
-        };
     }
 
     /// <summary>
@@ -70,9 +58,9 @@ public sealed partial class NexaTextSurface
     /// </summary>
     private double? SlidingRoom()
     {
-        if (_scroller.HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled) return null;
+        if (_horizontal == ScrollBarVisibility.Disabled) return null;
 
-        var page = _scroller.ViewportWidth > 0 ? _scroller.ViewportWidth : _scroller.ActualWidth;
+        var page = _page.ActualWidth > 0 ? _page.ActualWidth : ActualWidth;
         return page > 0 ? Math.Max(1, page - ContentPadding.Left - ContentPadding.Right) : null;
     }
 

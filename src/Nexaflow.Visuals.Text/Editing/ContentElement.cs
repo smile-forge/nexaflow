@@ -84,6 +84,8 @@ public class ContentElement : FrameworkElement
         _engine.Rebound += OnRebound;
         _engine.Reread += OnReread;
         _engine.Grew += OnGrew;
+        _engine.ViewMoved += OnViewMoved;
+        RenderTransform = _slid;
 
         SnapsToDevicePixels = true;
         Cursor = Cursors.IBeam;
@@ -120,6 +122,7 @@ public class ContentElement : FrameworkElement
         _engine.Rebound -= OnRebound;
         _engine.Reread -= OnReread;
         _engine.Grew -= OnGrew;
+        _engine.ViewMoved -= OnViewMoved;
 
         StopBlinking();
     }
@@ -176,6 +179,52 @@ public class ContentElement : FrameworkElement
 
     private void OnRemarked(object? sender, EventArgs args) => InvalidateVisual();
 
+    /// <summary>
+    /// The engine's view moved or was sized again. While it stays inside what was painted round it last time, the picture is only slid — a
+    /// move of no more than a screen or two, which drawing keeps exactly — and nothing is painted; once it leaves that, the content is painted
+    /// again, measured from where the view now stands.
+    /// </summary>
+    private void OnViewMoved(object? sender, EventArgs args)
+    {
+        var origin = _engine.ViewOrigin;
+
+        if (_painted is { } painted && _engine.OnScreen is { } view && painted.Contains(view))
+        {
+            Slide(origin);
+            return;
+        }
+
+        // Until it is painted again, what was painted is slid as far as it goes; the paint measures from the view as it then stands.
+        Slide(origin);
+        InvalidateVisual();
+    }
+
+    /// <summary>Slides what was painted from <see cref="_paintedFrom"/> to stand under the view at <paramref name="origin"/>.</summary>
+    private void Slide(LayoutVector origin)
+    {
+        var (x, y) = ((_paintedFrom.X - origin.X) * Scale, (_paintedFrom.Y - origin.Y) * Scale);
+        if (_slid.X == x && _slid.Y == y) return;
+
+        _slid.X = x;
+        _slid.Y = y;
+    }
+
+    /// <summary>
+    /// Where the engine's view stood when what is on the element was painted, in the content's own units — what everything drawn, and every
+    /// point on the element, is measured from (<see cref="ViewShift"/>). Nought for content shown whole.
+    /// </summary>
+    private LayoutVector _paintedFrom;
+
+    /// <summary>How far what was painted is slid to stand under the view as it now stands — a screen or two at most.</summary>
+    private readonly TranslateTransform _slid = new();
+
+    /// <summary>
+    /// How far along the page is drawn from where it stands: minus where the engine's view stood when it was painted
+    /// (<see cref="_paintedFrom"/>), where the content scrolls itself — so what is drawn stands within a screen or two of nought however far
+    /// down a long document the view is — and nothing where the content is shown whole.
+    /// </summary>
+    private LayoutVector ViewShift => new(-_paintedFrom.X, -_paintedFrom.Y);
+
     private void OnCaretMoved(object? sender, EventArgs args) => CaretMoved?.Invoke(this, EventArgs.Empty);
 
     private void OnSelectionChanged(object? sender, ContentSelectionChange change) => SelectionChanged?.Invoke(this, change);
@@ -191,6 +240,13 @@ public class ContentElement : FrameworkElement
     /// </summary>
     internal void BringOnto(LayoutRect shown)
     {
+        // Content that scrolls itself has a view of its own, which the engine moves.
+        if (_engine.Scrolls)
+        {
+            _engine.BringToView(shown);
+            return;
+        }
+
         var box = new Rect(shown.X * Zoom, shown.Y * Zoom, Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1));
 
         if (_onScreen is { } screen)
@@ -220,8 +276,12 @@ public class ContentElement : FrameworkElement
     /// <summary>Follows <paramref name="link"/> as a click on it would.</summary>
     internal bool Open(LaidLink link) => _engine.Open(link);
 
-    /// <summary>A place in the content's own units, on this element — the way back from <c>Unscaled</c>.</summary>
-    internal Point FromContent(Point content) => new(content.X * Scale, content.Y * Scale);
+    /// <summary>A place in the content's own units, on this element — the way back from <c>Unscaled</c>, measured from the view where there is one.</summary>
+    internal Point FromContent(Point content)
+    {
+        var by = ViewShift;
+        return new((content.X + by.X) * Scale, (content.Y + by.Y) * Scale);
+    }
 
     /// <summary>A stretch of the content in its own units, on this element.</summary>
     internal Rect FromContent(Rect content) =>
@@ -853,27 +913,49 @@ public class ContentElement : FrameworkElement
         // While something is being carried, what is on screen is what it would become, so that is what has
         // to fit — otherwise the preview is clipped at the settled content's width.
         var size = _engine.Preview?.Laid.Size ?? Laid.Size;
-        return new Size(Math.Ceiling(size.Width * Scale), Math.Ceiling(size.Height * Scale));
+        var (wide, tall) = (Math.Ceiling(size.Width * Scale), Math.Ceiling(size.Height * Scale));
+
+        // Content that scrolls itself is as large as its view, which it draws the part of the page under: as large as it is given.
+        if (_engine.Scrolls)
+            return new Size(double.IsPositiveInfinity(availableSize.Width) ? wide : availableSize.Width,
+                            double.IsPositiveInfinity(availableSize.Height) ? tall : availableSize.Height);
+
+        return new Size(wide, tall);
+    }
+
+    /// <summary>Content that scrolls itself tells the engine how large its view is, in the content's own units.</summary>
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        if (_engine.Scrolls) _engine.ViewSized(finalSize.Width / Scale, finalSize.Height / Scale);
+
+        return finalSize;
     }
 
     protected override void OnRender(DrawingContext dc)
     {
-        // A transparent fill makes the whole element hit-testable, gaps between glyphs included.
-        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, RenderSize.Width, RenderSize.Height));
+        // A transparent fill makes the whole element hit-testable, gaps between glyphs included — and, for content that scrolls itself, the
+        // screen above and below it that is painted with it, which a slide can bring under the view before it is painted again.
+        var (wide, tall) = (RenderSize.Width, RenderSize.Height);
+        dc.DrawRectangle(Brushes.Transparent, null, _engine.Scrolls ? new Rect(0, -tall, wide, tall * 3) : new Rect(0, 0, wide, tall));
 
         // Everything below is in the content's own coordinates. The scale is pushed once, here, so nothing
         // that reads the tree has to know about it — and a pointer coming the other way is divided by it.
         var scaled = Math.Abs(Scale - 1.0) > 0.001;
         if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
 
-        if (_engine.Preview is { } preview) PaintPreview(dc, preview.Laid, (preview.Start, preview.End));
-        else PaintContent(dc);
+        // Measured from where the view stands as it is painted — whatever asked for the paint — and slid back under it: see ViewShift.
+        _paintedFrom = _engine.ViewOrigin;
+        Slide(_paintedFrom);
+        var by = ViewShift;
+
+        if (_engine.Preview is { } preview) PaintPreview(dc, preview.Laid, (preview.Start, preview.End), by);
+        else PaintContent(dc, by);
 
         // Over everything, the buttons in the corner of the block the pointer is over.
         if (_engine.Corner is { } corner)
         {
             if (!_onCorner) dc.PushOpacity(Faint);
-            WpfPainter.Paint(dc, corner.Root, Palette.Text.Brush());
+            WpfPainter.Paint(dc, corner.Root, Palette.Text.Brush(), by: by);
             if (!_onCorner) dc.Pop();
         }
 
@@ -883,42 +965,41 @@ public class ContentElement : FrameworkElement
     /// <summary>How thick the outline round what a carry would go into is drawn, and how far outside it.</summary>
     private const double MarkThickness = 2;
 
-    private void PaintContent(DrawingContext dc)
+    /// <summary>The content, and everything drawn over it, measured from where the page is drawn from (<paramref name="by"/>).</summary>
+    private void PaintContent(DrawingContext dc, LayoutVector by)
     {
         var laid = Laid;
         var state = State;
 
-        // Only what is near the part on screen, where whatever holds this says which part that is — in the content's own
-        // units, which is what the tree is measured in.
-        var shown = _onScreen is { } showing
-            ? new Rect(showing.X / Scale, showing.Y / Scale, showing.Width / Scale, showing.Height / Scale)
-            : (Rect?)null;
+        // Only what is near the part on screen, where something says which part that is — in the content's own units, which is what the
+        // tree is measured in.
+        var shown = _engine.OnScreen is { } showing ? showing.ToWpf() : (Rect?)null;
 
         _painted = shown is { } near ? WpfPainter.Around(near).ToLayout() : null;
-        WpfPainter.Paint(dc, laid.Root, Palette.Text.Brush(), shown);
+        WpfPainter.Paint(dc, laid.Root, Palette.Text.Brush(), shown, by);
 
         // One shape for the whole selection, joined across the spacing between what it holds — and not one box
         // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
         // Only what is near the screen of it: a selection running down a long document is washed where it can be seen.
-        if (state.HasSelection && laid.Root.Wash(state.Selection, WashPad, _painted) is WpfShape washed) dc.DrawGeometry(_wash, null, washed.Geometry);
+        if (state.HasSelection && laid.Root.Wash(state.Selection, WashPad, _painted, by) is WpfShape washed) dc.DrawGeometry(_wash, null, washed.Geometry);
 
         // What of content a binding supplied is picked out stands for no source, so it is washed piece by piece —
         // over the shape it stands in where it has one, as a range of source is (see RangeRegions). A box is right
         // for a box, and wrong for an arrow: the box round a diagonal one is mostly not the arrow.
         foreach (var picked in _engine.PickedWhole)
         {
-            if (picked.OnPage() is WpfShape standing) dc.DrawGeometry(_wash, null, standing.Geometry);
-            else if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(ink.ToWpf(), WashPad, WashPad));
+            if (picked.OnPage(by) is WpfShape standing) dc.DrawGeometry(_wash, null, standing.Geometry);
+            else if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(LayoutRect.Offset(ink, by).ToWpf(), WashPad, WashPad));
         }
 
-        Waves(dc, laid, _painted);
+        Waves(dc, laid, _painted, by);
 
         PaintOver(dc);
-        PaintMarks(dc, laid, state);
+        PaintMarks(dc, laid, state, by);
 
         // What a carry would go into, outlined on the content as it stands: the drop is chosen against what is on screen.
         if (_engine.Marking is { } marked)
-            dc.DrawRectangle(null, new Pen(Palette.Accent.Brush(), MarkThickness), Rect.Inflate(marked.ToWpf(), MarkThickness, MarkThickness));
+            dc.DrawRectangle(null, new Pen(Palette.Accent.Brush(), MarkThickness), Rect.Inflate(LayoutRect.Offset(marked, by).ToWpf(), MarkThickness, MarkThickness));
 
         var dropping = _engine.Dropping;
         if (!ShowsCaret || !_caretVisible) return;
@@ -929,14 +1010,14 @@ public class ContentElement : FrameworkElement
             ? laid.Root.CaretRect(dropping ?? state.Caret)
             : laid.Places[_engine.At].CaretRect();
 
-        DrawCaret(dc, caret.X, caret.Y, caret.Height);
+        DrawCaret(dc, caret.X + by.X, caret.Y + by.Y, caret.Height);
 
         // A block of columns has a caret on every line of it, where typing writes.
         if (state.Selected is ColumnRanges block)
             foreach (var row in block)
             {
                 var at = laid.Root.CaretRect(block.Caret.Column == block.Low ? row.Start : row.End);
-                if (!at.IsEmpty) DrawCaret(dc, at.X, at.Y, at.Height);
+                if (!at.IsEmpty) DrawCaret(dc, at.X + by.X, at.Y + by.Y, at.Height);
             }
     }
 
@@ -962,7 +1043,7 @@ public class ContentElement : FrameworkElement
     /// The marks laid over the view of the document (<see cref="ContentEditor.Marks"/>), each drawn as it says in the ink its token is in the
     /// theme — asked only about the stretch near the screen — and, first, the line the caret is on where that is washed.
     /// </summary>
-    private void PaintMarks(DrawingContext dc, Laid laid, EditState state)
+    private void PaintMarks(DrawingContext dc, Laid laid, EditState state, LayoutVector by)
     {
         var marks = _engine.EditorIfAny?.Marks is { } layers && layers.Any(layer => !layer.IsEmpty) ? layers : null;
         var caretLine = HighlightsCaretLine && !state.HasSelection;
@@ -970,12 +1051,13 @@ public class ContentElement : FrameworkElement
 
         var document = state.Document;
         var (start, end) = NearScreen(laid, document.Length);
-        var width = Math.Max(RenderSize.Width / Scale, laid.Size.Width);
+        // A wash across the page runs from its left edge on screen to past the end of its longest line, however far it has slid.
+        var width = Math.Max(RenderSize.Width / Scale, laid.Size.Width + by.X);
         var inks = new Dictionary<string, Brush>(StringComparer.Ordinal);
 
         if (caretLine)
             foreach (var (top, tall) in Rows(laid, document, state.Caret, state.Caret, start, end))
-                dc.DrawRectangle(Ink(inks, CaretLineToken, Palette.TextMuted), null, new Rect(0, top, width, tall));
+                dc.DrawRectangle(Ink(inks, CaretLineToken, Palette.TextMuted), null, new Rect(0, top + by.Y, width, tall));
 
         if (marks is null || marks.Count == 0) return;
 
@@ -987,13 +1069,13 @@ public class ContentElement : FrameworkElement
             {
                 case ContentMarkKind.Wash:
                     foreach (var run in LayoutQuery.Clusters(laid.Root.RangeRects(mark.Start, mark.Length), 0))
-                        dc.DrawRectangle(Ink(inks, mark.Token, Palette.Marked), null, run.ToWpf());
+                        dc.DrawRectangle(Ink(inks, mark.Token, Palette.Marked), null, LayoutRect.Offset(run, by).ToWpf());
                     break;
 
                 case ContentMarkKind.Outline:
                     var pen = new Pen(Ink(inks, mark.Token, Palette.Accent), Math.Max(1, Palette.TextSize / 13.5));
                     pen.Freeze();
-                    foreach (var run in LayoutQuery.Clusters(laid.Root.RangeRects(mark.Start, mark.Length), 0)) dc.DrawRectangle(null, pen, run.ToWpf());
+                    foreach (var run in LayoutQuery.Clusters(laid.Root.RangeRects(mark.Start, mark.Length), 0)) dc.DrawRectangle(null, pen, LayoutRect.Offset(run, by).ToWpf());
                     break;
 
                 case ContentMarkKind.Underbar:
@@ -1003,13 +1085,13 @@ public class ContentElement : FrameworkElement
                 hairline ??= Hairline(Ink(inks, "BorderBrush", Palette.TextMuted));
                 var thick = Math.Max(2, Palette.TextSize / 6.75);
                 foreach (var run in laid.Root.RangeRects(mark.Start, mark.Length))
-                    dc.DrawRectangle(bar, hairline, new Rect(run.X, run.Y + run.Height - thick, run.Width, thick));
+                    dc.DrawRectangle(bar, hairline, new Rect(run.X + by.X, run.Y + by.Y + run.Height - thick, run.Width, thick));
                 break;
 
                 case ContentMarkKind.LineWash or ContentMarkKind.Veil:
                     var ground = Ink(inks, mark.Token, Palette.TextMuted);
                     foreach (var (top, tall) in Rows(laid, document, mark.Start, mark.End, start, end))
-                        dc.DrawRectangle(ground, null, new Rect(0, top, width, tall));
+                        dc.DrawRectangle(ground, null, new Rect(0, top + by.Y, width, tall));
                     break;
             }
         }
@@ -1098,9 +1180,10 @@ public class ContentElement : FrameworkElement
     /// <summary>
     /// A wave under whatever could not be read, drawn over the content rather than instead of it: the parts that did read are
     /// still worth looking at, and the reader needs to see which part is not. Only the waves near <paramref name="near"/> are
-    /// drawn, where something says what is on screen — all of them where nothing does.
+    /// drawn, where something says what is on screen — all of them where nothing does — each measured from where the page is drawn from
+    /// (<paramref name="by"/>).
     /// </summary>
-    private void Waves(DrawingContext dc, Laid laid, LayoutRect? near)
+    private void Waves(DrawingContext dc, Laid laid, LayoutRect? near, LayoutVector by)
     {
         if (!ReferenceEquals(_squiggledIn, laid))
             (_squiggles, _squiggledIn) = (new Squiggled?[laid.Trouble.Count], laid);
@@ -1117,25 +1200,26 @@ public class ContentElement : FrameworkElement
                 _squiggles[at] = squiggled = WaveUnder(laid, trouble);
             }
 
-            if (squiggled.Wave is { } wave && (near is not { } painted || painted.IntersectsWith(squiggled.Under)))
-                dc.DrawGeometry(null, trouble.Severity == LayoutSeverity.Error ? ErrorWave : WarningWave, wave);
+            if (squiggled.Runs.Count > 0 && (near is not { } painted || painted.IntersectsWith(squiggled.Under)))
+                dc.DrawGeometry(null, trouble.Severity == LayoutSeverity.Error ? ErrorWave : WarningWave,
+                                Squiggle.Under(squiggled.Runs.Select(run => LayoutRect.Offset(run, by).ToWpf())));
         }
     }
 
-    /// <summary>The wave under what <paramref name="trouble"/> blames, and what it is drawn under — nothing, where that drew nothing.</summary>
+    /// <summary>What <paramref name="trouble"/> blames is drawn as, and the stretch of the page that covers — nothing, where that drew nothing.</summary>
     private static Squiggled WaveUnder(Laid laid, LayoutDiagnostic trouble)
     {
         var runs = LayoutQuery.Clusters(laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
-        if (runs.Count == 0) return new Squiggled(LayoutRect.Empty, null);
+        if (runs.Count == 0) return new Squiggled(LayoutRect.Empty, []);
 
-        var wave = Squiggle.Under(runs.Select(run => run.ToWpf()));
-        return new Squiggled(wave.Bounds.ToLayout(), wave);
+        var under = runs.Aggregate(LayoutRect.Union);
+        return new Squiggled(LayoutRect.Inflate(under, 0, 4), runs);
     }
 
     /// <summary>
-    /// The wave under each of what the layout in <see cref="_squiggledIn"/> could not read, by where it stands in its trouble —
-    /// null for one never yet near the screen. Kept for that layout rather than worked out at every paint, since a long document is
-    /// painted again every time it is scrolled a screen, and the waves are the same until it is laid again.
+    /// What each wave the layout in <see cref="_squiggledIn"/> draws is drawn under, by where it stands in its trouble — null for one never
+    /// yet near the screen. Kept for that layout rather than asked of it at every paint, since a long document is painted again every time it
+    /// is scrolled, and what the waves are under is the same until it is laid again.
     /// </summary>
     private Squiggled?[] _squiggles = [];
     private Laid? _squiggledIn;
@@ -1152,8 +1236,11 @@ public class ContentElement : FrameworkElement
         return pen;
     }
 
-    /// <summary>A wave worked out, and the stretch of the page it is drawn under.</summary>
-    private readonly record struct Squiggled(LayoutRect Under, Geometry? Wave);
+    /// <summary>
+    /// What a wave is drawn under, kept for the layout: the runs of what could not be read, where they stand on the page, and the stretch of
+    /// the page they cover. The wave itself is made as it is drawn, measured from the view — what a long document is scrolled through.
+    /// </summary>
+    private readonly record struct Squiggled(LayoutRect Under, IReadOnlyList<LayoutRect> Runs);
 
     /// <summary>
     /// The part of the element on screen, in its own coordinates — what whatever scrolls it says it is showing — or null where
@@ -1186,14 +1273,14 @@ public class ContentElement : FrameworkElement
     protected virtual void PaintOver(DrawingContext dc) { }
 
     /// <summary>Draws the content as it would read after the drop, with the carried part in the accent colour — once it's merged in (braces, spacing and all) nothing else would distinguish it.</summary>
-    private void PaintPreview(DrawingContext dc, Laid preview, (int Start, int End) moved)
+    private void PaintPreview(DrawingContext dc, Laid preview, (int Start, int End) moved, LayoutVector by)
     {
-        WpfPainter.Paint(dc, preview.Root, Palette.Text.Brush());
+        WpfPainter.Paint(dc, preview.Root, Palette.Text.Brush(), by: by);
 
-    // Over the top rather than instead of: painting all of it and then the carried part again is what
-    // keeps this to two calls, and the second colour is the one that shows.
-    foreach (var piece in Carried(preview, moved))
-            WpfPainter.PaintOne(dc, piece, Palette.Accent.Brush());
+        // Over the top rather than instead of: painting all of it and then the carried part again is what
+        // keeps this to two calls, and the second colour is the one that shows.
+        foreach (var piece in Carried(preview, moved))
+            WpfPainter.PaintOne(dc, piece, Palette.Accent.Brush(), by);
     }
 
     /// <summary>The outermost pieces of <paramref name="preview"/> lying wholly inside what is carried — outermost so a piece and its children aren't painted twice.</summary>
@@ -1221,7 +1308,12 @@ public class ContentElement : FrameworkElement
         dc.DrawLine(pen, new Point(x, y), new Point(x, y + Math.Max(height, 1)));
     }
 
-    /// <summary>A point in the element's own pixels, read as a point in the content's.</summary>
-    protected LayoutPoint Unscaled(Point point) =>
-        Math.Abs(Scale - 1.0) < 0.001 ? new LayoutPoint(point.X, point.Y) : new LayoutPoint(point.X / Scale, point.Y / Scale);
+    /// <summary>A point in the element's own pixels, read as a point in the content's — on the page, where the view stands over part of it.</summary>
+    protected LayoutPoint Unscaled(Point point)
+    {
+        var by = ViewShift;
+        return Math.Abs(Scale - 1.0) < 0.001
+            ? new LayoutPoint(point.X - by.X, point.Y - by.Y)
+            : new LayoutPoint((point.X / Scale) - by.X, (point.Y / Scale) - by.Y);
+    }
 }

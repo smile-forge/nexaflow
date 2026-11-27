@@ -1071,11 +1071,11 @@ public static class LayoutQuery
         OnPage(piece) is not { } region || region.Touches(area);
 
     /// <summary>
-    /// The shape a piece stands in, where it sits on the page — or null for a piece that stands in its box, which is
-    /// nearly all of them. What a press is tested against, and what a wash is drawn over: the box round a diagonal
-    /// arrow is mostly not the arrow.
+    /// The shape <paramref name="piece"/> stands in, where it stands on the page — moved along by <paramref name="by"/>, for a page drawn from
+    /// somewhere other than its top, with the move worked into where the shape is placed rather than laid over it after.
     /// </summary>
-    public static LayoutShape? OnPage(this LayoutPiece piece) => piece.Region is { } region ? piece.Frame.Out(region, piece.Tree!.Medium) : null;
+    public static LayoutShape? OnPage(this LayoutPiece piece, LayoutVector by = default) =>
+        piece.Region is { } region ? (piece.Frame with { Anchor = piece.Frame.Anchor + by }).Out(region, piece.Tree!.Medium) : null;
 
     /// <summary>
     /// Whether <paramref name="at"/> is in <paramref name="piece"/> rather than merely nearest it.
@@ -1181,11 +1181,10 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The shapes a stretch of source washes: every leaf standing in a shape of its own (see
-    /// <see cref="LayoutBuilder.Occupies"/>) that belongs to something inside the stretch, where it sits on the page. What
-    /// <see cref="RangeRects"/> leaves out, so the two together are the whole of it.
+    /// The shapes the pieces standing for <paramref name="length"/> characters from <paramref name="start"/> stand in, where they do not stand
+    /// in boxes — moved along by <paramref name="by"/>, as <see cref="OnPage"/> moves each.
     /// </summary>
-    public static IReadOnlyList<LayoutShape> RangeRegions(this LayoutPiece root, int start, int length, LayoutRect? near = null)
+    public static IReadOnlyList<LayoutShape> RangeRegions(this LayoutPiece root, int start, int length, LayoutRect? near = null, LayoutVector by = default)
     {
         if (length <= 0 || !root.Exists) return [];
 
@@ -1194,7 +1193,7 @@ public static class LayoutQuery
         // A leaf belongs to what it is drawn inside, so every leaf whose owner is covered is inside something covered.
         return [.. LeavesUnder(covered)
                        .Where(leaf => leaf.Region is not null && covered.Contains(leaf.Selectable()))
-                       .Select(leaf => OnPage(leaf)!)];
+                       .Select(leaf => OnPage(leaf, by)!)];
     }
 
     /// <summary>
@@ -1319,8 +1318,10 @@ public static class LayoutQuery
     /// are made between things that face each other with nothing else of the wash between and are square, so a
     /// taller side stands up out of the band the way a capital does from a line of text. Where <paramref name="near"/> is said,
     /// only what reaches it is washed — a selection down a long document is painted a screen of it at a time.
+    /// The shape is made moved along by <paramref name="by"/>, for a page drawn from somewhere other than its top: where it stands far down a
+    /// long document is worked out here, in full, rather than left to whatever draws it.
     /// </summary>
-    public static LayoutShape? Wash(this LayoutPiece root, IReadOnlyList<EditRange> selection, double pad, LayoutRect? near = null)
+    public static LayoutShape? Wash(this LayoutPiece root, IReadOnlyList<EditRange> selection, double pad, LayoutRect? near = null, LayoutVector by = default)
     {
         if (root.Tree is not { } tree) return null;
 
@@ -1356,16 +1357,16 @@ public static class LayoutQuery
 
         var medium = tree.Medium;
         var pen = medium.Outline(evenOdd: false);
-        foreach (var rect in pieces.Concat(joined))
+        foreach (var rect in pieces.Concat(joined).Select(rect => LayoutRect.Offset(rect, by)))
         {
-            pen.Begin(rect.TopLeft, filled: true, closed: true);
+        pen.Begin(rect.TopLeft, filled: true, closed: true);
             pen.PolyLineTo([rect.TopRight, rect.BottomRight, rect.BottomLeft], stroked: false);
         }
 
         var shape = pen.Close();
 
         // What stands in a shape of its own is washed as that shape, grown by the pad the way a rectangle is.
-        var regions = selection.SelectMany(range => root.RangeRegions(range.Start, range.Length, near)).ToList();
+        var regions = selection.SelectMany(range => root.RangeRegions(range.Start, range.Length, near, by)).ToList();
         if (regions.Count == 0) return shape;
 
         var washed = shape;

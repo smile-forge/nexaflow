@@ -304,7 +304,7 @@ foreach (var (place, at) in places)
             if (past is var (from, to))
             {
                 said($"{name}: scrolling past");
-                var scroller = Scroller(surface);
+                var scroller = surface;
 
                 Assert.IsTrue(surface.ShowFrom(to), "There is nowhere on the page past it.");
                 Settle();
@@ -380,22 +380,6 @@ foreach (var (place, at) in places)
         }
     }
 
-    /// <summary>What scrolls <paramref name="surface"/>'s page, as the reader's scrollbar does.</summary>
-    private static ScrollViewer Scroller(NexaTextSurface surface)
-    {
-        ScrollViewer? found = null;
-        Looked(surface);
-
-        return found ?? throw new InvalidOperationException("The surface holds nothing that scrolls.");
-
-        void Looked(DependencyObject at)
-        {
-            if (at is ScrollViewer scroller) { found = scroller; return; }
-
-            for (var child = 0; child < VisualTreeHelper.GetChildrenCount(at) && found is null; child++) Looked(VisualTreeHelper.GetChild(at, child));
-        }
-    }
-
     /// <summary>
     /// A word on the first screen carried down it and let go: each move timed, since each lays the content out as it would read with
     /// the word let go there — then taken back. On the first screen because that is laid from opening, so what is timed is carrying,
@@ -406,10 +390,10 @@ foreach (var (place, at) in places)
     {
         var engine = surface.Engine;
 
-        To(surface.Scroller, 0);
+        To(surface, 0);
 
         var source = engine.State.Document.ToString();
-        var middle = engine.Laid.Root.OffsetAt(new Point(120, surface.Scroller.VerticalOffset + (Screen.Height / 3)).ToLayout());
+        var middle = engine.Laid.Root.OffsetAt(new Point(120, surface.VerticalOffset + (Screen.Height / 3)).ToLayout());
 
         var start = middle;
         while (start > 0 && !char.IsWhiteSpace(source[start - 1])) start--;

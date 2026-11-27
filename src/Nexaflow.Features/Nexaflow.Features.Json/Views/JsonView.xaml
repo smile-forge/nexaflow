@@ -258,7 +258,7 @@
                 <DataTemplate DataType="{x:Type m:JsonInlineContentDisplayItem}">
                     <Grid>
                         <!-- The node's JSON as it is written, for Text mode — coloured by its grammar, numbered by line, left accent line. The surface
-                             keeps the wheel while it is over it, so the list round it does not scroll under the reader. -->
+                             takes the wheel while it can scroll that way, and hands it on to the list round it once it can go no further. -->
                         <Border BorderThickness="2,0,0,0"
                                 BorderBrush="{StaticResource AccentBrush}"
                                 Margin="{Binding Depth, Converter={StaticResource DepthMargin}}"

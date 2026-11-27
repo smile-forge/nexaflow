@@ -169,13 +169,9 @@ internal static class MarkdownEditorHarness
     /// <summary>Whether the editor has the keyboard.</summary>
     public static bool HasKeyboard(NexaTextSurface editor) => editor.IsKeyboardFocusWithin;
 
-    /// <summary>How far down the editor is scrolled, and how much there is to scroll.</summary>
-    public static (double Offset, double Extent, double Viewport) Scrolled(NexaTextSurface editor)
-    {
-        var scroller = Drawn<ScrollViewer>(editor)!;
-
-        return (scroller.VerticalOffset, scroller.ExtentHeight, scroller.ViewportHeight);
-    }
+    /// <summary>How far down the editor's view stands, how tall its page is, and how tall the view.</summary>
+    public static (double Offset, double Extent, double Viewport) Scrolled(NexaTextSurface editor) =>
+        (editor.VerticalOffset, editor.ExtentHeight, editor.ViewportHeight);
 
     /// <summary>The text the editor is showing, as a reader reads it — every run of words on the page, in order.</summary>
     public static string Showing(NexaTextSurface editor) =>
@@ -334,16 +330,18 @@ internal sealed class DocumentBlock(NexaTextSurface editor, int index)
     /// <summary>Picks out the whole of the block's own text.</summary>
     public void SelectAll() => Element.Restore(Element.Current.Select(Origin, Latex.Length));
 
-    public void BeginPointerSelect(Point at) => Element.BeginPointerSelect(at);
+    // Every point a test hands over is where something stands on the page, as the laid tree says; the element is the view of the page, so
+    // each is put where it stands on the element first.
+    public void BeginPointerSelect(Point at) => Element.BeginPointerSelect(Element.FromContent(at));
 
-    public void BeginPointerSelect(Point at, ModifierKeys modifiers) => Element.BeginPointerSelect(at, modifiers);
+    public void BeginPointerSelect(Point at, ModifierKeys modifiers) => Element.BeginPointerSelect(Element.FromContent(at), modifiers);
 
-    public void ExtendPointerSelect(Point at) => Element.ExtendPointerSelect(at);
+    public void ExtendPointerSelect(Point at) => Element.ExtendPointerSelect(Element.FromContent(at));
 
     public void EndPointerSelect() => Element.EndPointerSelect();
 
     /// <summary>What the pointer is over a point on the page.</summary>
-    public Cursor? PointerCursor(Point at) => Element.PointerCursor(at);
+    public Cursor? PointerCursor(Point at) => Element.PointerCursor(Element.FromContent(at));
 
     /// <summary>A picture of the block as it is on the page.</summary>
     public System.Windows.Media.Imaging.BitmapSource? Picture(Brush? ground = null) => editor.CapturePicture(Holder, ground);

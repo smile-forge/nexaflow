@@ -39,7 +39,7 @@ public sealed partial class NexaTextSurface
     /// </summary>
     public void ScrollToLine(int line, ShownPlace place = ShownPlace.Nearest)
     {
-        if (_scroller.ViewportHeight <= 0)
+        if (_shown.ActualHeight <= 0)
         {
             Dispatcher.BeginInvoke(() => Scrolled(line, place), DispatcherPriority.Loaded);
             return;
@@ -61,8 +61,8 @@ public sealed partial class NexaTextSurface
 
             // At the top, and then up half a page: the line stands half way down, whether or not it was on the page.
             case ShownPlace.Centre:
-                if (ShowFrom(document.OffsetOf(at)) && _scroller.ViewportHeight > 0)
-                    _scroller.ScrollToVerticalOffset(Math.Max(0, _scroller.VerticalOffset - (_scroller.ViewportHeight / 2)));
+                if (ShowFrom(document.OffsetOf(at)) && _engine.Scrolls)
+                    _engine.ScrollBy(-(_shown.ActualHeight / _shown.Zoom / 2));
                 break;
 
             default:

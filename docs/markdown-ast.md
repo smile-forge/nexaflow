@@ -585,10 +585,20 @@ markdown wraps what is picked out in its marks and code and plain text, which ha
 
 ## 10. The element and the surface
 
-`NexaTextSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the focus,
-and what a search turned up, and answers what the engine asks of a control — a copy to be put on the clipboard, what is
-on one, a picture of a block, a page. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
+`NexaTextSurface` is the one control a page hosts, as many times as it shows content: it holds the bars that scroll the engine's
+view, the focus, and what a search turned up, and answers what the engine asks of a control — a copy to be put on the clipboard,
+what is on one, a picture of a block, a page. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
 engine holds.
+
+**The view of the page is the engine's.** The engine decides what to read and lay from what is on screen, holds the reader still
+while what stands above them comes to its height, and brings a place onto the page — so where the view stands is its to keep too,
+in the content's own units (`ContentEngine.View`). Content that scrolls itself is drawn on an element only as large as the view,
+measured from where the view stood when it was painted; the bars, the wheel, Page Up and Down, a caret moving and a line gone to
+all move the engine's view, and the element only draws it. This is not a nicety: drawing takes its places in single precision,
+so a line millions of pixels down a long document, handed over where it stands on the page, comes out somewhere else — or, past
+about ten million, not at all. Measured from the view, nothing drawn is ever more than a screen or two from nought. A move within
+what was painted round the view slides the picture, a screen at most, and paints nothing. Content shown whole inside something that
+scrolls it — a reply in a conversation — has no view of its own, and is drawn where it stands.
 
 The engine keeps the content as it is being written — the document, the caret, the selection, what was written so it can be taken
 back, and the laid tree — and makes every edit to it. The document is one immutable version per edit (`ContentDocument`): an edit is

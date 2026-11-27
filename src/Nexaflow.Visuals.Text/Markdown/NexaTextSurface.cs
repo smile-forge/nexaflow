@@ -18,6 +18,7 @@ using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Markdown.Editing;
 using System.Windows.Threading;
 using System.Collections.ObjectModel;
+using System.Windows.Controls.Primitives;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -47,7 +48,20 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public sealed partial class NexaTextSurface : UserControl, IContentEvents
 {
-    private readonly ScrollViewer _scroller;
+    /// <summary>Where the page is drawn, with the bars that scroll the engine's view of it beside and under it.</summary>
+    private readonly Grid _page;
+
+    /// <summary>
+    /// What the element stands in on the page, cutting off what it paints round the view — a screen above and below, slid under it as the view
+    /// moves until it is painted again.
+    /// </summary>
+    private readonly Border _frame = new() { ClipToBounds = true };
+
+    /// <summary>The bar that scrolls the view down the page.</summary>
+    private readonly ScrollBar _down;
+
+    /// <summary>The bar that slides the view along lines kept whole.</summary>
+    private readonly ScrollBar _across;
     private readonly TextBlock _prompt;
 
     private MarkdownElement _shown;
@@ -73,10 +87,14 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         _engine.Reread += Landed;
         _engine.OutlineChanged += Outlined;
 
-        // What the reader is looking at stays where it is on the screen while what stands above it comes to its height; and while
-        // the page is being moved to a place brought onto it, it is not held to where it was.
-        _engine.Shifted += (_, by) => Shift(by);
-        _engine.Revealing += (_, _) => PageMoving(scrolling: false);
+        // The engine keeps the view: where it moves — scrolled, brought to a place, held still while what stands above the reader comes to its
+        // height — the bars, the margins and the page above are told. Content shown whole inside something that scrolls it has no view of its
+        // own, and a place brought onto it is brought by whatever holds it, which is not held to where it was meanwhile.
+        _engine.ViewMoved += (_, _) => Synced();
+        _engine.Revealing += (_, _) =>
+        {
+            if (!_engine.Scrolls) PageMoving();
+        };
 
         // What the view of the document asks of the page, done here.
         _engine.LineAsked += (_, asked) => ScrollToLine(asked.Line, asked.Place);
@@ -94,29 +112,41 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         };
         _prompt.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
 
-        _scroller = new ScrollViewer
+        // The bars stand for the engine's view: moved, they move it; and it moving sets them (Synced).
+        _down = new ScrollBar { Orientation = Orientation.Vertical, Visibility = Visibility.Collapsed, Focusable = false };
+        _across = new ScrollBar { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed, Focusable = false };
+        Grid.SetColumn(_down, 1);
+        Grid.SetRow(_across, 1);
+
+        _page = new Grid
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Focusable = false,
+            ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } },
+            RowDefinitions = { new RowDefinition(), new RowDefinition { Height = GridLength.Auto } },
+            Children = { _frame, _down, _across },
         };
 
-        // The document is told which part of it is on screen, so only what is near that is painted, and the page
-        // above is told it moved.
-        _scroller.ScrollChanged += (_, _) =>
+        // The page sized again is laid in its width while it slides sideways; and, shown whole, it is told all of it is on screen.
+        _page.SizeChanged += (_, args) =>
         {
+            if (args.WidthChanged) Slid();
             Shows(_shown);
-            Moved();
-            Remargined();
-            Reported();
+            Synced();
         };
-
-        Sliding();
+        _page.PreviewMouseWheel += Wheeled;
 
         _shown = Made(string.Empty);
 
+        _down.ValueChanged += (_, args) =>
+        {
+            if (!_syncing) _engine.ScrollTo(args.NewValue / _shown.Zoom);
+        };
+        _across.ValueChanged += (_, args) =>
+        {
+            if (!_syncing) _engine.SlideViewTo(args.NewValue / _shown.Zoom);
+        };
+
         // The page between what stands beside it on either side, each stack in the order it stands outward from the page.
-        Grid.SetColumn(_scroller, 1);
+        Grid.SetColumn(_page, 1);
         Grid.SetColumn(_prompt, 1);
         Grid.SetColumn(_trailing, 2);
         LeadingMargins.CollectionChanged += (_, _) => Stood(_leading, LeadingMargins.Reverse());
@@ -125,7 +155,7 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         base.Content = new Grid
         {
             ColumnDefinitions = { new ColumnDefinition { Width = GridLength.Auto }, new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } },
-            Children = { _leading, _scroller, _prompt, _trailing },
+            Children = { _leading, _page, _prompt, _trailing },
         };
 
         PreviewMouseLeftButtonDown += (_, _) =>
@@ -133,48 +163,89 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         if (!IsKeyboardFocusWithin) Focus();
         };
 
-        // A scroller that is not to scroll still takes the wheel, and a document in a conversation would then stop the
-        // conversation scrolling wherever the pointer rested on it. So the wheel goes on to whatever holds this.
-        _scroller.PreviewMouseWheel += (_, args) =>
-        {
-            if (VerticalScrollBarVisibility != ScrollBarVisibility.Disabled || args.Handled) return;
-
-            // Turned sideways over a box that slides, it is the box's, and goes no further.
-            args.Handled = true;
-            if (_shown.WheeledSideways(args)) return;
-            (Parent as UIElement ?? VisualTreeHelper.GetParent(this) as UIElement)?.RaiseEvent(
-                new MouseWheelEventArgs(args.MouseDevice, args.Timestamp, args.Delta) { RoutedEvent = MouseWheelEvent, Source = this });
-        };
     }
 
-    /// <summary>Where the page has been told to scroll to and has not reached yet — what a further shift adds to — or null once it has.</summary>
-    private double? _scrolling;
+    /// <summary>Whether the bars are being set from the engine's view, so their moving is not taken as the reader moving them.</summary>
+    private bool _syncing;
+
+    /// <summary>Whether this scrolls itself, and when its bar shows.</summary>
+    private ScrollBarVisibility _vertical = ScrollBarVisibility.Disabled;
+
+    /// <summary>Whether this slides sideways, and when its bar shows.</summary>
+    private ScrollBarVisibility _horizontal = ScrollBarVisibility.Disabled;
 
     /// <summary>
-    /// Scrolls the page by <paramref name="by"/>, in the document's own units, on top of wherever it was last told to scroll and has not
-    /// reached yet — a scroll is done at the next layout pass, so the offset the page says until then is where it was.
+    /// The bars, the margins and the page above told where the engine's view now stands — after it moved, was sized again, or the content
+    /// under it was laid again and it was kept inside it.
     /// </summary>
-    private void Shift(double by)
+    private void Synced()
     {
-        _scrolling = (_scrolling ?? _scroller.VerticalOffset) + (by * _shown.Zoom);
-        _scroller.ScrollToVerticalOffset(_scrolling.Value);
+        if (_engine.Scrolls && _engine.OnScreen is { } view)
+        {
+            var (zoom, extent) = (_shown.Zoom, _engine.Extent);
 
-        PageMoving(scrolling: true);
+            _syncing = true;
+
+            try
+            {
+                Barred(_down, _vertical, extent.Height * zoom, view.Height * zoom, _engine.ScrolledDown * zoom);
+                Barred(_across, _horizontal, extent.Width * zoom, view.Width * zoom, _engine.ScrolledAcross * zoom);
+            }
+            finally
+            {
+                _syncing = false;
+            }
+        }
+
+        Moved();
+        Remargined();
+        Reported();
+    }
+
+    /// <summary><paramref name="bar"/> set to stand for a view <paramref name="view"/> long at <paramref name="at"/> through <paramref name="extent"/>, shown as <paramref name="shown"/> says.</summary>
+    private static void Barred(ScrollBar bar, ScrollBarVisibility shown, double extent, double view, double at)
+    {
+        var room = Math.Max(0, extent - view);
+
+        bar.Maximum = room;
+        bar.ViewportSize = view;
+        bar.LargeChange = Math.Max(1, view);
+        bar.SmallChange = Notch;
+        bar.Value = Math.Clamp(at, 0, room);
+        bar.Visibility = shown == ScrollBarVisibility.Visible || (shown == ScrollBarVisibility.Auto && room >= 1) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>How far a notch of the wheel scrolls, on the screen — as far as the system says, three lines of sixteen pixels unless it says otherwise.</summary>
+    private static double Notch => Math.Max(1, SystemParameters.WheelScrollLines) * 16;
+
+    /// <summary>
+    /// The wheel turned over the page: content that scrolls itself scrolls by it — sideways with Shift held, where it slides — until it can go
+    /// no further that way, and then the wheel is whatever holds it's, as it is always for content shown whole.
+    /// </summary>
+    private void Wheeled(object sender, MouseWheelEventArgs args)
+    {
+        if (args.Handled || !_engine.Scrolls) return;
+
+        var notches = -args.Delta / (double)Mouse.MouseWheelDeltaForOneLine;
+        var by = (SystemParameters.WheelScrollLines < 0 ? _shown.ActualHeight : Notch) * notches / _shown.Zoom;
+
+        if (Keyboard.Modifiers == ModifierKeys.Shift)
+        {
+            if (_engine.ViewSlides && _engine.SlideViewBy(by)) args.Handled = true;
+            return;
+        }
+
+        if (_engine.CanScroll(by)) args.Handled = _engine.ScrollBy(by);
     }
 
     /// <summary>
-    /// Says the page is on its way somewhere — told to scroll (<paramref name="scrolling"/>), or a place brought onto it — and lets go of
-    /// that once the layout pass that takes it there is done, whether or not it moved at all.
+    /// Says a place brought onto content shown whole is on its way onto the screen of whatever holds it — which scrolls at its next layout pass —
+    /// and lets go of that once that pass is done, whether or not it moved at all.
     /// </summary>
-    private void PageMoving(bool scrolling)
+    private void PageMoving()
     {
-        if (!scrolling) _engine.ScreenMoving = true;
-
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
-        {
-            _scrolling = null;
-            _engine.ScreenMoving = false;
-        });
+        _engine.ScreenMoving = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _engine.ScreenMoving = false);
     }
 
     // ── Beside the page ─────────────────────────────────────────────────────
@@ -218,13 +289,15 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
     /// </summary>
     public IReadOnlyList<ShownLine> LinesShown()
     {
-        if (_scroller.ViewportHeight <= 0) return [];
+        var height = _shown.ActualHeight;
+        if (height <= 0) return [];
 
         var zoom = _shown.Zoom;
-        var top = _scroller.TranslatePoint(default, _shown).Y / zoom;
+        var top = _engine.ViewOrigin.Y;
+        var at = _shown.TranslatePoint(default, this).Y;
 
-        return [.. _engine.LinesBetween(top, top + _scroller.ViewportHeight / zoom)
-                         .Select(line => line with { Top = _shown.TranslatePoint(new Point(0, line.Top * zoom), this).Y, Height = line.Height * zoom })];
+        return [.. _engine.LinesBetween(top, top + (height / zoom))
+                         .Select(line => line with { Top = at + ((line.Top - top) * zoom), Height = line.Height * zoom })];
     }
 
     /// <summary>
@@ -407,12 +480,25 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
 
     /// <summary>
     /// Whether this scrolls itself, or lets whatever holds it do the scrolling — the second being what a reply in a
-    /// conversation wants, where every reply scrolling separately would be unusable, and so the default.
+    /// conversation wants, where every reply scrolling separately would be unusable, and so the default. Scrolling itself, the engine keeps
+    /// the view of the page, and the page is drawn from where it stands.
     /// </summary>
     public ScrollBarVisibility VerticalScrollBarVisibility
     {
-        get => _scroller.VerticalScrollBarVisibility;
-        set => _scroller.VerticalScrollBarVisibility = value;
+        get => _vertical;
+        set
+        {
+            if (_vertical == value) return;
+
+            _vertical = value;
+            _engine.Scrolls = value != ScrollBarVisibility.Disabled;
+
+            Padded();
+            _shown.InvalidateMeasure();
+            _shown.InvalidateVisual();
+            Shows(_shown);
+            Synced();
+        }
     }
 
     // ── What the host says ──────────────────────────────────────────────────
@@ -450,8 +536,26 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
     /// <summary>What lays the document out — for a test asking what only the engine is told, a pointer resting on the page or the rest of a long document read.</summary>
     internal ContentEngine Engine => _engine;
 
-    /// <summary>What scrolls the document — for a test moving through it as a reader does.</summary>
-    internal ScrollViewer Scroller => _scroller;
+    /// <summary>Where the view's top stands, as its bar counts it, in this surface's pixels — for a test or a bench moving through the document as a reader does.</summary>
+    internal double VerticalOffset => _engine.ScrolledDown * _shown.Zoom;
+
+    /// <summary>How far down the view's top can go, as its bar counts it.</summary>
+    internal double ScrollableHeight => Math.Max(0, (_engine.Extent.Height * _shown.Zoom) - ViewportHeight);
+
+    /// <summary>How tall the view is, in this surface's pixels.</summary>
+    internal double ViewportHeight => _shown.ActualHeight;
+
+    /// <summary>How tall the page is, room round it and all, as the view's bar counts it.</summary>
+    internal double ExtentHeight => _engine.Extent.Height * _shown.Zoom;
+
+    /// <summary>How wide the page is, its widest line and the room round it, as the view's sideways bar counts it.</summary>
+    internal double ExtentWidth => _engine.Extent.Width * _shown.Zoom;
+
+    /// <summary>How wide the view is, in this surface's pixels.</summary>
+    internal double ViewportWidth => _shown.ActualWidth;
+
+    /// <summary>Scrolls the view so its top stands <paramref name="offset"/> down, as its bar counts it.</summary>
+    internal void ScrollToVerticalOffset(double offset) => _engine.ScrollTo(offset / _shown.Zoom);
 
     /// <summary>Forgets what the reader had opened and chosen in every diagram here, and draws them as their sources say.</summary>
     public void ResetDiagramViews()
@@ -537,35 +641,53 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
             UnlimitedWidth = UnlimitedWidth,
             SlidingRoom = SlidingRoom(),
             HighlightsCaretLine = HighlightsCaretLine,
-            Margin = ContentPadding,
         };
 
 
         element.CaretMoved += (_, _) => Reveal();
 
-        _scroller.Content = element;
+        _frame.Child = element;
+
+        _shown = element;
+        Padded();
         Shows(element);
 
         return element;
     }
 
     /// <summary>
-    /// Tells <paramref name="element"/> which part of it the scroller is showing. A scroller that does not scroll shows all of
-    /// it, so nothing is left out; one not yet laid out says nothing, and the next scroll or resize says it.
+    /// Tells <paramref name="element"/>, shown whole inside something that scrolls it, that all of it may be on screen — what that scrolls is not
+    /// this one's to know. Content that scrolls itself is told nothing: the engine keeps its view.
     /// </summary>
     private void Shows(MarkdownElement? element)
     {
-        if (element is null || _scroller.ViewportHeight <= 0 || _scroller.ViewportWidth <= 0) return;
+        if (element is null || _engine.Scrolls || element.ActualHeight <= 0 || element.ActualWidth <= 0) return;
 
-        element.OnScreen = new Rect(_scroller.HorizontalOffset, _scroller.VerticalOffset, _scroller.ViewportWidth, _scroller.ViewportHeight);
+        element.OnScreen = new Rect(0, 0, element.ActualWidth, element.ActualHeight);
     }
 
+    /// <summary>
+    /// Keeps the room asked for round the document: part of what scrolls, for content that scrolls itself — so the room above it scrolls away
+    /// with the first line, as it would on a page — and room round the element for content shown whole.
+    /// </summary>
     private void Padded()
     {
-        _shown.Margin = ContentPadding;
+        var padding = ContentPadding;
+        var zoom = _shown.Zoom;
+
+        if (_engine.Scrolls)
+        {
+            _shown.Margin = default;
+            _engine.Inset(padding.Left / zoom, padding.Top / zoom, padding.Right / zoom, padding.Bottom / zoom);
+        }
+        else
+        {
+            _shown.Margin = padding;
+            _engine.Inset(0, 0, 0, 0);
+        }
 
         // The prompt stands where the first word would, so it is inset as the document is.
-        _prompt.Margin = ContentPadding;
+        _prompt.Margin = padding;
     }
 
     /// <summary>Shows the prompt while nothing is written, and takes it away the moment something is.</summary>
@@ -662,7 +784,10 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
 
         return WpfPainter.Painted(_shown.Laid.Root, box, scale, (_drawnIn ?? Drawn).Text.Brush(), ground, dpi.PixelsPerInchX, dpi.PixelsPerInchY);
     }
-    private Point Middle() =>
-        new(_scroller.HorizontalOffset + (_scroller.ViewportWidth / 2),
-            _scroller.VerticalOffset + (_scroller.ViewportHeight / 2));
+    /// <summary>The middle of the part of the page on screen, in the content's own units.</summary>
+    private Point Middle()
+    {
+        var (origin, zoom) = (_engine.ViewOrigin, _shown.Zoom);
+        return new(origin.X + (_shown.ActualWidth / zoom / 2), origin.Y + (_shown.ActualHeight / zoom / 2));
+    }
 }

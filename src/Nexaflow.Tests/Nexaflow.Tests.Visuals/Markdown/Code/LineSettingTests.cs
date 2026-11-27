@@ -78,7 +78,7 @@ public class LineSettingTests
         {
             var (_, _, viewport) = MarkdownEditorHarness.Scrolled(surface);
 
-            Assert.IsTrue(surface.Shown.ActualWidth > surface.ActualWidth, "the long line was cut off at the page's edge");
+            Assert.IsTrue(surface.ExtentWidth > surface.ViewportWidth, "the long line was cut off at the page's edge");
             Assert.IsTrue(viewport > 0);
         }, surface =>
         {

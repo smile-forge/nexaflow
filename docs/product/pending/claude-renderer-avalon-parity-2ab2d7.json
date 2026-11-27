@@ -749,9 +749,9 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.Lines.cs",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/NexaTextSurface.cs",
           "class": "NexaTextSurface",
-          "method": "Sliding"
+          "method": "Wheeled"
         }
       ]
     },
@@ -1124,6 +1124,11 @@
           "doc": "src/Nexaflow.Markdown/Pipeline/LinkTargets.cs",
           "class": "LinkTargets",
           "method": "Report"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.View.cs",
+          "class": "ContentEngine"
         }
       ],
       "concerns": {
@@ -1172,6 +1177,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SkippedReadingTests.cs",
             "class": "SkippedReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ViewportPrecisionTests.cs",
+            "class": "ViewportPrecisionTests"
           }
         ]
       }

@@ -180,6 +180,7 @@ public sealed partial class ContentEngine
         if (window.Read is { IsCompleted: true } && Received(window)) Grow();
         if (window.Read is not { IsCompleted: false } && (!window.Units.Done || this.Unworked(window))) Background(window, style);
         if (shifted != 0) Shifted?.Invoke(this, shifted);
+        if (shifted != 0 && Scrolls) ViewMoved?.Invoke(this, EventArgs.Empty);
 
         this.LetFarGo(window, state);
 
