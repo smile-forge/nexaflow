@@ -103,7 +103,7 @@ public sealed partial class ContentEngine
         this.ViewAt(view.X, top, view.Width, view.Height);
     }
 
-    /// <summary>ViewSlides the view so its left edge stands <paramref name="across"/> into the content, as a scrollbar counts it.</summary>
+    /// <summary>Slides the view so its left edge stands <paramref name="across"/> into the content, as a scrollbar counts it.</summary>
     internal void SlideViewTo(double across)
     {
         if (_showing is not { } view || !ViewSlides) return;
@@ -119,7 +119,7 @@ public sealed partial class ContentEngine
         return this.ViewAt(view.X, view.Y + by, view.Width, view.Height);
     }
 
-    /// <summary>ViewSlides the view by <paramref name="by"/>, towards the end of the lines where positive — and says whether it moved at all.</summary>
+    /// <summary>Slides the view by <paramref name="by"/>, towards the end of the lines where positive — and says whether it moved at all.</summary>
     internal bool SlideViewBy(double by)
     {
         if (_showing is not { } view || !ViewSlides) return false;

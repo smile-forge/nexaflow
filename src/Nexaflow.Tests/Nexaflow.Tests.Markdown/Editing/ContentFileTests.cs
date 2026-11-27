@@ -223,6 +223,26 @@ public class ContentFileTests
         Assert.AreEqual(bytes.Length, file.LineStartByte(bytes.Length + 10), "never past the end");
     }
 
+    [TestMethod]
+    public void ASameLengthEdit_IsToldApartFromWhatWasSaved_ReadingOnlyWhatItChanged()
+    {
+        using var file = Opened(Lines(4000), new UTF8Encoding(false), blockBytes: 999);
+        var document = new EditedDocument(ContentDocument.Of(file));
+        var (before, original) = (file.CachedCount, document.Current.Slice(100, 1));
+
+        // One character written over another: as long as what was saved, so only reading can tell.
+        var state = new EditState(document.Current, 100);
+        var written = state.Made(ContentChange.Write(100, 1, original == "Z" ? "Y" : "Z"));
+        document.Wrote(state, written);
+        Assert.IsTrue(document.IsDirty);
+
+        var back = written.Made(ContentChange.Write(100, 1, original));
+        document.Wrote(written, back);
+        Assert.IsFalse(document.IsDirty, "written back to what was saved, there is nothing to save");
+
+        Assert.IsTrue(file.CachedCount - before <= 2, $"{file.CachedCount - before} blocks read to compare: the rest is shared, and not read");
+    }
+
     private ContentFile Opened(string text, Encoding encoding, int blockBytes)
     {
         var file = ContentFile.Open(Written(text, encoding), encoding, encoding.GetPreamble().Length, ContentFileAccess.ReadOnly, blockBytes);

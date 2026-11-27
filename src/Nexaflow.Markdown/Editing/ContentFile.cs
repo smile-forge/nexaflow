@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using Microsoft.Win32.SafeHandles;
+using System.Runtime.InteropServices;
 
 namespace Nexaflow.Markdown.Editing;
 
@@ -78,6 +79,15 @@ public sealed class ContentFile : IDisposable
     private DateTime _written;
     private bool _held;
     private bool _disposed;
+
+    /// <summary>How many reads are under way on the handle each took, which closing or swapping the handle waits for.</summary>
+    private int _reading;
+
+    /// <summary>Handles let go of while a read was under way, closed once none is.</summary>
+    private readonly List<SafeFileHandle> _retired = [];
+
+    /// <summary>Where each block's characters start, counted from the file's first — and, one past the last, where the last ends — kept as blocks are scanned.</summary>
+    private readonly List<long> _charStarts = [0];
 
     private ContentFile(string path, SafeFileHandle handle, Encoding encoding, int preamble, long from, ContentFileAccess access, int blockBytes)
     {
@@ -160,11 +170,13 @@ public sealed class ContentFile : IDisposable
     /// (<see cref="OpenStretch"/>); and says how many it added. Nothing past the last character finished is taken, so a character being
     /// written is taken up once it is whole.
     /// </summary>
-    public int Scan(int most = int.MaxValue, CancellationToken cancel = default, long until = long.MaxValue)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+    public int Scan(int most = int.MaxValue, CancellationToken cancel = default, long until = long.MaxValue) =>
+        this.Lent(handle => this.Scan(handle, most, cancel, until));
 
-        var end = Math.Min(RandomAccess.GetLength(_handle), until);
+    /// <summary>What <see cref="Scan(int, CancellationToken, long)"/> does, reading through <paramref name="handle"/>.</summary>
+    private int Scan(SafeFileHandle handle, int most, CancellationToken cancel, long until)
+    {
+        var end = Math.Min(RandomAccess.GetLength(handle), until);
         var bytes = new byte[_blockBytes + 4];
         var chars = new char[this.Encoding.GetMaxCharCount(bytes.Length)];
         var added = 0;
@@ -177,7 +189,7 @@ public sealed class ContentFile : IDisposable
             cancel.ThrowIfCancellationRequested();
 
             var wanted = (int)Math.Min(bytes.Length, end - from);
-            var read = RandomAccess.Read(_handle, bytes.AsSpan(0, wanted), from);
+            var read = RandomAccess.Read(handle, bytes.AsSpan(0, wanted), from);
             if (read <= 0) break;
 
             // The last block of what is there takes all of it; any other ends where a character starts, so it decodes alone.
@@ -194,6 +206,7 @@ public sealed class ContentFile : IDisposable
                 {
                     _blocks.Add(block);
                     _characters += length;
+                    _charStarts.Add(_characters);
                 }
 
                 _scanned = from += cut;
@@ -213,11 +226,12 @@ public sealed class ContentFile : IDisposable
     /// feed follows, read in the file's encoding — looked for no further than a megabyte along; a line longer than that is stood in the middle
     /// of, where a character starts. Never before <see cref="From"/>, which a line is taken to start at, nor past the end of the file.
     /// </summary>
-    public long LineStartByte(long at)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+    public long LineStartByte(long at) => this.Lent(handle => this.LineStartByte(handle, at));
 
-        var end = RandomAccess.GetLength(_handle);
+    /// <summary>What <see cref="LineStartByte(long)"/> says, reading through <paramref name="handle"/>.</summary>
+    private long LineStartByte(SafeFileHandle handle, long at)
+    {
+        var end = RandomAccess.GetLength(handle);
         var (feed, back) = (this.Encoding.GetBytes("\n"), this.Encoding.GetBytes("\r"));
         var unit = feed.Length;
 
@@ -228,7 +242,7 @@ public sealed class ContentFile : IDisposable
 
         // From the unit before it, which says whether a line starts at it.
         var bytes = new byte[(int)Math.Min(LineSearchBytes + (2 * unit), end - (at - unit))];
-        var read = RandomAccess.Read(_handle, bytes, at - unit);
+        var read = RandomAccess.Read(handle, bytes, at - unit);
 
         for (var index = 0; index + unit <= read; index += unit)
         {
@@ -251,10 +265,10 @@ public sealed class ContentFile : IDisposable
     {
         lock (_gate)
         {
-            var (start, length) = (0L, 0L);
-            for (var at = 0; at < last; at++) (start, length) = at < first ? (start + _blocks[at].Chars, 0) : (start, length + _blocks[at].Chars);
+            first = Math.Clamp(first, 0, _blocks.Count);
+            last = Math.Clamp(last, first, _blocks.Count);
 
-            return (start, length);
+            return (_charStarts[first], _charStarts[last] - _charStarts[first]);
         }
     }
 
@@ -305,7 +319,8 @@ public sealed class ContentFile : IDisposable
                 return ContentFileHold.WrittenElsewhere;
             }
 
-            _handle.Dispose();
+            // What reads the one it held is under way on keeps it until it is done.
+            this.Retire(_handle);
             _handle = held;
             _held = true;
         }
@@ -337,9 +352,17 @@ public sealed class ContentFile : IDisposable
     /// one, which then stands its document over the file this returns (<see cref="EditedDocument.Rebase"/>, <see cref="EditedDocument.MarkSaved"/>).
     /// </summary>
     public static ContentFile WriteOut(ContentDocument version, string path, Encoding encoding, bool preamble,
+                                       ContentFileAccess access = ContentFileAccess.Editable, bool hold = true) =>
+        WriteOut(version.WriteTo, path, encoding, preamble, access, hold);
+
+    /// <summary>
+    /// What <see cref="WriteOut(ContentDocument, string, Encoding, bool, ContentFileAccess, bool)"/> does, for what <paramref name="write"/> writes
+    /// — the whole of a window onto a file as it stood when it was asked (<see cref="ContentFileWindow.Writing"/>), say.
+    /// </summary>
+    public static ContentFile WriteOut(Action<TextWriter> write, string path, Encoding encoding, bool preamble,
                                        ContentFileAccess access = ContentFileAccess.Editable, bool hold = true)
     {
-        var full = Replace(path, encoding, preamble, version.WriteTo);
+        var full = Replace(path, encoding, preamble, write);
 
         var saved = Open(full, encoding, preamble ? encoding.GetPreamble().Length : 0, access);
         saved.Scan();
@@ -383,36 +406,19 @@ public sealed class ContentFile : IDisposable
     /// </summary>
     internal (int First, int Last, int Skip) BlocksOf(long start, long length)
     {
-        var starts = this.Starts;
-        var found = Array.BinarySearch(starts, start);
-        var first = Math.Max(0, found >= 0 ? Math.Min(found, starts.Length - 2) : ~found - 1);
-        var end = start + length;
-        var last = first;
-
-        while (last < starts.Length - 1 && starts[last] < end) last++;
-
-        return (first, Math.Max(last, first + 1), (int)(start - starts[first]));
-    }
-
-    /// <summary>Where each block's characters start, counted from the file's first — and, one past the last, where the last ends.</summary>
-    private long[] Starts
-    {
-        get
+        lock (_gate)
         {
-            lock (_gate)
-            {
-                if (_starts is { } kept && kept.Length == _blocks.Count + 1) return kept;
+            var starts = CollectionsMarshal.AsSpan(_charStarts);
+            var found = starts.BinarySearch(start);
+            var first = Math.Max(0, found >= 0 ? Math.Min(found, starts.Length - 2) : ~found - 1);
 
-                var starts = new long[_blocks.Count + 1];
-                for (var block = 0; block < _blocks.Count; block++) starts[block + 1] = starts[block] + _blocks[block].Chars;
+            // The first block starting at or past the end, which is one past the last that holds any of it.
+            var after = starts.BinarySearch(start + length);
+            var last = Math.Clamp(after >= 0 ? after : ~after, first + 1, Math.Max(first + 1, starts.Length - 1));
 
-                return _starts = starts;
-            }
+            return (first, last, (int)(start - starts[first]));
         }
     }
-
-    /// <summary>What <see cref="Starts"/> came to, for the blocks scanned when it was asked.</summary>
-    private long[]? _starts;
 
     /// <summary><paramref name="encoding"/> without the mark at the start of a file it would otherwise write — for a file saved as it was found, without one.</summary>
     public static Encoding Unmarked(Encoding encoding) => encoding switch
@@ -442,14 +448,18 @@ public sealed class ContentFile : IDisposable
             said = _blocks[block];
         }
 
-        var bytes = new byte[said.ByteLength];
-        var read = 0;
-        while (read < bytes.Length)
+        var bytes = this.Lent(handle =>
         {
-            var got = RandomAccess.Read(_handle, bytes.AsSpan(read), said.ByteStart + read);
-            if (got <= 0) throw new IOException($"{this.Path} is shorter than when it was read: block {block} is gone");
-            read += got;
-        }
+            var read = new byte[said.ByteLength];
+            for (var at = 0; at < read.Length;)
+            {
+                var got = RandomAccess.Read(handle, read.AsSpan(at), said.ByteStart + at);
+                if (got <= 0) throw new IOException($"{this.Path} is shorter than when it was read: block {block} is gone");
+                at += got;
+            }
+
+            return read;
+        });
 
         var text = this.Encoding.GetString(bytes);
         if (text.Length != said.Chars) throw new IOException($"{this.Path} changed under what was read: block {block} decodes differently");
@@ -482,18 +492,57 @@ public sealed class ContentFile : IDisposable
         get { lock (_gate) return _recent.Count; }
     }
 
+    /// <summary>Lets go of the file: its handle closed once no read is under way on it, so a read already started finishes.</summary>
     public void Dispose()
     {
-        if (_disposed) return;
-
-        _disposed = true;
-        _handle.Dispose();
-
         lock (_gate)
         {
+            if (_disposed) return;
+
+            _disposed = true;
+            this.Retire(_handle);
             _cached.Clear();
             _recent.Clear();
         }
+    }
+
+    /// <summary>
+    /// What <paramref name="read"/> makes of the file's handle, lent it for the read: kept open until the read is done, however the file is let
+    /// go of or held against writers meanwhile — and refused, once it has been let go of, before the read starts.
+    /// </summary>
+    private T Lent<T>(Func<SafeFileHandle, T> read)
+    {
+        SafeFileHandle handle;
+
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _reading++;
+            handle = _handle;
+        }
+
+        try
+        {
+            return read(handle);
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (--_reading == 0)
+                {
+                    foreach (var retired in _retired) retired.Dispose();
+                    _retired.Clear();
+                }
+            }
+        }
+    }
+
+    /// <summary>Closes <paramref name="handle"/>, the file's no longer — at once where no read is under way, and otherwise when the last is done. Under the gate.</summary>
+    private void Retire(SafeFileHandle handle)
+    {
+        if (_reading == 0) handle.Dispose();
+        else _retired.Add(handle);
     }
 
     /// <summary>The file opened to be read, sharing it with other readers, other writers, and a save that replaces it.</summary>

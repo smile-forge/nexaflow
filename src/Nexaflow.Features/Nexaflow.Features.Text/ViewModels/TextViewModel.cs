@@ -381,7 +381,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
                 // before is let go of once nothing reads it: a step taken back may still.
                 if (_window is { } window)
                 {
-                    var saved = await Task.Run(() => window.WriteOut(path, encoding, marked, hold));
+                    // The whole of what is written taken here, as it stands, and written away from the page.
+                    var (writing, access) = (window.Writing(), window.File.Access);
+                    var saved = await Task.Run(() => ContentFile.WriteOut(writing, path, encoding, marked, access, hold));
                     window.StandOver(saved);
                     _file = saved;
                 }
@@ -397,7 +399,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
             else
             {
                 // A file in an archive or on a location, written back through the file system as a stream of what is written.
-                var (window, version) = (_window, Document.Current);
+                var writing = _window?.Writing() ?? Document.Current.WriteTo;
 
                 await using (var write = await _vfs.BeginWriteAsync(FilePath, WriteMode.Replace))
                 {
@@ -406,8 +408,7 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
                         if (marked) write.Content.Write(encoding.GetPreamble());
 
                         using var writer = new StreamWriter(write.Content, ContentFile.Unmarked(encoding), 1 << 16, leaveOpen: true);
-                        if (window is not null) window.WriteTo(writer);
-                        else version.WriteTo(writer);
+                        writing(writer);
                     });
 
                     await write.CommitAsync(CancellationToken.None);

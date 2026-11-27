@@ -88,7 +88,11 @@ public partial class FileTextEditorViewModel : ISearchable
         var scan = await Task.Run(() => Scanned(document, matcher, display, ct), ct);
 
         // Agent-side read: the matches are data, so nothing on screen may move.
-        if (display) Apply(scan.Lines, scan.Firsts, scan.Places, SearchSyntax.Format(request));
+        if (display)
+        {
+            _shownSearch = request;
+            Apply(scan.Lines, scan.Firsts, scan.Places, SearchSyntax.Format(request));
+        }
 
         return scan.Lines.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(scan.Hits, scan.Lines.Count);
     }
@@ -146,23 +150,64 @@ public partial class FileTextEditorViewModel : ISearchable
         var places = Editor.Found.Places.Where(place => chosen.Contains(document.LineOf(place.Start))).ToList();
         var firsts = lines.Select(line => places.FindIndex(place => document.LineOf(place.Start) == line)).ToList();
 
+        // Narrowed by hand, it is not run again as the document is written: its marks are carried through each edit instead.
+        _shownSearch = null;
         Apply(lines, firsts, places, CurrentSearchTerm);
         return Task.FromResult(true);
     }
 
     // ── Shared display path ───────────────────────────────────────────────────
 
-    private void Apply(IReadOnlyList<int> lines, IReadOnlyList<int> firsts, IReadOnlyList<(int Start, int Length)> places, string term)
+    /// <summary>
+    /// Shows what a search found: <paramref name="index"/> the match looked at, and the caret put on it where <paramref name="go"/> says — not
+    /// where the search is only run again as the document is written, which leaves the reader where they are.
+    /// </summary>
+    private void Apply(IReadOnlyList<int> lines, IReadOnlyList<int> firsts, IReadOnlyList<(int Start, int Length)> places, string term, int index = 0, bool go = true)
     {
         _matchLines        = [.. lines];
         _matchPlaces       = [.. firsts];
-        _currentMatchIndex = lines.Count > 0 ? 0 : -1;
-        Editor.Found.Show(places, _currentMatchIndex >= 0 ? _matchPlaces[0] : -1);
+        _currentMatchIndex = lines.Count > 0 ? Math.Clamp(index, 0, lines.Count - 1) : -1;
+        Editor.Found.Show(places, _currentMatchIndex >= 0 ? _matchPlaces[_currentMatchIndex] : -1);
         MiniMapMarks       = MarksFor(lines);
         SearchMatchCount   = lines.Count;
         CurrentSearchTerm  = term;
         IsSearchActive     = true;   // true even at zero matches: "no matches for X" is a result to show
-        if (lines.Count > 0) MoveCaretToLine(lines[0] + 1);
+        if (lines.Count > 0 && go) MoveCaretToLine(lines[_currentMatchIndex] + 1);
+    }
+
+    /// <summary>The search shown, run again as the document is written — null where none is, or it was narrowed by hand.</summary>
+    private SearchRequest? _shownSearch;
+
+    /// <summary>The search waiting to run again, cancelled by the next edit before it does.</summary>
+    private CancellationTokenSource? _searchAgain;
+
+    /// <summary>How long writing pauses before the search shown is run again.</summary>
+    private static readonly TimeSpan SearchAgainAfter = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>
+    /// Runs the search shown again once writing pauses — the count, the minimap and the steps through it then said of the document as it now
+    /// is, the reader left on the match nearest where the caret stands. Its marks are carried through each edit meanwhile, so they stay on what
+    /// they found.
+    /// </summary>
+    private async void SearchAgainSoon()
+    {
+        _searchAgain?.Cancel();
+        var again = _searchAgain = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(SearchAgainAfter, again.Token);
+            if (_shownSearch is not { } request || !TextSearchMatcher.TryCreate(request, out var matcher, out _)) return;
+
+            var document = Document.Current;
+            var parked = document.LineOf(Math.Clamp(Editor.Caret, 0, document.Length));
+            var scan = await Task.Run(() => Scanned(document, matcher, display: true, again.Token), again.Token);
+            if (again.IsCancellationRequested || !ReferenceEquals(request, _shownSearch)) return;
+
+            var found = scan.Lines.BinarySearch(parked);
+            Apply(scan.Lines, scan.Firsts, scan.Places, CurrentSearchTerm, found >= 0 ? found : Math.Max(0, Math.Min(~found, scan.Lines.Count - 1)), go: false);
+        }
+        catch (OperationCanceledException) { }
     }
 
     private static SearchHit HitFor(int line, string text) =>
@@ -191,6 +236,8 @@ public partial class FileTextEditorViewModel : ISearchable
     [RelayCommand]
     private void ClearSearch()
     {
+        _shownSearch = null;
+        _searchAgain?.Cancel();
         _matchLines        = [];
         _matchPlaces       = [];
         _currentMatchIndex = -1;

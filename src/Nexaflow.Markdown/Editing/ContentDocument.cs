@@ -560,6 +560,7 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
     /// </summary>
     private static bool SameCharacters(ContentDocument left, ContentDocument right)
     {
+        if (left._rope is { } leftRope && right._rope is { } rightRope) return ContentRope.SameCharacters(leftRope, rightRope);
         using var ours = left.Chunks().GetEnumerator();
         using var theirs = right.Chunks().GetEnumerator();
         var (mine, yours) = (ReadOnlyMemory<char>.Empty, ReadOnlyMemory<char>.Empty);

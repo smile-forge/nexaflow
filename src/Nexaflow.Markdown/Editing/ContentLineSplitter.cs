@@ -35,28 +35,34 @@ internal sealed class ContentLineSplitter(Action<long, long, string> each, Cance
     {
         cancel.ThrowIfCancellationRequested();
 
-        foreach (var character in buffer)
+        while (!buffer.IsEmpty)
         {
-            _reached++;
-
-            if (_returned && character == '\n')
+            if (_returned && buffer[0] == '\n')
             {
                 // The line feed of a return's line end: the line was said at the return; the next one starts after this.
                 _returned = false;
-                _starts = _reached;
+                _starts = ++_reached;
+                buffer = buffer[1..];
                 continue;
             }
 
-            _returned = character == '\r';
+            _returned = false;
 
-            if (character is '\n' or '\r')
+            // A run of a line's own characters at a time, up to the line end that closes it.
+            var end = buffer.IndexOfAny('\r', '\n');
+            if (end < 0)
             {
-                this.Said();
-                _starts = _reached;
-                continue;
+                _line.Append(buffer);
+                _reached += buffer.Length;
+                return;
             }
 
-            _line.Append(character);
+            _line.Append(buffer[..end]);
+            _reached += end + 1;
+            _returned = buffer[end] == '\r';
+            this.Said();
+            _starts = _reached;
+            buffer = buffer[(end + 1)..];
         }
     }
 

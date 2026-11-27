@@ -144,6 +144,42 @@ public class ContentMarksTests
     }
 
     [TestMethod]
+    public void WhatWasFound_StaysOnItsCharacters_ThroughWrites_AndIsAskedOnlyNearTheStretchDrawn()
+    {
+        var document = new EditedDocument("foo one foo two foo");
+        using var editor = new ContentEditor(document);
+        editor.Found.Show([(0, 3), (8, 3), (16, 3)], at: 1);
+
+        document.Write(ContentChange.Write(0, 0, ">> "));
+
+        CollectionAssert.AreEqual(new[] { (3, 3), (11, 3), (19, 3) }, editor.Found.Places.ToArray(), "each carried with its characters");
+        Assert.IsTrue(editor.Found.Places.All(place => document.Current.Slice(place.Start, place.Length) == "foo"));
+        Assert.AreEqual(1, editor.Found.At, "the one looked at is still the one looked at");
+
+        var into = new List<ContentMark>();
+        editor.Found.Mark(new ContentMarkRequest(document.Current, 12, 13), into);
+        Assert.AreEqual(1, into.Count(mark => mark.Kind == ContentMarkKind.Wash), "only the place reaching into the stretch drawn");
+    }
+
+    [TestMethod]
+    public void ARangeGrownByWritingInsideIt_IsStillMarked_WhereOnlyItsEndIsDrawn()
+    {
+        var document = new EditedDocument("0123456789abcdefghij");
+        using var editor = new ContentEditor(document);
+        var marks = new RangeMarks(ContentMarkKind.Wash, "Token");
+        editor.Marks.Add(marks);
+        marks.Set([(2, 5)]);
+
+        document.Write(ContentChange.Write(4, 0, new string('x', 20)));
+        Assert.AreEqual((2, 25), marks.Ranges.Single());
+
+        // Drawn from well past where the range was ever as long as it was set.
+        var into = new List<ContentMark>();
+        marks.Mark(new ContentMarkRequest(document.Current, 20, 30), into);
+        Assert.AreEqual(1, into.Count, "a range grown long reaches into a stretch past its old end");
+    }
+
+    [TestMethod]
     public void TheLayers_AreDrawnByTheirOrder_AndSayWhenAnyChanges()
     {
         using var editor = new ContentEditor(new EditedDocument("text"));

@@ -257,6 +257,52 @@ public class ContentFileWindowTests
         StringAssert.EndsWith(window.Document.Current.ToString(), text[^200..] + "added one\nadded two\n");
     }
 
+    [TestMethod]
+    public void ALineFarBeforeTheWindow_IsFound_ReadingOnlyTheBlockItStartsIn()
+    {
+        var text = Lines(4000);
+        var file = ContentFile.Open(Written(text), new UTF8Encoding(false), 0, ContentFileAccess.ReadOnly, blockBytes: 4000);
+        file.Scan();
+        var window = ContentFileWindow.Open(file, at: file.Characters, size: Size);
+        var starts = LineStarts(text);
+        var read = file.CachedCount;
+
+        // Some thirty blocks before the window; the line asked for in the last of them.
+        var line = (int)window.LinesBefore - 50;
+        Assert.AreEqual(starts[line], window.OffsetOfLine(line));
+        Assert.IsTrue(file.CachedCount - read <= 2, $"{file.CachedCount - read} blocks read to find one line");
+
+        foreach (var each in new[] { 0, 1, 777, line, (int)window.LinesBefore, (int)window.LinesBefore + 3, starts.Count - 1 })
+            Assert.AreEqual(starts[each], window.OffsetOfLine(each), $"line {each}");
+    }
+
+    [TestMethod]
+    public void TheWholeFileRead_OffTheWindowsThread_IsAsItWasWhenAsked_WhateverTheWindowDoesMeanwhile()
+    {
+        var text = Lines(2000);
+        var path = Written(text);
+        var file = ContentFile.Open(path, new UTF8Encoding(false), 0, ContentFileAccess.ReadOnly, blockBytes: 4000);
+        file.Scan();
+        var window = ContentFileWindow.Open(file, at: 0, size: Size);
+
+        var lines = window.Lines();
+        var writing = window.Writing();
+
+        // Grown and moved after both were asked for.
+        File.AppendAllText(path, "added one\nadded two\n");
+        file.Scan();
+        window.Grew();
+        window.MoveTo(window.Length);
+
+        var read = new List<string>();
+        lines((_, _, each) => read.Add(each), default);
+        Assert.AreEqual(2001, read.Count, "the lines as they were when asked, the closing empty one among them");
+
+        using var written = new StringWriter();
+        writing(written);
+        Assert.AreEqual(text, written.ToString());
+    }
+
     private static void Write(ContentFileWindow window, int at, string text)
     {
         var before = new EditState(window.Document.Current, at);

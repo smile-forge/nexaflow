@@ -100,7 +100,7 @@ public sealed class ShownFile : IDisposable
     /// </summary>
     public Action<Action<long, long, string>, CancellationToken> Lines()
     {
-        if (this.Document.Window is { } window) return window.EachLine;
+        if (this.Document.Window is { } window) return window.Lines();
 
         var document = this.Document.Current;
 

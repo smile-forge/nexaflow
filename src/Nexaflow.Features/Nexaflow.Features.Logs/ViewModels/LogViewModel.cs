@@ -288,7 +288,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
         {
             var until = tail.From;
             await Task.Run(() => history.Scan(cancel: ct, until: until), ct);
-            if (ct.IsCancellationRequested || !ReferenceEquals(history, _history)) return;
+            if (_disposed || ct.IsCancellationRequested || !ReferenceEquals(history, _history)) return;
 
             var before = history.LineBreaksOf(0, history.BlockCount);
 
@@ -307,7 +307,7 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
 
                 // Read on past where the end shown starts, to the end: the whole log, which no document holds.
                 await Task.Run(() => history.Scan(cancel: ct), ct);
-                if (ct.IsCancellationRequested || !ReferenceEquals(history, _history)) return;
+                if (_disposed || ct.IsCancellationRequested || !ReferenceEquals(history, _history)) return;
 
                 ContentFileWindow.Open(history, Document, caret, _windowSize);
                 _files.Remove(tail);
@@ -330,7 +330,8 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             if (!IsPaused) await TakeUpAsync();
         }
         catch (OperationCanceledException) { }
-        catch (IOException) { IsLoadingHead = false; }
+        // The log could not be read on, or the page let go of it meanwhile: the end shown stays what is shown.
+        catch (Exception e) when (e is IOException or ObjectDisposedException) { IsLoadingHead = false; }
     }
 
     /// <summary>Puts the page at the live end: the last line on screen, a window onto a long log moved there first.</summary>
@@ -440,7 +441,8 @@ public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageV
             }
             while (_growAgain && !_disposed);
         }
-        catch (IOException) { }
+        // The log could not be read just now, or the page let go of it meanwhile: the next change tries again, where there is one.
+        catch (Exception e) when (e is IOException or ObjectDisposedException) { }
         finally
         {
             _growing = false;

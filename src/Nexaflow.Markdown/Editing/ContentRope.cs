@@ -214,6 +214,70 @@ internal abstract class ContentRope
         }
     }
 
+    /// <summary>
+    /// Whether <paramref name="left"/> and <paramref name="right"/>, as long as each other, hold the same characters: walked in step, a node both
+    /// hold at the same place — what a version shares with the one it was made from, nearly all of it after an edit — passed over without
+    /// reading what it holds, so a leaf over a file is not read for it; only the rest is read and compared.
+    /// </summary>
+    public static bool SameCharacters(ContentRope left, ContentRope right)
+    {
+        var (ours, theirs) = (new Stack<(ContentRope Node, int From)>(), new Stack<(ContentRope Node, int From)>());
+        ours.Push((left, 0));
+        theirs.Push((right, 0));
+        var at = 0;
+
+        while (ours.Count > 0 && theirs.Count > 0)
+        {
+            var (mine, mineFrom) = ours.Peek();
+            var (yours, yoursFrom) = theirs.Peek();
+
+            if (ReferenceEquals(mine, yours) && mineFrom == yoursFrom)
+            {
+                (_, _) = (ours.Pop(), theirs.Pop());
+                at = mineFrom + mine.Length;
+                continue;
+            }
+
+            if (mine is Branch opened)
+            {
+                ours.Pop();
+                Opened(ours, opened, mineFrom, at);
+                continue;
+            }
+
+            if (yours is Branch opening)
+            {
+                theirs.Pop();
+                Opened(theirs, opening, yoursFrom, at);
+                continue;
+            }
+
+            var (ourLeaf, theirLeaf) = ((Leaf)mine, (Leaf)yours);
+            var end = Math.Min(mineFrom + ourLeaf.Length, yoursFrom + theirLeaf.Length);
+            var (here, there) = (ourLeaf.Chars.Slice(at - mineFrom, end - at), theirLeaf.Chars.Slice(at - yoursFrom, end - at));
+            if (!here.Equals(there) && !here.Span.SequenceEqual(there.Span)) return false;
+
+            at = end;
+            if (mineFrom + ourLeaf.Length == end) ours.Pop();
+            if (yoursFrom + theirLeaf.Length == end) theirs.Pop();
+        }
+
+        return ours.Count == 0 && theirs.Count == 0;
+    }
+
+    /// <summary>Puts <paramref name="branch"/>'s children, standing from <paramref name="from"/>, on <paramref name="waiting"/> — the first on top — leaving out those wholly before <paramref name="at"/>.</summary>
+    private static void Opened(Stack<(ContentRope Node, int From)> waiting, Branch branch, int from, int at)
+    {
+        var end = from + branch.Length;
+
+        for (var child = branch.Children.Length - 1; child >= 0; child--)
+        {
+            var node = branch.Children[child];
+            end -= node.Length;
+            if (end + node.Length > at) waiting.Push((node, end));
+        }
+    }
+
     /// <summary>How many line breaks its first <paramref name="length"/> characters hold, a <c>\r</c> ending them counted as one.</summary>
     public int BreaksIn(int length)
     {

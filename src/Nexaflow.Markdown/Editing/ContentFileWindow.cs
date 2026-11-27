@@ -51,6 +51,12 @@ public sealed class ContentFileWindow
     /// <summary>How many line breaks stand after the window.</summary>
     private long _breaksAfter;
 
+    /// <summary>How many line breaks each stretch before the window holds, in order — said again whenever the stretches are.</summary>
+    private long[] _beforeBreaks = [];
+
+    /// <summary>How many line breaks each stretch after the window holds, in order.</summary>
+    private long[] _afterBreaks = [];
+
     /// <summary>How many of the file's characters the window has taken up — all those scanned when it last did.</summary>
     private long _taken;
 
@@ -179,34 +185,41 @@ public sealed class ContentFileWindow
             return;
         }
 
+        // A stretch of its own, the lists made anew rather than changed: whatever reads the whole file off this thread holds the ones it took.
         var stretch = new Outside(from, added, null);
-        if (_after.Count > 0 && _after[^1] is { Held: null } last && last.From + last.Length == from) _after[^1] = last with { Length = last.Length + added };
-        else _after.Add(stretch);
-
-        _breaksAfter += this.BreaksIn(stretch);
+        var within = this.BreaksIn(stretch);
+        (_after, _afterBreaks) = ([.. _after, stretch], [.. _afterBreaks, within]);
+        _breaksAfter += within;
     }
 
     /// <summary>
     /// Where line <paramref name="line"/> of the whole file starts, counting from nought, as it is written now — or null for a line it does not
-    /// have. Found from what the file's blocks say of their lines, reading only the block the line starts in.
+    /// have. A line in the window is found in its document; one outside it from what each stretch is known to hold, passing over every block
+    /// of the file's own the line is not in by what its scan said of it, so only the block the line starts in is read.
     /// </summary>
     public long? OffsetOfLine(long line)
     {
         if (line < 0) return null;
         if (line == 0) return 0;
 
+        var now = this.Document.Current;
+        if (line >= this.LinesBefore && line < this.LinesBefore + now.LineCount) return this.Start + now.OffsetOf((int)(line - this.LinesBefore));
+
         var (at, breaks) = (0L, 0L);
-        List<Outside> all = [.. _before, new Outside(0, this.Document.Current.Length, this.Document.Current), .. _after];
+        List<(Outside Stretch, long Breaks)> all =
+        [
+            .. _before.Zip(_beforeBreaks),
+            (new Outside(0, now.Length, now), now.LineCount - 1),
+            .. _after.Zip(_afterBreaks),
+        ];
 
-        foreach (var stretch in all)
+        foreach (var (stretch, within) in all)
         {
-            var within = this.BreaksIn(stretch);
-
             if (breaks + within >= line)
             {
                 // The line starts in this stretch: after its (line - breaks)th break.
-                var wanted = (int)(line - breaks);
-                return at + (stretch.Held is { } held ? held.OffsetOf(wanted) : this.AfterBreak(stretch, wanted));
+                var wanted = line - breaks;
+                return at + (stretch.Held is { } held ? held.OffsetOf((int)wanted) : this.AfterBreak(stretch, wanted));
             }
 
             (at, breaks) = (at + stretch.Length, breaks + within);
@@ -236,13 +249,7 @@ public sealed class ContentFileWindow
     /// </summary>
     public ContentFile WriteOut(string path, Encoding encoding, bool preamble, bool hold = true)
     {
-        var full = ContentFile.Replace(path, encoding, preamble, this.WriteTo);
-
-        var saved = ContentFile.Open(full, encoding, preamble ? encoding.GetPreamble().Length : 0, this.File.Access);
-        saved.Scan();
-        if (hold) saved.HoldForEdit();
-
-        return saved;
+        return ContentFile.WriteOut(this.Writing(), path, encoding, preamble, this.File.Access, hold);
     }
 
     /// <summary>Stands the window over <paramref name="saved"/>, what it was just written to: at the same place, with every step kept, and nothing left to save.</summary>
@@ -259,17 +266,23 @@ public sealed class ContentFileWindow
         this.Counted();
     }
 
-    /// <summary>
-    /// Writes the whole of what is written to <paramref name="writer"/>, in order — the file's own a block at a time, what was written as it
-    /// stands — as it was when it was asked, whatever the window does meanwhile: so it can be written, or read, away from whatever moves it.
-    /// </summary>
-    public void WriteTo(TextWriter writer)
-    {
-        var (before, now, after) = (_before, this.Document.Current, _after);
+    /// <summary>Writes the whole of what is written to <paramref name="writer"/>, in order — the file's own a block at a time, what was written as it stands.</summary>
+    public void WriteTo(TextWriter writer) => this.Writing()(writer);
 
-        foreach (var stretch in before) this.WriteTo(writer, stretch);
-        now.WriteTo(writer);
-        foreach (var stretch in after) this.WriteTo(writer, stretch);
+    /// <summary>
+    /// What writes the whole of what is written, in order, as it stands now — whatever the window does once this is asked, so it can be run away
+    /// from whatever moves the window: the stretches, what the window holds and the file they are of, taken here.
+    /// </summary>
+    public Action<TextWriter> Writing()
+    {
+        var (before, now, after, file) = (_before, this.Document.Current, _after, this.File);
+
+        return writer =>
+        {
+            foreach (var stretch in before) WriteTo(writer, stretch, file);
+            now.WriteTo(writer);
+            foreach (var stretch in after) WriteTo(writer, stretch, file);
+        };
     }
 
     /// <summary>The <paramref name="length"/> characters of the whole of what is written from <paramref name="start"/> — inside the window or not.</summary>
@@ -287,12 +300,23 @@ public sealed class ContentFileWindow
     /// starts, and what is written on it without its line end — read a block at a time, so nothing is held but the line being read. Stops where
     /// <paramref name="cancel"/> says.
     /// </summary>
-    public void EachLine(Action<long, long, string> each, CancellationToken cancel = default)
-    {
-        using var lines = new ContentLineSplitter(each, cancel);
+    public void EachLine(Action<long, long, string> each, CancellationToken cancel = default) => this.Lines()(each, cancel);
 
-        this.WriteTo(lines);
-        lines.Ended();
+    /// <summary>
+    /// What hands every line of the whole of what is written, as it stands now, to the action it is given (as <see cref="EachLine"/> does) —
+    /// whatever the window does once this is asked, so it can be run away from whatever moves the window.
+    /// </summary>
+    public Action<Action<long, long, string>, CancellationToken> Lines()
+    {
+        var write = this.Writing();
+
+        return (each, cancel) =>
+        {
+            using var lines = new ContentLineSplitter(each, cancel);
+
+            write(lines);
+            lines.Ended();
+        };
     }
 
     /// <summary>The file's own characters from <paramref name="start"/> over <paramref name="length"/>, as a document over its blocks.</summary>
@@ -308,8 +332,8 @@ public sealed class ContentFileWindow
     private ContentDocument Joined(List<Outside> stretches) =>
         ContentDocument.Joined([.. stretches.Select(stretch => stretch.Held ?? this.Original(stretch.From, stretch.Length))]);
 
-    /// <summary>Writes <paramref name="stretch"/> to <paramref name="writer"/>: the file's own a block at a time, what was written as it stands.</summary>
-    private void WriteTo(TextWriter writer, Outside stretch)
+    /// <summary>Writes <paramref name="stretch"/> to <paramref name="writer"/>: <paramref name="file"/>'s own a block at a time, what was written as it stands.</summary>
+    private static void WriteTo(TextWriter writer, Outside stretch, ContentFile file)
     {
         if (stretch.Held is { } held)
         {
@@ -317,12 +341,12 @@ public sealed class ContentFileWindow
             return;
         }
 
-        var (first, last, skip) = this.File.BlocksOf(stretch.From, stretch.Length);
+        var (first, last, skip) = file.BlocksOf(stretch.From, stretch.Length);
         var left = stretch.Length;
 
         for (var block = first; block < last && left > 0; block++)
         {
-            var text = this.File.Block(block);
+            var text = file.Block(block);
             var taken = (int)Math.Min(text.Length - skip, left);
 
             writer.Write(text.AsSpan(skip, taken));
@@ -330,11 +354,13 @@ public sealed class ContentFileWindow
         }
     }
 
-    /// <summary>How many lines stand before the window and how many line breaks after it, said again after the window moved or was saved.</summary>
+    /// <summary>How many lines stand before the window and how many line breaks after it — and in each stretch — said again after the window moved or was saved.</summary>
     private void Counted()
     {
-        this.LinesBefore = _before.Sum(this.BreaksIn);
-        _breaksAfter = _after.Sum(this.BreaksIn);
+        _beforeBreaks = [.. _before.Select(this.BreaksIn)];
+        _afterBreaks = [.. _after.Select(this.BreaksIn)];
+        this.LinesBefore = _beforeBreaks.Sum();
+        _breaksAfter = _afterBreaks.Sum();
     }
 
     /// <summary>
@@ -371,15 +397,31 @@ public sealed class ContentFileWindow
         return breaks;
     }
 
-    /// <summary>Where in <paramref name="stretch"/>, of the file's own characters, the character after its <paramref name="breaks"/>th line break stands.</summary>
-    private long AfterBreak(Outside stretch, int breaks)
+    /// <summary>
+    /// Where in <paramref name="stretch"/>, of the file's own characters, the character after its <paramref name="breaks"/>th line break stands —
+    /// every whole block before the one it is in passed over by what its scan said of it, unread.
+    /// </summary>
+    private long AfterBreak(Outside stretch, long breaks)
     {
         var (first, last, skip) = this.File.BlocksOf(stretch.From, stretch.Length);
-        var (left, at, seen, before) = (stretch.Length, 0L, 0, '\0');
+        var (left, at, seen, before) = (stretch.Length, 0L, 0L, '\0');
 
         for (var block = first; block < last && left > 0; block++)
         {
-            var text = this.File.Block(block).AsSpan(skip, (int)Math.Min(this.File.Said(block).Chars - skip, left));
+            var said = this.File.Said(block);
+            var taken = (int)Math.Min(said.Chars - skip, left);
+
+            if (skip == 0 && taken == said.Chars)
+            {
+                var within = said.Breaks - (before == '\r' && said.First == '\n' ? 1 : 0);
+                if (seen + within < breaks)
+                {
+                    (seen, before, left, at) = (seen + within, said.Last, left - taken, at + taken);
+                    continue;
+                }
+            }
+
+            var text = this.File.Block(block).AsSpan(skip, taken);
 
             for (var index = 0; index < text.Length; index++)
             {
@@ -394,9 +436,11 @@ public sealed class ContentFileWindow
 
                 before = character;
                 if (character is not ('\n' or '\r')) continue;
+                if (++seen != breaks) continue;
 
-                var next = index + 1 < text.Length ? text[index + 1] : '\0';
-                if (++seen == breaks) return at + index + (character == '\r' && next == '\n' ? 2 : 1);
+                // A return ends its line after the line feed that follows it — in this block or the next.
+                var next = index + 1 < text.Length ? text[index + 1] : block + 1 < last ? this.File.Said(block + 1).First : '\0';
+                return Math.Min(stretch.Length, at + index + (character == '\r' && next == '\n' ? 2 : 1));
             }
 
             (left, skip, at) = (left - text.Length, 0, at + text.Length);

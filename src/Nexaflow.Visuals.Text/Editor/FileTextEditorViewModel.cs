@@ -255,7 +255,11 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             Shell.ShowNotification(Str.Format("Text.Editor.Copied", label, value));
     }
 
-    private void OnDocumentChanged(object? sender, ContentSourceChange change) => LineCount = Document.Current.LineCount;
+    private void OnDocumentChanged(object? sender, ContentSourceChange change)
+    {
+        LineCount = Document.Current.LineCount;
+        if (_shownSearch is not null) SearchAgainSoon();
+    }
 
     // Dirty follows the document, which compares what it holds with what was saved — so undoing every edit back to the saved state clears
     // the unsaved flag, where a plain "any edit ⇒ dirty" flag would stay stuck on.
@@ -772,6 +776,7 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     public void Dispose()
     {
         Document.Changed -= OnDocumentChanged;
+        _searchAgain?.Cancel();
         Document.PropertyChanged -= OnDocumentPropertyChanged;
         Editor.SelectionChanged -= OnEditorSelectionChanged;
         Editor.Dispose();

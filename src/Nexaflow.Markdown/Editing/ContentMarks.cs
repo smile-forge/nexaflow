@@ -213,6 +213,7 @@ public sealed class RangeMarks(ContentMarkKind kind, string token, int order = 0
         }
 
         _ranges = carried;
+        _longest = carried.Count == 0 ? 0 : carried.Max(range => range.Length);
     }
 
     /// <summary>The first stretch starting at or after <paramref name="offset"/>.</summary>
@@ -257,19 +258,61 @@ public sealed class FoundMarks : ContentMarkLayer
     public void Show(IReadOnlyList<(int Start, int Length)> places, int at)
     {
         (this.Places, this.At) = (places ?? [], at);
+        _longest = this.Places.Count == 0 ? 0 : this.Places.Max(place => place.Length);
         this.Remark();
     }
 
+    /// <summary>The longest place, which says how far before the stretch drawn one that reaches into it can start.</summary>
+    private int _longest;
+
     public override void Mark(ContentMarkRequest request, ICollection<ContentMark> into)
     {
-        for (var index = 0; index < this.Places.Count; index++)
+        // The places are in order: those that can reach the stretch drawn start no earlier than the longest before it.
+        var (low, high) = (0, this.Places.Count);
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (this.Places[middle].Start < request.Start - _longest) low = middle + 1;
+            else high = middle;
+        }
+
+        for (var index = low; index < this.Places.Count && this.Places[index].Start <= request.End; index++)
         {
             var (start, length) = this.Places[index];
-            if (start > request.End || start + length < request.Start) continue;
+            if (start + length < request.Start) continue;
 
             into.Add(new ContentMark(ContentMarkKind.Wash, start, length, WashToken));
             if (index == this.At) into.Add(new ContentMark(ContentMarkKind.Outline, start, length, OutlineToken));
         }
+    }
+
+    /// <summary>
+    /// Carries every place through <paramref name="change"/>, so each stays over the characters it was found at — one whose characters were all
+    /// taken out left where they were, nothing to wash — and none moves past another, so which is looked at holds.
+    /// </summary>
+    public override void Carry(ContentSourceChange change)
+    {
+        if (this.Places.Count == 0) return;
+
+        if (change.Kind == ContentChangeKind.Loaded)
+        {
+            (this.Places, this.At, _longest) = ([], -1, 0);
+            return;
+        }
+
+        var through = change.Change;
+        if (through.Writes.Count == 0) return;
+
+        var carried = new List<(int Start, int Length)>(this.Places.Count);
+        foreach (var (start, length) in this.Places)
+        {
+            // What is written right before or right after a place is not what was found there: neither end takes it in.
+            var now = through.Carried(start, leansAfter: true);
+            carried.Add((now, Math.Max(0, through.Carried(start + length) - now)));
+        }
+
+        this.Places = carried;
+        _longest = carried.Max(place => place.Length);
     }
 }
 

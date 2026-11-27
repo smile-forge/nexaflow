@@ -4,6 +4,7 @@ using NSubstitute;
 using Nexaflow.Features.Code.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Search;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
 
@@ -138,6 +139,25 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
 
         vm.ClearSearchCommand.Execute(null);
         Assert.IsTrue(vm.Editor.Found.IsEmpty, "clearing a search takes its marks away");
+    });
+
+    [TestMethod]
+    public void WritingAboveAMatch_KeepsItsMarkOnIt_AndTheSearchRunsAgain() => WithPage(async page =>
+    {
+        var vm = (CodeViewModel)page;
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+        Assert.AreEqual(2, vm.SearchMatchCount);
+
+        vm.Document.Write(ContentChange.Write(0, 0, "// alpha42 written above\n"));
+
+        // At once, the marks are on what they found, carried with it.
+        var document = vm.Document.Current;
+        Assert.IsTrue(vm.Editor.Found.Places.All(place => document.Slice(place.Start, place.Length) == LiteralTermInContent));
+
+        // Once writing pauses, the search is run again over what is written now.
+        for (var wait = 0; wait < 200 && vm.SearchMatchCount != 3; wait++) await Task.Delay(10);
+        Assert.AreEqual(3, vm.SearchMatchCount, "the line written above is counted");
+        Assert.AreEqual(3, vm.Editor.Found.Places.Count);
     });
 
     [TestMethod]
