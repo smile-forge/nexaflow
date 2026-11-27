@@ -36,7 +36,7 @@ public sealed partial class ContentEngine
     /// <summary>What is picked out, said as whoever follows the content is told it.</summary>
     private ContentSelectionChange WhatIsPickedOut()
     {
-        var ranges = _state.Selection.Select(range => (range.Start, range.Length)).ToList();
+        var ranges = this.State.Selection.Select(range => (range.Start, range.Length)).ToList();
         var selection = ContentSelection.Over(_laid.Root, ranges);
 
         return new ContentSelectionChange(selection, Picks(selection));
@@ -47,7 +47,7 @@ public sealed partial class ContentEngine
     {
         var picks = new List<ContentPick>();
 
-        foreach (var range in _state.Selection.Where(range => range.Length > 0))
+        foreach (var range in this.State.Selection.Where(range => range.Length > 0))
         {
             var inside = selection.Pieces
                 .Where(piece => piece.Sits() is var at && at.Start >= range.Start && at.End <= range.End)
@@ -56,7 +56,7 @@ public sealed partial class ContentEngine
             if (inside.Count == 0)
             {
                 var words = _laid.Root.WordsAt(range.Start);
-                picks.Add(new ContentPick(range.Start, range.Length, _state.Document.Slice(range.Start, range.Length),
+                picks.Add(new ContentPick(range.Start, range.Length, this.State.Document.Slice(range.Start, range.Length),
                                           words.Exists ? words.Naming() as ContentPart : null, LanguageOf(words), null, null));
                 continue;
             }
@@ -66,7 +66,7 @@ public sealed partial class ContentEngine
                 var at = piece.Sits();
                 var (id, label) = Selecting(piece);
 
-                picks.Add(new ContentPick(at.Start, at.Length, _state.Document.Slice(at.Start, at.Length),
+                picks.Add(new ContentPick(at.Start, at.Length, this.State.Document.Slice(at.Start, at.Length),
                                           piece.Naming() as ContentPart, LanguageOf(piece), id, label));
             }
         }

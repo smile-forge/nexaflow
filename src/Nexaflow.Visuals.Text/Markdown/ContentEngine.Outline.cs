@@ -256,7 +256,7 @@ public sealed partial class ContentEngine
         // What the view of the document folded away in code, as whole lines, stands beside the sections the reader folded.
         if (_editor is { } view && ReferenceEquals(view.Document, _edited))
             foreach (var (start, end) in view.Folds.Ranges)
-                if (CodeFold(_state.Document, start, end) is { } lines) folded.Add(lines);
+                if (CodeFold(this.State.Document, start, end) is { } lines) folded.Add(lines);
 
         folded.Sort(static (a, b) => a.Start.CompareTo(b.Start));
 

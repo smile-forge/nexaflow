@@ -41,9 +41,9 @@ public sealed partial class ContentEngine
         if (this.PickedText is { } drawn) return new MarkdownClipboard.ContentCopy(drawn, drawn, string.Empty);
 
         // A block of columns is its lines, said to be a block, so pasting it back puts it back as one.
-        if (_state.Selected is ColumnRanges columns)
+        if (this.State.Selected is ColumnRanges columns)
         {
-            var lines = ColumnSelection.Text(_state.Document, columns);
+            var lines = ColumnSelection.Text(this.State.Document, columns);
             return new MarkdownClipboard.ContentCopy(lines, lines, string.Empty) { Column = true };
         }
 
@@ -55,7 +55,7 @@ public sealed partial class ContentEngine
 
             return new MarkdownClipboard.ContentCopy(words, words, string.Empty);
         }
-        if (Stretch() is not { } chosen) return MarkdownClipboard.Copied(_state.Document, null);
+        if (Stretch() is not { } chosen) return MarkdownClipboard.Copied(this.State.Document, null);
 
         if (Blocked(chosen.Start) is { } block)
         {
@@ -63,7 +63,7 @@ public sealed partial class ContentEngine
             if (CopyWritten(block, chosen) is { } written) return written;
         }
 
-        return MarkdownClipboard.Copied(_state.Document, chosen);
+        return MarkdownClipboard.Copied(this.State.Document, chosen);
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal MarkdownClipboard.ContentCopy CopyOf(ContentPart block)
     {
-        var copy = MarkdownClipboard.Copied(_state.Document, (block.Start, block.Length));
+        var copy = MarkdownClipboard.Copied(this.State.Document, (block.Start, block.Length));
 
         return KeepsAPicture(block) && this.Events?.OnPicture(block) is { } drawn ? copy with { Picture = drawn } : copy;
     }
@@ -93,7 +93,7 @@ public sealed partial class ContentEngine
         if (language?.Editing.ShowsWhatWasWritten != true || body is null) return null;
         if (chosen.Start < body.Start || chosen.Start + chosen.Length > body.End) return null;
 
-        var characters = _state.Document.Slice(chosen.Start, chosen.Length);
+        var characters = this.State.Document.Slice(chosen.Start, chosen.Length);
 
         return new MarkdownClipboard.ContentCopy(characters, characters, string.Empty);
     }
@@ -102,10 +102,10 @@ public sealed partial class ContentEngine
     internal bool Cut()
     {
         if (_readOnly || Stretch() is not { } chosen) return false;
-        var copy = _state.Selected is ColumnRanges ? Copy() : MarkdownClipboard.Copied(_state.Document, chosen);
+        var copy = this.State.Selected is ColumnRanges ? Copy() : MarkdownClipboard.Copied(this.State.Document, chosen);
         if (this.Events?.OnCopy(copy) is not { } copied) return false;
 
-        _ = TakeAwayOnceCopiedAsync(copied, _state);
+        _ = TakeAwayOnceCopiedAsync(copied, this.State);
         return true;
     }
 
@@ -115,7 +115,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private async Task TakeAwayOnceCopiedAsync(Task<bool> copied, EditState cutFrom)
     {
-        if (await copied && ReferenceEquals(_state, cutFrom)) Replace(cutFrom.Write(string.Empty));
+        if (await copied && ReferenceEquals(this.State, cutFrom)) Replace(cutFrom.Write(string.Empty));
     }
 
     /// <summary>Asks for what is on the clipboard to be written at the caret, and says whether anybody took it on.</summary>
@@ -130,17 +130,17 @@ public sealed partial class ContentEngine
         if (_readOnly) return;
 
         // Over a block of columns: on every line of it, a line of what was pasted on each line where it has as many.
-        if (_state.Selected is ColumnRanges)
+        if (this.State.Selected is ColumnRanges)
         {
-            Replace(_state.Write((words.Length > 0 ? words : markdown).ReplaceLineEndings("\n")));
+            Replace(this.State.Write((words.Length > 0 ? words : markdown).ReplaceLineEndings("\n")));
             return;
         }
 
         if (words.Length > 0 && Pasted(words.ReplaceLineEndings("\n"))) return;
-        if (markdown.Length > 0) Replace(_state.Insert(markdown.ReplaceLineEndings("\n")));
+        if (markdown.Length > 0) Replace(this.State.Insert(markdown.ReplaceLineEndings("\n")));
     }
 
     /// <summary>The stretch picked out, from where it starts and how long it is — null where nothing is.</summary>
     private (int Start, int Length)? Stretch() =>
-        _state.HasSelection ? (_state.SelectionStart, _state.SelectionLength) : null;
+        this.State.HasSelection ? (this.State.SelectionStart, this.State.SelectionLength) : null;
 }

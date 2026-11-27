@@ -438,8 +438,8 @@ public sealed partial class ContentEngine
             if (offset >= begins && offset <= ends) places.Add(offset);
         }
 
-        Place(_state.Caret);
-        foreach (var range in _state.Selection)
+        Place(this.State.Caret);
+        foreach (var range in this.State.Selection)
         {
             Place(range.Start);
             Place(range.End);

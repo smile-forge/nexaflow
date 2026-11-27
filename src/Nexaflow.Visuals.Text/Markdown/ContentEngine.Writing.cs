@@ -39,8 +39,6 @@ public sealed partial class ContentEngine
     private readonly ILayoutMedium _medium = WpfMedium.OnThisThread;
     private bool _readOnly;
     private double _laidFor;
-
-    private EditState _state = EditState.For(string.Empty);
     private Laid _laid = Laid.Nothing(WpfMedium.OnThisThread);
 
     /// <summary>
@@ -82,37 +80,46 @@ public sealed partial class ContentEngine
     /// <summary>
     /// Starts writing <paramref name="source"/>, with nothing laid for it yet. Where the document held already says exactly that, or
     /// nothing is said — a control made again for new colours, showing what was being written — it is taken up as it is, with what can
-    /// be taken back and whether it was saved; otherwise it is loaded in its place.
+    /// be taken back, whether it was saved and where its caret stood; otherwise it is loaded in its place.
     /// </summary>
     internal void Start(string? source)
     {
-        if (source is not null && !this.EditedDocument.Current.HoldsExactly(source))
+    var loads = source is not null && !this.EditedDocument.Current.HoldsExactly(source);
+    if (loads)
+    {
+        this.Taking(() =>
         {
-            this.Taking(() =>
-            {
-                this.EditedDocument.Load(source);
-                return true;
-            });
-        }
-
-        _state = new EditState(this.EditedDocument.Current, this.EditedDocument.Current.Length);
-        _at = null;
-        if (_editor is { } editor && ReferenceEquals(editor.Document, _edited)) editor.Stood(_state);
-
-        Begin();
+            this.EditedDocument.Load(source!);
+            return true;
+        });
     }
 
-    /// <summary>The source, the caret, what is picked out and what is shown as typed.</summary>
-    internal EditState State => _state;
+    // A document taken up as it is keeps where its view stood in it — where a page put the caret before anything showed it, or where it stood
+    // before this was made again; what is loaded here starts with the caret at its end, where the first thing written goes.
+    var (view, current) = (this.Editor, this.EditedDocument.Current);
+    if (loads || !ReferenceEquals(view.State.Document, current)) view.Stood(new EditState(current, current.Length));
+    _at = null;
+
+    Begin();
+    }
+
+    /// <summary>
+    /// The source, the caret, what is picked out and what is shown as typed: where the view of the document (<see cref="Editor"/>) stands — the
+    /// one place that says so, which this lays out by and moves.
+    /// </summary>
+    internal EditState State => this.Editor.State;
 
     /// <summary>What the content is laid out as. Always something: a builder always makes a layout.</summary>
     internal Laid Laid => _laid;
 
     /// <summary>The place the caret stands at, or -1 where it stands at none of them — found from its offset the first time it is asked of a tree.</summary>
-    internal int At => _at ??= _laid.Root.StopAt(_state.Caret);
+    internal int At => _at ??= _laid.Root.StopAt(this.State.Caret);
 
-    /// <summary>How much room the content has, in its own coordinates — which is the room it was given.</summary>
-    internal double Room => _laidFor > 0 ? _laidFor : UnsaidRoom;
+    /// <summary>
+    /// How much room the content has, in its own coordinates: the room it was given — less, where it scrolls itself, the room kept round it at
+    /// either side (<see cref="Inset"/>), which is part of the view it scrolls through rather than of the page it is laid on.
+    /// </summary>
+    internal double Room => Math.Max(1, (_laidFor > 0 ? _laidFor : UnsaidRoom) - (Scrolls ? _inset.Left + _inset.Right : 0));
 
     /// <summary>Says how much room the content has, and lays it out again where that is not what it was laid for.</summary>
     internal void Fit(double room)
@@ -133,11 +140,14 @@ public sealed partial class ContentEngine
     /// <summary>Lays it out again from the state as it now stands.</summary>
     internal void Relay()
     {
-        _laid = LaidOut(_state);
+        _laid = LaidOut(this.State);
 
         // Which place the caret stood at is only true of the tree it was taken from: in this one it is found again from its offset,
         // when something asks.
         _at = null;
+
+        // The view kept inside the page as it is now laid, and what shows it told how long the page has come to, whether or not that moved it.
+        if (Scrolls) this.ViewKept();
         Repick();
         Recornered();
 
@@ -186,7 +196,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>Where an edit is landing, for the language it lands in to make what it will of it.</summary>
-    internal Landing Landing => new(_state, _laid, this.At);
+    internal Landing Landing => new(this.State, _laid, this.At);
 
     // ── Applying an edit ────────────────────────────────────────────────────
 
@@ -194,25 +204,30 @@ public sealed partial class ContentEngine
     /// Which place the caret is standing at, when a step has just said. -1 otherwise, which puts it back at the innermost place
     /// at its offset — where a reader who has just typed, clicked or jumped is.
     /// </param>
-    internal void Apply(EditState next, bool notify, int at = -1)
+    /// <param name="from">
+    /// Where this stood before, where that is not where its view stands now — a document or a view of it just taken up, which stands in it already
+    /// while what is laid is still of what came before.
+    /// </param>
+    internal void Apply(EditState next, bool notify, int at = -1, EditState? from = null)
     {
         next = Held(Left(next));
+        var before = from ?? this.State;
 
         // A host that owns what is written may refuse it. Asked only where the words themselves would change: the caret moving, or
         // a stretch being shown as the characters it was written with, is not a change to what is written.
-        if (!ReferenceEquals(next.Document, _state.Document) && this.Events?.OnBeforeChange(_state, next) == false) return;
+        if (!ReferenceEquals(next.Document, before.Document) && this.Events?.OnBeforeChange(before, next) == false) return;
 
         // What an edit leaves picked out as whole things is chosen as a press on them chooses them: no caret stands in it.
         if (next.Selected is WholeRanges) _chosenWhole = next.Selection;
 
-        var before = _state;
         // A version is the same document or another one: comparing what two of them say would cost what the document holds, and
         // every edit makes a new version while everything that writes nothing keeps the one it had.
         var changed = !ReferenceEquals(next.Document, before.Document);
         var resized = changed || next.Raw != before.Raw;
         var was = (before.Caret, this.At);
 
-        _state = next;
+        // The view of the document stands where this now does — said to whoever listens once it is laid out by it.
+        this.Editor.Stand(next);
         if (changed)
         {
             _window?.Wrote(before.Document, next.Document);
@@ -222,7 +237,7 @@ public sealed partial class ContentEngine
         // A caret, or what is picked out, gone past what a long document has laid yet is laid out to — which is how a search
         // found further down, a jump to the end or a line, and choosing everything all come to be on the page.
         // A caret come onto a line a fold hides opens what hid it, which lays the content out again.
-        if (_editor is { } viewed && ReferenceEquals(viewed.Document, _edited)) viewed.Folds.Reveal(_state.Caret);
+        if (_editor is { } viewed && ReferenceEquals(viewed.Document, _edited)) viewed.Folds.Reveal(this.State.Caret);
 
         var relaid = resized || Reaches(next);
         if (relaid) Relay();
@@ -230,21 +245,20 @@ public sealed partial class ContentEngine
         // An index is only ever true of the tree it was taken from, so one handed in from before laying out again says nothing
         // about the tree there is now — and the caret goes back to the innermost place at its offset. That is also why nothing
         // has to remember to clear it.
-        _at = relaid || at < 0 || at >= _laid.Places.Count ? _laid.Root.StopAt(_state.Caret) : at;
+        _at = relaid || at < 0 || at >= _laid.Places.Count ? _laid.Root.StopAt(this.State.Caret) : at;
 
-        var moved = was != (_state.Caret, this.At);
+        var moved = was != (this.State.Caret, this.At);
 
         // What the reader wrote is a step to take back; anything that left what is written alone starts the next one.
         if (notify && changed) Recorded();
         else if (!changed) Stayed();
 
-        // The view of the document stands where this now does.
-        if (_editor is { } editor && ReferenceEquals(editor.Document, _edited)) editor.Stood(_state);
+        this.Editor.Told(before);
 
         Changed?.Invoke(this, moved || changed);
 
         if (moved) CaretMoved?.Invoke(this, EventArgs.Empty);
-        if (notify && changed) SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, ContentChangeKind.Written));
+        if (notify && changed) SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, ContentChangeKind.Written));
     }
 
     /// <summary>
@@ -269,7 +283,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private EditState CaretPlaced(int offset)
     {
-        var next = Left(_state.MoveCaretTo(offset));
+        var next = Left(this.State.MoveCaretTo(offset));
         if (_readOnly || next.Raw is not null) return next;
 
         return _laid.Root.RestatedAt(next.Caret) is { Part: { } part } ? next with { Raw = new RawZone(part.Start, part.End()) } : next;
@@ -282,7 +296,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private string? ShownBefore()
     {
-        if (_state.Raw is not { } zone || History.Begun(_last, _state) is not var (begun, written)) return null;
+        if (this.State.Raw is not { } zone || History.Begun(_last, this.State) is not var (begun, written)) return null;
 
         var (start, removed, added) = (written.Start, written.Length, written.WrittenLength);
         if (start > zone.End || start + added < zone.Start) return null;
@@ -312,9 +326,9 @@ public sealed partial class ContentEngine
         // A stretch being shown as its characters is text, and moves like text: one character at a time. Stepping by layout
         // stops cannot reach into it — every position inside maps to the one point where it sits in the laid-out content — so
         // the caret jumped clean over the thing the reader had just asked to see, which is the only place they wanted to edit.
-        if (Typed(_state.Caret) is { } typed)
+        if (Typed(this.State.Caret) is { } typed)
         {
-            var step = _state.Caret + (forward ? 1 : -1);
+            var step = this.State.Caret + (forward ? 1 : -1);
             if (step >= typed.Start && step <= typed.End) { MoveTo(step, -1, extend); return true; }
         }
 
@@ -333,12 +347,12 @@ public sealed partial class ContentEngine
 
     /// <summary>The place a caret standing nowhere rejoins the declared ones at, or null at the edge.</summary>
     private int? Rejoining(bool forward) =>
-        _laid.Root.StopPast(_state.Caret, forward) is >= 0 and var at ? at : null;
+        _laid.Root.StopPast(this.State.Caret, forward) is >= 0 and var at ? at : null;
 
     /// <summary>Up and down — across a fraction bar, out of a script, from a note to the word under it.</summary>
     internal bool MoveCaretVertically(bool up, bool extend = false)
     {
-        if (_laid.Root.StepVertical(_state.Caret, up) is not { } next) return false;
+        if (_laid.Root.StepVertical(this.State.Caret, up) is not { } next) return false;
 
         MoveTo(next, _laid.Root.StopAt(next), extend);
         return true;
@@ -359,7 +373,7 @@ public sealed partial class ContentEngine
 
     private int Snap(int offset)
     {
-        var clamped = Math.Clamp(offset, 0, _state.Document.Length);
+        var clamped = Math.Clamp(offset, 0, this.State.Document.Length);
 
         // Sent onto a line a fold hides, it goes there as it is: what hid it opens, and the line is laid.
         if (_editor is { } viewed && ReferenceEquals(viewed.Document, _edited) && viewed.Folds.Hides(clamped)) return clamped;
@@ -380,7 +394,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private (int Start, int End)? Typed(int offset)
     {
-        if (_state.Raw is { } zone && zone.Holds(offset)) return (zone.Start, zone.End);
+        if (this.State.Raw is { } zone && zone.Holds(offset)) return (zone.Start, zone.End);
 
         return _laid.Root.WordsAt(offset) is { Part: { } part } ? (part.Start, part.End()) : null;
     }
@@ -396,13 +410,13 @@ public sealed partial class ContentEngine
         if (Unwritable) return;
 
         // Over a block of columns, on every line of it, whatever the language would make of a key at one place.
-        if (_state.Selected is ColumnRanges)
+        if (this.State.Selected is ColumnRanges)
         {
-            Apply(_state.Write(text), notify: true);
+            Apply(this.State.Write(text), notify: true);
             return;
         }
 
-        Apply(Edited(EditKind.Typing, text, Landing) ?? _state.Write(text), notify: true);
+        Apply(Edited(EditKind.Typing, text, Landing) ?? this.State.Write(text), notify: true);
     }
 
     /// <summary>
@@ -414,9 +428,9 @@ public sealed partial class ContentEngine
     {
         if (_readOnly) return;
 
-        var over = _state.Select(start, length);
+        var over = this.State.Select(start, length);
         var written = Edited(EditKind.Typing, text, new Landing(over, _laid, this.At)) ?? over.Write(text);
-        var caret = _state.Caret >= start + length ? _state.Caret + text.Length - length : _state.Caret;
+        var caret = this.State.Caret >= start + length ? this.State.Caret + text.Length - length : this.State.Caret;
 
         Apply(written.MoveCaretTo(caret), notify: true);
     }
@@ -430,7 +444,7 @@ public sealed partial class ContentEngine
     {
         if (change.Writes.Count == 0) return;
 
-        Apply(_state.Made(change with { Caret = Wrote(change).End }), notify: true);
+        Apply(this.State.Made(change with { Caret = Wrote(change).End }), notify: true);
     }
 
     /// <summary>
@@ -442,13 +456,13 @@ public sealed partial class ContentEngine
         if (Unwritable) return;
 
         // Something picked out and a construct with a hole in it: what you picked goes in the hole.
-        if (_state.HasSelection && WrapSelectionInto(text, caretBack)) return;
+        if (this.State.HasSelection && WrapSelectionInto(text, caretBack)) return;
 
         // A palette key and a pasted formula land in a construct the same way a typed character does. Only when the template
         // wants the caret walked back into a hole of its own, which is about the text and not the structure.
         if (caretBack == 0 && Edited(EditKind.Typing, text, Landing) is { } written) { Apply(written, notify: true); return; }
 
-        Apply(_state.Insert(text, caretBack), notify: true);
+        Apply(this.State.Insert(text, caretBack), notify: true);
     }
 
     /// <summary>
@@ -462,7 +476,7 @@ public sealed partial class ContentEngine
         if (at <= 0 || at >= template.Length) return false;
         if (template[at - 1] != '{' || template[at] != '}') return false;
 
-        Apply(_state.Insert(template[..at] + _state.SelectedText + template[at..]), notify: true);
+        Apply(this.State.Insert(template[..at] + this.State.SelectedText + template[at..]), notify: true);
 
         // The template's other arguments are still empty, and the builder has just drawn a hole in each. Selecting the first is
         // what makes the next keystroke fill it.
@@ -475,7 +489,7 @@ public sealed partial class ContentEngine
     {
         if (Unwritable) return;
 
-        Apply(_state.Wrap(before, after), notify: true);
+        Apply(this.State.Wrap(before, after), notify: true);
     }
 
     /// <summary>Backspace; un-renders a construct drawn from more source than it shows rather than deleting a character of it. False (nothing to delete) is the host's cue to remove the content itself.</summary>
@@ -483,15 +497,15 @@ public sealed partial class ContentEngine
     {
         if (Unwritable) return false;
 
-        if (_state.Selected is ColumnRanges)
+        if (this.State.Selected is ColumnRanges)
         {
-            Apply(_state.Backspace(), notify: true);
+            Apply(this.State.Backspace(), notify: true);
             return true;
         }
         if (Edited(EditKind.Erasing, string.Empty, Landing) is { } erased) { Apply(erased, notify: true); return true; }
-        if (_state is { Caret: 0, SelectionLength: 0 }) return false;
+        if (this.State is { Caret: 0, SelectionLength: 0 }) return false;
 
-        Apply(Backspacing(_state) ?? _state.Backspace(), notify: true);
+        Apply(Backspacing(this.State) ?? this.State.Backspace(), notify: true);
         return true;
     }
 
@@ -525,18 +539,18 @@ public sealed partial class ContentEngine
     {
         if (Unwritable) return false;
 
-        if (_state.Selected is ColumnRanges)
+        if (this.State.Selected is ColumnRanges)
         {
-            Apply(_state.Delete(), notify: true);
+            Apply(this.State.Delete(), notify: true);
             return true;
         }
 
         // Asked before the end of the source is: past the last thing written in a diagram is its end, and a delete handed back to
         // the document from there takes whatever the document has next.
         if (Edited(EditKind.Deleting, string.Empty, Landing) is { } erased) { Apply(erased, notify: true); return true; }
-        if (_state.Caret >= _state.Document.Length && !_state.HasSelection) return false;
+        if (this.State.Caret >= this.State.Document.Length && !this.State.HasSelection) return false;
 
-        Apply(_state.Delete(), notify: true);
+        Apply(this.State.Delete(), notify: true);
         return true;
     }
 
@@ -546,18 +560,18 @@ public sealed partial class ContentEngine
         if (Unwritable) return;
 
         // A space goes on every line of a block of columns; a line break lets go of the block and breaks the line the caret is on.
-        if (_state.Selected is ColumnRanges)
+        if (this.State.Selected is ColumnRanges)
         {
             if (separator != "\n")
             {
-                Apply(_state.Write(separator), notify: true);
+                Apply(this.State.Write(separator), notify: true);
                 return;
             }
 
-            Apply(_state.MoveCaretTo(_state.Caret), notify: false);
+            Apply(this.State.MoveCaretTo(this.State.Caret), notify: false);
         }
 
-        Apply(Edited(EditKind.Settling, separator, Landing) ?? _state.Write(separator), notify: true);
+        Apply(Edited(EditKind.Settling, separator, Landing) ?? this.State.Write(separator), notify: true);
     }
 
     /// <summary>
@@ -587,9 +601,9 @@ public sealed partial class ContentEngine
     /// <summary>Moves on to the next place to write in, or back to the one before, where the language says where that is.</summary>
     private bool Tabbed(bool forward)
     {
-        if (forward && _state.Selected is ColumnRanges)
+        if (forward && this.State.Selected is ColumnRanges)
         {
-            Apply(_state.Write("\t"), notify: true);
+            Apply(this.State.Write("\t"), notify: true);
             return true;
         }
 
@@ -640,7 +654,7 @@ public sealed partial class ContentEngine
         var language = edit.Part is null ? null : ContentLanguages.WrittenIn(edit.Root);
         if (said.Writes.Any(write => write.Meant) && language is null) return false;
 
-        Apply(_state.Made(language is null ? said : Spelling(said, _state, language)), notify: true);
+        Apply(this.State.Made(language is null ? said : Spelling(said, this.State, language)), notify: true);
         return true;
     }
 
@@ -656,7 +670,7 @@ public sealed partial class ContentEngine
 
         // From wherever the caret is, wrapping round — the last hole tabs back to the first, because a construct being filled in
         // is a loop until it is finished.
-        var here = _state.HasSelection ? _state.SelectionStart : _state.Caret;
+        var here = this.State.HasSelection ? this.State.SelectionStart : this.State.Caret;
         var next = forward
             ? holes.FirstOrDefault(hole => hole.Sits().Start > here, holes[0])
             : holes.LastOrDefault(hole => hole.Sits().Start < here, holes[^1]);
@@ -679,8 +693,8 @@ public sealed partial class ContentEngine
 
         var (from, snapped) = _laid.Root.Snap(start, length, ByLetter);
 
-        var next = _state.Select(from, snapped);
-        if (!Unpick() && next.Selection.SequenceEqual(_state.Selection)) return;
+        var next = this.State.Select(from, snapped);
+        if (!Unpick() && next.Selection.SequenceEqual(this.State.Selection)) return;
 
         Apply(next, notify: false);
         Chosen();
@@ -690,9 +704,9 @@ public sealed partial class ContentEngine
     internal void ClearSelection()
     {
         var unpicked = Unpick();
-        if (!_state.HasSelection && !unpicked) return;
+        if (!this.State.HasSelection && !unpicked) return;
 
-        Apply(_state.Select(0, 0), notify: false);
+        Apply(this.State.Select(0, 0), notify: false);
 
         Chosen();
     }
@@ -703,7 +717,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal void ExtendSelectionTo(int offset)
     {
-        if (!_state.HasSelection) Anchor = _state.Caret;
+        if (!this.State.HasSelection) Anchor = this.State.Caret;
 
         Select(Math.Min(Anchor, offset), Math.Abs(offset - Anchor));
     }
@@ -715,7 +729,7 @@ public sealed partial class ContentEngine
     /// Whether what is picked out is whole things drawn — a slice, a node — chosen as they are rather than characters dragged over.
     /// Nothing is being written in, so there is no caret.
     /// </summary>
-    internal bool ChoseWhole => _state.HasSelection && _state.Selection.SequenceEqual(_chosenWhole);
+    internal bool ChoseWhole => this.State.HasSelection && this.State.Selection.SequenceEqual(_chosenWhole);
 
     /// <summary>Takes a selection worked out over the layout tree, in the source's own offsets.</summary>
     internal void SelectNodes(ContentSelection selection)
@@ -723,14 +737,14 @@ public sealed partial class ContentEngine
         if (selection.IsEmpty) { ClearSelection(); return; }
 
         SelectRanges([.. selection.Ranges.Select(range => new EditRange(range.Start, range.Length))]);
-        _chosenWhole = _state.Selection;
+        _chosenWhole = this.State.Selection;
     }
 
     /// <summary>Picks out exactly <paramref name="ranges"/>, several stretches at once — false where that is what was picked out already.</summary>
     internal bool SelectRanges(IReadOnlyList<EditRange> ranges)
     {
-        var next = _state.Select(ranges);
-        if (!Unpick() && next.Selection.SequenceEqual(_state.Selection)) return false;
+        var next = this.State.Select(ranges);
+        if (!Unpick() && next.Selection.SequenceEqual(this.State.Selection)) return false;
 
         Apply(next, notify: false);
         Chosen();
@@ -739,7 +753,7 @@ public sealed partial class ContentEngine
 
     /// <summary>Whether <paramref name="offset"/> falls inside one of the selected stretches.</summary>
     internal bool Covers(int offset) =>
-        _state.Selection.Any(range => offset >= range.Start && offset <= range.End);
+        this.State.Selection.Any(range => offset >= range.Start && offset <= range.End);
 
     /// <summary>
     /// What moving what is picked out to <paramref name="to"/> would produce: the source as it would read, where the caret
@@ -758,9 +772,9 @@ public sealed partial class ContentEngine
         // were never written here, so the place they would be dropped at is no offset of the source. Refused here and
         // the drawing stands as it was, which is what every other write does when it cannot be spelled — rather than
         // being handed on to be cut out of a source that is shorter than the cut.
-        if (change.Writes.Any(write => write.Start < 0 || write.End > _state.Document.Length)) return null;
+        if (change.Writes.Any(write => write.Start < 0 || write.End > this.State.Document.Length)) return null;
 
-        return new Moved(_state.Made(change), change, Wrote(change));
+        return new Moved(this.State.Made(change), change, Wrote(change));
     }
 
     /// <summary>
@@ -784,11 +798,11 @@ public sealed partial class ContentEngine
                 return null;
             }
 
-            return answered is null || !answered.Writes.Any(write => write.Meant) ? answered : Spelling(answered, _state, own);
+            return answered is null || !answered.Writes.Any(write => write.Meant) ? answered : Spelling(answered, this.State, own);
         }
 
-        var ranges = _state.Selection
-            .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= _state.Document.Length)
+        var ranges = this.State.Selection
+            .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= this.State.Document.Length)
             .OrderBy(range => range.Start)
             .ToList();
 
@@ -815,7 +829,7 @@ public sealed partial class ContentEngine
         // they are for an edit — and a language whose parser says nothing about writing has nothing written for it.
         return said is null || !said.Writes.Any(write => write.Meant) ? said
              : language is null ? null
-             : Spelling(said, _state, language);
+             : Spelling(said, this.State, language);
     }
 
     /// <summary>

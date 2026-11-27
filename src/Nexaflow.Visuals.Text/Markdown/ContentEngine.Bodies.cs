@@ -201,10 +201,10 @@ public sealed partial class ContentEngine
 
         for (var index = Reaching(tops, top); index < units.Count && tops[index] < bottom; index++) wanted.Add(index);
 
-        if (OwnIn(window, _state.Caret) is { } caret && Holding(window, caret) is >= 0 and var holding)
+        if (OwnIn(window, this.State.Caret) is { } caret && Holding(window, caret) is >= 0 and var holding)
             for (var near = Math.Max(holding - 1, 0); near <= Math.Min(holding + 1, units.Count - 1); near++) wanted.Add(near);
 
-        foreach (var range in _state.Selection)
+        foreach (var range in this.State.Selection)
             foreach (var end in new[] { range.Start, range.End })
                 if (OwnIn(window, end) is { } own && Holding(window, own) is >= 0 and var at) wanted.Add(at);
 

@@ -37,7 +37,10 @@ public sealed partial class ContentEngine
     /// <summary>Whether the view slides sideways as well — for lines kept whole that reach past the page's edge.</summary>
     internal bool ViewSlides { get; set; }
 
-    /// <summary>Raised when the view moved or changed its size — scrolled, brought to a place, held still while the page above it changed, or the content under it laid again.</summary>
+    /// <summary>
+    /// Raised when the view moved or changed its size — scrolled, brought to a place, held still while the page above it changed, or the content
+    /// under it laid again — and when the page under it came to another length or width, though the view stood still.
+    /// </summary>
     internal event EventHandler? ViewMoved;
 
     /// <summary>
@@ -62,13 +65,19 @@ public sealed partial class ContentEngine
     /// <summary>The view's left edge as a scrollbar counts it.</summary>
     internal double ScrolledAcross => _showing is { } view ? view.X + _inset.Left : 0;
 
-    /// <summary>Keeps <paramref name="left"/>, <paramref name="top"/>, <paramref name="right"/> and <paramref name="bottom"/> of room round the content, in its own units.</summary>
+    /// <summary>
+    /// Keeps <paramref name="left"/>, <paramref name="top"/>, <paramref name="right"/> and <paramref name="bottom"/> of room round the content, in its
+    /// own units — and lays it again where the room at its sides changed, since that is room it is no longer laid in.
+    /// </summary>
     internal void Inset(double left, double top, double right, double bottom)
     {
         if (_inset == (left, top, right, bottom)) return;
 
         var (x, y) = _showing is { } view ? (view.X + _inset.Left, view.Y + _inset.Top) : (0, 0);
+        var sides = _inset.Left + _inset.Right != left + right;
         _inset = (left, top, right, bottom);
+
+        if (sides && _laidFor > 0 && _laid.Tree.Count > 0) this.Relay();
 
         // Where the view stood against the room kept round the content stays where it stood.
         this.ViewAt(x - left, y - top, _showing?.Width ?? 0, _showing?.Height ?? 0);
@@ -178,7 +187,8 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// Stands the view at <paramref name="x"/>, <paramref name="y"/>, <paramref name="width"/> by <paramref name="height"/>, kept inside the
-    /// content — and says, and returns, whether that moved or sized it.
+    /// content — and returns whether that moved or sized it. Says so where it did, and where the page under it has come to another length or
+    /// width since last said, which a scrollbar stands for as much as for where the view is.
     /// </summary>
     private bool ViewAt(double x, double y, double width, double height)
     {
@@ -191,11 +201,16 @@ public sealed partial class ContentEngine
             Math.Max(0, width),
             Math.Max(0, height));
 
-        if (_showing == next) return false;
+        var (moved, extent) = (_showing != next, this.Extent);
+        if (!moved && extent == _extentTold) return false;
 
-        OnScreen = next;
+        if (moved) OnScreen = next;
+        _extentTold = extent;
         ViewMoved?.Invoke(this, EventArgs.Empty);
 
-        return true;
+        return moved;
     }
+
+    /// <summary>How far the view could scroll through when it was last said to have moved.</summary>
+    private LayoutSize _extentTold;
 }

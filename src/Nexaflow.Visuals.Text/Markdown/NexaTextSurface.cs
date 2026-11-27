@@ -606,8 +606,9 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
 
 
         // A field holding one language is written at the end of what it holds; a document, text shown as a page, and anything only
-        // read, is read from its top.
-        _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly || WrapsLines ? 0 : _shown.Current.Document.Length));
+        // read, is read from its top — unless a page handed over its view of the document, whose caret stands where the page put it.
+        if (!_engine.ViewHandedOver)
+            _shown.Restore(_shown.Current.MoveCaretTo(Named is null || IsReadOnly || WrapsLines ? 0 : _shown.Current.Document.Length));
 
         HoldAsWritten();
         _engine.Begin();

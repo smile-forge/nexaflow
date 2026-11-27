@@ -621,7 +621,7 @@ public sealed partial class ContentEngine
 
         // A body the screen has come into the part of that is not laid has its holder laid again, so it lays that part.
         var bodiesShort = this.BodiesShort();
-        if (bodiesShort || this.Short(window, _state)) Grow();
+        if (bodiesShort || this.Short(window, this.State)) Grow();
     }
 
     /// <summary>
@@ -699,7 +699,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal IReadOnlyList<ShownLine> LinesBetween(double top, double bottom)
     {
-        var document = _state.Document;
+        var document = this.State.Document;
         var lines = new List<ShownLine>();
 
         // Laid whole, its lines stand where they were laid.

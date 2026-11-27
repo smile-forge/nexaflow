@@ -254,11 +254,11 @@ public sealed partial class ContentEngine
         // As much of it as is drawn when it is shown: the line ending that closes it is not somewhere to write.
         var zone = new RawZone(block.Start, block.Start + block.Print().TrimEnd('\n', '\r').Length);
 
-        if (zone.Length == 0 || (_state.Raw is { } shown && shown.Start < zone.End && zone.Start < shown.End)) return false;
+        if (zone.Length == 0 || (this.State.Raw is { } shown && shown.Start < zone.End && zone.Start < shown.End)) return false;
 
         var caret = Math.Clamp(_laid.OffsetAt(at), zone.Start, zone.End);
 
-        Apply(_state.MoveCaretTo(caret) with { Raw = zone }, notify: false);
+        Apply(this.State.MoveCaretTo(caret) with { Raw = zone }, notify: false);
         Refresh();
         TakeCaret(caret);
 
@@ -301,7 +301,7 @@ public sealed partial class ContentEngine
         {
             if (ContentLanguages.Held(at) is not { } language) continue;
 
-            var ask = new ContentAsk(ContentNested.Language(at)!, _state.Document) { Part = block, IsReadOnly = _readOnly };
+            var ask = new ContentAsk(ContentNested.Language(at)!, this.State.Document) { Part = block, IsReadOnly = _readOnly };
             return language.Editing.Corner(ask);
         }
 
@@ -309,11 +309,11 @@ public sealed partial class ContentEngine
         // on one: copying it is what selecting it is for.
         if (_named is { } named)
             return _wrapsLines ? BlockCorner.None
-                               : Language(named).Editing.Corner(new ContentAsk(named, _state.Document) { Part = block, IsReadOnly = _readOnly });
+                               : Language(named).Editing.Corner(new ContentAsk(named, this.State.Document) { Part = block, IsReadOnly = _readOnly });
 
         // A heading of the document's own offers what its section can do, as markdown says.
         if (Headed(block) is { } section)
-            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, _state.Document)
+            return Language(null).Editing.Corner(new ContentAsk(MarkdownParser.Language, this.State.Document)
             {
                 Part = block, Root = RootOf(block), Section = section, IsReadOnly = _readOnly,
             });
@@ -459,7 +459,7 @@ public sealed partial class ContentEngine
 
         if (markdown.Length == 0) return false;
 
-        Replace(_state.Insert(markdown.ReplaceLineEndings("\n")));
+        Replace(this.State.Insert(markdown.ReplaceLineEndings("\n")));
         return true;
     }
 

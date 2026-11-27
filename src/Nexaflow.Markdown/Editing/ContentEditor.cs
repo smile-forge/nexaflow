@@ -199,13 +199,24 @@ public sealed class ContentEditor : IDisposable
     }
 
     /// <summary>What shows it now stands at <paramref name="state"/>: said to whoever listens where the caret or what is picked out moved.</summary>
-    public void Stood(EditState state)
+    public void Stood(EditState state) => this.Told(this.Stand(state));
+
+    /// <summary>
+    /// What shows it stands at <paramref name="state"/> from now on, not said yet — so what shows it can lay itself out by it before anyone listening
+    /// hears (<see cref="Told"/>). Hands back where it stood before.
+    /// </summary>
+    internal EditState Stand(EditState state)
     {
         var before = _state;
         _state = state;
+        return before;
+    }
 
-        if (before.Caret != state.Caret) this.CaretMoved?.Invoke(this, EventArgs.Empty);
-        if (!before.Selection.SequenceEqual(state.Selection)) this.SelectionChanged?.Invoke(this, EventArgs.Empty);
+    /// <summary>Says to whoever listens where the caret or what is picked out moved since it stood at <paramref name="before"/>.</summary>
+    internal void Told(EditState before)
+    {
+        if (before.Caret != _state.Caret) this.CaretMoved?.Invoke(this, EventArgs.Empty);
+        if (!before.Selection.SequenceEqual(_state.Selection)) this.SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>What shows it now has lines <paramref name="first"/> to <paramref name="last"/> on its page.</summary>

@@ -153,7 +153,7 @@ public sealed partial class ContentEngine
         {
             _dragging = true;
             _column = this.PlaceAt(at);
-            Apply(ColumnSelection.Between(_state, _column.Value, _column.Value, _style.TabWidth), notify: false);
+            Apply(ColumnSelection.Between(this.State, _column.Value, _column.Value, _style.TabWidth), notify: false);
             return true;
         }
 
@@ -169,9 +169,9 @@ public sealed partial class ContentEngine
         // chosen yet — and a drag after it goes on choosing from the same place.
         if (modifiers.HasFlag(ModifierKeys.Shift))
         {
-            if (!_state.HasSelection)
+            if (!this.State.HasSelection)
             {
-                Anchor = _state.Caret;
+                Anchor = this.State.Caret;
                 _anchorNode = _laid.Root.WordsAt(Anchor);
             }
 
@@ -295,7 +295,7 @@ public sealed partial class ContentEngine
         _anchorNode = piece;
 
         var pressed = new EditRange(sits.Start, sits.Length);
-        var chosen = _state.Selection;
+        var chosen = this.State.Selection;
 
         IReadOnlyList<EditRange> next = chosen.Any(range => range.Start <= pressed.Start && range.End >= pressed.End)
             ? [.. chosen.SelectMany(range => Outside(range, pressed))]
@@ -305,7 +305,7 @@ public sealed partial class ContentEngine
 
         if (!SelectRanges(next)) return;
 
-        _chosenWhole = _state.Selection;
+        _chosenWhole = this.State.Selection;
         Picked(at);
     }
 
@@ -337,7 +337,7 @@ public sealed partial class ContentEngine
             // means the slice, which is what the ordinary rules already do with it.
             if (_readOnly || !words.Writes) return false;
 
-            Apply(_state.MoveCaretTo(part.Start) with { Raw = new RawZone(part.Start, part.End()) }, notify: false);
+            Apply(this.State.MoveCaretTo(part.Start) with { Raw = new RawZone(part.Start, part.End()) }, notify: false);
         }
 
         TakeCaret(_laid.Root.OffsetAt(_pressedAt), -1);
@@ -371,7 +371,7 @@ public sealed partial class ContentEngine
 
         if (_column is { } begun)
         {
-            Apply(ColumnSelection.Between(_state, begun, this.PlaceAt(at), _style.TabWidth), notify: false);
+            Apply(ColumnSelection.Between(this.State, begun, this.PlaceAt(at), _style.TabWidth), notify: false);
             return;
         }
 
@@ -407,7 +407,7 @@ public sealed partial class ContentEngine
         var characters = LinedSetting.Typed(_style);
         var advance = Math.Max(_medium.Measuring(characters.Face, characters.Size).Of(" ").Advance, 1);
 
-        return (_state.Document.LineOf(_laid.OffsetAt(at)), Math.Max(0, (int)Math.Round(at.X / advance)));
+        return (this.State.Document.LineOf(_laid.OffsetAt(at)), Math.Max(0, (int)Math.Round(at.X / advance)));
     }
 
     /// <summary>Chooses from the anchor to <paramref name="at"/>: what a drag there chooses, and what Shift and a press there choose.</summary>

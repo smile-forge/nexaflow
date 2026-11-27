@@ -93,7 +93,7 @@ public sealed partial class ContentEngine : IContentEditorView
 
             // What is picked out goes first; then a block shown as written is drawn again, keeping what was written in it.
             case Key.Escape:
-                if (!_state.HasSelection) return LetGo();
+                if (!this.State.HasSelection) return LetGo();
                 ClearSelection();
                 return true;
 
@@ -166,12 +166,12 @@ public sealed partial class ContentEngine : IContentEditorView
                 return true;
 
             case Key.Home or Key.End:
-                MoveCaretTo(key == Key.End ? _state.Document.Length : 0, extend: shift);
+                MoveCaretTo(key == Key.End ? this.State.Document.Length : 0, extend: shift);
                 return true;
 
             // A word along, or back: to the next start of a word, a run of punctuation, or a line.
             case Key.Left or Key.Right:
-                MoveCaretTo(ContentWordEdges.Next(_state.Document, _state.Caret, forward: key == Key.Right), extend: shift);
+                MoveCaretTo(ContentWordEdges.Next(this.State.Document, this.State.Caret, forward: key == Key.Right), extend: shift);
                 return true;
 
             // Above the question of writing: what is only being looked at can still be picked out and copied.
@@ -240,9 +240,9 @@ public sealed partial class ContentEngine : IContentEditorView
     private void ColumnStep(Key key)
     {
         var tab = _style.TabWidth;
-        var (anchor, caret) = _state.Selected is ColumnRanges block
+        var (anchor, caret) = this.State.Selected is ColumnRanges block
             ? (block.Anchor, block.Caret)
-            : (ColumnSelection.Place(_state.Document, _state.Caret, tab), ColumnSelection.Place(_state.Document, _state.Caret, tab));
+            : (ColumnSelection.Place(this.State.Document, this.State.Caret, tab), ColumnSelection.Place(this.State.Document, this.State.Caret, tab));
 
         caret = key switch
         {
@@ -252,7 +252,7 @@ public sealed partial class ContentEngine : IContentEditorView
             _ => (caret.Line + 1, caret.Column),
         };
 
-        Apply(ColumnSelection.Between(_state, anchor, caret, tab), notify: false);
+        Apply(ColumnSelection.Between(this.State, anchor, caret, tab), notify: false);
     }
 
     /// <summary>Characters typed, written one at a time as the language they land in takes each.</summary>
@@ -278,12 +278,12 @@ public sealed partial class ContentEngine : IContentEditorView
     /// Picks out everything written. Exactly that, rather than grown out to the constructs it covers, which in content shown
     /// inside another would reach its delimiters too.
     /// </summary>
-    internal void SelectAll() => Apply(_state.Select(0, _state.Document.Length), notify: false);
+    internal void SelectAll() => Apply(this.State.Select(0, this.State.Document.Length), notify: false);
 
     /// <summary>Home and End: the caret to the start or the end of the row it stands on (<see cref="LayoutQuery.RowEdge"/>).</summary>
     private void Along(bool end, bool extend)
     {
-        if (_laid.Root.RowEdge(_state.Caret, end) is { } edge) MoveCaretTo(edge, extend);
+        if (_laid.Root.RowEdge(this.State.Caret, end) is { } edge) MoveCaretTo(edge, extend);
     }
 
     /// <summary>
@@ -292,9 +292,9 @@ public sealed partial class ContentEngine : IContentEditorView
     /// </summary>
     private bool LetGo()
     {
-        if (_state.Raw is null || _holdsWritten) return false;
+        if (this.State.Raw is null || _holdsWritten) return false;
 
-        Apply(_state.Settled(), notify: false);
+        Apply(this.State.Settled(), notify: false);
         return true;
     }
 
@@ -314,7 +314,7 @@ public sealed partial class ContentEngine : IContentEditorView
             _holdsWritten = value;
 
             // Let go of only what this held open: a command being spelled is the writer's, and stays shown as they spell it.
-            Apply(value || _state.Raw != Whole(_state) ? _state : _state with { Raw = null }, notify: false);
+            Apply(value || this.State.Raw != Whole(this.State) ? this.State : this.State with { Raw = null }, notify: false);
         }
     }
 
@@ -359,14 +359,14 @@ public sealed partial class ContentEngine : IContentEditorView
 
             if (_edited is not null) _edited.Changed -= this.Elsewhere;
 
-            var before = _state;
+            var before = this.State;
             this.Holding(value);
             this.Unadopted(value);
 
-            this.Apply(new EditState(value.Current, 0), notify: false);
-            _last = _state;
+            this.Apply(new EditState(value.Current, 0), notify: false, from: before);
+            _last = this.State;
 
-            SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, ContentChangeKind.Loaded));
+            SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, ContentChangeKind.Loaded));
         }
     }
 
@@ -424,18 +424,20 @@ public sealed partial class ContentEngine : IContentEditorView
         {
             if (ReferenceEquals(value, _editor)) return;
 
-            // Where the page put the caret before anything showed its view, it stays.
-            var stood = value.State;
-
             this.EditedDocument = value.Document;
+            var before = this.State;
             this.Adopt(value, owned: false);
 
-            if (ReferenceEquals(stood.Document, _state.Document)) this.Apply(stood, notify: false);
+            // Shown from where the view stands — where the page put the caret before anything showed it.
+            this.Apply(value.State, notify: false, from: before);
         }
     }
 
     /// <summary>The view of the document this shows, where one has been asked for or handed over — null where nothing has.</summary>
     internal ContentEditor? EditorIfAny => _editor;
+
+    /// <summary>Whether the view of the document was handed over by a page that holds it, rather than made here — so where its caret is, is the page's to say.</summary>
+    internal bool ViewHandedOver => _editor is not null && !_ownsEditor;
 
     private void Adopt(ContentEditor editor, bool owned)
     {
@@ -445,7 +447,6 @@ public sealed partial class ContentEngine : IContentEditorView
         editor.Attach(this);
         editor.Marks.Changed += this.OnRemarked;
         editor.Folds.Changed += this.OnFolded;
-        editor.Stood(_state);
     }
 
     /// <summary>Lets go of the view of the document, where it is not a view of <paramref name="document"/>.</summary>
@@ -477,13 +478,13 @@ public sealed partial class ContentEngine : IContentEditorView
     {
         if (_taking) return;
 
-        var before = _state;
-        var caret = change.Kind == ContentChangeKind.Loaded ? 0 : change.Change.Carried(_state.Caret, leansAfter: true);
+        var before = this.State;
+        var caret = change.Kind == ContentChangeKind.Loaded ? 0 : change.Change.Carried(this.State.Caret, leansAfter: true);
 
         this.Apply(new EditState(change.After.Document, caret), notify: false);
-        _last = _state;
+        _last = this.State;
 
-        SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, change.Kind));
+        SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, change.Kind));
     }
 
     /// <summary><paramref name="write"/>, done to the document as this engine's own writing, so the change it raises is not taken up again.</summary>
@@ -499,25 +500,25 @@ public sealed partial class ContentEngine : IContentEditorView
     {
         // A step outside the window onto a file is brought into it first, which is taken up as any change made elsewhere.
         this.EditedDocument.ReachUndo();
-        Back(this.Taking(() => this.EditedDocument.Undo(_state)), ContentChangeKind.Undone);
+        Back(this.Taking(() => this.EditedDocument.Undo(this.State)), ContentChangeKind.Undone);
     }
 
     /// <summary>Writes again what was last taken back.</summary>
     internal void Redo()
     {
         this.EditedDocument.ReachRedo();
-        Back(this.Taking(() => this.EditedDocument.Redo(_state)), ContentChangeKind.Redone);
+        Back(this.Taking(() => this.EditedDocument.Redo(this.State)), ContentChangeKind.Redone);
     }
 
     private void Back(EditState? state, ContentChangeKind kind)
     {
         if (state is null) return;
 
-        var before = _state;
+        var before = this.State;
         Apply(state, notify: false);
-        _last = _state;
+        _last = this.State;
 
-        SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, kind));
+        SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, kind));
     }
 
     /// <summary>
@@ -526,23 +527,23 @@ public sealed partial class ContentEngine : IContentEditorView
     /// </summary>
     internal void Replace(EditState next)
     {
-        if (_readOnly || ReferenceEquals(next.Document, _state.Document)) return;
+        if (_readOnly || ReferenceEquals(next.Document, this.State.Document)) return;
 
-        var before = _state;
+        var before = this.State;
 
         this.History.Break();
         Apply(next, notify: false);
         Recorded(ContentChangeKind.Replaced);
         this.History.Break();
 
-        SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, ContentChangeKind.Replaced));
+        SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, ContentChangeKind.Replaced));
     }
 
     /// <summary>What is here now is where the next step starts from, whatever was written before it.</summary>
     internal void Begin()
     {
         this.History.Break();
-        _last = _state;
+        _last = this.State;
     }
 
     /// <summary>What was just written, remembered as a step — or as more of the step it carries on from — and said to the document's holder.</summary>
@@ -550,11 +551,11 @@ public sealed partial class ContentEngine : IContentEditorView
     {
         this.Taking(() =>
         {
-            this.EditedDocument.Wrote(_last, _state, kind);
+            this.EditedDocument.Wrote(_last, this.State, kind);
             return true;
         });
 
-        _last = _state;
+        _last = this.State;
     }
 
     /// <summary>
@@ -563,9 +564,9 @@ public sealed partial class ContentEngine : IContentEditorView
     /// </summary>
     private void Stayed()
     {
-        if (ReferenceEquals(_state, _last) || !ReferenceEquals(_state.Document, _last.Document)) return;
+        if (ReferenceEquals(this.State, _last) || !ReferenceEquals(this.State.Document, _last.Document)) return;
 
-        _last = _state;
+        _last = this.State;
         this.History.Break();
     }
 }

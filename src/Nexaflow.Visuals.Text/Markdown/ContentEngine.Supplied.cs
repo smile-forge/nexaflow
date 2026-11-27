@@ -87,7 +87,7 @@ public sealed partial class ContentEngine
     /// <summary>Picks out <paramref name="pieces"/> of supplied content in place of whatever was picked out.</summary>
     private void PickWhole(IReadOnlyList<LayoutPiece> pieces)
     {
-        if (_state.HasSelection) Apply(_state.Select(0, 0), notify: false);
+        if (this.State.HasSelection) Apply(this.State.Select(0, 0), notify: false);
 
         _picked = pieces;
         Chosen();
