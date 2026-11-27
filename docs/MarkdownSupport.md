@@ -1017,7 +1017,7 @@ chip, and which have children left over, from that config plus whatever the read
 diagram is being planned, so a node that is not drawn is simply never given a cell: the links to it have no end to meet
 and a subgraph holding nothing else closes up, rather than a hole being cut in a finished drawing. Nothing touches the
 source — what the reader opens is view state
-([`DiagramViewState`](../src/Nexaflow.Visuals.Text/Markdown/DiagramViewState.cs)), so the diagram is always exactly what
+([`DiagramViewState`](../src/Nexaflow.Markdown/Engine/Markdown/DiagramViewState.cs)), so the diagram is always exactly what
 its author wrote — and a diagram that says nothing about any of this gets neither chips nor stand-ins.
 
 **Depth and breadth are the two ways a diagram is too big, and they are answered differently.**
@@ -1377,7 +1377,7 @@ event's read model, a read model's ui, a processor's command), indented as the f
 caret where its name goes. Backspace in a frame's name with nothing written in it takes the frame back. A right-click on a
 frame offers its entity type, and whether it is a time frame or a reset frame, each written over the word that says it in
 the spelling that word had
-([`EventModelingEdits`](../src/Nexaflow.Visuals.Text/Markdown/EventModeling/EventModelingEdits.cs)).
+([`EventModelingEdits`](../src/Nexaflow.Markdown/Engine/Markdown/EventModeling/EventModelingEdits.cs)).
 
 **Divergences from Mermaid**
 

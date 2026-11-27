@@ -19,7 +19,7 @@ STAGES      the language's stages     → AST      IAstStage actors, each handin
   │
 BUILD       the language's builder    → Laid     a layout tree, every piece saying what it was drawn from
   │
-PAINT       ContentElement            → pixels   painting, hit-testing, the caret, selection, editing
+PAINT       ContentElement            → pixels   painting what the engine says is shown; the pointer's pixels into the content's units
 ```
 
 ## Ownership
@@ -35,6 +35,17 @@ permissions are unremarkable.
 | A **builder** | turning the AST into a layout tree | read source, print the AST, decide anything from an offset, name the language table |
 | The **engine** | orchestration: running the pipeline, the lifetime of a render, every cache, all editing state | draw |
 | The **element** | painting the layout tree and turning gestures into edits of the source | lay anything out itself |
+
+**Where each lives.** Everything above the element names no UI toolkit and lives in `Nexaflow.Markdown`: the trees, the
+languages and their parsers, stages and builders, and under `Engine/` the engine itself — `ContentEngine`, the language
+table and each language's edits and ribbon models, the stages the engine adds, find, the view's numbers (the room content
+is laid in, where the page stands, which lines, marks and carets stand near the screen), what a copy holds, and the walk
+that writes a document out — with each view's editing state (`ContentEditor`, `ContentFind`) and a document read by
+characters, words and lines (`ContentTextUnits`) in `Editing/`. What draws it is `Nexaflow.Visuals.Text`: the surface
+(`NexaTextSurface`), turning a toolkit's keys, pointer, properties, scrolling, commands and screen reader into the engine's
+calls; the element, which paints; the margins; the clipboard's formats; and the medium and painters (`Painting/`). So
+another toolkit's surface is a second painter over the same engine, and `EngineAssemblyRulesTests` holds the engine to
+reaching no toolkit.
 
 ## 1. The two trees
 
@@ -199,7 +210,7 @@ unit counts as coming to more of it once the screen itself reaches past what was
 lays again only near the edge of what is laid, a screen either side giving it room. A caret sent somewhere not laid — the
 end of a long document — goes there as it is, and is laid there and brought onto the page (`ContentEngine.Snap`). A place
 brought onto the page — found, gone to, laid to — is left where it stands if it is on the screen already, and otherwise stood
-half way down it, so what comes before and after it is there to read it by (`ContentElement.BringOnto`); a caret kept on the
+half way down it, so what comes before and after it is there to read it by (`ContentEngine.BringOnto`); a caret kept on the
 screen as it moves is brought only as far as it needs. A builder that cannot lay part
 of what it reads lays all of it, as every builder but those laying line by line does. A line of code is coloured
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
@@ -226,7 +237,7 @@ the box, and code's are kept whole. A box narrower than the lines it keeps whole
 well), with a bar under it saying how much shows and where along. Content laid for paper slides nothing, so there a box's lines
 wrap instead and all of them show (`ContentEngine.Slides`). A page that is itself code or text with its lines kept whole slides
 the same way at the top (`NexaTextSurface.HorizontalScrollBarVisibility`): it is laid in the page's width and asks for as much as
-its widest line laid reaches (`ContentElement.SlidingRoom`), and Shift with the wheel slides it.
+its widest line laid reaches (`ContentEngine.SlidingRoom`), and Shift with the wheel slides it.
 
 **A tab reaches to the next tab stop**, the stops `LayoutStyle.TabWidth` characters apart from the line's start
 (`LinedSetting.TabAcross`): a piece of its own standing for its one character, which a caret stands either side of and never inside,
@@ -676,7 +687,7 @@ dozen, each with a shift of its own, so a write moves the ones it touches one by
 `ContentMarkLayer`): what a search found (`FoundMarks`, a layer every view has), each level a log line is at, the lines a filter
 leaves out (`LineMarks`). A mark is a wash or a line round characters, a wash or a veil across every row of a line, or a bar under
 them, and names the theme token it is inked in, resolved when it is drawn — never a colour, except a bar under a colour the
-document itself writes. A layer is asked only about the stretch painted round the screen (`ContentElement.PaintMarks`), and
+document itself writes. A layer is asked only about the stretch painted round the screen (`ContentEngine.MarksNear`), and
 nothing before a screen is known, so marking every line of a long file costs a screen's worth. The lines of that stretch are
 sliced once for every layer (`ContentMarkRequest.Lines`), and what more than one layer works out from a line — a log line parsed —
 is worked out once for them all (`LineReading`, `ContentMarkRequest.Read`). A layer is carried through every change before the
@@ -715,7 +726,7 @@ written — a number set to two places, a title without its quotes. A run saying
 showing it — the share a slice takes — is neither, and stepping never stops in it.
 
 **A block keeps the picture it was painted as** (`LayoutKept`), so a keystroke paints the block typed in and a caret
-blinking paints nothing. Only the blocks near the screen are painted (`ContentElement.OnScreen`), and a tree put down whole
+blinking paints nothing. Only the blocks near the screen are painted (`ContentEngine.OnScreen`), and a tree put down whole
 that stands nowhere near it — a unit, a line of code — is not gone into. A picture is held only while something draws it:
 what the page is drawn as holds the pictures on it, and the picture of a block scrolled far away is let go without anything
 going looking for it.
@@ -943,7 +954,7 @@ rather than eleven. **A picture is one mark** in a piece standing for the charac
 **Writing a document out in another format walks its layout, not its reading.** The reading is what a document *means*;
 the layout tree is what it *looks like*, and the two are not one to one: stages and builders add what nobody wrote — an
 alert's colour and the word it calls itself, a list's numbers as drawn, a box ticked — and content in another language is
-whatever that language drew. So the walk (`LayoutExport`, in `Visuals.Text`, since laying out is WPF) lays a document out
+whatever that language drew. So the walk (`LayoutExport`, the engine's, laying out through the medium it is handed) lays a document out
 read-only and walks it into a format-neutral document (`ExportDocument`, in `Nexaflow.Markdown/Export`): what each piece
 *is* comes from the part it was laid from — a heading's rank and anchor, a list's counting and looseness, a cell's
 alignment and span, a link's address — and what it *looks like* from the pieces laid from it. Content in another language
