@@ -201,6 +201,18 @@ public class RtfDrawingTests
         var picture = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutPieces.Picture);
 
         Assert.AreEqual(2 * Em, picture.Bounds.Width, 0.5, "drawn at the size it was asked for");
+
+        // Decoded by the medium as it is laid: the same reading laid again in other room draws the same picture, not one decoded afresh.
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
+        engine.Show(RtfParser.Language, WpfStyles.Light);
+        engine.Start(@"{\rtf1 before {\pict\pngblip\picwgoal480\pichgoal480 " + png + @"} after\par}");
+        engine.Fit(480);
+        var first = Drawn(engine.Laid);
+        engine.Fit(300);
+        Assert.AreSame(first, Drawn(engine.Laid), "laid again, the picture was decoded again");
+
+        static LayoutPicture Drawn(Laid laid) =>
+            laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutPieces.Picture).Marks.ToArray().OfType<PictureMark>().Single().Picture;
     }
 
     [TestMethod]

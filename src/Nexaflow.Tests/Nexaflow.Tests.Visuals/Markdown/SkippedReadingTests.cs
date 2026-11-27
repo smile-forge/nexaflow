@@ -145,7 +145,7 @@ public class SkippedReadingTests
 
     private static ContentEngine Opened(string text)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         engine.Show(NoGrammar, WpfStyles.Dark);
         engine.Start(text);
         engine.Fit(600);

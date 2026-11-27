@@ -45,8 +45,10 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// in a paragraph does not read the diagram under it again.
 /// </para>
 /// </summary>
+/// <param name="medium">What the content is shaped, measured, inked and pictured in — whatever shows it says, so nothing here names a toolkit.</param>
+/// <param name="style">The look content is laid out in until it is shown in another (<see cref="Show"/>), and what it is read in.</param>
 /// <param name="inputs">What the host says about the content it shows — see <see cref="Inputs"/>.</param>
-public sealed partial class ContentEngine(ContentInputs? inputs = null)
+public sealed partial class ContentEngine(ILayoutMedium medium, LayoutStyle style, ContentInputs? inputs = null)
 {
     /// <summary>What a piece of content read to: its language's tree, a block in that language.</summary>
     private sealed record Parsed(ContentLanguage Language, string Named, ContentDocument Document, ContentNode Tree);
@@ -153,7 +155,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     {
         var top = Parse(Language(named), named, ContentDocument.Of(source));
 
-        return ContentReading.Of(Staged(top, Showing(named ?? string.Empty, WpfStyles.Dark, writing, null, 0)), 0, top.Document);
+        return ContentReading.Of(Staged(top, Showing(named ?? string.Empty, _style, writing, null, 0)), 0, top.Document);
     }
 
     /// <summary>
@@ -256,7 +258,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     {
         var host = new LayoutHost(standing, (holder, room, asked) => Nested(holder, room, asked, showing.Style, showing.Shown, writing, holding))
         {
-            Pictures = Pictured,
+            Pictures = part => this.Pictured(part, showing.Style.TextSize),
             Links = Linked,
             ShownBefore = ShownBefore,
             BoxedAsWritten = static holder => ContentNested.Language(holder) is { } named && ContentLanguages.For(named) is { BoxedAsWritten: true },
@@ -267,19 +269,27 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         return folds is null ? host : host with { Folds = folds };
     }
 
-    /// <summary>The picture a part was found to name — an image, a diagram node's, a cloud's mask — as the medium draws it.</summary>
-    private static LayoutPicture? Pictured(ContentPart part) =>
-        WithImages.Of(part) ?? WithDiagramPictures.Of(part) ?? part.Node.HeldAs(WithPictures.Picture) as LayoutPicture;
+    /// <summary>
+    /// The picture a part was found to name — an image, a diagram node's, a cloud's mask — as the medium draws it; or, for one written into the
+    /// source as its bytes, what the medium decodes them to at the size asked for, measured in <paramref name="textSize"/>.
+    /// </summary>
+    private LayoutPicture? Pictured(ContentPart part, double textSize) =>
+        WithImages.Of(part) ?? WithDiagramPictures.Of(part) ?? part.Node.HeldAs(WithPictures.Picture) as LayoutPicture
+        ?? (Embedded(part) is { } written ? _medium.Decoded(written, textSize) : null);
+
+    /// <summary>The picture an image holds as its own bytes, written into the source — or null, for one only named.</summary>
+    private static EmbeddedPicture? Embedded(ContentPart part) =>
+        part.Node.Kind == MarkdownKinds.Image ? part.Node.Children.Select(child => child.Held).OfType<EmbeddedPicture>().FirstOrDefault() : null;
 
     /// <summary>How the host wants a link to look, as its stage settled it, in the medium's inks.</summary>
-    private static LayoutLinkLook? Linked(ContentPart part) =>
-        WithLinks.Of(part) is { } look ? Looks.GetValue(look, Look) : null;
+    private LayoutLinkLook? Linked(ContentPart part) =>
+        WithLinks.Of(part) is { } look ? _looks.GetValue(look, this.Look) : null;
 
     /// <summary>Each look a host gave, said in the medium's terms once.</summary>
-    private static readonly ConditionalWeakTable<LinkLook, LayoutLinkLook> Looks = new();
+    private readonly ConditionalWeakTable<LinkLook, LayoutLinkLook> _looks = new();
 
-    private static LayoutLinkLook Look(LinkLook look) =>
-        new(look.Ink is { } ink ? WpfMedium.OnThisThread.Ink(ink) : null, look.Underline, look.Before, look.After, look.Says)
+    private LayoutLinkLook Look(LinkLook look) =>
+        new(look.Ink is { } ink ? _medium.Ink(ink) : null, look.Underline, look.Before, look.After, look.Says)
         {
             MarkFont = look.MarkFont,
         };

@@ -177,7 +177,6 @@ internal static class Shipped
         Parser: RtfParser.Parsing,
         Stages: static (_, show) =>
         [
-            new WithEmbeddedPictures(show.Style.TextSize),
             new WithLinks(show.Inputs.Links),
 
             // Last of what is read, because a block is only the same as it was when everything worked out about it is too.

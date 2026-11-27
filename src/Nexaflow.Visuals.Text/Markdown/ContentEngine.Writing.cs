@@ -30,16 +30,16 @@ public sealed partial class ContentEngine
     private const double UnsaidRoom = 680;
 
     private string? _named;
-    private LayoutStyle _style = WpfStyles.Dark;
+    private LayoutStyle _style = style;
 
     /// <summary>
     /// What the content is shaped, measured and inked in as it is laid out — the one place the host's medium is named, so laying the content
     /// out turns on nothing but the medium it is handed.
     /// </summary>
-    private readonly ILayoutMedium _medium = WpfMedium.OnThisThread;
+    private readonly ILayoutMedium _medium = medium;
     private bool _readOnly;
     private double _laidFor;
-    private Laid _laid = Laid.Nothing(WpfMedium.OnThisThread);
+    private Laid _laid = Laid.Nothing(medium);
 
     /// <summary>
     /// What the caret is standing at: an index into the layout's places, or -1 for a caret standing somewhere none of them

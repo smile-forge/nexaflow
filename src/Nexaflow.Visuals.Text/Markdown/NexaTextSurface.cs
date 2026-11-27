@@ -73,7 +73,7 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
     /// What lays the document out, for as long as this shows one: what it read, the blocks that read as they did, and what the
     /// reader opened in each diagram outlive every element made to show it.
     /// </summary>
-    private readonly ContentEngine _engine = new();
+    private readonly ContentEngine _engine = new(WpfMedium.OnThisThread, WpfStyles.Dark);
 
     public NexaTextSurface()
     {

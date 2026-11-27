@@ -61,7 +61,7 @@ public class CodeFoldTests
     /// <summary>The engine showing <paramref name="source"/> as C#, laid once its reading's syntax has landed.</summary>
     private static ContentEngine Coded(string source)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         engine.Show("csharp", WpfStyles.Dark);
         engine.Start(source);
 

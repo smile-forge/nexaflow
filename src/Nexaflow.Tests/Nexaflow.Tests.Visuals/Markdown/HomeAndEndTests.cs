@@ -70,7 +70,7 @@ public class HomeAndEndTests
     public void APressPastTheEndOfAShortLine_PutsTheCaretAtItsEnd_NotOnTheLongerLineAbove(string shape, string? language) => UiThread.Run(() =>
     {
         var document = string.Format(shape, "a much longer line written above the one under it\nbrief\n");
-        var engine = new ContentEngine { WrapsLines = language is not null };
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WrapsLines = language is not null };
         engine.Show(language, WpfStyles.Dark);
         engine.Start(document);
         engine.Fit(400);
@@ -85,7 +85,7 @@ public class HomeAndEndTests
     /// <summary><paramref name="document"/> laid in a room narrower than its widest paragraph, to be written in, the caret at <paramref name="caret"/>.</summary>
     private static ContentEngine Written(string document, int caret)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         engine.Show(null, WpfStyles.Dark);
         engine.Start(document);
         engine.Fit(400);

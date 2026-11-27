@@ -60,7 +60,7 @@ public class MarkdownAnchorTests
         // Mermaid lets the address be written on a line of its own, so nothing where the node is written says where it leads. The
         // chart's own reading of itself puts the two together, and puts it there as a link — which is what lets whoever draws a
         // link, and whoever follows one, do it the same way in every language.
-        var read = new ContentEngine().Read("flowchart", "graph TD\n  a[\"A\"] --> b[\"B\"]\n  click a \"https://example.com\"\n");
+        var read = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Read("flowchart", "graph TD\n  a[\"A\"] --> b[\"B\"]\n  click a \"https://example.com\"\n");
 
         var node = read.Root.SelfAndDescendants()
             .Where(part => MarkdownLinks.Goes(part.Node) == "https://example.com")

@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -193,7 +194,7 @@ public class SourceHalfTests
     {
         bool Offered(bool page)
         {
-            var engine = new ContentEngine { WrapsLines = page };
+            var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WrapsLines = page };
             engine.Show(ContentLanguages.AsTyped, Nexaflow.Visuals.Text.Painting.WpfStyles.Dark);
             engine.Start("one\ntwo\n");
             engine.Fit(400);

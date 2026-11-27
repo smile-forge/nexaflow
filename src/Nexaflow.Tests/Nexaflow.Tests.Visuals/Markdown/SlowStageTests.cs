@@ -92,7 +92,7 @@ public class SlowStageTests
     [TestMethod]
     public void WhatIsSlowToFindIsNotWaitedFor_AndIsHungOnTheTreeOnceItLands() => UiThread.Run(() =>
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var source = $"Nothing checked teh words of {Guid.NewGuid():N} yet.";
         bool Marked() => engine.Readings.SelectMany(unit => unit.SelfAndDescendants()).Any(part => part.Trouble == "Misspelt.");
 
@@ -113,7 +113,7 @@ public class SlowStageTests
     public void WorkTakingTurns_IsDoneAPieceAtATime_TheNewestAskedFirst() => UiThread.Run(() =>
     {
         var asked = Enumerable.Range(0, 4).Select(at => $"Version {at} of {Guid.NewGuid():N}").ToList();
-        void Ask(string text) => new ContentEngine().Lay(InTurn, EditState.For(text), WpfStyles.Dark, 600, readOnly: true);
+        void Ask(string text) => new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay(InTurn, EditState.For(text), WpfStyles.Dark, 600, readOnly: true);
 
         // The first is being found when the rest are asked for, as a reading typed in asks again with every keystroke.
         Ask(asked[0]);

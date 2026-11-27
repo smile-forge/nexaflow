@@ -23,7 +23,7 @@ internal static class Laying
     /// <param name="shown">The stretch shown as typed rather than as what it says.</param>
     public static Laid Lay(string? language, string source, double room = double.PositiveInfinity, LayoutStyle? style = null,
                            bool writing = false, RawZone? shown = null, ContentInputs? inputs = null) =>
-        new ContentEngine(inputs).Lay(language, EditState.For(source) with { Raw = shown }, style ?? WpfStyles.Dark, room, readOnly: !writing);
+        new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs).Lay(language, EditState.For(source) with { Raw = shown }, style ?? WpfStyles.Dark, room, readOnly: !writing);
 
     /// <summary>
     /// <paramref name="source"/> laid out read-only as <see cref="Lay"/> lays it, with the engine that laid it — for what only the engine
@@ -32,14 +32,14 @@ internal static class Laying
     public static (ContentEngine Engine, Laid Laid) LaidBy(string? language, string source, double room = double.PositiveInfinity,
                                                            LayoutStyle? style = null, ContentInputs? inputs = null)
     {
-        var engine = new ContentEngine(inputs);
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs);
 
         return (engine, engine.Lay(language, EditState.For(source), style ?? WpfStyles.Dark, room, readOnly: true));
     }
 
     /// <summary><paramref name="source"/> read and worked over as the engine works it over for a builder, with nothing laid out.</summary>
     public static ContentReading Read(string? language, string source, bool writing = false) =>
-        new ContentEngine().Read(language, source, writing);
+        new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Read(language, source, writing);
 
     /// <summary>A formula set at <paramref name="scale"/> — its body size — as a formula on its own is set.</summary>
     /// <param name="placeholders">Whether somebody is writing in it, which shows a hole where an argument is still to be written.</param>

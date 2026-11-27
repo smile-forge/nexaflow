@@ -144,7 +144,7 @@ public class SectionFoldTests
     /// <summary>The document laid out as a reader is shown it, and the engine that laid it.</summary>
     private static (ContentEngine Engine, MarkdownElement Element) LaidOut(string document)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(document, WpfStyles.Dark, null, engine);
 
         element.Measure(new Size(600, double.PositiveInfinity));

@@ -89,7 +89,7 @@ public class LineSettingTests
 
     private static ContentEngine Laid(string text, LayoutStyle style)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         engine.Show(ContentLanguages.AsTyped, style);
         engine.Start(text);
         engine.Fit(400);

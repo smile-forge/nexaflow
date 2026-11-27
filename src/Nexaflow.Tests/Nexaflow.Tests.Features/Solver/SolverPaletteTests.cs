@@ -167,7 +167,7 @@ public class SolverPaletteTests
                     ? "\\begin{array}{cc}\n a & b \\\\\n" + written + "\n\\end{array}"
                     : written;
 
-                var engine = new ContentEngine();
+                var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
                 var reading = engine.Read("latex", formula, writing: true).Root;
                 var writing = engine.Lay("latex", EditState.For(formula), WpfStyles.Dark, double.PositiveInfinity, readOnly: false);
 
@@ -180,7 +180,7 @@ public class SolverPaletteTests
                 if (writing.ShowsSource) said.Add("shown as its source");
 
                 var finished = formula.Replace("{}", "{x}").Replace("[]", "[n]").Replace("()", "(x)");
-                var answer = new ContentEngine().Lay("latex", EditState.For(finished), WpfStyles.Dark, double.PositiveInfinity, readOnly: true);
+                var answer = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay("latex", EditState.For(finished), WpfStyles.Dark, double.PositiveInfinity, readOnly: true);
                 said.AddRange(answer.Trouble.Select(trouble => $"once filled in as {finished}: {trouble.Message}"));
                 if (answer.ShowsSource) said.Add($"once filled in as {finished}: shown as its source");
 

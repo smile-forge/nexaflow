@@ -109,20 +109,20 @@ internal static class HandLaid
         var named = Laying + Interlocked.Increment(ref _made).ToString(CultureInfo.InvariantCulture);
         Lays[named] = lay;
 
-        return new ContentElement(source, WpfStyles.Dark, new ContentEngine(), named) { IsReadOnly = readOnly };
+        return new ContentElement(source, WpfStyles.Dark, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), named) { IsReadOnly = readOnly };
     }
 
     /// <summary>An element showing <paramref name="source"/> in a language whose reading falls over before anything is laid out.</summary>
-    public static ContentElement Unreadable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unreading);
+    public static ContentElement Unreadable(string source) => new(source, WpfStyles.Dark, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), Unreading);
 
     /// <summary>An element showing <paramref name="source"/> in a language one of whose stages falls over.</summary>
-    public static ContentElement Unstageable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unstaging);
+    public static ContentElement Unstageable(string source) => new(source, WpfStyles.Dark, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), Unstaging);
 
     /// <summary>An element showing <paramref name="source"/> in a language whose binding falls over.</summary>
-    public static ContentElement Unbindable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unbinding);
+    public static ContentElement Unbindable(string source) => new(source, WpfStyles.Dark, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), Unbinding);
 
     /// <summary>An element showing <paramref name="source"/> in a language whose builder is not one.</summary>
-    public static ContentElement Unbuildable(string source) => new(source, WpfStyles.Dark, new ContentEngine(), Unbuilding);
+    public static ContentElement Unbuildable(string source) => new(source, WpfStyles.Dark, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), Unbuilding);
 
     /// <summary>A fixed box, so a block in a test language is something drawn and something to hover over.</summary>
     private static Laid Boxed()

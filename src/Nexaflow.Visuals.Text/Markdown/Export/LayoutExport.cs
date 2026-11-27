@@ -54,7 +54,7 @@ public static class LayoutExport
     public static ExportDocument Exported(string markdown, ExportOccasion occasion)
     {
         // A document written out shows every line it holds: nothing it is written to slides.
-        var engine = new ContentEngine { Slides = false };
+        var engine = new ContentEngine(WpfMedium.OnThisThread, occasion.Style) { Slides = false };
         var laid = engine.Lay(null, EditState.For(markdown), occasion.Style, occasion.Width, readOnly: true);
 
         return laid.Root.Part is ContentPart document ? new Walk(laid, engine.NameOf, occasion).Document(document) : new ExportDocument([]);

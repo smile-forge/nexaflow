@@ -112,7 +112,7 @@ public class ContentDeepLinkTests
     [CoversNode("markdown-outline")]
     public void TheOutlineSaysItChanged_OnlyWhenAHeadingDid() => UiThread.Run(() =>
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var said = 0;
         engine.OutlineChanged += (_, _) => said++;
 

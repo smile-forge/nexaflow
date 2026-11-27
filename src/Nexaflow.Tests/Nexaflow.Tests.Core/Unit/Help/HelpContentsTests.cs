@@ -74,7 +74,7 @@ public class HelpContentsTests
     public void EveryLinkItAdds_LandsOnARenderedHeading() => UiThread.Run(() =>
     {
         var result = HelpContents.AddTopics(Page);
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var laid = engine.Lay(null, EditState.For(result), WpfStyles.Dark, 600, readOnly: true);
 
         foreach (Match link in Regex.Matches(result, @"\]\(#([^)]+)\)"))

@@ -123,7 +123,7 @@ public class EditorKeysTests
 
     private static ContentEngine Typed(string text, int caret, string? language = ContentLanguages.AsTyped)
     {
-        var engine = new ContentEngine { WrapsLines = language is not null };
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WrapsLines = language is not null };
         engine.Show(language, WpfStyles.Dark);
         engine.Start(text);
         engine.Fit(400);

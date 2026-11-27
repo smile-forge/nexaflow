@@ -523,7 +523,7 @@ public class CodeIntelligenceTests
     public void AMembersLinkTokenIsPeeledFromWhatTheRowSays() => UiThread.Run(() =>
     {
         const string src = "classDiagram\n  class Shape {\n    +draw() @@nx:line#42\n    -color\n  }\n";
-        var drawn = new ContentEngine().Lay("mermaid", EditState.For(src), WpfStyles.Dark, 900, readOnly: true).Root.SelfAndDescendants().ToList();
+        var drawn = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay("mermaid", EditState.For(src), WpfStyles.Dark, 900, readOnly: true).Root.SelfAndDescendants().ToList();
 
         var linked = drawn.Single(piece => piece.Kind == ClassPiece.Member);
         Assert.AreEqual("+draw()", linked.SelfAndDescendants().Single(piece => piece.Words is not null).Words!.Glyphs.Text);

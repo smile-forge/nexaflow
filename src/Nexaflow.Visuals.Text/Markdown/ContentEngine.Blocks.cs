@@ -352,7 +352,7 @@ public sealed partial class ContentEngine
             var box = Where(block);
             if (box.IsEmpty) return null;
 
-            var medium = WpfMedium.OnThisThread;
+            var medium = _medium;
             var faces = offers.Select(offer => (Offer: offer, Face: Face(offer, medium))).ToList();
             var width = faces.Sum(face => Width(face.Face, face.Offer));
 
@@ -405,10 +405,9 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>What a button shows: the mark for what it does, where there is one, and its name where there is not.</summary>
-    private IShapedText Face(LayoutIntent offer, WpfMedium medium) =>
+    private IShapedText Face(LayoutIntent offer, ILayoutMedium medium) =>
         DiagramRibbon.Icon(offer) is { } mark
-            ? medium.Shape(mark, _markFace ??= medium.Face(new Typeface(DiagramRibbon.IconFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal)),
-                           MarkSize, _style.Text)
+            ? medium.Shape(mark, _markFace ??= medium.Face(DiagramRibbon.IconFont.Source), MarkSize, _style.Text)
             : medium.Shape(DiagramRibbon.Names(offer), _style.Face(_style.TextFont), MarkSize, _style.Text);
 
     /// <summary>The face a button's mark is drawn in, found the first time one is.</summary>

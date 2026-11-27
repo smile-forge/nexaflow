@@ -79,7 +79,7 @@ public class ColumnKeysTests
 
     private static ContentEngine Typed(string text, int caret)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         engine.Show(ContentLanguages.AsTyped, WpfStyles.Dark);
         engine.Start(text);
         engine.Fit(400);

@@ -37,7 +37,7 @@ public sealed class MarkdownElement : LinkedElement
     /// <param name="source">What to show, loaded in place of what <paramref name="engine"/>'s document holds — or null to show what it holds as it is.</param>
     public MarkdownElement(string? source, LayoutStyle palette, ILayoutActions? host = null, ContentEngine? engine = null,
                            string? language = null)
-        : this(engine ?? new ContentEngine(), source, palette, host, language)
+        : this(engine ?? new ContentEngine(WpfMedium.OnThisThread, palette), source, palette, host, language)
     {
     }
 

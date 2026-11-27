@@ -26,8 +26,17 @@ public static class EmbeddedPictures
 
     private static readonly ConditionalWeakTable<EmbeddedPicture, Decoding> Decoded = new();
 
-    /// <summary>What was made of one picture: the bitmap, or nothing where its bytes are not a picture this machine reads.</summary>
-    private sealed record Decoding(BitmapSource? Bitmap);
+    /// <summary>What was made of one picture: the bitmap, or nothing where its bytes are not a picture this machine reads — and the last size it was drawn at.</summary>
+    private sealed class Decoding(BitmapSource? bitmap)
+    {
+        public BitmapSource? Bitmap { get; } = bitmap;
+
+        /// <summary>What it was last drawn as, and at which text size — swapped whole, so a thread reading it sees one or the other.</summary>
+        public SizedPicture? Sized { get; set; }
+    }
+
+    /// <summary>A picture as drawn for text of one size.</summary>
+    private sealed record SizedPicture(double TextSize, ImageSource Picture);
 
     /// <summary>
     /// <paramref name="picture"/>, decoded and drawn at the size its writer asked for — measured in the size the source calls
@@ -36,17 +45,25 @@ public static class EmbeddedPictures
     /// </summary>
     public static ImageSource? Drawn(EmbeddedPicture picture, double textSize)
     {
-        if (Decoded.GetValue(picture, static read => new Decoding(Decode(read))).Bitmap is not { } bitmap) return null;
+        var decoding = Decoded.GetValue(picture, static read => new Decoding(Decode(read)));
+        if (decoding.Bitmap is not { } bitmap) return null;
+
+        // The one drawn at this size last time, so a document laid out again draws the same picture rather than one that looks the same.
+        if (decoding.Sized is { } kept && kept.TextSize == textSize) return kept.Picture;
 
         var (wide, tall) = Size(picture, bitmap, textSize);
+        ImageSource drawn = bitmap;
 
-        if (Math.Abs(wide - bitmap.Width) < 0.5 && Math.Abs(tall - bitmap.Height) < 0.5) return bitmap;
+        if (Math.Abs(wide - bitmap.Width) >= 0.5 || Math.Abs(tall - bitmap.Height) >= 0.5)
+        {
+            // Drawn at the size asked for rather than resampled to it, so it stays as sharp as its pixels allow.
+            var sized = new DrawingImage(new ImageDrawing(bitmap, new Rect(0, 0, wide, tall)));
+            sized.Freeze();
+            drawn = sized;
+        }
 
-        // Drawn at the size asked for rather than resampled to it, so it stays as sharp as its pixels allow.
-        var sized = new DrawingImage(new ImageDrawing(bitmap, new Rect(0, 0, wide, tall)));
-        sized.Freeze();
-
-        return sized;
+        decoding.Sized = new SizedPicture(textSize, drawn);
+        return drawn;
     }
 
     /// <summary>How big it is drawn: as asked, keeping its shape where only one side was asked for.</summary>

@@ -191,7 +191,7 @@ public class MarkdownPaperTests
     private static string Prose(int paragraphs) => string.Concat(Enumerable.Range(0, paragraphs).Select(n => $"Paragraph {n}: {Paragraph}\n\n"));
 
     private static Laid Laid(string markdown) =>
-        new ContentEngine().Lay(null, EditState.For(markdown), WpfStyles.Light, Room.Width, readOnly: true);
+        new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay(null, EditState.For(markdown), WpfStyles.Light, Room.Width, readOnly: true);
 
     /// <summary>Every line of words, where it is on the page.</summary>
     private static IEnumerable<LayoutRect> Words(Laid laid) =>
