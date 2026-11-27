@@ -7,63 +7,35 @@ using System.Windows.Threading;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
-using Nexaflow.Markdown.Layout.Lines;
 using Nexaflow.Markdown.Layout;
-using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// Finding a place in the document: a search, a line, a heading, a reference somebody saved.
-///
-/// <para>
-/// <strong>Looking is done in the source and never in the drawing.</strong> The parser only ever copies, so the source is
-/// the one place the words are whole; the offsets come back out of it and the laid tree turns them into places on the
-/// page (<see cref="MarkdownFind"/>). Nothing in the tree is changed to mark what was found — it is washed at paint time —
-/// so stopping a search is a repaint; and what was looked for is asked again of the document each time it is written in, so a
-/// search survives that too (<see cref="Refound"/>).
-/// </para>
+/// Finding a place in the document — a search, a line, a heading, a reference somebody saved — asked of the engine, which finds it and
+/// goes there (<see cref="ContentEngine.FindWord"/>, <see cref="ContentEngine.ShowPlace"/>). What is left here is the page's: how much of
+/// the content it shows, and, for content shown whole, bringing a place onto the screen of whatever holds it.
 /// </summary>
 public sealed partial class NexaTextSurface
 {
     /// <summary>Everywhere the document says what was looked for, in the order a reader comes to them.</summary>
-    public IReadOnlyList<(int Start, int Length)> Found => _finding?.Places ?? [];
+    public IReadOnlyList<(int Start, int Length)> Found => _engine.Found;
 
     /// <summary>Which of them is being looked at, or -1 for none.</summary>
-    public int At => _finding?.At ?? -1;
+    public int At => _engine.FoundAt;
 
     /// <summary>
-    /// What was looked for and found, a place at a time — the shared search over a document held whole, washed over this view's document by its
-    /// own marks and gone to by bringing each place onto the page. Made the first time anything is looked for.
+    /// Looks for <paramref name="term"/> and goes to the first place it is — both where it is written and where it is only drawn, which is
+    /// what a reader means by what the page says.
     /// </summary>
-    private PlaceFind Finding => _finding ??= new PlaceFind(() => _engine.State.Document, () => _engine.Editor.Found, place => _shown.Show(place));
-
-    private PlaceFind? _finding;
+    public int Find(string? term) => _engine.FindWord(term);
 
     /// <summary>
-    /// Looks for <paramref name="term"/> and goes to the first place it is — both where it is written and where it is only
-    /// drawn, which is what a reader means by what the page says.
+    /// The same, for a question more complicated than a word — what a search box worked out — going to the first place at or after
+    /// <paramref name="from"/> in the source, and round to the first where none is (<see cref="ContentEngine.FindIn"/>).
     /// </summary>
-    public int Find(string? term) => Finding.Find(() => _engine.ReadsAsDrawn
-        ? MarkdownFind.Drawn(_engine.DrawnWords, term)
-        : MarkdownFind.In(_shown.Laid, _shown.Markdown, term));
-
-    /// <summary>
-    /// The same, for a question more complicated than a word — what a search box worked out — going to the first place at or
-    /// after <paramref name="from"/> in the source, and round to the first where none is. Content laid line by line — code, text — is
-    /// searched a line at a time, and after an edit only on the lines it touched (<see cref="ContentSearch"/>).
-    /// </summary>
-    public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences, int from = 0) =>
-        Lined && occurrences is { } inLines
-            ? Finding.Find(new LineQuery(inLines), from)
-            : Finding.Find(() => _engine.ReadsAsDrawn
-                ? _engine.DrawnWords.Every(occurrences)
-                : MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences), from);
-
-    /// <summary>Whether the content is laid line by line — code, or text shown as typed — where a search reads it a line at a time.</summary>
-    private bool Lined => ContentEngine.Language(Named).Builder.IsSubclassOf(typeof(LinedBuilder));
+    public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences, int from = 0) => _engine.FindIn(occurrences, from);
 
     /// <summary>
     /// Shows every place <paramref name="matcher"/> finds and goes to the first, handing back what was found so the host
@@ -83,92 +55,41 @@ public sealed partial class NexaTextSurface
     }
 
     /// <summary>
-    /// What was found, found again in the document as it now reads — written in here, written in somewhere else, taken back — with
-    /// the one being looked at kept to where its place went. Nothing is scrolled to or picked out: the reader is writing, not
-    /// looking. Done before the page says it was laid out (<see cref="PreRender"/>), so whoever reads what was found then reads it
-    /// as it is; and only where the document is another version than the one searched, so laying out again to scroll costs nothing.
-    /// </summary>
-    private void Refound() => _finding?.Refind();
-
-    /// <summary>
     /// Narrows what is shown to the places named by their order in <see cref="Found"/>, and says how many are left — for a
     /// host whose own list of results has been filtered since.
     /// </summary>
-    public int Restrict(IReadOnlySet<int> keep) => Finding.Restrict(keep);
+    public int Restrict(IReadOnlySet<int> keep) => _engine.RestrictFound(keep);
 
     /// <summary>
     /// Shows <paramref name="places"/>, which a host found itself, with the one at <paramref name="at"/> the one being looked at — moving
     /// nothing, since the host says when to go to one (<see cref="PickOut"/>). They are carried through each edit, not found again: the host
     /// found them.
     /// </summary>
-    public void ShowFound(IReadOnlyList<(int Start, int Length)> places, int at) => Finding.Show(places, at);
+    public void ShowFound(IReadOnlyList<(int Start, int Length)> places, int at) => _engine.ShowFound(places, at);
 
     /// <summary>Picks out <paramref name="place"/> and brings it onto the page, as going to a place found does.</summary>
-    public bool PickOut((int Start, int Length) place) => _shown.Show(place);
+    public bool PickOut((int Start, int Length) place) => _engine.ShowPlace(place);
 
     /// <summary>What a place reads as, for a host listing what it found — the line it is on, tidied.</summary>
-    public string Preview(int at)
-    {
-        if (at < 0 || at >= Found.Count) return string.Empty;
-
-        var (start, _) = Found[at];
-
-        // A page read as what it draws is quoted as what it draws: its source is formatting nobody would recognise.
-        if (_engine.ReadsAsDrawn) return _engine.DrawnWords.LineAt(start);
-        var document = _engine.State.Document;
-        var (from, length) = MarkdownFind.Line(document, MarkdownFind.LineAt(document, start));
-
-        return document.Slice(from, length).Trim();
-    }
+    public string Preview(int at) => _engine.FoundPreview(at);
 
     /// <summary>
-    /// How far down the document each place found is, from nought at the top to one at the bottom — for a strip beside the
-    /// scrollbar marking where they are. Every place has its mark, since the reader is told how many were found and each of them
-    /// is somewhere (<see cref="Standing"/>).
+    /// How far down the document each place found is, from nought at the top to one at the bottom — for a strip beside the scrollbar marking
+    /// where they are.
     /// </summary>
-    public IReadOnlyList<double> SearchMarkPositions()
-    {
-        var laid = _shown.Laid;
-        var height = laid.Size.Height;
-        if (height <= 0) return [];
-
-        return [.. Found.Select(place => Math.Clamp(Standing(laid, place) / height, 0, 1))];
-    }
-
-    /// <summary>
-    /// How far down the page <paramref name="place"/> stands: where it is drawn; where it would come, in a long document not laid
-    /// that far yet, going by what is laid; and where nothing on the page draws it — inside a section the reader folded — where
-    /// what holds it is drawn, at the last place a caret can stand before it.
-    /// </summary>
-    private double Standing(Laid laid, (int Start, int Length) place)
-    {
-        if (laid.Root.RangeRects(place.Start, place.Length) is { Count: > 0 } rects) return rects[0].Y;
-        if (_engine.UnlaidTop(place.Start) is { } unlaid) return unlaid;
-
-        var stops = laid.Stops;
-        var (low, high, held) = (0, stops.Count - 1, -1);
-
-        while (low <= high)
-        {
-            var middle = (low + high) / 2;
-            if (stops[middle] <= place.Start) (held, low) = (stops[middle], middle + 1);
-            else high = middle - 1;
-        }
-
-        return held >= 0 && laid.Root.CaretRect(held) is { IsEmpty: false } at ? at.Y : 0;
-    }
+    public IReadOnlyList<double> SearchMarkPositions() => _engine.FoundMarkPositions();
 
     /// <summary>The next place, coming back round to the first.</summary>
-    public bool Next() => Finding.Next();
+    public bool Next() => _engine.NextFound();
 
     /// <summary>The one before, coming back round to the last.</summary>
-    public bool Previous() => Finding.Previous();
+    public bool Previous() => _engine.PreviousFound();
 
     /// <summary>Steps to the next place (<paramref name="delta"/> of one) or the one before.</summary>
-    public void StepSearch(int delta) => Finding.Step(delta >= 0 ? +1 : -1);
+    public void StepSearch(int delta) => _engine.StepFound(delta);
 
     /// <summary>Stops looking, which is a repaint and nothing else.</summary>
-    public void Stop() => Finding.Clear();
+    public void Stop() => _engine.StopFinding();
 
     /// <summary>The same, as a host that has finished searching says it.</summary>
     public void ClearSearch() => Stop();
@@ -179,122 +100,67 @@ public sealed partial class NexaTextSurface
     // ── Going to a place ────────────────────────────────────────────────────
 
     /// <summary>Goes to a line, counting from one — and to the whole of whatever drew it, where a line is inside a picture.</summary>
-    public bool GoTo(int line) => _shown.Show(MarkdownFind.Line(_engine.State.Document, line), choose: false);
+    public bool GoTo(int line) => _engine.GoToLine(line);
 
     /// <summary>
     /// Goes where a deep link leads (<see cref="ContentPath"/>) — a heading by the name it answers to, and what the link says under it in
     /// its section — or as far as it still does, and says whether the document had any of it.
     /// </summary>
-    public bool GoTo(ContentPath path)
-    {
-        if (_engine.Located(path) is not { } place) return false;
-
-        _shown.Show(place, choose: false);
-
-        return true;
-    }
+    public bool GoTo(ContentPath path) => _engine.GoToPath(path);
 
     /// <summary>Every heading of the document's own laid, in the order written — what an outline of it lists (<see cref="OutlineChanged"/>).</summary>
     public IReadOnlyList<OutlineHeading> Headings => _engine.Headings;
 
     /// <summary>Goes to a heading a list of them handed on, wherever it now stands; false where no heading answers to it any more.</summary>
-    public bool Show(OutlineHeading heading)
-    {
-        if (_engine.Placed(heading) is not { } place) return false;
-
-        _shown.Show(place, choose: false);
-
-        return true;
-    }
+    public bool Show(OutlineHeading heading) => _engine.ShowHeading(heading);
 
     /// <summary>Where a heading a list of them handed on now starts in the source, or null where no heading answers to it any more.</summary>
     public int? StartOf(OutlineHeading heading) => _engine.Placed(heading)?.Start;
 
     /// <summary>A deep link to what is in the middle of the page, to find it again later, after the document has been written in.</summary>
-    public ContentPath Reference() =>
-        _shown.Laid.Root.PieceAt(Middle().ToLayout()).Part.TreePart() is { } part ? _engine.PathTo(part.Start) : ContentPath.Nowhere;
+    public ContentPath Reference() => _engine.ReferenceAt(Seen);
 
     /// <summary>
-    /// Scrolls the heading whose headings above it say <paramref name="titlePath"/> to the top — matched on the whole path, so two
-    /// headings of one name under different parents stay apart, and each title read as the markdown it was written as. Nothing, where
-    /// there is none. Done once
-    /// the page is laid out, since the headings are the outline of what was laid.
+    /// Scrolls the heading whose headings above it say <paramref name="titlePath"/> to the top (<see cref="ContentEngine.ShowTitled"/>). Nothing,
+    /// where there is none. Done once the page is laid out, since the headings are the outline of what was laid.
     /// </summary>
     public void ScrollToHeading(IReadOnlyList<string>? titlePath)
     {
         if (titlePath is not { Count: > 0 } titles) return;
 
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (_engine.Titled([.. titles.Select(WithOutline.Titled)]) is { } place) _shown.Show(place, choose: false);
-        }, DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(() => _engine.ShowTitled(titles), DispatcherPriority.Loaded);
     }
 
     /// <summary>
-    /// Where the page stands: the character of the source that the first thing it has not scrolled past was drawn
-    /// from, or -1 before there is a laid-out page to be anywhere in. A page showing one document twice keeps its
-    /// halves together by this, since a place in the source is the one thing both of them can say.
+    /// Where the page stands: the character of the source that the first thing it has not scrolled past was drawn from
+    /// (<see cref="ContentEngine.ShownFrom"/>), or -1 before there is a laid-out page to be anywhere in.
     /// </summary>
-    public int ShownFrom
-    {
-        get
-        {
-            if (_shown.ActualHeight <= 0) return -1;
-
-            return _shown.Laid.Root.StopBelow(_engine.ViewOrigin.Y);
-        }
-    }
+    public int ShownFrom => _shown.ActualHeight <= 0 ? -1 : _engine.ShownFrom;
 
     /// <summary>
-    /// Puts the character at <paramref name="offset"/> at the top of the page, which is what <see cref="ShownFrom"/>
-    /// then reads back.
-    ///
-    /// <para>
-    /// Not the same as going to something that was found. That brings a place onto the page and leaves the page
-    /// where it is when the place is already on it, which is right for a search and wrong here: what matters is
-    /// where the page stands, not whether the character can be seen from it.
-    /// </para>
+    /// Puts the character at <paramref name="offset"/> at the top of the page, which is what <see cref="ShownFrom"/> then reads back
+    /// (<see cref="ContentEngine.StandFrom"/>).
     /// </summary>
     public bool ShowFrom(int offset)
     {
         if (offset < 0 || _shown.ActualHeight <= 0) return false;
+        if (_engine.StandFrom(offset) is not { } at) return false;
 
-        // A long document lays where it is asked, and nothing before it, first.
-        _engine.Uncover(offset);
-
-        var root = _shown.Laid.Root;
-
-        // Where the page can stand from that character on. The character itself is often one the page draws
-        // nothing for — a heading's hashes, the line a fence opens with — and a caret put there stands at the end
-        // of whatever came before it, which is a line or a whole paragraph too early.
-        var stops = root.CaretStops();
-        var (low, high) = (0, stops.Count);
-
-        while (low < high)
-        {
-            var middle = (low + high) / 2;
-            if (stops[middle] >= offset) high = middle;
-            else low = middle + 1;
-        }
-
-        if (low >= stops.Count) return false;
-
-        var at = root.CaretRect(stops[low]);
-        if (at.IsEmpty) return false;
-
-        // Content that scrolls itself stands its view's top there; content shown whole has whatever holds it bring it onto the screen.
-        if (_engine.Scrolls)
-        {
-            _engine.TopAt(at.Y);
-        }
-        else
-        {
-            _shown.BringIntoView(_shown.FromContent(at));
-            PageMoving();
-        }
+        // Content shown whole has whatever holds it bring the place onto its screen.
+        if (!_engine.Scrolls) HolderBrings(at);
 
         return true;
     }
+
+    /// <summary>Has whatever holds content shown whole bring <paramref name="box"/>, in the content's own units, onto its screen at its next layout pass.</summary>
+    private void HolderBrings(LayoutRect box)
+    {
+        _shown.BringIntoView(_shown.FromContent(box));
+        PageMoving();
+    }
+
+    /// <summary>How much of the content the page shows, in the content's own units.</summary>
+    private LayoutSize Seen => new(_shown.ActualWidth / _shown.Zoom, _shown.ActualHeight / _shown.Zoom);
 
     /// <summary>
     /// The stretch of source the block holding <paramref name="offset"/> was written as, or nothing where no block
@@ -305,36 +171,14 @@ public sealed partial class NexaTextSurface
         _engine.Blocked(offset) is { } block ? (block.Start, block.Length) : default;
 
     /// <summary>
-    /// Whether the whole of this page's drawing of <paramref name="block"/> stands on the page at once. False for a
-    /// diagram drawn taller than the page: no one line of such a drawing answers to a line of its source, so a
-    /// second showing of the document does better to hold the whole of that source beside it than to follow a line
-    /// into it.
+    /// Whether the whole of this page's drawing of <paramref name="block"/> stands on the page at once (<see cref="ContentEngine.ShowsWhole"/>).
     /// </summary>
-    public bool ShowsWhole((int Start, int Length) block)
-    {
-        if (block.Length <= 0 || _shown.ActualHeight <= 0) return false;
-        if (_engine.Blocked(block.Start) is not { } part) return false;
-
-        var where = _engine.Where(part);
-
-        return !where.IsEmpty && where.Height * _shown.Zoom <= _shown.ActualHeight;
-    }
+    public bool ShowsWhole((int Start, int Length) block) => _shown.ActualHeight > 0 && _engine.ShowsWhole(block, Seen.Height);
 
     /// <summary>
-    /// Whether every row <paramref name="stretch"/> of the source is drawn on stands on the page at once — for content shown as typed,
-    /// where a stretch of source is its own drawing, so a page holding it beside a drawing of the same document can say whether it shows
-    /// the whole of a block the drawing names. False where either end of it is not laid: what is laid reaches a screen either side of the
-    /// page, so a stretch running past that is taller than the page.
+    /// Whether every row <paramref name="stretch"/> of the source is drawn on stands on the page at once (<see cref="ContentEngine.ShowsAtOnce"/>).
     /// </summary>
-    public bool ShowsAtOnce((int Start, int Length) stretch)
-    {
-        if (stretch.Length <= 0 || _shown.ActualHeight <= 0) return false;
-
-        var root = _shown.Laid.Root;
-        var (first, last) = (root.CaretRect(stretch.Start), root.CaretRect(stretch.Start + stretch.Length));
-
-        return !first.IsEmpty && !last.IsEmpty && (last.Bottom - first.Y) * _shown.Zoom <= _shown.ActualHeight;
-    }
+    public bool ShowsAtOnce((int Start, int Length) stretch) => _shown.ActualHeight > 0 && _engine.ShowsAtOnce(stretch, Seen.Height);
 
     /// <summary>
     /// The stretch of source the block after the one holding <paramref name="offset"/> was written as, or nothing

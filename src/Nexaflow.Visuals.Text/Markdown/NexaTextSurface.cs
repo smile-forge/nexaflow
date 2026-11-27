@@ -801,10 +801,4 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
 
         return WpfPainter.Painted(_shown.Laid.Root, box, scale, (_drawnIn ?? Drawn).Text.Brush(), ground, dpi.PixelsPerInchX, dpi.PixelsPerInchY);
     }
-    /// <summary>The middle of the part of the page on screen, in the content's own units.</summary>
-    private Point Middle()
-    {
-        var (origin, zoom) = (_engine.ViewOrigin, _shown.Zoom);
-        return new(origin.X + (_shown.ActualWidth / zoom / 2), origin.Y + (_shown.ActualHeight / zoom / 2));
-    }
 }

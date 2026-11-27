@@ -387,7 +387,7 @@ public sealed partial class ContentEngine
             (_dropAt, _dropOver, _dropPoint) = (drop, over, at);
             if (!BuildPreview() && _carry is not null) return;
 
-            PreRender?.Invoke(this, EventArgs.Empty);
+            Prerendered();
             Changed?.Invoke(this, true);
             return;
         }
@@ -546,7 +546,7 @@ _preview = carried is { } laid && _marked is null ? LaidOut(new EditState(laid.S
         _previewOf = null;
         _previewMoved = default;
 
-        if (had) PreRender?.Invoke(this, EventArgs.Empty);
+        if (had) Prerendered();
     }
 
     // ── Two presses ─────────────────────────────────────────────────────────

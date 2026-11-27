@@ -119,7 +119,6 @@ public sealed partial class NexaTextSurface
     /// <summary>Says to the page that the engine laid the content out — what was being looked for found again in it first.</summary>
     private void Laid(object? sender, EventArgs args)
     {
-        Refound();
         Remargined();
         Reported();
         RaiseEvent(new RoutedEventArgs(PreRenderEvent, this));

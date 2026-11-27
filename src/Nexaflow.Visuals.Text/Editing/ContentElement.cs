@@ -85,6 +85,7 @@ public class ContentElement : FrameworkElement
         _engine.Reread += OnReread;
         _engine.Grew += OnGrew;
         _engine.ViewMoved += OnViewMoved;
+        _engine.Bringing += OnBringing;
         RenderTransform = _slid;
 
         SnapsToDevicePixels = true;
@@ -123,6 +124,7 @@ public class ContentElement : FrameworkElement
         _engine.Reread -= OnReread;
         _engine.Grew -= OnGrew;
         _engine.ViewMoved -= OnViewMoved;
+        _engine.Bringing -= OnBringing;
 
         StopBlinking();
     }
@@ -231,32 +233,17 @@ public class ContentElement : FrameworkElement
 
     private void OnSourceChanged(object? sender, ContentSourceChange change) => SourceChanged?.Invoke(this, change);
 
-    private void OnRevealing(object? sender, LayoutRect shown) => BringOnto(shown);
+    private void OnRevealing(object? sender, LayoutRect shown) => _engine.BringOnto(shown);
 
     /// <summary>
-    /// Brings <paramref name="shown"/>, in the content's own units, onto the page as a place gone to is brought: left where it stands where it
-    /// is on the screen already, and otherwise stood half way down it, so what comes before and after it is there to read it by — or, taller
-    /// than the screen, its top at the top. A caret kept on the screen as it moves is brought only as far as it needs instead.
+    /// The engine asks for a stretch of content shown whole, in the content's own units, to be brought onto the screen of whatever holds this
+    /// (<see cref="ContentEngine.BringOnto"/>).
     /// </summary>
-    internal void BringOnto(LayoutRect shown)
-    {
-        // Content that scrolls itself has a view of its own, which the engine moves.
-        if (_engine.Scrolls)
-        {
-            _engine.BringToView(shown);
-            return;
-        }
+    private void OnBringing(object? sender, LayoutRect box) =>
+        BringIntoView(new Rect(box.X * Zoom, box.Y * Zoom, Math.Max(box.Width * Zoom, 1), Math.Max(box.Height * Zoom, 1)));
 
-        var box = new Rect(shown.X * Zoom, shown.Y * Zoom, Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1));
-
-        if (_onScreen is { } screen)
-        {
-            if (screen.Contains(box)) return;
-            if (box.Height < screen.Height) box = new Rect(box.X, box.Y + (box.Height / 2) - (screen.Height / 2), box.Width, screen.Height);
-        }
-
-        BringIntoView(box);
-    }
+    /// <summary>Brings a stretch of the source onto the page and picks it out (<see cref="ContentEngine.ShowPlace"/>).</summary>
+    protected bool ShowPlace((int Start, int Length) what, bool choose) => _engine.ShowPlace(what, choose);
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
     protected LayoutStyle Palette { get; }

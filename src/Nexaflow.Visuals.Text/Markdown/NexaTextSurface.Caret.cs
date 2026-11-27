@@ -50,25 +50,7 @@ public sealed partial class NexaTextSurface
 
     private void Scrolled(int line, ShownPlace place)
     {
-        var document = _engine.State.Document;
-        var at = Math.Clamp(line, 0, document.LineCount - 1);
-
-        switch (place)
-        {
-            case ShownPlace.Top:
-                ShowFrom(document.OffsetOf(at));
-                break;
-
-            // At the top, and then up half a page: the line stands half way down, whether or not it was on the page.
-            case ShownPlace.Centre:
-                if (ShowFrom(document.OffsetOf(at)) && _engine.Scrolls)
-                    _engine.ScrollBy(-(_shown.ActualHeight / _shown.Zoom / 2));
-                break;
-
-            default:
-                GoTo(at + 1);
-                break;
-        }
+        if (_engine.ScrollToLine(line, place, Seen.Height) is { } box) HolderBrings(box);
     }
 
     /// <summary>Tells the view of the document which lines are on the page, where anything holds a view to be told.</summary>

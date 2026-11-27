@@ -61,6 +61,13 @@ public sealed partial class ContentEngine
     /// <summary>Raised once the content has been laid out again, before anything is asked of the new layout or it is shown.</summary>
     public event EventHandler? PreRender;
 
+    /// <summary>Says the content was laid — what was being looked for found again in it first, so whoever is told reads it as it is.</summary>
+    private void Prerendered()
+    {
+        Refound();
+        PreRender?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Says what the content being written is written in, what it is drawn in, and whether anybody may write in it.</summary>
     /// <param name="named">The language, or null for markdown.</param>
     internal void Show(string? named, LayoutStyle style)
@@ -150,7 +157,7 @@ public sealed partial class ContentEngine
         Repick();
         Recornered();
 
-        PreRender?.Invoke(this, EventArgs.Empty);
+        Prerendered();
 
         // What the reader moved to in a long document, laid now, is brought onto the page.
         if (_revealed is { } shown)
