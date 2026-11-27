@@ -517,19 +517,20 @@ public sealed partial class TextViewModel
             var writes = new List<ContentWrite>();
             var grown = 0L;
 
-            for (var line = document.LineOf(from); line < document.LineCount; line++)
+            document.LinesFrom(document.LineOf(from), (_, lineStart, text) =>
             {
-                var (lineStart, lineEnd) = document.LineAt(document.OffsetOf(line));
-                if (lineStart >= to) break;
-                if (lineStart < from) continue;
+                if (lineStart >= to) return false;
+                if (lineStart < from) return true;
 
-                foreach (var (index, length, with) in replacements(document.Slice(lineStart, lineEnd - lineStart).TrimEnd('\r', '\n')))
+                foreach (var (index, length, with) in replacements(text))
                 {
                     writes.Add(new ContentWrite(lineStart + index, length, with));
                     grown += with.Length - length;
                     count++;
                 }
-            }
+
+                return true;
+            });
 
             if (writes.Count > 0) Document.Write(new ContentChange(writes, writes[0].Start));
 

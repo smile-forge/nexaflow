@@ -4,6 +4,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Media;
 
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.PlainText;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
@@ -60,6 +61,84 @@ public class ViewportPrecisionTests
             var state = surface.Engine.State;
             Assert.AreEqual(on.Number - 1, state.Document.LineOf(state.Caret), "the press meant another line than the one under it");
         }, Typed);
+    });
+
+    [TestMethod]
+    public void ALineGoneToHalfWayDownAVeryLongFile_StandsAtTheTop_AndTheLinesBesideThePageSaySo() => UiThread.Run(() =>
+    {
+        ContentMarginTests.Shown(Numbered(Lines), surface =>
+        {
+            // Gone to as a search goes to what it found: the caret on it, and the page with it at the top.
+            const int line = Lines / 2;
+            surface.Editor.MoveCaretTo(surface.Document.Current.OffsetOf(line - 1));
+            surface.Editor.ScrollToLine(line - 1, ShownPlace.Top);
+
+            for (var pass = 0; pass < 5; pass++)
+            {
+                surface.UpdateLayout();
+                MarkdownEditorHarness.Pump();
+            }
+
+            var lines = surface.LinesShown();
+            Assert.IsTrue(lines.Count > 0, "no lines stand on the page");
+
+            
+            var atTop = lines.Where(shown => shown.Top + shown.Height > 1).MinBy(shown => shown.Top)!;
+            Assert.AreEqual(line, atTop.Number, $"the line at the top is said to be {atTop.Number}, standing at {atTop.Top:0}");
+            Assert.IsTrue(atTop.Top is > -2 and < 2, $"line {atTop.Number} is said to stand at {atTop.Top:0}, not at the top");
+        }, Typed);
+    });
+
+    [TestMethod]
+    public void ALineGoneToHalfWayDownAFileReadWhereItStands_StandsAtTheTop_AndTheLinesBesideThePageSaySo() => UiThread.Run(() =>
+    {
+        var path = System.IO.Path.Combine(TestTemp.Root, $"viewport-{System.Guid.NewGuid():N}.txt");
+        System.IO.File.WriteAllText(path, Numbered(Lines), new UTF8Encoding(false));
+
+        try
+        {
+            using var file = ContentFile.Open(path, new UTF8Encoding(false), 0, ContentFileAccess.ReadOnly);
+            file.Scan();
+            var document = new EditedDocument(ContentDocument.Of(file));
+
+            var surface = new NexaTextSurface { IsReadOnly = true, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto };
+            Typed(surface);
+            surface.LeadingMargins.Add(new LineNumberMargin());
+            var window = new Window { Width = 600, Height = 400, Content = surface, ShowActivated = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -2000, Top = -2000 };
+
+            try
+            {
+                window.Show();
+                surface.Document = document;
+                surface.UpdateLayout();
+                MarkdownEditorHarness.Pump();
+
+                const int line = Lines / 2;
+                surface.Editor.MoveCaretTo(document.Current.OffsetOf(line - 1));
+                surface.Editor.ScrollToLine(line - 1, ShownPlace.Top);
+
+                for (var pass = 0; pass < 5; pass++)
+                {
+                    surface.UpdateLayout();
+                    MarkdownEditorHarness.Pump();
+                }
+
+                var lines = surface.LinesShown();
+                Assert.IsTrue(lines.Count > 0, "no lines stand on the page");
+
+                var atTop = lines.Where(shown => shown.Top + shown.Height > 1).MinBy(shown => shown.Top)!;
+                Assert.AreEqual(line, atTop.Number, $"the line at the top is said to be {atTop.Number}, standing at {atTop.Top:0}");
+                Assert.IsTrue(atTop.Top is > -2 and < 2, $"line {atTop.Number} is said to stand at {atTop.Top:0}, not at the top");
+
+                // And drawn so: a number beside every line on the page, not where the lines stood before the page moved.
+                var margin = surface.LeadingMargins[0];
+                var drawn = Glyphs(margin).Where(run => run.Bounds.Bottom > 0 && run.Bounds.Top < margin.ActualHeight).ToList();
+                Assert.IsTrue(drawn.Count >= lines.Count - 1, $"{drawn.Count} numbers drawn beside the {lines.Count} lines on the page");
+                Assert.IsTrue(drawn.Min(run => run.Bounds.Top) < atTop.Height, $"the first number is drawn {drawn.Min(run => run.Bounds.Top):0} down, not beside the top line");
+            }
+            finally { window.Close(); }
+        }
+        finally { System.IO.File.Delete(path); }
     });
 
     /// <summary>Shown as typed: plain text, its lines kept whole.</summary>

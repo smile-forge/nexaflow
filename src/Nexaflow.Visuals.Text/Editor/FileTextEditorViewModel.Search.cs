@@ -109,13 +109,9 @@ public partial class FileTextEditorViewModel : ISearchable
         var hits   = new List<SearchHit>();
         var places = new List<(int Start, int Length)>();
 
-        for (var line = 0; line < document.LineCount; line++)
+        document.LinesFrom(0, (line, start, text) =>
         {
-            ct.ThrowIfCancellationRequested();
-
-            var (start, end) = document.LineAt(document.OffsetOf(line));
-            var text = document.Slice(start, end - start).TrimEnd('\r', '\n');
-            if (!matcher.Matches(text)) continue;
+            if (!matcher.Matches(text)) return true;
 
             lines.Add(line);
             firsts.Add(display && places.Count < HighlightCap ? places.Count : -1);
@@ -127,7 +123,9 @@ public partial class FileTextEditorViewModel : ISearchable
                     if (places.Count >= HighlightCap) break;
                     places.Add((start + index, length));
                 }
-        }
+
+            return true;
+        }, ct);
 
         return (lines, firsts, hits, places);
     }

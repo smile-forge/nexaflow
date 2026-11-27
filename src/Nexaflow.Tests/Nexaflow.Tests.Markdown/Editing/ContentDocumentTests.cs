@@ -59,6 +59,33 @@ public class ContentDocumentTests
     }
 
     [TestMethod]
+    public void LinesReadOnward_AreEachLineAsItsOwnPlaceSaysIt_AndStopWhenAsked()
+    {
+        // Long enough to be held as a tree of stretches, with line ends of all three kinds, some across where stretches meet.
+        var text = string.Concat(Enumerable.Range(0, 30_000).Select(line => $"line {line}" + (line % 3) switch { 0 => "\n", 1 => "\r\n", _ => "\r" })) + "last";
+        var document = ContentDocument.Of(text);
+
+        var read = new List<(int Line, int Start, string Text)>();
+        document.LinesFrom(12_345, (line, start, words) =>
+        {
+            read.Add((line, start, words));
+            return line < 20_000;
+        });
+
+        Assert.AreEqual(20_001 - 12_345, read.Count, "it went on past where it was asked to stop");
+        foreach (var (line, start, words) in read)
+        {
+            var (lineStart, lineEnd) = document.LineAt(document.OffsetOf(line));
+            Assert.AreEqual(lineStart, start, $"line {line} starts elsewhere");
+            Assert.AreEqual(document.Slice(lineStart, lineEnd - lineStart).TrimEnd('\r', '\n'), words, $"line {line} reads otherwise");
+        }
+
+        var last = (Line: -1, Text: string.Empty);
+        document.LinesFrom(document.LineCount - 2, (line, _, words) => { last = (line, words); return true; });
+        Assert.AreEqual((document.LineCount - 1, "last"), last, "the line no line end closes is read too");
+    }
+
+    [TestMethod]
     public void TwoVersionsMadeApartAreComparedOnce_AsTheOneStretchWhereTheyDiffer()
     {
         var earlier = ContentDocument.Of("The quick brown fox.");

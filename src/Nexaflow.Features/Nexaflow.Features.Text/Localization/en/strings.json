@@ -35,6 +35,7 @@
   "Text.Viewer.Find.WildcardsTip": "Use wildcards (* matches a run, ? matches one character)",
   "Text.Viewer.Find.RegexTip": "Use regular expression",
   "Text.Viewer.Find.MatchesFormat": "{0} matches",
+  "Text.Viewer.Find.Searching": "Searching…",
   "Text.Viewer.Find.PreviousTip": "Find previous (Shift+F3)",
   "Text.Viewer.Find.NextTip": "Find next (F3)",
   "Text.Viewer.Find.CloseTip": "Close (Esc)",

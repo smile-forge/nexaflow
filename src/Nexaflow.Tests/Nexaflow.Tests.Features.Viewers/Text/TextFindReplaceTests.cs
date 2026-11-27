@@ -101,6 +101,26 @@ public class TextFindReplaceTests
         finally { File.Delete(path); }
     });
 
+    [TestMethod]
+    [Timeout(60_000, CooperativeCancellation = true)]
+    [CoversNode("text-viewer-searchbar")]
+    public void ALineHalfWayDownALargeFile_IsFound() => AsyncPump.Run(async () =>
+    {
+        var text = new StringBuilder();
+        for (var line = 1; line <= 600_000; line++) text.Append($"{line:0000000}  The quick brown fox jumps over the lazy dog, line {line} of the sample.\n");
+        var path = WriteTemp(text.ToString());
+
+        try
+        {
+            using var vm = Make(path, RunningShell());
+            await vm.LoadAsync(CancellationToken.None);
+
+            await vm.SearchConventionalAsync("line 300000 of");
+            Assert.AreEqual(1, vm.SearchMatchCount, "the one line that says it was not found");
+        }
+        finally { File.Delete(path); }
+    });
+
     // ── Regex ───────────────────────────────────────────────────────────────────
 
     [TestMethod]

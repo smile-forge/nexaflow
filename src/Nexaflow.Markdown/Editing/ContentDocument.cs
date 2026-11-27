@@ -215,6 +215,27 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         return _flat is { } flat ? [flat.AsMemory(start, to - start)] : _rope!.Chunks(start, to);
     }
 
+    /// <summary>
+    /// Each line from <paramref name="line"/> on, in order, until <paramref name="each"/> says to stop: its number, where it starts, and what is
+    /// written on it without its line end — read a stretch at a time, so going through every line of a long document reads each character once,
+    /// where finding each line again from the top would read its whole stretch again for every line in it.
+    /// </summary>
+    public void LinesFrom(int line, Func<int, int, string, bool> each, CancellationToken cancel = default)
+    {
+        var start = this.OffsetOf(Math.Clamp(line, 0, Math.Max(0, this.LineCount - 1)));
+        var going = true;
+
+        using var lines = new ContentLineSplitter((number, at, text) => going = going && each((int)number, (int)at, text), cancel, line, start);
+
+        foreach (var chunk in this.Chunks(start))
+        {
+            if (!going) return;
+            lines.Write(chunk.Span);
+        }
+
+        if (going) lines.Ended();
+    }
+
     /// <summary>Where <paramref name="value"/> is first found from <paramref name="start"/> on, before <paramref name="end"/> — or -1.</summary>
     public int IndexOf(char value, int start = 0, int? end = null)
     {

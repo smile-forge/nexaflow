@@ -104,16 +104,11 @@ public sealed class ShownFile : IDisposable
 
         var document = this.Document.Current;
 
-        return (each, cancel) =>
+        return (each, cancel) => document.LinesFrom(0, (line, start, text) =>
         {
-            for (var line = 0; line < document.LineCount; line++)
-            {
-                cancel.ThrowIfCancellationRequested();
-
-                var (start, end) = document.LineAt(document.OffsetOf(line));
-                each(line, start, document.Slice(start, end - start).TrimEnd('\r', '\n'));
-            }
-        };
+            each(line, start, text);
+            return true;
+        }, cancel);
     }
 
     /// <summary>Where in the document <paramref name="fileOffset"/>, an offset in the whole file, stands — the window brought to it first where it is not over it.</summary>

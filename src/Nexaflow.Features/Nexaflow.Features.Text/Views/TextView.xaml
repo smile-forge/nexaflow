@@ -327,6 +327,10 @@
                                   ToolTip="{loc:Str Text.Viewer.Find.RegexTip}" AutomationProperties.AutomationId="Text_UseRegex">
                         <TextBlock Text=".*" FontSize="12"/>
                     </ToggleButton>
+                    <TextBlock Text="{loc:Str Text.Viewer.Find.Searching}"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontStyle="Italic"
+                               VerticalAlignment="Center" Margin="10,0,6,0"
+                               Visibility="{Binding IsSearchRunning, Converter={StaticResource BoolVis}}"/>
                     <TextBlock Text="{Binding SearchMatchCount, StringFormat={loc:Str Text.Viewer.Find.MatchesFormat}}"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                VerticalAlignment="Center" Margin="10,0,6,0"

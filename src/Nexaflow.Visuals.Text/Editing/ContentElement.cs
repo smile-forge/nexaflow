@@ -1097,15 +1097,20 @@ public class ContentElement : FrameworkElement
         }
     }
 
-    /// <summary>The stretch of the document laid near the screen — all of it, where nothing says which part of it is on screen.</summary>
+    /// <summary>
+    /// The stretch of the document drawn on the band painted: from the first place laid on it to the first laid below it — or, where nothing laid
+    /// stands below it, to the last place laid at all, which stands above the band's bottom. Not to the end of the document: past the end of the
+    /// page, or past what is laid of a document read a stretch at a time, what follows is not drawn, and a mark asked for all of it would read it all.
+    /// </summary>
     private (int Start, int End) NearScreen(Laid laid, int length)
     {
         if (_painted is not { } near) return (0, length);
 
         var from = laid.Root.StopBelow(near.Y);
         var to = laid.Root.StopBelow(near.Y + near.Height);
+        var last = laid.Stops is { Count: > 0 } stops ? stops[^1] : length;
 
-        return (from < 0 ? length : from, to < 0 ? length : to);
+        return (from < 0 ? last : from, to < 0 ? last : to);
     }
 
     /// <summary>

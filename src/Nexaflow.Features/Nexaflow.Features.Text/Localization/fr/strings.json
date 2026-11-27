@@ -35,6 +35,7 @@
   "Text.Viewer.Find.WildcardsTip": "Utiliser des caractères génériques (* remplace une suite de caractères, ? un seul caractère)",
   "Text.Viewer.Find.RegexTip": "Utiliser une expression régulière",
   "Text.Viewer.Find.MatchesFormat": "{0} occurrences",
+  "Text.Viewer.Find.Searching": "Recherche…",
   "Text.Viewer.Find.PreviousTip": "Occurrence précédente (Maj+F3)",
   "Text.Viewer.Find.NextTip": "Occurrence suivante (F3)",
   "Text.Viewer.Find.CloseTip": "Fermer (Échap)",

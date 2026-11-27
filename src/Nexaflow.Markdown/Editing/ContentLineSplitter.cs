@@ -10,15 +10,17 @@ namespace Nexaflow.Markdown.Editing;
 /// is written on it without its line end — as a document reads lines: a line feed, a return, or the two together end one. Holds only the line
 /// being read, so a file of any length is read through it at the cost of its longest line.
 /// </summary>
-internal sealed class ContentLineSplitter(Action<long, long, string> each, CancellationToken cancel) : TextWriter
+/// <param name="firstLine">The number of the first line written, where what is written starts part way through a document.</param>
+/// <param name="firstOffset">Where the first line written starts in that document.</param>
+internal sealed class ContentLineSplitter(Action<long, long, string> each, CancellationToken cancel, long firstLine = 0, long firstOffset = 0) : TextWriter
 {
     private readonly StringBuilder _line = new();
 
     /// <summary>How many lines have been said, which is the number of the one being read.</summary>
-    private long _number;
+    private long _number = firstLine;
 
     /// <summary>Where the line being read starts, and how far everything written reaches.</summary>
-    private long _starts, _reached;
+    private long _starts = firstOffset, _reached = firstOffset;
 
     /// <summary>Whether the last character written was a return, which a line feed after it joins.</summary>
     private bool _returned;
@@ -69,8 +71,11 @@ internal sealed class ContentLineSplitter(Action<long, long, string> each, Cance
     /// <summary>Says the last line, which no line end closed — what is written after the last line end, nothing where that is nothing.</summary>
     public void Ended() => this.Said();
 
+    /// <summary>Says the line read — not once reading is called off, which whoever is told a line may do from the line before.</summary>
     private void Said()
     {
+        cancel.ThrowIfCancellationRequested();
+
         each(_number++, _starts, _line.ToString());
         _line.Clear();
     }

@@ -62,6 +62,28 @@ public class ContentMarginTests
     });
 
     [TestMethod]
+    public void ScrolledAFewLines_BeforeThePageIsPaintedAgain_TheLinesSaidStandWhereTheyAreDrawn() => UiThread.Run(() =>
+    {
+        var text = string.Concat(Enumerable.Range(0, 2_000).Select(line => $"line {line} of the document\n"));
+
+        Shown(text, surface =>
+        {
+            Settle(surface);
+            var tall = surface.LinesShown()[0].Height;
+
+            // A few lines on, within what was painted: the page is slid to it, not painted again yet.
+            surface.ScrollToVerticalOffset(surface.VerticalOffset + (5 * tall));
+            surface.UpdateLayout();
+
+            var lines = surface.LinesShown();
+            var atTop = lines.Where(line => line.Top + line.Height > 0.5).MinBy(line => line.Top)!;
+
+            Assert.AreEqual(6, atTop.Number, $"the line said to stand at the top, {atTop.Number}, is not the one drawn there");
+            Assert.AreEqual(0, atTop.Top, 0.5, $"line {atTop.Number} is said to stand {atTop.Top:0} down, where it is drawn at the top");
+        });
+    });
+
+    [TestMethod]
     [CoversNode("windowed-reading")]
     public void MovedWithinAUnitLaidInPart_EveryLineOnThePageIsLaidAndNumbered() => UiThread.Run(() =>
     {

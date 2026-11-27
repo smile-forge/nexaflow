@@ -298,7 +298,10 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
 
         var zoom = _shown.Zoom;
         var top = _engine.ViewOrigin.Y;
-        var at = _shown.TranslatePoint(default, this).Y;
+
+        // Where the page's top stands as it is laid out, not as it is slid while the view moves within what was painted: the lines are counted
+        // from the view, which is where that top stands however far the drawing under it is slid.
+        var at = _shown.TranslatePoint(_shown.RenderTransform.Inverse?.Transform(default) ?? default, this).Y;
 
         return [.. _engine.LinesBetween(top, top + (height / zoom))
                          .Select(line => line with { Top = at + ((line.Top - top) * zoom), Height = line.Height * zoom })];
