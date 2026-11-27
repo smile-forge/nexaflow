@@ -38,7 +38,7 @@ public sealed partial class ContentEngine
     /// is picked out is — which typing would otherwise replace.
     /// </summary>
     private bool Unwritable =>
-        _readOnly || _picked.Count > 0 || (_at >= 0 && _at < _laid.Places.Count && Supplied(_laid.Places[_at].Against));
+        _readOnly || _picked.Count > 0 || (this.At is >= 0 and var at && at < _laid.Places.Count && Supplied(_laid.Places[at].Against));
 
     /// <summary>Whether <paramref name="piece"/> was drawn from content a binding supplied.</summary>
     private static bool Supplied(LayoutPiece piece)

@@ -45,11 +45,12 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// What the caret is standing at: an index into the layout's places, or -1 for a caret standing somewhere none of them
-    /// is. Kept beside the state because it is about the picture rather than the text — one offset can be several places —
-    /// and it is only ever true of the tree it was taken from, so laying out again works it out again from the offset, which
-    /// is what survives an edit.
+    /// is — null until something asks (<see cref="At"/>). Kept beside the state because it is about the picture rather than the
+    /// text — one offset can be several places — and it is only ever true of the tree it was taken from, so laying out again
+    /// leaves it to be found again from the offset, which is what survives an edit. Found only when asked, because finding it
+    /// indexes every place of the tree: a page scrolled or jumped through lays tree after tree that nothing asks it of.
     /// </summary>
-    private int _at = -1;
+    private int? _at;
 
     /// <summary>Raised whenever the content as it is being written changes at all — true where the caret moved or the source changed.</summary>
     internal event EventHandler<bool>? Changed;
@@ -95,7 +96,7 @@ public sealed partial class ContentEngine
         }
 
         _state = new EditState(this.EditedDocument.Current, this.EditedDocument.Current.Length);
-        _at = -1;
+        _at = null;
         if (_editor is { } editor && ReferenceEquals(editor.Document, _edited)) editor.Stood(_state);
 
         Begin();
@@ -107,8 +108,8 @@ public sealed partial class ContentEngine
     /// <summary>What the content is laid out as. Always something: a builder always makes a layout.</summary>
     internal Laid Laid => _laid;
 
-    /// <summary>The place the caret stands at, or -1 where it stands at none of them.</summary>
-    internal int At => _at;
+    /// <summary>The place the caret stands at, or -1 where it stands at none of them — found from its offset the first time it is asked of a tree.</summary>
+    internal int At => _at ??= _laid.Root.StopAt(_state.Caret);
 
     /// <summary>How much room the content has, in its own coordinates — which is the room it was given.</summary>
     internal double Room => _laidFor > 0 ? _laidFor : UnsaidRoom;
@@ -134,8 +135,9 @@ public sealed partial class ContentEngine
     {
         _laid = LaidOut(_state);
 
-        // Which place the caret stood at is only true of the tree it was taken from: in this one it is found again from its offset.
-        _at = _laid.Root.StopAt(_state.Caret);
+        // Which place the caret stood at is only true of the tree it was taken from: in this one it is found again from its offset,
+        // when something asks.
+        _at = null;
         Repick();
         Recornered();
 
@@ -184,7 +186,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>Where an edit is landing, for the language it lands in to make what it will of it.</summary>
-    internal Landing Landing => new(_state, _laid, _at);
+    internal Landing Landing => new(_state, _laid, this.At);
 
     // ── Applying an edit ────────────────────────────────────────────────────
 
@@ -208,7 +210,7 @@ public sealed partial class ContentEngine
         // every edit makes a new version while everything that writes nothing keeps the one it had.
         var changed = !ReferenceEquals(next.Document, before.Document);
         var resized = changed || next.Raw != before.Raw;
-        var was = (before.Caret, _at);
+        var was = (before.Caret, this.At);
 
         _state = next;
         if (changed)
@@ -230,7 +232,7 @@ public sealed partial class ContentEngine
         // has to remember to clear it.
         _at = relaid || at < 0 || at >= _laid.Places.Count ? _laid.Root.StopAt(_state.Caret) : at;
 
-        var moved = was != (_state.Caret, _at);
+        var moved = was != (_state.Caret, this.At);
 
         // What the reader wrote is a step to take back; anything that left what is written alone starts the next one.
         if (notify && changed) Recorded();
@@ -318,7 +320,7 @@ public sealed partial class ContentEngine
 
         // One step along the places, or — for a caret standing where none of them is, which is what a stretch shown as its own
         // characters leaves behind — the nearest one past the offset it is at.
-        var next = _at >= 0 ? _laid.Step(_at, forward) : Rejoining(forward);
+        var next = this.At is >= 0 and var at ? _laid.Step(at, forward) : Rejoining(forward);
 
         // Content a binding supplied is stepped over: nobody wrote it here, so there is nowhere in it to write.
         while (next is { } over && Supplied(_laid.Places[over].Against)) next = _laid.Step(over, forward);
@@ -413,7 +415,7 @@ public sealed partial class ContentEngine
         if (_readOnly) return;
 
         var over = _state.Select(start, length);
-        var written = Edited(EditKind.Typing, text, new Landing(over, _laid, _at)) ?? over.Write(text);
+        var written = Edited(EditKind.Typing, text, new Landing(over, _laid, this.At)) ?? over.Write(text);
         var caret = _state.Caret >= start + length ? _state.Caret + text.Length - length : _state.Caret;
 
         Apply(written.MoveCaretTo(caret), notify: true);
