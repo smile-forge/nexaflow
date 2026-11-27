@@ -189,8 +189,8 @@ so verify a file of that language actually colours after adding a grammar.
 | `src/Nexaflow.Syntax/CodeHighlighter.cs` | Wraps a grammar + query; `Highlight` → spans, `GetParseTree`; recurses into embedded languages |
 | `src/Nexaflow.Syntax/LanguageInjections.cs` | Finds embedded-language sub-ranges per host grammar |
 | `src/Nexaflow.Visuals.Text/Editor/Highlighting/SyntaxTokenMap.cs` | Capture → `TextSwatch.*` — the role palette |
-| `src/Nexaflow.Visuals.Text/Markdown/Code/CodeSyntax.cs` | The surface's reading of a code file: parses what is on screen, colours it, carries the tree through each edit, and answers its folds |
-| `src/Nexaflow.Visuals.Text/Markdown/Code/ColourSwatchMarks.cs` | A bar under each colour the source writes, from the spans the grammar coloured on the stretch drawn |
+| `src/Nexaflow.Markdown/Engine/Markdown/Code/CodeSyntax.cs` | The surface's reading of a code file: parses what is on screen, colours it, carries the tree through each edit, and answers its folds |
+| `src/Nexaflow.Markdown/Engine/Markdown/Code/ColourSwatchMarks.cs` | A bar under each colour the source writes, from the spans the grammar coloured on the stretch drawn |
 | `src/Nexaflow.Core/Themes/Tokens.xaml`, `Theme.<name>.xaml` | `TextSwatch.*` defaults + per-theme overrides |
 | `src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editor/SyntaxHighlightConsistencyTests.cs` | Reference-corpus consistency test |
 | `src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/CodeHighlighterTests.cs` | Grammar/capture assertions (the engine's own suite — no WPF) |

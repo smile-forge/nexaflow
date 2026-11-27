@@ -32,6 +32,16 @@
   </ItemGroup>
 
   <!--
+    The engine under Engine\ orchestrates what a surface shows and edits: it names its actions and ribbons in the user's
+    language (Str), and colours and folds code from tree-sitter's reading of it (Syntax). Both are toolkit-free, so the
+    engine carries over to whatever toolkit draws it.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Localization\Nexaflow.Localization.csproj" />
+    <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
+  </ItemGroup>
+
+  <!--
     A diagram's own nodes are what its stages tell its builder, and nobody else: once a tree is laid out, only its source
     references are read. So they are internal, seen by the builders and by the tests of the stages writing them.
   -->

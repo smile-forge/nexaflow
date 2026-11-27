@@ -7,7 +7,8 @@
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="MarkdownView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:engine="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Markdown">
 
     <UserControl.InputBindings>
         <KeyBinding Key="D0"       Modifiers="Control" Command="{Binding Zoom.ResetZoomCommand}"/>
@@ -489,7 +490,7 @@
                                     Grid.Column="0"
                                     AutomationProperties.AutomationId="Markdown_SourceBox"
                                     Visibility="{Binding ShowSource, Converter={StaticResource BoolVis}}"
-                                    WrittenIn="{x:Static md:ContentLanguages.AsTyped}"
+                                    WrittenIn="{x:Static engine:ContentLanguages.AsTyped}"
                                     WrapsLines="True"
                                     IsReadOnly="False"
                                     BaseFontSize="{Binding Zoom.FontSize}"

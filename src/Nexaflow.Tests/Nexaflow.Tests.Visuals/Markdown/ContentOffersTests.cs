@@ -245,9 +245,9 @@ public class ContentOffersTests
     public void EveryOfferIsSomethingAReaderCanRead() => UiThread.Run(() =>
     {
         // A verb is what the renderer calls it; what a reader sees is words.
-        Assert.AreEqual(Str.Get("Text.Ribbon.Copy"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Copy)));
-        Assert.AreEqual(Str.Get("Text.Ribbon.SavePicture"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Save)));
-        Assert.AreEqual(Str.Get("Text.Ribbon.OpenLink"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Navigate)));
+        Assert.AreEqual(Str.Get("Markdown.Ribbon.Copy"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Copy)));
+        Assert.AreEqual(Str.Get("Markdown.Ribbon.SavePicture"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Save)));
+        Assert.AreEqual(Str.Get("Markdown.Ribbon.OpenLink"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Navigate)));
 
         // And a content's own verb says whatever it said for itself.
         Assert.AreEqual("Sharpen", RibbonMarks.Names(new LayoutIntent("sharpen", null, "Sharpen")));

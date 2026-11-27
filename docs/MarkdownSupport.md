@@ -16,14 +16,14 @@ copied in as test data (`Tests.Markdown/Prose/Corpus/Specs`), each extension's a
   written out as (`MarkdownHtmlSpecTests`), and over the specifications' examples, the samples and these pages — whole,
   and every block stopped part-way — by `MarkdownCorpusTests`.
 - **Writing out:** copying as HTML and plain text writes the document as it is shown: laid out, walked into a
-  format-neutral document by [`LayoutExport`](../src/Nexaflow.Visuals.Text/Markdown/Export/LayoutExport.cs), and spelled by
+  format-neutral document by [`LayoutExport`](../src/Nexaflow.Markdown/Engine/Markdown/Export/LayoutExport.cs), and spelled by
   the writers in `Nexaflow.IO.Documents` — the HTML one held to the HTML every example of the specifications gives
   (`MarkdownHtmlSpecTests`). The help's search text and its list of sections read the reading's words and the names its
   headings answer to.
 - **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
   abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`MarkdownBlocks`, each
   block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
-  is written in. The engine ([`ContentEngine`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs)) has that
+  is written in. The engine ([`ContentEngine`](../src/Nexaflow.Markdown/Engine/Markdown/ContentEngine.cs)) has that
   language's parser read each one, then runs the stages (`WithImages`, `WithLinks`).
 - **Drawing:** one builder, [`MarkdownBuilder`](../src/Nexaflow.Markdown/Layout/Prose/MarkdownBuilder.cs), turns
   the tree into the shared layout tree; another language's content is laid by that language's builder when the
@@ -119,8 +119,8 @@ characters (`MarkdownTokenizer`, `MarkdownDelimiters`) — **and** drawn by the 
 
 ## Diagrams — sub-support
 
-Diagram fences are laid by their language ([`ContentLanguage`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguage.cs),
-found in [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) and drawn natively in WPF (no
+Diagram fences are laid by their language ([`ContentLanguage`](../src/Nexaflow.Markdown/Engine/Markdown/ContentLanguage.cs),
+found in [`ContentLanguages`](../src/Nexaflow.Markdown/Engine/Markdown/ContentLanguages.cs)) and drawn natively in WPF (no
 JS/Mermaid.js, no browser).
 
 **Languages:**
@@ -1048,7 +1048,7 @@ orphan it, and neither is one something else visible also points at, since it is
 function and cannot close over a host's state;
 the engine resolves it: a link out of the document is raised to the page as the routed `LinkNavigate`, choosing a node is
 the routed `Selected` that anything picked out raises — under the producer's own name for it — and
-[`ContentEngine.Folded`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs) answers `expand`/`collapse` for
+[`ContentEngine.Folded`](../src/Nexaflow.Markdown/Engine/Markdown/ContentEngine.Blocks.cs) answers `expand`/`collapse` for
 the diagram it was pressed in: the engine's view state for that diagram, and whatever its content is bound to
 ([bound content](#bound-content-a-diagrams-lines-or-the-whole-of-it)). A chip writes its opening down **before** bound
 content is told, because what that content supplies is read into the diagram again once it has walked (the PE inspector
@@ -1208,7 +1208,7 @@ The engine reads that content with its own language the first time a builder ask
 the node holding it ([`ContentBody`](../src/Nexaflow.Markdown/Ast/ContentBody.cs)), carried through every edit — so writing
 anywhere else never reads it again, and writing inside it reads again only what the change reached, at any depth. The
 builder asks for its **layout tree** — `abc`,
-`lilypond`, `latex`, `smiles`, `qr` and `mermaid` itself ([`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) — sizes its own content
+`lilypond`, `latex`, `smiles`, `qr` and `mermaid` itself ([`ContentLanguages`](../src/Nexaflow.Markdown/Engine/Markdown/ContentLanguages.cs)) — sizes its own content
 around it, and grafts the two into one combined layout tree
 ([`LayoutInset`](../src/Nexaflow.Markdown/Layout/Prose/LayoutProse.cs)). A language nothing here draws leaves the
 label drawn as the words it is.
@@ -1976,8 +1976,8 @@ stays inside it — and no hover or click behaviour beyond the selection every b
 ABC and LilyPond are two ways of writing the same thing, and one engraver draws both.
 
 - **Where it is written.** A fenced ```abc or ```lilypond block, or a file of its own, `.abc` or `.ly`.
-  Both are described in [`Shipped`](../src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs) — one
-  language per notation in [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs) —
+  Both are described in [`Shipped`](../src/Nexaflow.Markdown/Engine/Markdown/Languages/Languages.cs) — one
+  language per notation in [`ContentLanguages`](../src/Nexaflow.Markdown/Engine/Markdown/ContentLanguages.cs) —
   so one path lights it up on both markdown surfaces. Music has no block syntax of its own: it is a
   fenced language like Mermaid or a QR code, read by the same table.
 - **How it is read.** Each notation is read into its own syntax tree, which prints back exactly what was

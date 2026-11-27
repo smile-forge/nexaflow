@@ -136,9 +136,9 @@ public class TreeViewEditingTests
                                                 "treeview.level.out", "treeview.describe", "treeview.icons", "treeview.delete" }, ids);
 
             var file = Offered(ribbon, "treeview.kind");
-            Assert.AreEqual(Str.Get("Text.TreeView.Node.As"), file.Caption, "drawn as \"As\" and what it would turn the node into");
-            Assert.AreEqual(Str.Get("Text.TreeView.Node.AsFolder"), file.Name, "a file is offered to be made a folder");
-            Assert.AreEqual(Str.Get("Text.TreeView.Node.AsFile"), Offered(Ribbon(editor, Row(tree, "src")), "treeview.kind").Name, "and a folder a file");
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Node.As"), file.Caption, "drawn as \"As\" and what it would turn the node into");
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Node.AsFolder"), file.Name, "a file is offered to be made a folder");
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Node.AsFile"), Offered(Ribbon(editor, Row(tree, "src")), "treeview.kind").Name, "and a folder a file");
         }));
 
     [TestMethod]
@@ -176,14 +176,14 @@ public class TreeViewEditingTests
         InADocument((editor, tree) =>
         {
             var ribbon = Ribbon(editor, Row(tree, "a.ts"));
-            Assert.AreEqual(Str.Get("Text.TreeView.Icons.Show"), Offered(ribbon, "treeview.icons").Name);
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Icons.Show"), Offered(ribbon, "treeview.icons").Name);
 
             Click(ribbon, "treeview.icons");
             StringAssert.Contains(tree.Source, "---\nconfig:\n  treeView:\n    showIcons: true\n---\nsrc/", tree.Source);
             Assert.AreEqual(string.Empty, Trouble(tree));
 
             var shown = Ribbon(editor, Row(tree, "README.md"));
-            Assert.AreEqual(Str.Get("Text.TreeView.Icons.Hide"), Offered(shown, "treeview.icons").Name, "with icons shown, it hides them");
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Icons.Hide"), Offered(shown, "treeview.icons").Name, "with icons shown, it hides them");
 
             Click(shown, "treeview.icons");
             StringAssert.Contains(tree.Source, "    showIcons: false\n", tree.Source);

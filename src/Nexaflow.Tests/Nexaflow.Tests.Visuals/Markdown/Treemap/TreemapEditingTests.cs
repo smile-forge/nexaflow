@@ -226,7 +226,7 @@ public class TreemapEditingTests
         {
             var alone = RightClick(editor, Inside(Tile(treemap, "A")));
             Assert.IsFalse(Pressable(alone, "treemap.box.merge"), "one box is nothing to merge");
-            Assert.AreEqual(Str.Get("Text.Treemap.Box.MergeHow"), Offered(alone, "treemap.box.merge").Name, "and it says how to pick boxes out");
+            Assert.AreEqual(Str.Get("Markdown.Treemap.Box.MergeHow"), Offered(alone, "treemap.box.merge").Name, "and it says how to pick boxes out");
             editor.ContextRibbon!.IsOpen = false;
 
             Pick(treemap, "A");
