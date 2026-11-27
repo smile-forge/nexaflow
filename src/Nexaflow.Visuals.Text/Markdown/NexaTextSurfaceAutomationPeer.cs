@@ -101,8 +101,7 @@ internal sealed class NexaTextSurfaceAutomationPeer(NexaTextSurface owner) : Use
     public ITextRangeProvider RangeFromPoint(Point screenLocation)
     {
         var shown = owner.Shown;
-        var local = shown.PointFromScreen(screenLocation);
-        var at = Math.Clamp(shown.Laid.OffsetAt(new LayoutPoint(local.X / shown.Zoom, local.Y / shown.Zoom)), 0, owner.Document.Current.Length);
+        var at = Math.Clamp(shown.Laid.OffsetAt(shown.InContent(shown.PointFromScreen(screenLocation))), 0, owner.Document.Current.Length);
 
         return new SurfaceTextRange(this, at, at);
     }
@@ -223,33 +222,15 @@ internal sealed class SurfaceTextRange(NexaTextSurfaceAutomationPeer peer, int s
         return Endpoint(endpoint).CompareTo(other.Endpoint(targetEndpoint));
     }
 
-    public void ExpandToEnclosingUnit(TextUnit unit) => (_start, _end) = this.Enclosing(this.Ends.Start, unit);
+    public void ExpandToEnclosingUnit(TextUnit unit) => (_start, _end) = ContentTextUnits.Enclosing(this.Document, this.Ends.Start, Unit(unit));
 
     public ITextRangeProvider? FindAttribute(int attribute, object value, bool backward) => null;
 
     public ITextRangeProvider? FindText(string text, bool backward, bool ignoreCase)
     {
-        if (string.IsNullOrEmpty(text)) return null;
-
         var (from, to) = this.Ends;
-        var document = this.Document;
-        var comparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        var (first, last) = (document.LineOf(from), document.LineOf(to));
 
-        // A line at a time: no match runs across a line break, and nothing longer than a line is read to find one.
-        for (var step = 0; step <= last - first; step++)
-        {
-            var line = backward ? last - step : first + step;
-            var (lineStart, lineEnd) = document.LineAt(document.OffsetOf(line));
-            var (low, high) = (Math.Max(lineStart, from), Math.Min(lineEnd, to));
-            if (high - low < text.Length) continue;
-
-            var read = document.Slice(low, high - low);
-            var at = backward ? read.LastIndexOf(text, comparison) : read.IndexOf(text, comparison);
-            if (at >= 0) return new SurfaceTextRange(peer, low + at, low + at + text.Length);
-        }
-
-        return null;
+        return ContentTextUnits.Found(this.Document, from, to, text, backward, ignoreCase) is { } found ? new SurfaceTextRange(peer, found.Start, found.End) : null;
     }
 
     public object GetAttributeValue(int attribute) =>
@@ -262,10 +243,14 @@ internal sealed class SurfaceTextRange(NexaTextSurfaceAutomationPeer peer, int s
         var rects = to > from ? shown.Laid.Root.RangeRects(from, to - from) : [shown.Laid.Root.CaretRect(from)];
         var bounds = new List<double>(rects.Count * 4);
 
-        foreach (var rect in rects.Where(rect => !rect.IsEmpty))
+        foreach (var rect in rects)
         {
-            var corner = shown.PointToScreen(new Point(rect.X * shown.Zoom, rect.Y * shown.Zoom));
-            bounds.AddRange([corner.X, corner.Y, rect.Width * shown.Zoom, rect.Height * shown.Zoom]);
+            if (rect.IsEmpty) continue;
+
+            // Where it stands on the element, measured from the view where there is one, and so on the screen.
+            var on = shown.FromContent(rect);
+            var corner = shown.PointToScreen(on.TopLeft);
+            bounds.AddRange([corner.X, corner.Y, on.Width, on.Height]);
         }
 
         return [.. bounds];
@@ -284,36 +269,17 @@ internal sealed class SurfaceTextRange(NexaTextSurfaceAutomationPeer peer, int s
     public int Move(TextUnit unit, int count)
     {
         // A range moved is first made one unit wide, then moved that many units, as UI Automation says.
-        var (from, _) = this.Ends;
-        var moved = 0;
-        var at = this.Enclosing(from, unit).Start;
+        var (document, read) = (this.Document, Unit(unit));
+        var start = ContentTextUnits.Enclosing(document, this.Ends.Start, read).Start;
+        var (at, moved) = ContentTextUnits.Stepped(document, start, read, count);
 
-        while (moved != count)
-        {
-            var next = this.Step(at, unit, forward: count > 0);
-            if (next == at) break;
-
-            at = next;
-            moved += Math.Sign(count);
-        }
-
-        (_start, _end) = this.Enclosing(at, unit);
+        (_start, _end) = ContentTextUnits.Enclosing(document, at, read);
         return moved;
     }
 
     public int MoveEndpointByUnit(TextPatternRangeEndpoint endpoint, TextUnit unit, int count)
     {
-        var at = this.Endpoint(endpoint);
-        var moved = 0;
-
-        while (moved != count)
-        {
-            var next = this.Step(at, unit, forward: count > 0);
-            if (next == at) break;
-
-            at = next;
-            moved += Math.Sign(count);
-        }
+        var (at, moved) = ContentTextUnits.Stepped(this.Document, this.Endpoint(endpoint), Unit(unit), count);
 
         this.Set(endpoint, at);
         return moved;
@@ -354,51 +320,12 @@ internal sealed class SurfaceTextRange(NexaTextSurfaceAutomationPeer peer, int s
         else (_start, _end) = (Math.Min(from, at), at);
     }
 
-    /// <summary>The unit holding <paramref name="at"/>: a character, a word, a line with its line break, or the whole.</summary>
-    private (int Start, int End) Enclosing(int at, TextUnit unit)
+    /// <summary>The unit automation names, as the document is read by (<see cref="ContentTextUnits"/>): a format run is read as a word, a paragraph as a line, a page as the whole.</summary>
+    private static ContentTextUnit Unit(TextUnit unit) => unit switch
     {
-        var document = this.Document;
-        var length = document.Length;
-
-        switch (unit)
-        {
-            case TextUnit.Character:
-                return (at, Math.Min(at + 1, length));
-
-            case TextUnit.Format or TextUnit.Word:
-                var after = ContentWordEdges.Next(document, at, forward: true);
-                var begins = ContentWordEdges.Next(document, Math.Min(at + 1, length), forward: false);
-                var start = begins <= at ? begins : at;
-                return (start, Math.Max(after, ContentWordEdges.Next(document, start, forward: true)));
-
-            case TextUnit.Line or TextUnit.Paragraph:
-                var line = document.LineOf(at);
-                return (document.OffsetOf(line), line + 1 < document.LineCount ? document.OffsetOf(line + 1) : length);
-
-            default:
-                return (0, length);
-        }
-    }
-
-    /// <summary>Where the start of the next unit after <paramref name="at"/> is — or the one before, back — or <paramref name="at"/> at an end.</summary>
-    private int Step(int at, TextUnit unit, bool forward)
-    {
-        var document = this.Document;
-
-        switch (unit)
-        {
-            case TextUnit.Character:
-                return Math.Clamp(at + (forward ? 1 : -1), 0, document.Length);
-
-            case TextUnit.Format or TextUnit.Word:
-                return ContentWordEdges.Next(document, at, forward);
-
-            case TextUnit.Line or TextUnit.Paragraph:
-                var line = document.LineOf(at) + (forward ? 1 : -1);
-                return line < 0 ? 0 : line >= document.LineCount ? document.Length : document.OffsetOf(line);
-
-            default:
-                return forward ? document.Length : 0;
-        }
-    }
+        TextUnit.Character => ContentTextUnit.Character,
+        TextUnit.Format or TextUnit.Word => ContentTextUnit.Word,
+        TextUnit.Line or TextUnit.Paragraph => ContentTextUnit.Line,
+        _ => ContentTextUnit.Document,
+    };
 }
