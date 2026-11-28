@@ -7,13 +7,14 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.WindowsFileSystem.Model;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common.Locations;
 
 namespace Nexaflow.Features.WindowsFileSystem.ClientTools;
 
 /// <summary>Lists the files and folders the user is currently looking at.</summary>
-public sealed class GetFileListTool(FileSystemViewModel vm) : IClientTool
+public sealed class GetFileListTool(FileSystemModel model) : IClientTool
 {
     public string Name => "get_file_list";
     public string Description => "List the files and folders in the current directory, or in a subdirectory of it.";
@@ -30,12 +31,12 @@ public sealed class GetFileListTool(FileSystemViewModel vm) : IClientTool
         var sub = ToolArgs.Str(arguments, "path", "subdirectory", "dir");
         if (!string.IsNullOrWhiteSpace(sub))
         {
-            if (!FsTool.TryResolve(vm, sub, out var dir, out var error))
+            if (!FsTool.TryResolve(model, sub, out var dir, out var error))
                 return ToolResult.Error(error);
             try
             {
-                if (!await vm.Vfs.IsDirectoryAsync(dir, ct)) return ToolResult.Error($"Folder not found: {sub}");
-                var (folders, files) = await FsTool.ListAsync(vm, dir, ct);
+                if (!await model.Vfs.IsDirectoryAsync(dir, ct)) return ToolResult.Error($"Folder not found: {sub}");
+                var (folders, files) = await FsTool.ListAsync(model, dir, ct);
                 var listing = new StringBuilder("Contents of ").Append(dir).Append(":\n");
                 foreach (var name in folders) listing.Append("[dir]  ").Append(name).Append('\n');
                 foreach (var name in files)   listing.Append("[file] ").Append(name).Append('\n');
@@ -47,25 +48,25 @@ public sealed class GetFileListTool(FileSystemViewModel vm) : IClientTool
             }
         }
 
-        if (vm.IsThisPcMode)
+        if (model.Location.IsThisPc)
         {
-            var drives = string.Join('\n', vm.Entries.Select(e => $"[drive] {e.Name}"));
-            return ToolResult.Ok($"{vm.Entries.Count} drive(s)", "This PC drives:\n" + drives);
+            var drives = string.Join('\n', model.Listing.Entries.Select(e => $"[drive] {e.Name}"));
+            return ToolResult.Ok($"{model.Listing.Entries.Count} drive(s)", "This PC drives:\n" + drives);
         }
-        if (string.IsNullOrEmpty(vm.CurrentPath))
+        if (string.IsNullOrEmpty(model.Location.CurrentPath))
             return ToolResult.Ok("no folder open", "No folder is currently open.");
 
-        var sb = new StringBuilder("Contents of ").Append(vm.CurrentPath).Append(":\n");
-        foreach (var e in vm.Entries)
+        var sb = new StringBuilder("Contents of ").Append(model.Location.CurrentPath).Append(":\n");
+        foreach (var e in model.Listing.Entries)
             sb.Append(e.IsDirectory ? "[dir]  " : "[file] ").Append(e.Name).Append('\n');
 
-        var shownFolders = vm.Entries.Count(e => e.IsDirectory);
-        return ToolResult.Ok($"{shownFolders} folders, {vm.Entries.Count - shownFolders} files", sb.ToString().TrimEnd());
+        var shownFolders = model.Listing.Entries.Count(e => e.IsDirectory);
+        return ToolResult.Ok($"{shownFolders} folders, {model.Listing.Entries.Count - shownFolders} files", sb.ToString().TrimEnd());
     }
 }
 
 /// <summary>Total number of lines in a text file (so the agent can plan ranged reads).</summary>
-public sealed class GetLineCountTool(FileSystemViewModel vm) : IClientTool
+public sealed class GetLineCountTool(FileSystemModel model) : IClientTool
 {
     public string Name => "get_line_count";
     public string Description => "Count the lines in a text file.";
@@ -79,16 +80,16 @@ public sealed class GetLineCountTool(FileSystemViewModel vm) : IClientTool
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
         var name = ToolArgs.Str(arguments, "name", "path", "file");
-        if (!FsTool.TryResolve(vm, name, out var full, out var error))
+        if (!FsTool.TryResolve(model, name, out var full, out var error))
             return ToolResult.Error(error);
 
         try
         {
-            if (await vm.Vfs.GetEntryAsync(full, ct) is not { IsDirectory: false }) return ToolResult.Error($"File not found: {name}");
-            if (await FsTool.LooksBinaryAsync(vm, full, ct)) return ToolResult.Error($"'{name}' looks like a binary file, not text.");
+            if (await model.Vfs.GetEntryAsync(full, ct) is not { IsDirectory: false }) return ToolResult.Error($"File not found: {name}");
+            if (await FsTool.LooksBinaryAsync(model, full, ct)) return ToolResult.Error($"'{name}' looks like a binary file, not text.");
 
             var count = 0;
-            await using var stream = await vm.Vfs.OpenReadAsync(full, ReadIntent.Sequential, ct);
+            await using var stream = await model.Vfs.OpenReadAsync(full, ReadIntent.Sequential, ct);
             using var reader = new StreamReader(stream);
             while (await reader.ReadLineAsync(ct) is not null) count++;
             return ToolResult.Ok($"{count} lines", $"{Path.GetFileName(full)} has {count} line(s).");
@@ -101,7 +102,7 @@ public sealed class GetLineCountTool(FileSystemViewModel vm) : IClientTool
 }
 
 /// <summary>Metadata for a file or folder: size, timestamps, type.</summary>
-public sealed class GetFileStatsTool(FileSystemViewModel vm) : IClientTool
+public sealed class GetFileStatsTool(FileSystemModel model) : IClientTool
 {
     public string Name => "get_file_stats";
     public string Description => "Get a file or folder's size, type, and created / modified timestamps.";
@@ -115,18 +116,18 @@ public sealed class GetFileStatsTool(FileSystemViewModel vm) : IClientTool
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
         var name = ToolArgs.Str(arguments, "name", "path", "file");
-        if (!FsTool.TryResolve(vm, name, out var full, out var error))
+        if (!FsTool.TryResolve(model, name, out var full, out var error))
             return ToolResult.Error(error);
 
         try
         {
-            if (await vm.Vfs.GetEntryAsync(full, ct) is not { } entry) return ToolResult.Error($"Not found: {name}");
+            if (await model.Vfs.GetEntryAsync(full, ct) is not { } entry) return ToolResult.Error($"Not found: {name}");
             var shown   = Path.GetFileName(full.TrimEnd(Path.DirectorySeparatorChar));
             var created = entry.Created is { } c ? $"{c:yyyy-MM-dd HH:mm}" : "(not kept here)";
 
             if (entry.IsDirectory)
             {
-                var (folders, files) = await FsTool.ListAsync(vm, full, ct);
+                var (folders, files) = await FsTool.ListAsync(model, full, ct);
                 return ToolResult.Ok($"folder {shown}",
                     $"{shown} — folder\nContains: {files.Count} file(s), {folders.Count} subfolder(s)\n" +
                     $"Created:  {created}\nModified: {entry.Modified:yyyy-MM-dd HH:mm}");
@@ -146,7 +147,7 @@ public sealed class GetFileStatsTool(FileSystemViewModel vm) : IClientTool
 }
 
 /// <summary>Finds files/folders in the current directory whose name matches a pattern.</summary>
-public sealed class FindFilesByNameTool(FileSystemViewModel vm) : IClientTool
+public sealed class FindFilesByNameTool(FileSystemModel model) : IClientTool
 {
     private const int MaxMatches = 200;
 
@@ -166,17 +167,17 @@ public sealed class FindFilesByNameTool(FileSystemViewModel vm) : IClientTool
         var pattern = ToolArgs.Str(arguments, "pattern", "name", "query");
         if (string.IsNullOrWhiteSpace(pattern))
             return ToolResult.Error("No pattern provided.");
-        if (string.IsNullOrEmpty(vm.CurrentPath))
+        if (string.IsNullOrEmpty(model.Location.CurrentPath))
             return ToolResult.Error("No folder is open to search.");
 
-        var basePath  = vm.CurrentPath;
+        var basePath  = model.Location.CurrentPath;
         var recursive = ToolArgs.Bool(arguments, "recursive");
         var glob      = pattern.IndexOfAny(['*', '?']) >= 0 ? pattern : $"*{pattern}*";
 
         List<string> matches;
         try
         {
-            matches = await FsTool.FindAsync(vm, basePath, glob, recursive, MaxMatches + 1, ct);
+            matches = await FsTool.FindAsync(model, basePath, glob, recursive, MaxMatches + 1, ct);
         }
         catch (Exception ex)
         {
@@ -198,7 +199,7 @@ public sealed class FindFilesByNameTool(FileSystemViewModel vm) : IClientTool
 /// Reads a text file in fragments: by default the first <see cref="DefaultWindow"/> lines, or a
 /// requested line range. Keeps large files from flooding the context — pair with get_line_count.
 /// </summary>
-public sealed class GetFileContentsTool(FileSystemViewModel vm) : IClientTool
+public sealed class GetFileContentsTool(FileSystemModel model) : IClientTool
 {
     private const int DefaultWindow = 100;
     private const int MaxWindow     = 1000;
@@ -218,7 +219,7 @@ public sealed class GetFileContentsTool(FileSystemViewModel vm) : IClientTool
     public async Task<ToolResult> InvokeAsync(JsonObject arguments, CancellationToken ct)
     {
         var name = ToolArgs.Str(arguments, "name", "path", "file");
-        if (!FsTool.TryResolve(vm, name, out var full, out var error))
+        if (!FsTool.TryResolve(model, name, out var full, out var error))
             return ToolResult.Error(error);
 
         var start = Math.Max(1, ToolArgs.Int(arguments, "start_line", 1));
@@ -228,13 +229,13 @@ public sealed class GetFileContentsTool(FileSystemViewModel vm) : IClientTool
 
         try
         {
-            if (await vm.Vfs.GetEntryAsync(full, ct) is not { IsDirectory: false }) return ToolResult.Error($"File not found: {name}");
-            if (await FsTool.LooksBinaryAsync(vm, full, ct)) return ToolResult.Error($"'{name}' looks like a binary file, not text.");
+            if (await model.Vfs.GetEntryAsync(full, ct) is not { IsDirectory: false }) return ToolResult.Error($"File not found: {name}");
+            if (await FsTool.LooksBinaryAsync(model, full, ct)) return ToolResult.Error($"'{name}' looks like a binary file, not text.");
 
             var window = new List<string>(Math.Min(end - start + 1, 256));
             var idx = 0;
             var more = false;
-            await using (var stream = await vm.Vfs.OpenReadAsync(full, ReadIntent.Sequential, ct))
+            await using (var stream = await model.Vfs.OpenReadAsync(full, ReadIntent.Sequential, ct))
             {
                 using var reader = new StreamReader(stream);
                 while (await reader.ReadLineAsync(ct) is { } line)

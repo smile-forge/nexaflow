@@ -9,6 +9,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using NSubstitute;
 using Nexaflow.Localization;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem.FileActions;
 

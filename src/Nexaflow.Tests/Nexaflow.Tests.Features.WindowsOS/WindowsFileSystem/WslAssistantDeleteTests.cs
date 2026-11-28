@@ -63,7 +63,7 @@ public sealed class WslAssistantDeleteTests
             var vm = new FileBrowserRuntime(shell, Substitute.For<IAIService>(), new Dictionary<Type, IFeatureConfig>(), files).Browse(folder);
             await vm.Browsing;
             await vm.EntriesLoaded;
-            var tool = new DeleteTool(vm);
+            var tool = new DeleteTool(vm.Model);
 
             foreach (var name in new[] { "notes.txt", "old" })
             {

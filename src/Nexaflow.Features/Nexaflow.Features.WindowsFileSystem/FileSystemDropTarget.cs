@@ -1,4 +1,4 @@
-using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Features.WindowsFileSystem.Model;
 using Nexaflow.Interaction;
 using System;
 using System.IO;
@@ -15,10 +15,10 @@ namespace Nexaflow.Features.WindowsFileSystem;
 /// </summary>
 public sealed class FileSystemDropTarget
 {
-    private readonly FileSystemViewModel _viewModel;
+    private readonly FileSystemModel _model;
 
-    public FileSystemDropTarget(FileSystemViewModel viewModel)
-        => _viewModel = viewModel;
+    public FileSystemDropTarget(FileSystemModel model)
+        => _model = model;
 
     public bool CanAcceptDrop(IDragPayload payload) => payload.CarriesFiles();
 
@@ -67,7 +67,7 @@ public sealed class FileSystemDropTarget
         var sources = payload.FilesOnDisk();
         if (sources.Count == 0) return;
 
-        _viewModel.Operations.EnqueueDrop([.. sources], destinationPath, move || !payload.Contains(DragKinds.Files));
+        _model.Operations.EnqueueDrop([.. sources], destinationPath, move || !payload.Contains(DragKinds.Files));
     }
 
     // ── Right-drag: ask, then do ──────────────────────────────────────────────
@@ -98,7 +98,7 @@ public sealed class FileSystemDropTarget
     public void Execute(DropPlan plan, DropChoice choice)
     {
         if (!plan.TryClaim()) return;
-        _viewModel.Operations.EnqueueDrop(plan.Sources, plan.Destination, move: choice == DropChoice.Move);
+        _model.Operations.EnqueueDrop(plan.Sources, plan.Destination, move: choice == DropChoice.Move);
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public sealed class FileSystemDropTarget
     {
         return FileOperationDestinations.Plan(
                    plan.Sources,
-                   new Services.ShellPath(_viewModel.Vfs).AsWindowsNames(plan.Destination),
+                   new Services.ShellPath(_model.Vfs).AsWindowsNames(plan.Destination),
                    move: choice == DropChoice.Move,
                    out _).Count > 0;
     }
@@ -122,7 +122,7 @@ public sealed class FileSystemDropTarget
     private string FolderLabel(string? targetFolderName)
         => !string.IsNullOrEmpty(targetFolderName)
             ? targetFolderName
-            : !string.IsNullOrEmpty(_viewModel.CurrentPath)
-                ? Path.GetFileName(_viewModel.CurrentPath)
+            : !string.IsNullOrEmpty(_model.Location.CurrentPath)
+                ? Path.GetFileName(_model.Location.CurrentPath)
                 : Str.Get("WindowsFileSystem.Drop.Here");
 }

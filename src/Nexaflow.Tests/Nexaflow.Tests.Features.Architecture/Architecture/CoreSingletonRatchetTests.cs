@@ -30,11 +30,6 @@ public class CoreSingletonRatchetTests
     private static string BaselineFile => Path.Combine(
         Root, "src", "Nexaflow.Tests", "Nexaflow.Tests.Features.Architecture", "Architecture", "core-singletons.txt");
 
-    /// <summary>A comment, or a literal read past whole so a <c>//</c> or <c>/*</c> inside one is not taken for a comment.</summary>
-    private static readonly Regex CommentsAndLiterals = new(
-        @"@""(?:[^""]|"""")*""|""(?:\\.|[^""\\\n])*""|'(?:\\.|[^'\\\n])+'|/\*.*?\*/|//[^\n]*",
-        RegexOptions.Compiled | RegexOptions.Singleline);
-
     /// <summary>A static member named <c>Instance</c>: a property or a field.</summary>
     private static readonly Regex StaticInstance = new(
         @"\bstatic\s+(?:readonly\s+)?[\w.<>?,\s]+?\s+Instance\s*(?:\{|=|;)", RegexOptions.Compiled);
@@ -88,9 +83,9 @@ public class CoreSingletonRatchetTests
 
         foreach (var file in roots.SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)))
         {
-            if (IsBuildOutput(file)) continue;
+            if (CodeWithoutComments.IsBuildOutput(file)) continue;
 
-            var code = CommentsAndLiterals.Replace(File.ReadAllText(file), WithoutComment);
+            var code = CodeWithoutComments.Read(file);
             var singleton = StaticInstance.Match(code);
             if (!singleton.Success) continue;
 
@@ -98,10 +93,6 @@ public class CoreSingletonRatchetTests
         }
         return found;
     }
-
-    /// <summary>A comment becomes the line breaks it spanned, so a line number found after it still counts true; a literal stays.</summary>
-    private static string WithoutComment(Match match) =>
-        match.Value.StartsWith('/') ? new string('\n', match.Value.Count(c => c == '\n')) : match.Value;
 
     private static HashSet<string> Baseline()
     {
@@ -111,8 +102,4 @@ public class CoreSingletonRatchetTests
                    .Where(l => l.Length > 0 && !l.StartsWith("#", StringComparison.Ordinal))
                    .ToHashSet(StringComparer.Ordinal);
     }
-
-    private static bool IsBuildOutput(string path) =>
-        path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-        || path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}");
 }

@@ -73,6 +73,11 @@ to it ([Architecture.md → What a tool may reach on disk](Architecture.md#what-
 `AiSurfaceRulesTests` names a scoped page that does not. Both interfaces have sensible defaults, so a context-only page
 overrides almost nothing.
 
+A view-model holds what its view needs. A page that is more than that — the file browser's listing, navigation and
+actions — keeps the rest in the feature's `Model/` folder, named in no UI toolkit and in no view-model
+(`FeatureModelRulesTests`); the view-model wraps it, and the client tools take the model rather than the view-model
+([Architecture.md → Feature assemblies](Architecture.md#feature-assemblies)).
+
 ---
 
 ## AI input bar — `IQueryHandler`

@@ -12,6 +12,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Features.Common.Viewlets;
 using System.Windows.Controls.Primitives;
 using Nexaflow.Visuals.Common.Behaviors;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

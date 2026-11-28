@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Features.WindowsFileSystem.Converters;
 

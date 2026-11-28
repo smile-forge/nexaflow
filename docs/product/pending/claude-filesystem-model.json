@@ -1,0 +1,426 @@
+{
+  "branch": "claude/filesystem-model",
+  "nodes": {
+    "winfs-filelist": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FileSystemEntry.cs",
+          "class": "FileSystemEntry"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderListing.cs",
+          "class": "FolderListing",
+          "method": "RefreshEntriesAsync"
+        }
+      ]
+    },
+    "winfs-file-icons": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FileSystemEntry.cs",
+          "class": "FileSystemEntry",
+          "method": "TypeName"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderListing.cs",
+          "class": "FolderListing",
+          "method": "ToEntry"
+        },
+        {
+          "type": "node",
+          "target": "vcommon-shell-icons"
+        }
+      ]
+    },
+    "winfs-cloud-status": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "PlaceStatusColumn"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FileSystemEntry.cs",
+          "class": "FileSystemEntry",
+          "method": "CloudState"
+        },
+        {
+          "type": "node",
+          "target": "vcommon-cloud-status"
+        },
+        {
+          "type": "node",
+          "target": "iocommon-directory-listing"
+        }
+      ]
+    },
+    "locations-browse": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FileSystemEntry.cs",
+          "class": "FileSystemEntry",
+          "method": "FormatPermissions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "PlacePosixColumns"
+        }
+      ]
+    },
+    "winfs-tree": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FileSystemTreeNode.cs",
+          "class": "FileSystemTreeNode"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderNavigation.cs",
+          "class": "FolderNavigation",
+          "method": "OnTreeNodeSelected"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "DirectoryTree_SelectedItemChanged"
+        }
+      ]
+    },
+    "winfs-open-entry": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderNavigation.cs",
+          "class": "FolderNavigation",
+          "method": "OpenAsync"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/DefaultFileOpener.cs",
+          "class": "DefaultFileOpener"
+        }
+      ]
+    },
+    "winfs-column-sort": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderListing.cs",
+          "class": "FolderListing",
+          "method": "SortBy"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/SortableHeader.cs",
+          "class": "SortableHeader"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Common/Converters/SortConverters.cs",
+          "class": "SortGlyphConverter"
+        }
+      ]
+    },
+    "winfs-thispc": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "CreateThisPc"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderNavigation.cs",
+          "class": "FolderNavigation",
+          "method": "CheckThisPcItemAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderNavigation.cs",
+          "class": "FolderNavigation",
+          "method": "StartAtThisPc"
+        }
+      ]
+    },
+    "winfs-reload-in-place": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderListing.cs",
+          "class": "FolderListing",
+          "method": "RefreshEntriesAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Interaction/RangeObservableCollection.cs",
+          "class": "RangeObservableCollection",
+          "method": "MatchTo"
+        }
+      ]
+    },
+    "winfs-folder-watch": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderListing.cs",
+          "class": "FolderListing",
+          "method": "OnFolderChanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Session/Services/ShellFolderWatcher.cs",
+          "class": "ShellFolderWatcher"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Services/FolderChange.cs",
+          "class": "FolderChange"
+        }
+      ]
+    },
+    "winfs-breadcrumb": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderNavigation.cs",
+          "class": "FolderNavigation",
+          "method": "FireNavigationChanged"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileSystemPageRegistration.cs",
+          "class": "FileSystemPageRegistration",
+          "method": "ApplyBreadcrumbs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileSystemQueryHandler.cs",
+          "class": "FileSystemQueryHandler"
+        }
+      ]
+    },
+    "search-browser-route": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderAssistance.cs",
+          "class": "FolderAssistance",
+          "method": "SearchAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/SearchObjectHandler.cs",
+          "class": "SearchObjectHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Services/WindowsSearchCorpus.cs",
+          "class": "WindowsSearchCorpus"
+        }
+      ]
+    },
+    "winfs-footer-filter": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "ToggleFolderFilter"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "ApplyEntryFilter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderListing.cs",
+          "class": "FolderListing",
+          "method": "ToggleFilter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderListing.cs",
+          "class": "FolderListing",
+          "method": "FilterFor"
+        }
+      ]
+    },
+    "winfs-action-strip": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "OnActionDebounceTimer"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileActionViewModel.cs",
+          "class": "FileActionViewModel"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FileActionManager.cs",
+          "class": "FileActionManager"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/features.md",
+          "title_path": [
+            "Building a Feature",
+            "Interface reference \u2014 \u0060Features.Common\u0060",
+            "File \u0026 folder actions (\u0060FileActions/\u0060) \u2014 discovered by \u0060FileSystemFeatureRegistry\u0060"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/SelectionActions.cs",
+          "class": "SelectionActions",
+          "method": "ForStripAsync"
+        }
+      ]
+    },
+    "winfs-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "FileListView_PreviewMouseRightButtonDown"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "BuildContextActions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "DirectoryTree_PreviewMouseRightButtonDown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/SelectionActions.cs",
+          "class": "SelectionActions",
+          "method": "ForMenu"
+        }
+      ]
+    },
+    "winfs-create": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "OpenCreateOverlayWith"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "Create"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/CreateActionViewModel.cs",
+          "class": "CreateActionViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FileCreation.cs",
+          "class": "FileCreation"
+        }
+      ]
+    },
+    "win-file-system-ai-act": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ClientTools/FileReadTools.cs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FolderAssistance.cs",
+          "class": "FolderAssistance"
+        }
+      ]
+    },
+    "win-file-system": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Nexaflow.Features.WindowsFileSystem.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Model/FileSystemModel.cs",
+          "class": "FileSystemModel"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 18,
+  "touched_nodes": [
+    "locations-browse",
+    "search-browser-route",
+    "win-file-system",
+    "win-file-system-ai-act",
+    "winfs-action-strip",
+    "winfs-breadcrumb",
+    "winfs-cloud-status",
+    "winfs-column-sort",
+    "winfs-context-menu",
+    "winfs-create",
+    "winfs-file-icons",
+    "winfs-filelist",
+    "winfs-folder-watch",
+    "winfs-footer-filter",
+    "winfs-open-entry",
+    "winfs-reload-in-place",
+    "winfs-thispc",
+    "winfs-tree"
+  ]
+}
