@@ -27,7 +27,7 @@ public sealed partial class NexaTextSurface
         base.OnGotKeyboardFocus(e);
 
         // Where it was: the caret is shown, not put anywhere, so gaining the keyboard moves nothing.
-        if (!IsReadOnly && !_shown.HasCaret) _shown.ShowCaret();
+        _engine.KeyboardHeld(true);
     }
 
     /// <inheritdoc/>
@@ -35,7 +35,7 @@ public sealed partial class NexaTextSurface
     {
         base.OnLostKeyboardFocus(e);
 
-        if (!IsKeyboardFocusWithin) _shown.ReleaseCaret();
+        if (!IsKeyboardFocusWithin) _engine.KeyboardHeld(false);
     }
 
     /// <inheritdoc/>
@@ -84,7 +84,7 @@ public sealed partial class NexaTextSurface
     /// <summary>Brings the caret onto the page, wherever an edit or a key left it (<see cref="ContentEngine.RevealCaret"/>).</summary>
     private void Reveal()
     {
-        if (!_shown.HasCaret || _writingGiven) return;
+        if (!_engine.HasCaret || _writingGiven) return;
 
         // Content shown whole asks whatever holds it to.
         if (_engine.RevealCaret() is { } at) _shown.BringIntoView(_shown.FromContent(at));

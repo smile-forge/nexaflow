@@ -28,11 +28,10 @@ public sealed partial class ContentEngine
     private readonly List<ShownWave> _waves = [];
 
     /// <summary>
-    /// Whether there is a caret to draw, where whatever shows the content <paramref name="held"/> the caret or not: where something is being
-    /// carried, the place it would land; otherwise the caret held, in content that is written in — and not while whole things are chosen, a
-    /// slice or a node, which is no place to write.
+    /// Whether there is a caret to draw: where something is being carried, the place it would land; otherwise the caret this content
+    /// holds, where it is written in — and not while whole things are chosen, a slice or a node, which is no place to write.
     /// </summary>
-    internal bool DrawsCaret(bool held) => !_readOnly && (Dropping is not null || (held && !ChoseWhole));
+    public bool ShowsCaret => !_readOnly && (Dropping is not null || (HasCaret && !ChoseWhole));
 
     /// <summary>
     /// Where the carets stand: the one where typing goes — while something is being carried, where it would land, not where it was picked

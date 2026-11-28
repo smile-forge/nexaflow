@@ -626,7 +626,7 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
         if (_shown is null) return;
 
         var state = _shown.Current;
-        var caret = _shown.HasCaret;
+        var caret = _engine.HasCaret;
 
         // What was laid in the old colours, at the old size or for the old reader is not set down again as it was.
         _engine.Forget();

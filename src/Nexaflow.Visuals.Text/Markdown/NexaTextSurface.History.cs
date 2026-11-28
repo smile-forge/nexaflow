@@ -54,8 +54,6 @@ public sealed partial class NexaTextSurface
     /// </summary>
     private void Written(ContentSourceChange change)
     {
-        if (change.Kind != ContentChangeKind.Written && !IsReadOnly && IsKeyboardFocusWithin) _shown.ShowCaret();
-
         if (change.Kind == ContentChangeKind.Loaded) Settled();
         else Prompted();
 

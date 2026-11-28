@@ -118,6 +118,39 @@ public class EngineShownTests
         Assert.AreEqual(PointerShape.Arrow, engine.PointedAt(on).Shape, "an arrow where nothing may be written");
     });
 
+    [TestMethod]
+    public void TheCaretShowsWhileTheKeyboardIsHeld_WhereItStood_AndNeverInWhatIsOnlyRead() => UiThread.Run(() =>
+    {
+        var engine = Laid("one\ntwo", ContentLanguages.AsTyped);
+        engine.Apply(engine.State.MoveCaretTo(5), notify: false);
+        Assert.IsFalse(engine.HasCaret, "nothing holds the caret before the keyboard comes");
+
+        engine.KeyboardHeld(true);
+        Assert.IsTrue(engine.HasCaret, "gaining the keyboard shows the caret");
+        Assert.IsTrue(engine.ShowsCaret, "and there is one to draw");
+        Assert.AreEqual(5, engine.State.Caret, "where it stood, put nowhere new");
+
+        engine.KeyboardHeld(false);
+        Assert.IsFalse(engine.HasCaret, "losing the keyboard takes it away");
+        Assert.IsFalse(engine.ShowsCaret);
+
+        engine.TakeCaret(2);
+        Assert.IsTrue(engine.HasCaret, "a caret put at a place is held, keyboard or not");
+        engine.ReleaseCaret();
+
+        engine.KeyboardHeld(true);
+        engine.ReleaseCaret();
+        engine.Replace(engine.State.MoveCaretTo(0).Insert("zero "));
+        Assert.IsTrue(engine.HasCaret, "a change nobody typed, while the keyboard is held, shows the caret where it left it");
+
+        engine.KeyboardHeld(false);
+        engine.IsReadOnly = true;
+        engine.KeyboardHeld(true);
+        Assert.IsFalse(engine.HasCaret, "content only read never holds a caret");
+        engine.TakeCaret(0);
+        Assert.IsFalse(engine.HasCaret, "not even one put at a place");
+    });
+
     private static ContentEngine Laid(string text, string? language)
     {
         var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);

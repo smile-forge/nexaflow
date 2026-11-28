@@ -174,8 +174,10 @@ public class ContentElement : FrameworkElement
 
     private void OnCaretTaken(object? sender, EventArgs args)
     {
-        HasCaret = !IsReadOnly;
-        if (HasCaret) StartBlinking();
+        // Whether the caret is held is the engine's to say; only the blinking is this element's.
+        if (_engine.HasCaret) StartBlinking();
+        else StopBlinking();
+
         InvalidateVisual();
     }
 
@@ -350,14 +352,8 @@ public class ContentElement : FrameworkElement
     /// </summary>
     public bool UnlimitedWidth { get; init; }
 
-    /// <summary>Whether this element currently owns the caret.</summary>
-    public bool HasCaret { get; private set; }
-
-    /// <summary>
-    /// Whether there is a caret to draw: where something is being carried, the place it would land; otherwise the caret this has
-    /// taken, in content that is written in — and not while whole things are chosen, a slice or a node, which is no place to write.
-    /// </summary>
-    internal bool ShowsCaret => _engine.DrawsCaret(HasCaret);
+    /// <summary>The engine this shows: the content, its layout and the state of writing it — whether it holds the caret among them.</summary>
+    public ContentEngine Engine => _engine;
 
     /// <summary>Where the caret sits, as an offset into <see cref="Source"/>.</summary>
     public int Caret => State.Caret;
@@ -422,26 +418,6 @@ public class ContentElement : FrameworkElement
     /// <summary>Gives this content the caret at one particular place — what a press and a step both mean.</summary>
     public void TakeCaret(int offset, int at) => _engine.TakeCaret(offset, at);
 
-    /// <inheritdoc />
-    public void ReleaseCaret()
-    {
-        if (!HasCaret) return;
-        HasCaret = false;
-        StopBlinking();
-        InvalidateVisual();
-    }
-
-    /// <summary>
-    /// Shows the caret where it already stands, without putting it at a place first — what gaining the keyboard means, and
-    /// what a host restoring a state it saved means. A caret put at a place is <see cref="TakeCaret(int)"/>.
-    /// </summary>
-    public void ShowCaret()
-    {
-        HasCaret = !IsReadOnly;
-        if (HasCaret) StartBlinking();
-        InvalidateVisual();
-    }
-
     /// <summary>Blinks the caret. Runs only while this content holds the caret and is torn down on unload, so a page of them leaves no timers behind.</summary>
     private void StartBlinking()
     {
@@ -461,7 +437,7 @@ public class ContentElement : FrameworkElement
 
     private void OnBlink(object? sender, EventArgs e)
     {
-        if (!HasCaret) { StopBlinking(); return; }
+        if (!_engine.HasCaret) { StopBlinking(); return; }
         _caretVisible = !_caretVisible;
         InvalidateVisual();
     }
@@ -469,7 +445,7 @@ public class ContentElement : FrameworkElement
     /// <summary>Shows the caret and restarts the cycle — it must never be mid-blink while you type.</summary>
     protected void HoldCaretVisible()
     {
-        if (!HasCaret) return;
+        if (!_engine.HasCaret) return;
         _caretVisible = true;
         _blink?.Stop();
         _blink?.Start();
@@ -961,7 +937,7 @@ public class ContentElement : FrameworkElement
         if (_engine.Marking is { } marked)
             dc.DrawRectangle(null, new Pen(Palette.Accent.Brush(), MarkThickness), Rect.Inflate(LayoutRect.Offset(marked, by).ToWpf(), MarkThickness, MarkThickness));
 
-        if (!ShowsCaret || !_caretVisible) return;
+        if (!_engine.ShowsCaret || !_caretVisible) return;
 
         // Where the engine says the carets stand: where something carried would land, and a caret on every line of a block of columns.
         foreach (var caret in _engine.CaretsShown()) DrawCaret(dc, caret.X + by.X, caret.Y + by.Y, caret.Height);

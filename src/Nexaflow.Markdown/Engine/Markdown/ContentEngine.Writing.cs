@@ -55,7 +55,7 @@ public sealed partial class ContentEngine
     /// <summary>Raised whenever the caret moves inside the content.</summary>
     internal event EventHandler? CaretMoved;
 
-    /// <summary>Raised when the caret is put somewhere in the content, which is where whatever shows it shows it.</summary>
+    /// <summary>The caret was put at a place, shown where it stood or taken away: whether it is held now is <see cref="HasCaret"/>.</summary>
     internal event EventHandler? CaretTaken;
 
     /// <summary>Raised once the content has been laid out again, before anything is asked of the new layout or it is shown.</summary>
@@ -264,7 +264,7 @@ public sealed partial class ContentEngine
         Changed?.Invoke(this, moved || changed);
 
         if (moved) CaretMoved?.Invoke(this, EventArgs.Empty);
-        if (notify && changed) SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, ContentChangeKind.Written));
+        if (notify && changed) RaiseSourceChanged(new ContentSourceChange(before, this.State, ContentChangeKind.Written));
     }
 
     /// <summary>
@@ -323,6 +323,7 @@ public sealed partial class ContentEngine
     internal void TakeCaret(int offset, int at = -1)
     {
         Apply(CaretPlaced(Snap(offset)), notify: false, at);
+        HasCaret = !_readOnly;
         CaretTaken?.Invoke(this, EventArgs.Empty);
     }
 

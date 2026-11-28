@@ -43,7 +43,7 @@ public class ContentFromABuilderAloneTests
         Assert.IsTrue(tune.Laid.Places.Count > 0);
 
         tune.TakeCaret(0);
-        Assert.IsTrue(tune.HasCaret);
+        Assert.IsTrue(tune.Engine.HasCaret);
 
         var was = tune.Document.ToString();
         tune.Type('G');

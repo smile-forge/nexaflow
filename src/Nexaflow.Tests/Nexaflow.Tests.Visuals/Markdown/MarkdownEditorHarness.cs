@@ -301,9 +301,9 @@ internal sealed class DocumentBlock(NexaTextSurface editor, int index)
     public int Caret => Element.Caret;
 
     /// <summary>Whether the caret is in this block.</summary>
-    public bool HasCaret => Element.HasCaret && Caret >= Start && Caret <= End;
+    public bool HasCaret => Element.Engine.HasCaret && Caret >= Start && Caret <= End;
 
-    public bool ShowsCaret => Element.ShowsCaret && Caret >= Start && Caret <= End;
+    public bool ShowsCaret => Element.Engine.ShowsCaret && Caret >= Start && Caret <= End;
 
     /// <summary>The stretch shown as written, counted from <see cref="Origin"/>.</summary>
     public (int Start, int Length)? ShownAsWritten =>

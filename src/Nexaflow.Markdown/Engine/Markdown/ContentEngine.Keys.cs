@@ -366,7 +366,7 @@ public sealed partial class ContentEngine : IContentEditorView
             this.Apply(new EditState(value.Current, 0), notify: false, from: before);
             _last = this.State;
 
-            SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, ContentChangeKind.Loaded));
+            RaiseSourceChanged(new ContentSourceChange(before, this.State, ContentChangeKind.Loaded));
         }
     }
 
@@ -484,7 +484,7 @@ public sealed partial class ContentEngine : IContentEditorView
         this.Apply(new EditState(change.After.Document, caret), notify: false);
         _last = this.State;
 
-        SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, change.Kind));
+        RaiseSourceChanged(new ContentSourceChange(before, this.State, change.Kind));
     }
 
     /// <summary><paramref name="write"/>, done to the document as this engine's own writing, so the change it raises is not taken up again.</summary>
@@ -518,7 +518,7 @@ public sealed partial class ContentEngine : IContentEditorView
         Apply(state, notify: false);
         _last = this.State;
 
-        SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, kind));
+        RaiseSourceChanged(new ContentSourceChange(before, this.State, kind));
     }
 
     /// <summary>
@@ -536,7 +536,7 @@ public sealed partial class ContentEngine : IContentEditorView
         Recorded(ContentChangeKind.Replaced);
         this.History.Break();
 
-        SourceChanged?.Invoke(this, new ContentSourceChange(before, this.State, ContentChangeKind.Replaced));
+        RaiseSourceChanged(new ContentSourceChange(before, this.State, ContentChangeKind.Replaced));
     }
 
     /// <summary>What is here now is where the next step starts from, whatever was written before it.</summary>

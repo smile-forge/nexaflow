@@ -62,7 +62,7 @@ public class CaretIsDrawnTests
     {
         var formula = Measured(string.Empty);
         formula.TakeCaret(0);
-        formula.ReleaseCaret();
+        formula.Engine.ReleaseCaret();
 
         Assert.AreEqual(0, LinesDrawnBy(formula), "one caret on the page, and only where it is");
     });
