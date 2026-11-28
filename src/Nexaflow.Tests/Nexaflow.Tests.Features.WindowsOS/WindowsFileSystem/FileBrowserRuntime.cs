@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.Model;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
@@ -45,4 +46,7 @@ internal sealed class FileBrowserRuntime
     /// <summary>A browser tab opened on This PC.</summary>
     public FileSystemViewModel ThisPc()
         => FileSystemViewModel.CreateThisPc(_shell, _ai, _configs, _vfs, Registry, Operations, Companions);
+
+    /// <summary>A tab's model on this runtime, with no view-model over it and nowhere opened yet.</summary>
+    public FileSystemModel OpenModel() => new(_shell, _configs, _vfs, Registry, Operations, Companions);
 }

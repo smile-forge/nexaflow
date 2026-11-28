@@ -287,6 +287,7 @@ Each feature assembly follows the same internal structure:
 
 - One or more `*PageRegistration : IPageRegistration` (a few are named `*TabRegistration` but implement the same interface) — factory entry points, injected with `IShellServices` and any `IFeatureConfig` the assembly declares
 - `ViewModels/` — MVVM Toolkit `ObservableObject` view models; never reference Core
+- Optional: `Model/` — what a page is when that is more than its view needs: where it is, what it lists, what it does and what the assistant is given, named in no UI toolkit and in none of the view-models over it (`FeatureModelRulesTests`), so every toolkit's view-model shows the same model. The file browser's is `FileSystemModel`
 - `Views/` — WPF `UserControl`s, each marked `[ViewFor(typeof(ItsViewModel))]` and taking that view-model in its one constructor; Core makes them (`Visuals.Common/Viewing/ViewRegistry`)
 - Optional: `IQueryHandler` implementations registered globally or resolved from the active ViewModel
 - Optional: `IFileAction` / `IFolderAction` implementations for file browser context menus
@@ -489,6 +490,14 @@ view-model; `FeatureCatalog` records it (in feature assemblies and in `Nexaflow.
 and Core's `PageViews` keeps one per page until the tab closes, so a tab moved between panes or windows keeps its
 view. A page whose view-model or view cannot be made is drawn by `PageLoadErrorView` saying why. Because nothing in a
 page's contract is WPF's, another toolkit can draw the same view-models with views of its own.
+
+A view-model holds what its view needs. A page that is more than that keeps the rest in the feature's model, in its
+`Model/` folder: plain classes, observable where a view-model follows them, that name no UI toolkit and none of the
+view-models over them (`FeatureModelRulesTests`). The page's view-model wraps one model and adds only what its view
+needs — the words it shows, its timers, its pickers; another toolkit's view-model wraps the same model, and what acts
+on a page from outside its view — client tools, a drop target — takes the model, so it serves both. The file browser is
+the pattern: `FileSystemModel` holds the tab's `FolderLocation`, `FolderListing`, `FolderNavigation`, `FileCreation`,
+`SelectionActions` and `FolderAssistance`, and `FileSystemViewModel` is the WPF view's view of it.
 
 The same holds for what a contract hands out to be shown inside a feature's own surface — a page's context preview, a
 folder viewlet. Those are models too, and the feature hosting them places a `ModelHost` (`Visuals.Common/Viewing/`),
