@@ -32,6 +32,15 @@ public sealed class LineQuery
 
     /// <summary>Where on <paramref name="line"/> what it looks for is written, where the line is one it finds; nowhere, where it is not.</summary>
     public IReadOnlyList<(int Index, int Length)> On(string line) => _matches is null || _matches(line) ? _occurrences(line) : [];
+
+    /// <summary>
+    /// How many times what it looks for is written on <paramref name="line"/>: none where the line is not one it finds, and once where it is
+    /// found with nothing on it to point to.
+    /// </summary>
+    public int TimesOn(string line) =>
+        _matches is null ? _occurrences(line).Count
+      : _matches(line) ? Math.Max(1, _occurrences(line).Count)
+      : 0;
 }
 
 /// <summary>
@@ -93,14 +102,22 @@ public abstract class ContentFind : IDisposable
     protected void Said() => this.Changed?.Invoke(this, EventArgs.Empty);
 }
 
-/// <summary>What a read of a whole file found: every line found, in order, from nought — and the first of them, with what is written on each.</summary>
-public sealed record FoundLines(long[] Lines, IReadOnlyList<(long Line, string Text)> First);
+/// <summary>
+/// What a read of a whole file found: every line found, in order, from nought; how many matches stand up to and including each of them
+/// (<see cref="Ends"/>, so every match is counted, and the line any one of them is on found by halving); and the first lines found, with what
+/// is written on each.
+/// </summary>
+public sealed record FoundLines(long[] Lines, int[] Ends, IReadOnlyList<(long Line, string Text)> First)
+{
+    /// <summary>How many matches were found, over every line — a line holding two counts twice.</summary>
+    public int Count => this.Ends.Length == 0 ? 0 : this.Ends[^1];
+}
 
 /// <summary>
 /// A search over the lines of the file a page shows (<see cref="ShownFile"/>) — the whole file, whether the page's document is the file or a
 /// window onto one too long for a document. It reads the file a line at a time off the page, as the file stood when the search began, and
 /// finds the lines a query finds, in order; marks what the query finds on the lines drawn, so marking costs a screen however much it found;
-/// steps from the line looked at or from the caret; narrows to lines chosen; and, as the file is written in or grows, runs again once that
+/// steps through every match on them, on from the one looked at or from the caret; narrows to lines chosen; and, as the file is written in or grows, runs again once that
 /// pauses, the reader kept on the match they were on.
 /// </summary>
 public sealed class FileFind : ContentFind
@@ -114,6 +131,9 @@ public sealed class FileFind : ContentFind
 
     /// <summary>The lines of the whole file found, from nought, in order.</summary>
     private long[] _lines = [];
+
+    /// <summary>How many matches stand up to and including each of the lines found — what a match, counted from nought, is found on.</summary>
+    private int[] _ends = [];
 
     /// <summary>The lines it was narrowed to, which it is not run again over — or null, every line the query finds.</summary>
     private HashSet<long>? _kept;
@@ -142,33 +162,39 @@ public sealed class FileFind : ContentFind
     /// <summary>The lines of the whole file found, from nought, in order.</summary>
     public IReadOnlyList<long> Lines => _lines;
 
-    public override int Count => _lines.Length;
+    /// <summary>How many matches it found — a line holding two counts twice.</summary>
+    public override int Count => _ends.Length == 0 ? 0 : _ends[^1];
 
     /// <summary>The line of the whole file, from nought, of the match looked at — or -1, where none is.</summary>
-    public long LookedAtLine => this.At >= 0 && this.At < _lines.Length ? _lines[this.At] : -1;
+    public long LookedAtLine => this.At >= 0 && this.At < this.Count ? _lines[this.LineOfMatch(this.At)] : -1;
 
     /// <summary>Whether it was narrowed to lines chosen rather than every line the query finds.</summary>
     public bool IsNarrowed => _kept is not null;
 
     /// <summary>
-    /// Reads the whole file for <paramref name="query"/>, changing nothing shown: every line it finds, and the first <paramref name="first"/> of
-    /// them with what is written on each. Read a line at a time off this thread, from the file as it stood when asked.
+    /// Reads the whole file for <paramref name="query"/>, changing nothing shown: every line it finds and how many matches each holds, and the
+    /// first <paramref name="first"/> of the lines with what is written on each. Read a line at a time off this thread, from the file as it stood
+    /// when asked.
     /// </summary>
     public async Task<FoundLines> ReadAsync(LineQuery query, int first, CancellationToken cancel)
     {
         var lines = _file.Lines();
         var found = new List<long>();
+        var ends = new List<int>();
         var firsts = new List<(long Line, string Text)>();
+        var matches = 0;
 
         await Task.Run(() => lines((line, _, text) =>
         {
-            if (!query.Matches(text)) return;
+            var times = query.TimesOn(text);
+            if (times == 0) return;
 
             found.Add(line);
+            ends.Add(matches += times);
             if (firsts.Count < first) firsts.Add((line, text));
         }, cancel), cancel);
 
-        return new FoundLines([.. found], firsts);
+        return new FoundLines([.. found], [.. ends], firsts);
     }
 
     /// <summary>
@@ -195,7 +221,7 @@ public sealed class FileFind : ContentFind
 
         if (reading.IsCancellationRequested) return found;
 
-        this.Shown(query, found.Lines, at: 0, go: true);
+        this.Shown(query, found, at: 0, go: true);
         if (written != _written) await this.AgainAsync();
 
         return found;
@@ -222,17 +248,40 @@ public sealed class FileFind : ContentFind
     }
 
     /// <summary>
-    /// Goes to the match after the caret's line (<paramref name="forward"/>) or before it — round past either end — as a click and then
-    /// Find Next does in every editor.
+    /// Goes to the match after the caret (<paramref name="forward"/>) or before it — round past either end — as a click and then Find Next does
+    /// in every editor: the next on the caret's own line where one stands past it, and otherwise the first on the next line found.
     /// </summary>
     public bool StepFromCaret(bool forward)
     {
-        if (_lines.Length == 0) return false;
+        var count = this.Count;
+        if (count == 0) return false;
 
-        var caret = _file.LineOf(_file.Editor.Caret);
-        var at = forward ? LowerBound(_lines, caret + 1) : LowerBound(_lines, caret) - 1;
-        this.GoTo(forward ? (at >= _lines.Length ? 0 : at) : (at < 0 ? _lines.Length - 1 : at));
+        var caret = _file.Editor.Caret;
+        var line = _file.LineOf(caret);
+        var index = LowerBound(_lines, line);
 
+        // From the next line found on, or back from it; past what is on the caret's own line, where it stands on one found.
+        var at = forward ? this.FirstMatchOn(index) : this.FirstMatchOn(index) - 1;
+
+        if (index < _lines.Length && _lines[index] == line && this.Query is { } query
+            && _file.OffsetOfLine(line) is { } start && _file.HeldOffset(start) is { } held)
+        {
+            var document = _file.Document.Current;
+            var (from, end) = document.LineAt(held);
+            var column = caret - from;
+            var (upTo, before) = (0, 0);
+
+            foreach (var (place, _) in query.On(document.Slice(from, end - from).TrimEnd('\r', '\n')))
+            {
+                if (place <= column) upTo++;
+                if (place < column) before++;
+            }
+
+            var first = this.FirstMatchOn(index);
+            at = forward ? first + upTo : first + before - 1;
+        }
+
+        this.GoTo(at >= count ? 0 : at < 0 ? count - 1 : at);
         return true;
     }
 
@@ -253,8 +302,9 @@ public sealed class FileFind : ContentFind
             var found = await this.ReadAsync(query, 0, reading.Token);
             if (reading.IsCancellationRequested || !ReferenceEquals(query, this.Query)) return;
 
-            var at = LowerBound(found.Lines, parked);
-            this.Shown(query, found.Lines, Math.Min(at, found.Lines.Length - 1), go: false);
+            var line = LowerBound(found.Lines, parked);
+            var at = line < found.Lines.Length ? (line == 0 ? 0 : found.Ends[line - 1]) : found.Count - 1;
+            this.Shown(query, found, at, go: false);
         }
         catch (OperationCanceledException)
         {
@@ -279,7 +329,7 @@ public sealed class FileFind : ContentFind
     public override void Clear()
     {
         _reading?.Cancel();
-        (this.Query, _lines, _kept, this.At, this.IsShowing) = (null, [], null, -1, false);
+        (this.Query, _lines, _ends, _kept, this.At, this.IsShowing) = (null, [], [], null, -1, false);
         _marks.Show(query: null);
         this.Said();
     }
@@ -293,13 +343,13 @@ public sealed class FileFind : ContentFind
 
     protected override void Gone(int at)
     {
-        var line = _lines[at];
-        if (_file.OffsetOfLine(line) is not { } start) return;
+        var index = this.LineOfMatch(at);
+        if (_file.OffsetOfLine(_lines[index]) is not { } start) return;
 
         // The window over a file too long for one document brought there first.
         var offset = _file.DocumentOffset(start);
         var document = _file.Document.Current;
-        var match = this.FirstOn(document, offset);
+        var match = this.MatchOn(document, offset, at - this.FirstMatchOn(index));
 
         _file.Editor.MoveCaretTo(match?.Start ?? document.LineAt(offset).Start);
         _marks.LookAt(match);
@@ -307,13 +357,13 @@ public sealed class FileFind : ContentFind
     }
 
     /// <summary>
-    /// Shows <paramref name="lines"/> as what <paramref name="query"/> found, <paramref name="at"/> the one looked at — gone to where
+    /// Shows <paramref name="found"/> as what <paramref name="query"/> found, match <paramref name="at"/> the one looked at — gone to where
     /// <paramref name="go"/> says, and otherwise only outlined, where the page holds it.
     /// </summary>
-    private void Shown(LineQuery query, long[] lines, int at, bool go)
+    private void Shown(LineQuery query, FoundLines found, int at, bool go)
     {
-        (_lines, _kept) = (lines, null);
-        this.At = lines.Length == 0 ? -1 : Math.Clamp(at, 0, lines.Length - 1);
+        (_lines, _ends, _kept) = (found.Lines, found.Ends, null);
+        this.At = found.Count == 0 ? -1 : Math.Clamp(at, 0, found.Count - 1);
         this.IsShowing = true;
 
         this.Query = query;
@@ -325,30 +375,60 @@ public sealed class FileFind : ContentFind
         this.Said();
     }
 
-    /// <summary>The first match on the line looked at, where the document holds that line — a window onto a file is not moved to it.</summary>
-    private (int Start, int Length)? HeldMatch() =>
-        this.At >= 0 && _file.OffsetOfLine(_lines[this.At]) is { } start && _file.HeldOffset(start) is { } held
-            ? this.FirstOn(_file.Document.Current, held)
-            : null;
+    /// <summary>The match looked at, where the document holds its line — a window onto a file is not moved to it.</summary>
+    private (int Start, int Length)? HeldMatch()
+    {
+        if (this.At < 0) return null;
 
-    /// <summary>Keeps <paramref name="lines"/>, in order, as all it found — the marks only on them.</summary>
+        var index = this.LineOfMatch(this.At);
+        return _file.OffsetOfLine(_lines[index]) is { } start && _file.HeldOffset(start) is { } held
+            ? this.MatchOn(_file.Document.Current, held, this.At - this.FirstMatchOn(index))
+            : null;
+    }
+
+    /// <summary>Keeps <paramref name="lines"/>, in order, as all it found — the marks only on them, and each stepped to once.</summary>
     private void Kept(long[] lines)
     {
         var kept = new HashSet<long>(lines);
-        (_lines, _kept) = (lines, kept);
+        (_lines, _ends, _kept) = (lines, [.. Enumerable.Range(1, lines.Length)], kept);
         this.At = lines.Length == 0 ? -1 : Math.Clamp(this.At, 0, lines.Length - 1);
 
         _marks.Show(this.Query, line => kept.Contains(_file.LinesBefore + line));
     }
 
-    /// <summary>The first match on the line of <paramref name="document"/> holding <paramref name="offset"/>, where the query finds one.</summary>
-    private (int Start, int Length)? FirstOn(ContentDocument document, int offset)
+    /// <summary>
+    /// Match <paramref name="nth"/>, from nought, on the line of <paramref name="document"/> holding <paramref name="offset"/> — the first, where
+    /// the line holds fewer now — where the query finds any.
+    /// </summary>
+    private (int Start, int Length)? MatchOn(ContentDocument document, int offset, int nth)
     {
         if (this.Query is not { } query) return null;
 
         var (start, end) = document.LineAt(offset);
-        return query.On(document.Slice(start, end - start).TrimEnd('\r', '\n')) is [var (index, length), ..] ? (start + index, length) : null;
+        var on = query.On(document.Slice(start, end - start).TrimEnd('\r', '\n'));
+        if (on.Count == 0) return null;
+
+        var (index, length) = on[nth < on.Count ? nth : 0];
+        return (start + index, length);
     }
+
+    /// <summary>Which of the lines found holds match <paramref name="at"/>, counted from nought — found by halving.</summary>
+    private int LineOfMatch(int at)
+    {
+        var (low, high) = (0, _ends.Length - 1);
+
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (_ends[middle] > at) high = middle;
+            else low = middle + 1;
+        }
+
+        return low;
+    }
+
+    /// <summary>The match, counted from nought, that is the first on line <paramref name="index"/> of those found — every match, past the last.</summary>
+    private int FirstMatchOn(int index) => index == 0 ? 0 : _ends[index - 1];
 
     /// <summary>The line the reader is on: the match looked at, carried through what was written since, or the caret's where none is.</summary>
     private long Parked() =>

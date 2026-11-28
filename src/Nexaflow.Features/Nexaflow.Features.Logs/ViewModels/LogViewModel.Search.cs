@@ -75,7 +75,7 @@ public sealed partial class LogViewModel : ISearchable
         var found = display ? await _find.FindAsync(query, SearchHitCap, ct) : await _find.ReadAsync(query, SearchHitCap, ct);
         if (display) CurrentSearchTerm = SearchSyntax.Format(request);
 
-        return Outcome(found.Lines.Length, [.. found.First.Select(line => HitFor(line.Line, line.Text))]);
+        return Outcome(found.Count, [.. found.First.Select(line => HitFor(line.Line, line.Text))]);
     }
 
     /// <summary>

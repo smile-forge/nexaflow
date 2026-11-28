@@ -81,7 +81,7 @@ public partial class FileTextEditorViewModel : ISearchable
         var found = display ? await _find.FindAsync(query, SearchHitCap, ct) : await _find.ReadAsync(query, SearchHitCap, ct);
         if (display) CurrentSearchTerm = SearchSyntax.Format(request);
 
-        return found.Lines.Length == 0 ? SearchOutcome.None() : SearchOutcome.Found([.. found.First.Select(HitFor)], found.Lines.Length);
+        return found.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found([.. found.First.Select(HitFor)], found.Count);
     }
 
     /// <summary>

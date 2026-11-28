@@ -133,8 +133,12 @@ public sealed partial class TextViewModel
         finally { IsSearchRunning = false; }
     }
 
-    /// <summary>What <paramref name="request"/> asks of each line of the file.</summary>
-    private static LineQuery QueryOf(SearchRequest request) => new(request.Matches, request.Occurrences);
+    /// <summary>
+    /// What the page finds for a request: each of its words on its own — a line is found wherever any of them is written, and every one of them
+    /// is marked wherever it stands. <c>dog 120000</c> finds every "dog" and every "120000", not the lines holding both with only those marked;
+    /// a phrase the user means as one is typed with the words option off, or quoted.
+    /// </summary>
+    private static LineQuery QueryOf(SearchRequest request) => new(request.Occurrences);
 
     /// <summary>What the search found, or which of it is looked at, changed: the count, whether it shows, and the minimap's ticks said again.</summary>
     private void OnFindChanged(object? sender, EventArgs args)
@@ -178,7 +182,7 @@ public sealed partial class TextViewModel
         {
             // Agent-side read: scan without touching the marks, the minimap or the find bar.
             var found = await _find.ReadAsync(QueryOf(request), SearchHitCap, ct);
-            return found.Lines.Length == 0 ? SearchOutcome.None() : SearchOutcome.Found(Hits(found.First), found.Lines.Length);
+            return found.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(Hits(found.First), found.Count);
         }
 
         // Inject the query into the find bar so it lights up exactly what the bar would, and turn on the

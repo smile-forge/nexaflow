@@ -54,12 +54,12 @@ public sealed partial class TextViewModel
         var request = new SearchRequest(query, IsRegex: regex, MatchCase: caseSensitive);
         var found = await await _shell.RunOnUiAsync(() => Task.FromResult(_find.ReadAsync(QueryOf(request), max, ct)));
 
-        if (found.Lines.Length == 0) return "No matches.";
+        if (found.Count == 0) return "No matches.";
 
         var text = new StringBuilder();
         foreach (var (line, written) in found.First) text.Append("line ").Append(line + 1).Append(": ").Append(written).Append('\n');
 
-        return $"{found.Lines.Length} match(es). Showing {found.First.Count}:\n{text}";
+        return $"{found.Count} match(es) on {found.Lines.Length} line(s). Showing the first {found.First.Count} lines:\n{text}";
     }
 
     /// <summary>

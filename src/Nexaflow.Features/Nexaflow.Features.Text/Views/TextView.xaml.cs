@@ -64,11 +64,8 @@ public partial class TextView : UserControl
     {
         switch (e.Key)
         {
+            // The box searches as it is typed in, so Enter steps nothing: F3 and Shift+F3 step, from anywhere on the page.
             case Key.Enter:
-                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-                    _vm.FindPreviousCommand.Execute(null);
-                else
-                    _vm.FindNextCommand.Execute(null);
                 e.Handled = true;
                 break;
             case Key.Escape:

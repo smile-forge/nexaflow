@@ -102,6 +102,25 @@ public class TextFindReplaceTests
     });
 
     [TestMethod]
+    [CoversNode("text-viewer-searchbar")]
+    public void EachWordTyped_IsFoundWhereverItIsWritten() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("the lazy dog 130000\nline 130000\na dog\nnothing here\n");
+        try
+        {
+            using var vm = Make(path);
+            await vm.LoadAsync(CancellationToken.None);
+
+            // Typed, the search runs once typing pauses: waited for by what it says, however long a busy machine takes to start it.
+            vm.FindText = "dog 130000";
+            for (var wait = 0; wait < 500 && (vm.IsSearchRunning || vm.SearchMatchCount == 0); wait++) await Task.Delay(10);
+
+            Assert.AreEqual(4, vm.SearchMatchCount, "every dog and every 130000 is found — two on the line holding both, one on each holding either — not only the line holding both");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
     [Timeout(60_000, CooperativeCancellation = true)]
     [CoversNode("text-viewer-searchbar")]
     public void ALineHalfWayDownALargeFile_IsFound() => AsyncPump.Run(async () =>

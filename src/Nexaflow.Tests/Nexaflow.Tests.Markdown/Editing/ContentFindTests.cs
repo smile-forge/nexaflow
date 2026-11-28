@@ -28,8 +28,9 @@ public class ContentFindTests
         var found = await opened.Find.FindAsync(Needle, first: 2, default);
 
         CollectionAssert.AreEqual(new long[] { 0, 2, 4 }, found.Lines);
+        CollectionAssert.AreEqual(new[] { 1, 3, 4 }, found.Ends, "how many matches stand up to each line found");
         CollectionAssert.AreEqual(new[] { (0L, "a needle"), (2L, "needle and needle") }, found.First.ToArray(), "the first of them, with what each says");
-        Assert.AreEqual(3, opened.Find.Count, "a line at a time");
+        Assert.AreEqual(4, opened.Find.Count, "a match at a time: the line holding two counts twice");
         Assert.AreEqual(0, opened.Find.At);
         Assert.IsTrue(opened.Find.IsShowing);
         Assert.AreEqual(2, opened.Editor.Caret, "the caret on the first match itself");
@@ -38,7 +39,7 @@ public class ContentFindTests
     }
 
     [TestMethod]
-    public async Task Stepping_GoesRoundEitherWay_AndOnFromTheCaret()
+    public async Task Stepping_GoesThroughEveryMatch_RoundEitherWay_AndOnFromTheCaret()
     {
         using var opened = new Opened(Haystack);
         var find = opened.Find;
@@ -49,19 +50,31 @@ public class ContentFindTests
         Assert.AreEqual((13, 6), opened.Editor.Found.LookedAt);
 
         find.Next();
+        Assert.AreEqual((2, 24), (find.At, opened.Editor.Caret), "the second match on the same line, not the next line");
+        Assert.AreEqual((24, 6), opened.Editor.Found.LookedAt);
+
+        find.Next();
         find.Next();
         Assert.AreEqual(0, find.At, "past the last, round to the first");
 
         find.Previous();
-        Assert.AreEqual(2, find.At, "before the first, round to the last");
+        Assert.AreEqual(3, find.At, "before the first, round to the last");
 
         opened.Editor.MoveCaretTo(10);
         find.StepFromCaret(forward: true);
-        Assert.AreEqual(1, find.At, "the first after the caret's line");
+        Assert.AreEqual(1, find.At, "the first after the caret");
 
         opened.Editor.MoveCaretTo(10);
         find.StepFromCaret(forward: false);
-        Assert.AreEqual(0, find.At, "the last before the caret's line");
+        Assert.AreEqual(0, find.At, "the last before the caret");
+
+        opened.Editor.MoveCaretTo(13);
+        find.StepFromCaret(forward: true);
+        Assert.AreEqual(2, find.At, "from a match, on to the next on the same line");
+
+        opened.Editor.MoveCaretTo(24);
+        find.StepFromCaret(forward: false);
+        Assert.AreEqual(1, find.At, "and back to the one before it on that line");
 
         opened.Editor.MoveCaretTo(41);
         find.StepFromCaret(forward: true);
@@ -75,7 +88,7 @@ public class ContentFindTests
 
         var found = await opened.Find.ReadAsync(Needle, first: 10, default);
 
-        Assert.AreEqual(3, found.Lines.Length);
+        Assert.AreEqual((3, 4), (found.Lines.Length, found.Count), "three lines found, four matches on them");
         Assert.IsFalse(opened.Find.IsShowing);
         Assert.IsTrue(opened.Editor.Found.IsEmpty);
         Assert.AreEqual(0, opened.Editor.Caret);
@@ -112,10 +125,10 @@ public class ContentFindTests
         opened.Document.Write(ContentChange.Write(0, 0, "needle first\n"));
         Assert.AreEqual(5, opened.Washed().Count, "at once, the marks are of what is written now");
 
-        for (var wait = 0; wait < 200 && find.Count != 4; wait++) await Task.Delay(10);
+        for (var wait = 0; wait < 200 && find.Count != 5; wait++) await Task.Delay(10);
 
-        Assert.AreEqual(4, find.Count, "the line written is counted once writing pauses");
-        Assert.AreEqual(3, find.LookedAtLine, "still on the match they were on, a line further down now");
+        Assert.AreEqual(5, find.Count, "the match written is counted once writing pauses");
+        Assert.AreEqual(3, find.LookedAtLine, "still on the line they were on, a line further down now");
         Assert.AreEqual(13, opened.Editor.Caret - "needle first\n".Length, "and nothing moved");
     }
 
