@@ -8,8 +8,9 @@ using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Visuals.Common.Controls;
 
-/// <summary>A swatch as a picker offers it: the bank entry, and the id a journey clicks it by.</summary>
-public sealed record SwatchChip(string Key, string Name, Brush Brush, string AutomationId);
+/// <summary>A swatch as a picker offers it: the bank entry, and the id a journey clicks it by. It names the brush rather than
+/// holding one, so what a chip shows follows the theme without the list being built again.</summary>
+public sealed record SwatchChip(string Key, string Name, string AutomationId);
 
 /// <summary>
 /// Picks a <see cref="ColorSpec"/>: the theme default, a token from the <c>Swatch.*</c> bank (which follows the
@@ -32,11 +33,7 @@ public partial class ColorPicker : UserControl
     public ColorPicker()
     {
         InitializeComponent();
-        Loaded += (_, _) =>
-        {
-            BuildSwatches();
-            Refresh();
-        };
+        Loaded += (_, _) => Refresh();
         SizeChanged += (_, _) => PlaceThumbs();
     }
 
@@ -201,16 +198,27 @@ public partial class ColorPicker : UserControl
 
     public static readonly DependencyProperty SwatchesProperty = SwatchesKey.DependencyProperty;
 
+    /// <summary>The resource a chip's background is looked up by, so the chip follows the theme's bank as it is retuned.</summary>
+    public static readonly DependencyProperty BackgroundKeyProperty = DependencyProperty.RegisterAttached(
+        "BackgroundKey", typeof(string), typeof(ColorPicker),
+        new PropertyMetadata(null, (d, e) => ((FrameworkElement)d).SetResourceReference(Control.BackgroundProperty, e.NewValue)));
+
+    public static string? GetBackgroundKey(DependencyObject element) => (string?)element.GetValue(BackgroundKeyProperty);
+
+    public static void SetBackgroundKey(DependencyObject element, string? value) => element.SetValue(BackgroundKeyProperty, value);
+
     public IReadOnlyList<SwatchChip> Swatches => (IReadOnlyList<SwatchChip>)GetValue(SwatchesProperty);
 
+    /// <summary>
+    /// Offers the bank under the current prefix. A list equal to the one on offer is left in place: replacing it would leave a
+    /// UI Automation client holding the peers of buttons that are gone.
+    /// </summary>
     private void BuildSwatches()
     {
-        // The bank lives in the app's resources; with no app (a headless test) there is simply nothing to offer.
-        if (Application.Current is null) return;
-        SetValue(SwatchesKey, SwatchPalette.Keys
-            .Select(key => (Key: key, Id: key["Swatch.".Length..]))
-            .Select(s => new SwatchChip(s.Key, SwatchPalette.HueName(s.Key), SwatchPalette.Resolve(s.Key), $"{AutomationPrefix}_Swatch{s.Id}"))
-            .ToList());
+        var chips = SwatchPalette.Keys
+            .Select(key => new SwatchChip(key, SwatchPalette.HueName(key), $"{AutomationPrefix}_Swatch{key["Swatch.".Length..]}"))
+            .ToList();
+        if (!chips.SequenceEqual(Swatches)) SetValue(SwatchesKey, chips);
     }
 
     private void Swatch_Click(object sender, RoutedEventArgs e)
