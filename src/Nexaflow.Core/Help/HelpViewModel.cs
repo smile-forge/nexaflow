@@ -89,7 +89,7 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
     }
 
     // ── View collaboration ────────────────────────────────────────────────
-    // The live FlowDocument is the view's, so it highlights and steps; set by HelpView. Absent in a headless test,
+    // The page's surface finds, marks and steps the matches, so these are the view's; set by HelpView. Absent in a headless test,
     // where only the agent path and the other-pages list are exercised.
 
     public Func<TextSearchMatcher, IReadOnlyList<RenderedMatch>>? FindInRendered { get; set; }

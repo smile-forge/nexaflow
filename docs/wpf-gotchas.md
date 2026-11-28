@@ -46,4 +46,4 @@ routed event's `OriginalSource` over it is unreliable too — the text container
 the `FlowDocument`, or even a *neighbouring* `Paragraph`/`Run` depending on the region. To give an embedded element
 its own mouse interaction, hook the `RichTextBox`'s Preview event, find the element with a geometric
 `VisualTreeHelper.HitTest`, and drive it directly. A markdown document needs none of this:
-`MarkdownSurface` draws it on one element with no text box underneath.
+`NexaTextSurface` draws it on one element with no text box underneath.

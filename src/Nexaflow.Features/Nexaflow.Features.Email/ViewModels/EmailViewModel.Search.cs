@@ -44,7 +44,7 @@ internal sealed partial class EmailViewModel : ISearchable
     partial void OnSearchMatchCountChanged(int value) => OnPropertyChanged(nameof(HasSearchMatches));
 
     // ── View collaboration ────────────────────────────────────────────────────
-    // The rendered body highlights itself (the view owns its FlowDocument); a plain-text / HTML-source body
+    // The rendered body's surface highlights its own matches; a plain-text / HTML-source body
     // is a text box whose match is shown by selecting it. Set by EmailView; absent in a headless test.
 
     /// <summary>Runs the matcher against the rendered body surface, highlighting it, and returns the matches.</summary>

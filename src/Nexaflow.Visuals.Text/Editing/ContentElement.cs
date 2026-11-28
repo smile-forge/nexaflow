@@ -26,8 +26,8 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// reading, its layout and the state of writing it (<see cref="ContentEngine"/>).
 /// <para>
 /// The pointer gesture is split into <see cref="BeginPointerSelect(Point)"/> / <see cref="ExtendPointerSelect"/> /
-/// <see cref="EndPointerSelect"/> rather than driven by this element's own mouse events, because content hosted inside a
-/// <c>RichTextBox</c> does not reliably receive mouse input — the host hit-tests geometrically and drives these methods instead.
+/// <see cref="EndPointerSelect"/>, which this element's own mouse handlers call, so a gesture can also be driven by position
+/// alone — tests press, drag and release this way with no mouse.
 /// </para>
 /// </summary>
 public class ContentElement : FrameworkElement
@@ -91,10 +91,8 @@ public class ContentElement : FrameworkElement
         SnapsToDevicePixels = true;
         Cursor = Cursors.IBeam;
 
-        // Never take keyboard focus. Content is hosted inside a RichTextBox's FlowDocument, and an embedded
-        // element that can be focused ends up as the focus target the window restores to on re-activation —
-        // at which point the RichTextBox reconciles its caret against a text-tree node that holds no text,
-        // and faults deep inside the splay tree.
+        // Never take keyboard focus: the surface holding this element takes it and hands every key to the engine
+        // (NexaTextSurface.Keys), so focus stays on one control whichever piece of the content was pressed.
         Focusable = false;
 
         Loaded += (_, _) => HookSideways();
