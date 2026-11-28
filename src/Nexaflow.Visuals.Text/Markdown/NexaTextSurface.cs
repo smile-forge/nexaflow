@@ -589,7 +589,15 @@ public sealed partial class NexaTextSurface : UserControl, IContentEvents
             TextSize = double.IsNaN(BaseFontSize) || BaseFontSize <= 0 ? TextTypography.BaseFontSize : BaseFontSize,
             TabWidth = TabWidth,
             ShowsWhitespace = ShowsWhitespace,
+            DevicePixel = 1 / VisualTreeHelper.GetDpi(this).PixelsPerDip,
         };
+
+    /// <summary>Moved to a screen whose pixels are another size: laid again, so its lines stand a whole number of the new pixels apart.</summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        Remake();
+    }
 
     /// <summary>What the host said about what the document holds, as the engine is told it.</summary>
     private ContentInputs Asked => new(WpfPicture.Finding(MarkdownPictures.Found(_pictures, BaseDirectory)), _links, _data);

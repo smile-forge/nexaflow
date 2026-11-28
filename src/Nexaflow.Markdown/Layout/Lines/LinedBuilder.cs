@@ -60,7 +60,7 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
     {
         if (Reading.Root.Length == 0) return null;
 
-        var height = LinedSetting.LineHeight(Characters, Medium);
+        var height = LinedSetting.LineHeight(Characters, Medium, Style.DevicePixel);
         var laid = LaidBlocks.Of(Reading.Root);
 
         // A stretch the next carries on from ends where the next begins, which stands for that place: a caret is not put after it too.

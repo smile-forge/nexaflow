@@ -77,7 +77,7 @@ public sealed partial class ContentEngine
         _keyboard = held;
 
         if (!held) ReleaseCaret();
-        else if (!HasCaret && !_readOnly) ShowCaret();
+        else if (!HasCaret) ShowCaret();
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ public sealed partial class ContentEngine
     /// </summary>
     public void ShowCaret()
     {
-        HasCaret = !_readOnly;
+        HasCaret = true;
         CaretTaken?.Invoke(this, EventArgs.Empty);
     }
 
@@ -105,7 +105,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private void RaiseSourceChanged(ContentSourceChange change)
     {
-        if (change.Kind != ContentChangeKind.Written && _keyboard && !_readOnly) ShowCaret();
+        if (change.Kind != ContentChangeKind.Written && _keyboard) ShowCaret();
 
         SourceChanged?.Invoke(this, change);
     }

@@ -496,18 +496,18 @@ public sealed partial class ContentEngine
         _carry = null;
         ClearPreview();
 
-        if (_readOnly) return;
-
         // The press never became a drag. Over the selection, an ordinary click on it, which places the caret there and drops the
-        // selection, as clicking a selection does everywhere; over a carry of a language's own, whatever the press would have
-        // meant had it picked nothing up.
+        // selection, as clicking a selection does everywhere — in content only read too, where the caret is where picking out starts;
+        // over a carry of a language's own, whatever the press would have meant had it picked nothing up, where it may be written.
         if (settled is not { } moved)
         {
-            if (carried is not null) PressedOn(_pressedAt);
+            if (carried is not null && !_readOnly) PressedOn(_pressedAt);
             else { ClearSelection(); TakeCaret(Anchor); }
 
             return;
         }
+
+        if (_readOnly) return;
 
         // Exactly what was on screen a moment ago — settling is letting go of it, not recomputing something the reader has to
         // check. It is the version the move's change made, so what is kept to take back is that change.

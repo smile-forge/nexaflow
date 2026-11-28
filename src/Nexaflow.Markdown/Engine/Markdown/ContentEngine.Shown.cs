@@ -58,20 +58,20 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// The stretch of the document drawn round the screen — <paramref name="painted"/>, what is painted round it — which is all a mark is
-    /// worked out for: from the first place laid on it to the first laid below it, or, where nothing laid stands below it, to the last place
-    /// laid at all, which stands above the band's bottom. Null where nothing has said where the screen is, so nothing is marked until it does.
-    /// Never the whole document, nor on to its end past what is laid of one read a stretch at a time: a long one would cost a mark for every
-    /// line it holds.
+    /// worked out for: from the first place laid on it to the last place laid on it. Null where nothing has said where the screen is, or where
+    /// nothing laid stands on it yet, so nothing is marked until something does. Never the whole document, nor on past the band to whatever is
+    /// laid next of one read a stretch at a time — after a jump that can be the end of the file, and a long stretch costs a mark for every line
+    /// it holds, at every paint.
     /// </summary>
     internal (int Start, int End)? NearScreen(LayoutRect? painted)
     {
         if (painted is not { } near) return null;
 
         var from = _laid.Root.StopBelow(near.Y);
-        var to = _laid.Root.StopBelow(near.Y + near.Height);
-        var last = _laid.Stops is { Count: > 0 } stops ? stops[^1] : this.State.Document.Length;
+        var to = _laid.Root.StopAbove(near.Y + near.Height);
 
-        return (from < 0 ? last : from, to < 0 ? last : to);
+        // Nothing laid stands near the screen — what is there is still being read — so nothing near it is asked about.
+        return from < 0 || to < 0 || from > to ? null : (from, to);
     }
 
     /// <summary>
@@ -208,7 +208,8 @@ public sealed partial class ContentEngine
 
         if (!_readOnly && Gripping(piece, at) is { } grip) return (grip, tip);
 
-        return (!_readOnly && _laid.Root.Writable(at, PointerReach) ? PointerShape.Text : PointerShape.Arrow, tip);
+        // Over words a bar, whether they may be written in or only read: read, they are still picked out from where the caret stands.
+        return (_laid.Root.Writable(at, PointerReach) ? PointerShape.Text : PointerShape.Arrow, tip);
     }
 
     /// <summary>What <paramref name="piece"/> says while pointed at (<see cref="PointedAt"/>).</summary>

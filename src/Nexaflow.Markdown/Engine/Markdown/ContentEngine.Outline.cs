@@ -303,7 +303,7 @@ public sealed partial class ContentEngine
             if (high >= low) lines += document.LineOf(high) - document.LineOf(low) + 1;
         }
 
-        return lines == 0 ? 0 : lines * LinedSetting.LineHeight(LinedSetting.Typed(style), _medium);
+        return lines == 0 ? 0 : lines * LinedSetting.LineHeight(LinedSetting.Typed(style), _medium, style.DevicePixel);
     }
 
     /// <summary>What the reader's folding says of the block <paramref name="block"/> of the content laid.</summary>

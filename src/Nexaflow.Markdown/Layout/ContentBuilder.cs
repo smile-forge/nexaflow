@@ -189,7 +189,8 @@ public abstract class ContentBuilder
     /// What <paramref name="holder"/> holds written in another language, laid out at <paramref name="room"/> standing as
     /// <paramref name="standing"/> says, or null where nothing read it — the one thing a builder asks of whatever hosts it.
     /// </summary>
-    protected LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing) => _host.Nesting(holder, room, standing);
+    protected LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing, string? writtenIn = null) =>
+        _host.Nesting(holder, room, standing, writtenIn);
 
     /// <summary>Whether what <paramref name="holder"/> holds is set in the box a page sets what it shows as written in (<see cref="LayoutHost.BoxedAsWritten"/>).</summary>
     protected bool BoxedAsWritten(ContentPart holder) => _host.BoxedAsWritten(holder);

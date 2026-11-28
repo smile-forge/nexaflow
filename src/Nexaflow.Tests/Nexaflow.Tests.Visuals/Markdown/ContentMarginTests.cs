@@ -99,7 +99,7 @@ public class ContentMarginTests
             var row = lines.Count > 0 ? lines[0].Height : 1;
 
             Assert.AreEqual(600, lines.FirstOrDefault().Number, 1, "the page does not start at the line gone to");
-            Assert.IsTrue(lines.Count >= 400 / row - 2, $"only {lines.Count} of the lines on the page were laid: the screen moved within a unit laid in part, and nothing laid what came onto it");
+            Assert.IsTrue(lines.Count >= (int)(surface.ViewportHeight / row) - 1, $"only {lines.Count} of the lines on a page {surface.ViewportHeight:0} tall were laid: the screen moved within a unit laid in part, and nothing laid what came onto it");
         });
     });
 

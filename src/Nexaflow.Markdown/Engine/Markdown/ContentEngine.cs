@@ -256,7 +256,7 @@ public sealed partial class ContentEngine(ILayoutMedium medium, LayoutStyle styl
     private LayoutHost Hosting(ContentShowing showing, LayoutStanding standing, bool writing, Keeping holding,
                                Func<ContentPart, LayoutFold>? folds = null)
     {
-        var host = new LayoutHost(standing, (holder, room, asked) => Nested(holder, room, asked, showing.Style, showing.Shown, writing, holding))
+        var host = new LayoutHost(standing, (holder, room, asked, writtenIn) => Nested(holder, room, asked, writtenIn, showing.Style, showing.Shown, writing, holding))
         {
             Pictures = part => this.Pictured(part, showing.Style.TextSize),
             Links = Linked,
@@ -307,7 +307,7 @@ public sealed partial class ContentEngine(ILayoutMedium medium, LayoutStyle styl
     private Laid Unreadable(string source, int at, string why, LayoutStyle style, bool readOnly, double room) =>
         Makers.GetOrAdd(typeof(UnreadBuilder), Maker)(
             ContentReading.Of(ContentNode.Shown(source, why), at, ContentDocument.Of(source)), EditState.For(source), style, readOnly, _medium,
-            new LayoutHost(LayoutStanding.Alone, static (_, _, _) => null)).Lay(room);
+            new LayoutHost(LayoutStanding.Alone, static (_, _, _, _) => null)).Lay(room);
 
     /// <summary>Makes a builder from the six things every builder is made from.</summary>
     private delegate ContentBuilder Make(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly,
@@ -373,17 +373,19 @@ public sealed partial class ContentEngine(ILayoutMedium medium, LayoutStyle styl
     /// already does with a block it cannot draw. Null keeps its own meaning: nothing is nested here.
     /// </para>
     /// </summary>
-    private LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing, LayoutStyle style, RawZone? shown, bool writing,
-                                Keeping holding)
+    private LayoutInset? Nested(ContentPart holder, double room, LayoutStanding standing, string? writtenIn, LayoutStyle style, RawZone? shown,
+                                bool writing, Keeping holding)
     {
-        if (ContentNested.Language(holder) is not { } named || holder.Part(Roles.Body) is not { } body
+        if ((ContentNested.Language(holder) ?? writtenIn) is not { } named || holder.Part(Roles.Body) is not { } body
             || ContentLanguages.For(named) is not { } language) return null;
 
         try
         {
-            // Found where its holder was read; content a binding supplied was read nowhere, and is read here, for this laying out.
+            // Found where its holder was read; content a binding supplied was read nowhere, and is read here, for this laying out — and so is a
+            // body in a language its holder never named, the document's own code, which nothing read as a language of its own.
             var at = holding.At(holder.Start);
-            var reading = (body.Supplied ? null : Body(holding, at, named, language, body.Length)) ?? Unheld(named, language, body);
+            var readHere = body.Supplied || writtenIn is not null && ContentNested.Language(holder) is null;
+            var reading = (readHere ? null : Body(holding, at, named, language, body.Length)) ?? Unheld(named, language, body);
 
             // Where its own characters stand in the document: past the marks of every container they are written in, at every level up.
             var placed = body.Supplied ? ContentSpace.Of(ContentDocument.Of(body.Node.Print()), 0, body.Node)
@@ -394,7 +396,7 @@ public sealed partial class ContentEngine(ILayoutMedium medium, LayoutStyle styl
             if (Opened(holder) is { } view) style = this.OpenedIn(style, view);
 
             // Read a stretch at a time, it is laid so too: its units put together, each the tree it was laid as, put down where it stands.
-            if (!body.Supplied && reading.Reader.SoftMaxLength != int.MaxValue)
+            if (!readHere && reading.Reader.SoftMaxLength != int.MaxValue)
                 return new LayoutInset(this.BodyLaid(reading, language, named, holder, body, placed, within, holding, style, shown, writing, standing, room));
 
             // What is shown as written is where it is among the characters the language was handed, which a container's marks

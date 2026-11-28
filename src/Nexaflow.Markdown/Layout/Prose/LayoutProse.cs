@@ -127,6 +127,13 @@ public sealed record LayoutStyle
 
     /// <summary>Whether the spaces, tabs and line ends of content laid line by line are drawn, as faint marks standing for none of it.</summary>
     public bool ShowsWhitespace { get; init; }
+
+    /// <summary>
+    /// How long one of the screen's pixels is, in the layout's units — what content laid a line under a line puts a whole number of between
+    /// its lines, so every line stands the same number of pixels below the one before rather than each being rounded to the pixel grid on its
+    /// own, a pixel more every few lines. One where nothing says, as at a density of one.
+    /// </summary>
+    public double DevicePixel { get; init; } = 1;
 }
 
 /// <summary>
@@ -193,10 +200,11 @@ public sealed record LayoutInset(Laid Laid)
 }
 
 /// <summary>
-/// What <paramref name="holder"/> holds in another language, laid out at <paramref name="room"/> standing as
-/// <paramref name="standing"/> says — or null where nothing read it. The one thing a builder asks of the engine.
+/// Lays out what <paramref name="holder"/> holds in another language, at <paramref name="room"/> — the language its body is written in being
+/// the one the holder names, or <paramref name="writtenIn"/> where it names none and the builder knows what its own body is: a document's own
+/// code, set as plain text. Null where there is nothing another language can lay.
 /// </summary>
-public delegate LayoutInset? LayoutNesting(ContentPart holder, double room, LayoutStanding standing);
+public delegate LayoutInset? LayoutNesting(ContentPart holder, double room, LayoutStanding standing, string? writtenIn);
 
 /// <summary>What a piece of a laid-out markdown document is.</summary>
 public static class LayoutPieces

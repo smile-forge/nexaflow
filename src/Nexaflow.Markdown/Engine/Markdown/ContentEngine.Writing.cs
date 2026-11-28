@@ -323,7 +323,7 @@ public sealed partial class ContentEngine
     internal void TakeCaret(int offset, int at = -1)
     {
         Apply(CaretPlaced(Snap(offset)), notify: false, at);
-        HasCaret = !_readOnly;
+        HasCaret = true;
         CaretTaken?.Invoke(this, EventArgs.Empty);
     }
 

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Markdown.PlainText;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
@@ -86,6 +87,70 @@ public class ViewportPrecisionTests
             var atTop = lines.Where(shown => shown.Top + shown.Height > 1).MinBy(shown => shown.Top)!;
             Assert.AreEqual(line, atTop.Number, $"the line at the top is said to be {atTop.Number}, standing at {atTop.Top:0}");
             Assert.IsTrue(atTop.Top is > -2 and < 2, $"line {atTop.Number} is said to stand at {atTop.Top:0}, not at the top");
+        }, Typed);
+    });
+
+    [TestMethod]
+    public void AfterTheEndWasShown_ALineGoneToHalfWayDown_IsMarkedForTheScreenAlone() => UiThread.Run(() =>
+    {
+        ContentMarginTests.Shown(Numbered(Lines), surface =>
+        {
+            // The end laid first, so that what is laid is far apart: what stands on the page, and the end of the file.
+            AtTheEnd(surface);
+
+            const int line = Lines / 2;
+            surface.Editor.MoveCaretTo(surface.Document.Current.OffsetOf(line - 1));
+            surface.Editor.ScrollToLine(line - 1, ShownPlace.Top);
+
+            for (var pass = 0; pass < 5; pass++)
+            {
+                surface.UpdateLayout();
+                MarkdownEditorHarness.Pump();
+            }
+
+            // Asked as the page asks while it paints: a screen above what is shown, what is shown, and a screen below it.
+            var engine = surface.Engine;
+            var shown = engine.OnScreen!.Value;
+            var near = engine.NearScreen(new LayoutRect(-1e9, shown.Y - shown.Height, 2e9, shown.Height * 3));
+            Assert.IsNotNull(near, "the page stands on lines laid, so marks are asked for some");
+
+            var document = engine.State.Document;
+            var (first, last) = (document.LineOf(near.Value.Start) + 1, document.LineOf(near.Value.End) + 1);
+            Assert.IsTrue(first <= line && line <= last, $"marks are asked for lines {first}-{last}, which leave out line {line} at the top of the page");
+            Assert.IsTrue(last - first < 200, $"marks are asked for lines {first}-{last}, for a page {surface.ViewportHeight:0} tall");
+        }, Typed);
+    });
+
+    [TestMethod]
+    public void DownThroughAFileLaidAtBothEnds_StepsALineAPress_WithoutStalling() => UiThread.Run(() =>
+    {
+        ContentMarginTests.Shown(Numbered(Lines), surface =>
+        {
+            // Laid at the end and half way down, so a step down has a long way laid around it to ask about.
+            AtTheEnd(surface);
+
+            const int line = Lines / 2;
+            surface.Editor.MoveCaretTo(surface.Document.Current.OffsetOf(line - 1));
+            surface.Editor.ScrollToLine(line - 1, ShownPlace.Top);
+
+            for (var pass = 0; pass < 5; pass++)
+            {
+                surface.UpdateLayout();
+                MarkdownEditorHarness.Pump();
+            }
+
+            var engine = surface.Engine;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            for (var press = 0; press < 40; press++)
+            {
+                engine.Input(new ContentKey(EditingKey.Down));
+                surface.UpdateLayout();
+            }
+
+            clock.Stop();
+            var state = engine.State;
+            Assert.AreEqual(line - 1 + 40, state.Document.LineOf(state.Caret), "forty presses, forty lines down");
+            Assert.IsTrue(clock.Elapsed.TotalSeconds < 5, $"forty steps down took {clock.Elapsed.TotalSeconds:0.0}s");
         }, Typed);
     });
 

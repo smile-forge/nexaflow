@@ -71,6 +71,25 @@ public class EngineShownTests
     });
 
     [TestMethod]
+    public void LinesLaidOneUnderAnother_StandTheSameWholeNumberOfPixelsApart_AtAnyDensity() => UiThread.Run(() =>
+    {
+        foreach (var perUnit in new[] { 1.0, 1.25, 1.5 })
+        {
+            var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
+            engine.Show(ContentLanguages.AsTyped, WpfStyles.Dark with { DevicePixel = 1 / perUnit });
+            engine.Start(string.Join('\n', Enumerable.Range(1, 30).Select(line => $"line {line}")));
+            engine.Fit(400);
+
+            var document = engine.State.Document;
+            var tops = Enumerable.Range(0, 30).Select(line => engine.Laid.Root.CaretRect(document.OffsetOf(line)).Y).ToList();
+            var apart = tops.Zip(tops.Skip(1), (above, below) => Math.Round((below - above) * perUnit, 6)).Distinct().ToList();
+
+            Assert.AreEqual(1, apart.Count, $"at {perUnit} pixels a unit, lines stand {string.Join(" or ", apart)} pixels apart");
+            Assert.AreEqual(Math.Round(apart[0]), apart[0], 1e-6, $"at {perUnit} pixels a unit, lines stand {apart[0]} pixels apart, not a whole number");
+        }
+    });
+
+    [TestMethod]
     public void ACaretOnAnEmptyLine_StandsOnThatLinesOwnRow_AndSoDoesItsMark() => UiThread.Run(() =>
     {
         var engine = Laid("one\n\nthree", ContentLanguages.AsTyped);
@@ -106,20 +125,22 @@ public class EngineShownTests
     });
 
     [TestMethod]
-    public void ThePointerIsABarOverWhatCanBeWrittenIn_AndAnArrowWhereNothingCan() => UiThread.Run(() =>
+    public void ThePointerIsABarOverWords_WrittenInOrOnlyRead_AndAnArrowAwayFromThem() => UiThread.Run(() =>
     {
         var engine = Laid("words to write in", ContentLanguages.AsTyped);
         var over = engine.Laid.Root.CaretRect(3);
         var on = new LayoutPoint(over.X, over.Y + (over.Height / 2));
+        var away = new LayoutPoint(over.X, over.Y + (over.Height * 20));
 
         Assert.AreEqual(PointerShape.Text, engine.PointedAt(on).Shape, "a bar over words written in");
+        Assert.AreEqual(PointerShape.Arrow, engine.PointedAt(away).Shape, "an arrow well away from any");
 
         engine.IsReadOnly = true;
-        Assert.AreEqual(PointerShape.Arrow, engine.PointedAt(on).Shape, "an arrow where nothing may be written");
+        Assert.AreEqual(PointerShape.Text, engine.PointedAt(on).Shape, "a bar over words only read too: they are picked out from the caret");
     });
 
     [TestMethod]
-    public void TheCaretShowsWhileTheKeyboardIsHeld_WhereItStood_AndNeverInWhatIsOnlyRead() => UiThread.Run(() =>
+    public void TheCaretShowsWhileTheKeyboardIsHeld_WhereItStood_WrittenInOrOnlyRead() => UiThread.Run(() =>
     {
         var engine = Laid("one\ntwo", ContentLanguages.AsTyped);
         engine.Apply(engine.State.MoveCaretTo(5), notify: false);
@@ -146,9 +167,11 @@ public class EngineShownTests
         engine.KeyboardHeld(false);
         engine.IsReadOnly = true;
         engine.KeyboardHeld(true);
-        Assert.IsFalse(engine.HasCaret, "content only read never holds a caret");
+        Assert.IsTrue(engine.HasCaret, "content only read holds a caret too: it is where picking out starts, and the keys move it");
+
+        engine.ReleaseCaret();
         engine.TakeCaret(0);
-        Assert.IsFalse(engine.HasCaret, "not even one put at a place");
+        Assert.IsTrue(engine.HasCaret, "and so does one put at a place in it");
     });
 
     private static ContentEngine Laid(string text, string? language)

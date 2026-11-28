@@ -21,12 +21,12 @@ public static class LinedSetting
     /// apart. Counted from its characters where they are held, so none of them is copied to say it.
     /// </summary>
     /// <param name="wrapsIn">The room its lines wrap in, or null where they are kept whole.</param>
-    public static double HeightOf(ContentNode tree, LayoutCharacters characters, ILayoutMedium medium, double? wrapsIn, int tabWidth)
+    public static double HeightOf(ContentNode tree, LayoutCharacters characters, ILayoutMedium medium, double? wrapsIn, int tabWidth, double pixel)
     {
         var carriedOn = CarriedOn(tree);
         var rows = wrapsIn is { } room ? Rows(tree, room, Advance(characters, medium), tabWidth, carriedOn) : Lines(tree, carriedOn);
 
-        return Math.Max(rows, 1) * LineHeight(characters, medium);
+        return Math.Max(rows, 1) * LineHeight(characters, medium, pixel);
     }
 
     /// <summary>What a mark standing for a space, a tab or a line end is called, and the ink it is drawn in is asked by.</summary>
@@ -50,9 +50,16 @@ public static class LinedSetting
         return ((stops + 1) * stop) - along;
     }
 
-    /// <summary>How far apart lines set in <paramref name="characters"/> are.</summary>
-    public static double LineHeight(LayoutCharacters characters, ILayoutMedium medium) =>
-        medium.Shape(" ", characters.Face, characters.Size, characters.Ink).Height;
+    /// <summary>
+    /// How far apart lines set in <paramref name="characters"/> stand: the face's own line height, to the nearest whole number of
+    /// <paramref name="pixel"/>s, and never less than one — so the lines of a long stretch are drawn evenly down the screen, every one the
+    /// same number of pixels below the last.
+    /// </summary>
+    public static double LineHeight(LayoutCharacters characters, ILayoutMedium medium, double pixel)
+    {
+        var tall = medium.Shape(" ", characters.Face, characters.Size, characters.Ink).Height;
+        return pixel > 0 ? Math.Max(1, Math.Round(tall / pixel, MidpointRounding.AwayFromZero)) * pixel : tall;
+    }
 
     /// <summary>Whether <paramref name="tree"/> is a stretch the next stretch carries on from (<see cref="LineKinds.CarriedOn"/>).</summary>
     public static bool CarriedOn(ContentNode tree) => tree.Children.Any(child => child.IsDerived && child.Kind == LineKinds.CarriedOn);

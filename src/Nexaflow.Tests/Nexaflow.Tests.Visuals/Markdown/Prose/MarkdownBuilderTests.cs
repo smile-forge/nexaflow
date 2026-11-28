@@ -382,11 +382,17 @@ public class MarkdownBuilderTests
     }
 
     [TestMethod]
-    public void CodeWrittenInAQuoteIsShownWithoutTheQuotesMarks()
+    public void CodeWrittenInAQuote_IsLaidAsTheSameLinesFencedAsTextInAQuoteAre()
     {
-        var shown = Pieces(Lay(">     code1\n>       code2\n"), LayoutPieces.Verbatim);
+        var indented = Lay(">     code1\n>       code2\n");
+        var fenced = Lay("> ```text\n> code1\n>   code2\n> ```\n");
 
-        CollectionAssert.AreEqual(new[] { "code1", "  code2" }, shown.Select(piece => piece.Words!.Glyphs.Text).ToArray());
+        var (own, text) = (Pieces(indented, TextKinds.Text), Pieces(fenced, TextKinds.Text));
+        Assert.AreEqual(1, own.Count, "the quote's code laid as plain text");
+        Assert.AreEqual(1, text.Count);
+
+        Assert.AreEqual(text[0].Bounds.Height, own[0].Bounds.Height, 0.01, "as many lines, as tall: the quote's marks taken out of its code as out of a fence's");
+        Assert.AreEqual(text[0].Bounds.Width, own[0].Bounds.Width, 0.01, "in the same room");
     }
 
     // ── Maths ───────────────────────────────────────────────────────────────
