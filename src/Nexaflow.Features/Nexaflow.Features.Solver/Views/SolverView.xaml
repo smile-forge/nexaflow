@@ -137,12 +137,8 @@
         </Style>
 
         <!-- ── Result body ──────────────────────────────────────────────────
-             Two templates, swapped by IsBusy, rather than one markdown view whose text arrives
-             later. That is not cosmetic: a SelectableMarkdownView created empty (and collapsed)
-             and filled afterwards builds its document against a host that has already been laid
-             out, and a display-maths block then measures at zero width and is clipped away to
-             nothing. Instantiating the view only once the answer exists reproduces the ordering
-             that works everywhere else in the app — a document built before its first layout. -->
+             Two templates, swapped by IsBusy: a note while the solver works, and the answer's
+             surface, made only once there is an answer to show. -->
         <DataTemplate x:Key="ResultBusyTemplate">
             <TextBlock Text="{loc:Str Solver.Result.Working}" FontSize="12" FontStyle="Italic"
                        Foreground="{StaticResource TextMutedBrush}"/>
@@ -456,10 +452,7 @@
             <!-- HorizontalScrollBarVisibility MUST be Disabled, and must be stated: the app's
                  implicit ScrollViewer style sets it to Hidden, and Hidden still ENABLES horizontal
                  scrolling - it only hides the bar. An enabled horizontal scroller measures its
-                 content with infinite width, and a FlowDocument measured at infinite width falls
-                 back to its minimum page width, so every result renders one character per line and
-                 a display-maths block is clipped to nothing. Consumers that bound their own width
-                 (AIChat's MaxWidth="720" bubble) never notice. -->
+                 content with infinite width, which leaves a result's text nothing to wrap to. -->
             <ScrollViewer x:Name="ResultScroller"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"

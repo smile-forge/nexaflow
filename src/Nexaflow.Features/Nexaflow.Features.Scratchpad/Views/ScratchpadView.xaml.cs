@@ -91,8 +91,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
 
     // ── IKeyboardHandler ─────────────────────────────────────────────────
     // The shell dispatches this for the active page from the window's PreviewKeyDown, and skips it while a
-    // text box is focused — so a RichTextBox inside a PostIt keeps Ctrl+V for text paste, while Ctrl+V on the
-    // canvas background lands here and pastes into the scratchpad.
+    // text box is focused. Only the board's zoom keys are handled here.
 
     public bool CanProcessKey(ConsoleKey key, KeyModifiers modifiers)
         => modifiers == KeyModifiers.Control

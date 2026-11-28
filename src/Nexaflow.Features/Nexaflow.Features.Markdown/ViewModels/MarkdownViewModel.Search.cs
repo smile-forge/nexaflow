@@ -22,7 +22,7 @@ namespace Nexaflow.Features.Markdown.ViewModels;
 /// is actually looking at, and never switches the view out from under them. Switching it themselves takes the
 /// search with them, on to the surface they switched to, at the match they were on.
 /// <para>
-/// The rendered highlight is done by the view (it owns the live <c>FlowDocument</c>); the source highlight
+/// The rendered highlight is done by the view (its surface marks its own matches); the source highlight
 /// is a selection in the source box, driven from here. An AI-invoked search (display: false) reads the
 /// document's source and simply reports where the matches are, changing nothing on screen.
 /// </para>
@@ -54,7 +54,7 @@ public sealed partial class MarkdownViewModel : ISearchable
     }
 
     // ── View collaboration ────────────────────────────────────────────────────
-    // The rendered surface's highlighting lives in the view (it holds the FlowDocument); the source box's
+    // The rendered surface's highlighting lives in the view (the surface marks its own matches); the source box's
     // selection is driven from here. Both are set by MarkdownView; absent in a headless test, where only
     // the source path and the non-display (agent) path are exercised.
 
@@ -168,7 +168,7 @@ public sealed partial class MarkdownViewModel : ISearchable
     }
 
     // Highlights the matches in whichever surface is showing, going first to the one at or after `from` in the source. Runs on
-    // the UI thread (the source box and the rendered FlowDocument are both view state).
+    // the UI thread (the source box and the rendered surface are both view state).
     private SearchOutcome ShowInActiveSurface(TextSearchMatcher matcher, SearchRequest request, int from, CancellationToken ct)
     {
         ClearHighlights();
