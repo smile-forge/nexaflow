@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Icons;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Usb.Tools;
 using Nexaflow.Visuals.Common.Behaviors;
 

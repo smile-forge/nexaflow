@@ -5,7 +5,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Common.Cloud;
 using Nexaflow.Localization.Formatting;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Common.Shell;
+using Nexaflow.IO.Common.Shell;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 

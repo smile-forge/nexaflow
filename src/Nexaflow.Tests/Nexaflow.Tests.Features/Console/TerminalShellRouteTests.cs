@@ -8,8 +8,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Common.Terminal;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Terminal.Models;
-using Nexaflow.Visuals.Terminal.Shells;
+using Nexaflow.IO.Terminal;
+using Nexaflow.IO.Terminal.Shells;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 

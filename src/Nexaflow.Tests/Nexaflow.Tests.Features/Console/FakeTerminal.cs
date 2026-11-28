@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Terminal;
-using Nexaflow.Visuals.Terminal.Shells;
+using Nexaflow.IO.Terminal.Shells;
 
 namespace Nexaflow.Tests.Features.Console;
 

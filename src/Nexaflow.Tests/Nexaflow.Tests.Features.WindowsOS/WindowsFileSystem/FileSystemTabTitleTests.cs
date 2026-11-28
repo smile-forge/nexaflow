@@ -18,7 +18,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// <list type="bullet">
 /// <item>a ribbon button stores only <c>mode</c> + <c>path</c>;</item>
 /// <item><c>ApplyBreadcrumbs</c> rewrites the params to <c>mode</c> + <c>path</c> on every navigation, so a
-/// tab rebuilt afterwards (an options save calls <c>RefreshTabs</c>, which reopens from those params) has
+/// tab rebuilt afterwards (an options save reopens it from those params) has
 /// lost any label it started with;</item>
 /// <item>a restored session reopens from the same stored params.</item>
 /// </list>
@@ -86,8 +86,8 @@ public class FileSystemTabTitleTests
     [TestMethod]
     public void ReopeningFromNavigatedParams_KeepsTheFolderName()
     {
-        // ApplyBreadcrumbs replaces the tab's params with exactly this shape after any navigation. RefreshTabs
-        // (options save) and session restore both reopen from it, which is the "reverts to Files" case.
+        // ApplyBreadcrumbs replaces the tab's params with exactly this shape after any navigation. An options save
+        // and session restore both reopen from it, which is the "reverts to Files" case.
         var afterNavigation = new Dictionary<string, string> { ["mode"] = "path", ["path"] = @"D:\Projects\nexaflow" };
 
         var page = Registration().CreatePageDefinition(afterNavigation);

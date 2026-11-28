@@ -58,9 +58,8 @@ public sealed partial class WorkspaceBackgroundTasks : ObservableObject
         var had       = Any;
         Running.Clear();
         if (workspace is not null)
-            foreach (var task in _tasks.Tasks)
-                if (ReferenceEquals(task.Workspace, workspace) && task.Status == TaskStatus.Running)
-                    Running.Add(task);
+        foreach (var task in _tasks.RunningJobsOf(workspace))
+        Running.Add(task);
 
         if (Running.Count == 0) IsOpen = false;
         Tick();

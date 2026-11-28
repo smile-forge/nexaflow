@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.Controls;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Terminal.Models;
+using Nexaflow.IO.Terminal;
 
 namespace Nexaflow.Features.Console;
 

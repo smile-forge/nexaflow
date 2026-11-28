@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Terminal.Models;
+using Nexaflow.IO.Terminal;
 
 namespace Nexaflow.Visuals.Terminal.Converters;
 

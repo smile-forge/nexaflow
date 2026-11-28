@@ -1,8 +1,9 @@
 <Project>
   <!--
     Deploys every language pack into $(OutDir)Languages\, where LanguageManager discovers them by file name.
-    Imported by Nexaflow.Core (the app ships them - the installer's **\* harvest picks the folder up) and by
-    Nexaflow.Tests.Core (so its tests read the same packs the app does). A pack is a drop-in, never a reference:
+    Imported by Nexaflow.Host.Deploy.targets, which an app over the session imports (the app ships them - the
+    installer's **\* harvest picks the folder up), and by Nexaflow.Tests.Core (so its tests read the same packs the
+    app does). A pack is a drop-in, never a reference:
     ReferenceOutputAssembly=false keeps it out of deps.json, and LanguageManager loads it by path.
   -->
   <ItemGroup>

@@ -1,4 +1,5 @@
 using System.Windows.Controls;
+using Nexaflow.Interaction;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Behaviors;
 

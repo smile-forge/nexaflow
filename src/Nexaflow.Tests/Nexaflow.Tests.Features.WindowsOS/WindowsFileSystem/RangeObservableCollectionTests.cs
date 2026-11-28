@@ -1,5 +1,5 @@
 using System.Collections.Specialized;
-using Nexaflow.Visuals.Common.Collections;
+using Nexaflow.Interaction;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;

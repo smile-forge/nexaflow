@@ -3,7 +3,6 @@ using System.Linq;
 using System.Windows.Data;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Terminal;
-using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
@@ -170,6 +169,6 @@ public class ConsoleViewModelCommandTests
 
     [TestMethod]
     public void ABlankBar_IsNoCommand()
-        => Assert.AreEqual(Nexaflow.Visuals.Terminal.ConsoleLineVerdict.Request, new TestTerminal().JudgeConsoleLine("   "),
+        => Assert.AreEqual(Nexaflow.IO.Terminal.ConsoleLineVerdict.Request, new TestTerminal().JudgeConsoleLine("   "),
             "nothing typed in the bar is never an Enter in the shell");
 }

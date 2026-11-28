@@ -16,7 +16,6 @@ using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.Features.Tabular.Streaming;
 using Nexaflow.Features.Tabular.Templates;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Localization;
 

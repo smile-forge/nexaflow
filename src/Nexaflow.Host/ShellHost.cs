@@ -35,7 +35,7 @@ public sealed record ShellHostOptions(AppDataFolders Folders, string Version, bo
 /// chart, a formula — by the toolkit's renderer: what a help page's searchable text leaves out.</param>
 /// <param name="Framing">Fits a picture to the frame a video model starts its clip from, with the toolkit's imaging.</param>
 /// <param name="Speech">Opens the microphone and speakers a spoken conversation is held through, the platform's devices.</param>
-/// <param name="FolderWatchers">Makes the folder watcher, which owns a window of the toolkit's.</param>
+
 /// <param name="ApplyAppearance">Applies the shell settings that decide how windows look — theme, animations, text size — before
 /// the first window is built and before any feature folds its theme into the one applied.</param>
 /// <param name="Views">Makes the view each open page is drawn with, from the toolkit's views the feature catalogue marks as drawing
@@ -51,7 +51,6 @@ public sealed record ShellPlatform(
     Func<string?, bool> FenceDrawn,
     IPictureFitting Framing,
     ISpeechDevices Speech,
-    Func<IFolderWatcher> FolderWatchers,
     Action<ShellConfig> ApplyAppearance,
     Func<FeatureCatalog, ExternalDependencyRegistry, Action, ShellLogging, IPageViews> Views);
 
@@ -161,7 +160,7 @@ public sealed class ShellHost : IAsyncDisposable
         _log     = logs.CreateLogger<ShellHost>();
         Ui       = platform.Ui;
         Activities = new BackgroundActivityManager(platform.Ui);
-        Folders  = new FolderActivity(platform.Ui, platform.FolderWatchers);
+        Folders  = new FolderActivity(platform.Ui);
         Inbox    = new MessageCenter(platform.Ui);
         Discovered = new DiscoveredLocations(LocationProviders);
 
@@ -324,7 +323,7 @@ public sealed class ShellHost : IAsyncDisposable
         Workspaces = new WorkspaceRuntimes(RuntimeFactory, platform.Ui, () => TimeSpan.FromMinutes(Shell.DormantWorkspaceMinutes),
                                            SavedWorkspaces.Workspaces.Contains, TimeProvider.System, logs.CreateLogger<WorkspaceRuntimes>());
         Windows = new WindowServices(Config, Shell, Activities, Workspaces, Inbox, Dependencies, Language, Features, Providers, SavedWorkspaces,
-                                     updates, options.Logging);
+        updates, options.Logging, new WorkspaceWindows(SavedWorkspaces, Workspaces, platform.Ui));
         _log.StartupMilestone("Init.Workspaces");
 
         // ── 7. Damaged config: say so, say what came back ────────────────────
@@ -410,6 +409,7 @@ public sealed class ShellHost : IAsyncDisposable
 
         _log.LogInformation("session ending");
         _draftSweeping?.Dispose();
+        Windows.WorkspaceWindows.Dispose();
         Workspaces.Dispose();
         var runtimesEnding = RuntimeFactory.EndAllAsync();
         Folders.Dispose();

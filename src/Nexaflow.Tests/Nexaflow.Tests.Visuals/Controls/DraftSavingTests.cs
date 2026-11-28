@@ -1,4 +1,5 @@
 using System.IO;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Drafts;

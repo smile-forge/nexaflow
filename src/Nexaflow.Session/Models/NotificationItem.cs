@@ -34,6 +34,12 @@ public partial class NotificationItem : ObservableObject
     /// <summary>How long the toast stays up; null = severity default. Sticky messages use a long value.</summary>
     public TimeSpan? ToastDuration { get; init; }
 
+    /// <summary>How long the toast stays up: <see cref="ToastDuration"/> when the message names one; otherwise long enough to act
+    /// on for a message with actions or an update, eight seconds for an error or a warning, and six for the rest.</summary>
+    public TimeSpan ToastLifetime => ToastDuration ?? (HasActions || Severity == MessageSeverity.Update ? TimeSpan.FromMinutes(5)
+                                                      : Severity is MessageSeverity.Error or MessageSeverity.Warning ? TimeSpan.FromSeconds(8)
+                                                      : TimeSpan.FromSeconds(6));
+
     /// <summary>Optional action buttons (e.g. "Update", "Retry"), shown in the toast and the inbox.</summary>
     public IReadOnlyList<MessageAction> Actions { get; init; } = [];
 

@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.IO.Common;
 using Nexaflow.IO.Hdf5;
-using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Features.Hdf5.ViewModels;

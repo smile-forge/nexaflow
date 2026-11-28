@@ -99,7 +99,7 @@
 
 
 
-  "Shell.AiBar.ContextFormat": "{0} of {1} tokens of the model's context ({2}%)",
+
 
 
 
@@ -111,7 +111,6 @@
 
 
 
-  "Shell.AiResponse.ApproveFormat": "{0}?",
   "Shell.BackgroundTasks.Header": "Background tasks",
   "Shell.BackgroundTasks.CountOne": "1 background task",
   "Shell.BackgroundTasks.CountFormat": "{0} background tasks",
@@ -182,8 +181,6 @@
   "Shell.Prompt.Unapplied.Save": "Save",
   "Shell.Prompt.Unapplied.Discard": "Discard",
   "Shell.Prompt.Unapplied.KeepEditing": "Keep editing",
-  "Shell.AiResponse.ContextRelease.Explanation": "This page holds system information, which stays on this machine unless you agree to send it. Answering here would send its contents to {0}.",
-  "Shell.AiResponse.ContextRelease.Question": "Send this page's contents to {0}?",
   "Shell.Config.AiGrid.ChainHint": "Click cells to choose which models serve each ability, in the order they are tried: a request goes to the first that is available. The Local column is the models on this machine, chosen on the Local page; a conversation, problem-solving or analysis row holding a model here and one elsewhere sends each request to the one that suits it. On a page holding system information, you are asked before its contents go to a model whose data leaves this machine.",
   "Shell.Config.AiGrid.CellTip": "Add this model to the ability, or take it out",
   "Shell.Config.AiGrid.Kind.SpeechToText": "speech to text",
@@ -584,12 +581,6 @@
   "Shell.AiBar.Spell.IgnoreAll": "Ignore All",
   "Shell.Text.Cut": "Cut",
   "Shell.Text.Paste": "Paste",
-  "Shell.AiBar.Search.Unsupported": "This page doesn't support searching.",
-  "Shell.AiBar.Search.Nothing": "Nothing to search for.",
-  "Shell.AiResponse.Considering": "Considering",
-  "Shell.AiResponse.Working": "Working",
-  "Shell.AiResponse.DeclinedFormat": "Declined — asking {0}",
-  "Shell.AiResponse.ApprovePlanFormat": "Approve plan: {0}",
 
 
 

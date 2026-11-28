@@ -11,6 +11,13 @@
   <ItemGroup>
     <!-- KillOnCloseJob: the process-wide kill-on-close job every child shell is bound to. -->
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <!-- What a drop on a terminal carries, typed in as quoted paths (TerminalDropLogic). -->
+    <ProjectReference Include="..\Nexaflow.Interaction\Nexaflow.Interaction.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- An environment variable edited in a terminal's environment editor is observable (EnvVar). -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
   <ItemGroup>

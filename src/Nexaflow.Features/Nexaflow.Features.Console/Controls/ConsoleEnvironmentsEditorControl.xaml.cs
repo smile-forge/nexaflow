@@ -1,7 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Viewing;
-using Nexaflow.Visuals.Terminal.Models;
+using Nexaflow.IO.Terminal;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;

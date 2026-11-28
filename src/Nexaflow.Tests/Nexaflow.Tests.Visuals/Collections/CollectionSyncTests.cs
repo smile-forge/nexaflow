@@ -1,5 +1,5 @@
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Common.Collections;
+using Nexaflow.Interaction;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;

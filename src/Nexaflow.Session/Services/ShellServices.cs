@@ -173,6 +173,9 @@ public sealed class ShellServices : IShellServices, IDisposable
 
     public bool HasWindows => _windows.Count > 0;
 
+    /// <summary>The windows showing this runtime.</summary>
+    public IReadOnlyList<IWindowHost> Windows => _windows;
+
     /// <summary>The focused window, or the first open one (null when window-less).</summary>
     internal IWindowHost? FocusedWindow => _focused ?? _windows.FirstOrDefault();
 
@@ -499,6 +502,19 @@ public sealed class ShellServices : IShellServices, IDisposable
         _tabToWindow.Remove(tab);
         host.RemoveTab(tab);
         DisposePage(tab);
+    }
+
+    /// <summary>Closes each tab of <paramref name="pageKinds"/> and opens it again, fresh, in the window it was in: how a change to
+    /// the settings its page is built from reaches a page already open.</summary>
+    public void ReopenTabsOf(IReadOnlySet<string> pageKinds)
+    {
+        foreach (var window in _windows.ToList())
+            foreach (var tab in window.Tabs.Where(tab => pageKinds.Contains(tab.PageKind ?? "")).ToList())
+            {
+                var (pageKind, pageParams) = (tab.PageKind!, tab.PageParams);
+                CloseTab(tab);
+                AddFreshTab(window, pageKind, pageParams);
+            }
     }
 
     /// <summary>Lets go of a closed page's view; the page has already disposed its view-model as it closed.</summary>
@@ -843,32 +859,14 @@ public sealed class ShellServices : IShellServices, IDisposable
 
     public Task<string?> PickOpenFileAsync(IReadOnlyList<string>? extensions = null,
                                            string? initialPath = null)
-    {
-        var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.IsCurrent)
-            return dispatcher.Run(() => PickOpenFileAsync(extensions, initialPath));
-
-        return Task.FromResult(_pickers.PickOpenFile(FocusedWindow, _workspace, extensions, initialPath));
-    }
+        => _ui.RunAsync(() => _pickers.PickOpenFileAsync(FocusedWindow, _workspace, extensions, initialPath));
 
     public Task<IReadOnlyList<string>> PickOpenFilesAsync(IReadOnlyList<string>? extensions = null,
                                                           string? initialPath = null)
-    {
-        var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.IsCurrent)
-            return dispatcher.Run(() => PickOpenFilesAsync(extensions, initialPath));
-
-        return Task.FromResult(_pickers.PickOpenFiles(FocusedWindow, _workspace, extensions, initialPath));
-    }
+        => _ui.RunAsync(() => _pickers.PickOpenFilesAsync(FocusedWindow, _workspace, extensions, initialPath));
 
     public Task<string?> PickFolderAsync(string? initialPath = null)
-    {
-        var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.IsCurrent)
-            return dispatcher.Run(() => PickFolderAsync(initialPath));
-
-        return Task.FromResult(_pickers.PickFolder(FocusedWindow, _workspace, initialPath));
-    }
+        => _ui.RunAsync(() => _pickers.PickFolderAsync(FocusedWindow, _workspace, initialPath));
 
     public Task<string?> PickSaveFileAsync(string defaultFileName,
                                            IReadOnlyList<string>? extensions = null,
@@ -878,13 +876,7 @@ public sealed class ShellServices : IShellServices, IDisposable
 
     public Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<SaveFileType> types,
                                            string? initialPath = null, long bytes = 0)
-    {
-        var dispatcher = _ui;
-        if (dispatcher is not null && !dispatcher.IsCurrent)
-            return dispatcher.Run(() => PickSaveFileAsync(defaultFileName, types, initialPath, bytes));
-
-        return Task.FromResult(_pickers.PickSaveFile(FocusedWindow, _workspace, defaultFileName, types, initialPath, bytes));
-    }
+        => _ui.RunAsync(() => _pickers.PickSaveFileAsync(FocusedWindow, _workspace, defaultFileName, types, initialPath, bytes));
 
     // Refreshes the focused window's active page by re-initialising it with its current params.
     // Reinitialize is the established refresh idiom (tab (re)activation calls it too); for the file

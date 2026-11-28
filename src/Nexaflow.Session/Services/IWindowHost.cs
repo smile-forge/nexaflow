@@ -57,6 +57,10 @@ public interface IWindowHost
     /// shown. Call before <c>Show</c>.</summary>
     void OpenAt(WindowPlacement placement);
 
+    /// <summary>The window now shows <paramref name="to"/>'s workspace, having left <paramref name="from"/>, whose tabs it closed as
+    /// it went (<see cref="WorkspaceWindows.Move"/>): it starts again as a new window does, and follows its new runtime.</summary>
+    void Rejoin(WorkspaceRuntime from, WorkspaceRuntime to);
+
     /// <summary>Prepends the tab and makes it active.</summary>
     void AddTab(Page tab);
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
+using Nexaflow.IO.Common.Shell;
 using Nexaflow.Visuals.Common.Shell;
 
 namespace Nexaflow.Visuals.Common.Controls;
@@ -105,6 +106,6 @@ public sealed class FileIcon : FrameworkElement
 
         var size  = ShellFileIcons.SizeFor(IconSize * VisualTreeHelper.GetDpi(this).DpiScaleX);
         var query = new FileIconQuery(Path, IsFolder, NameOnly, Stamp.Ticks, size);
-        _request.Ask(arrived => ShellFileIcons.Shared.Request(query, Dispatcher, arrived));
+        _request.Ask(arrived => ShellFileIcons.Shared.Request(query, DispatcherAnswerThread.For(Dispatcher), arrived));
     }
 }

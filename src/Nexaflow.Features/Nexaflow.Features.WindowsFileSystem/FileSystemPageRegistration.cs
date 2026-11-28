@@ -11,9 +11,9 @@ using System.Linq;
 namespace Nexaflow.Features.WindowsFileSystem;
 
 // The FileMapConfig / ExternalAppsConfig / TemplatedCreateConfig parameters are declared so
-// FeatureManager builds a config→registration mapping for them; that lets OptionsViewModel fire
-// TabRefreshRequested("FileSystem") when any of them is saved, which rebuilds open file-system
-// tabs so the new action set / verb gating / template list takes effect immediately.
+// FeatureManager builds a config→registration mapping for them; that lets an Options save reopen the
+// open file-system tabs when any of them is saved, so the new action set / verb gating / template list
+// takes effect immediately.
 // They are intentionally unread — only their types matter to the discovery.
 #pragma warning disable CS9113 // Parameter is unread.
 public sealed class FileSystemPageRegistration(

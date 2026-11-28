@@ -17,6 +17,7 @@ using Nexaflow.IO.Usb.Windows;
 using Nexaflow.Plugins;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Localization;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.UsbProbe.RawTools;
 

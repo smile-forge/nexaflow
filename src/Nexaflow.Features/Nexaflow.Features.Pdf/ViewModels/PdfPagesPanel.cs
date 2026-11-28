@@ -11,6 +11,7 @@ using Nexaflow.Features.Pdf.Rendering;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Localization;
 using Nexaflow.Visuals.Common.Previews;
+using Nexaflow.Media;
 
 namespace Nexaflow.Features.Pdf.ViewModels;
 

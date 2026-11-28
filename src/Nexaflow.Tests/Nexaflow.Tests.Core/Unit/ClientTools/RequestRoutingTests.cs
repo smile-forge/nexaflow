@@ -374,8 +374,7 @@ public class RequestRoutingTests
         var some = new ContextUse(34_210, 262_144);
         Assert.AreEqual(0.13, some.Fill, 0.005);
         Assert.IsFalse(some.IsNearlyFull);
-        Assert.AreEqual(some.Fill, some.Used.Value, 1e-9);
-        Assert.AreEqual(1 - some.Fill, some.Left.Value, 1e-9);
+        Assert.AreEqual(1 - some.Fill, some.Rest, 1e-9);
 
         Assert.IsTrue(new ContextUse(220_000, 262_144).IsNearlyFull, "the conversation will soon be condensed");
         Assert.AreEqual(1, new ContextUse(300_000, 262_144).Fill, "never past full");

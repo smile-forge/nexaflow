@@ -87,4 +87,14 @@ public class HelpSearchIndexTests
         Assert.AreEqual(1, index.Search(Matcher("pan*"), null).Single().MatchCount > 0 ? 1 : 0);
         Assert.AreEqual(1, index.Search(Matcher("/F[0-9]+/"), null).Count);
     }
+
+    [TestMethod]
+    public void AHitsId_NamesItsPageAndItsPlaceOnIt_AndReadsBack()
+    {
+        var hit = new HelpHit(new HelpTopic("Text", "Text viewer", "Text.md"), 3, "…");
+
+        Assert.AreEqual("Text#3", hit.Id);
+        Assert.AreEqual(("Text", 3), HelpHit.ParseId(hit.Id));
+        Assert.IsNull(HelpHit.ParseId("Text"), "an id with no place names no hit");
+    }
 }

@@ -17,7 +17,6 @@ namespace Nexaflow.Tests.Core.Unit;
 /// connection.
 /// </summary>
 [TestClass]
-[CoversNode("io-locations-pool")]
 public sealed class RuntimeLocationsTests
 {
     private MemoryLocationHost _host = null!;
@@ -89,6 +88,7 @@ public sealed class RuntimeLocationsTests
     private string Root => VirtualMount.RootFor(_nas.Id);
 
     [TestMethod]
+    [CoversNode("io-locations-pool")]
     public async Task AWorkspacesConnectionIsMounted_AndAFileOnItReadsThroughTheRuntimeFileSystem()
     {
         _connections.Save(_nas);
@@ -100,6 +100,7 @@ public sealed class RuntimeLocationsTests
     }
 
     [TestMethod]
+    [CoversNode("io-locations-pool")]
     public void AConnectionSavedOrRemovedLaterIsMountedOrUnmounted()
     {
         _locations.Follow(_connections);
@@ -113,6 +114,7 @@ public sealed class RuntimeLocationsTests
     }
 
     [TestMethod]
+    [CoversNode("io-locations-pool")]
     public async Task SwitchingToAWorkspaceWithTheSameConnectionKeepsItsSession()
     {
         _connections.Save(_nas);
@@ -133,6 +135,7 @@ public sealed class RuntimeLocationsTests
     }
 
     [TestMethod]
+    [CoversNode("io-locations-pool")]
     public void AConnectionNoBackendReachesIsMountedNowhere_AndSaysWhy()
     {
         _connections.Save(new ConnectionProfile("sftp-box", "sftp", "Box", "box"));
@@ -143,6 +146,7 @@ public sealed class RuntimeLocationsTests
     }
 
     [TestMethod]
+    [CoversNode("io-locations-pool")]
     public void AConnectionWhoseIdIsAlreadyAMountsIsMountedNowhere()
     {
         var clash = "clash-" + _host.Name;
@@ -159,6 +163,7 @@ public sealed class RuntimeLocationsTests
     }
 
     [TestMethod]
+    [CoversNode("io-locations-pool")]
     public async Task DisposingUnmountsEverything_AndClosesTheSessions()
     {
         _connections.Save(_nas);

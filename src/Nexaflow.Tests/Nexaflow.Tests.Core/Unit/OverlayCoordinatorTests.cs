@@ -133,8 +133,8 @@ public class OverlayCoordinatorTests
         var o = Make();
 
         o.ShowConfirmation("T", "P", () => { }, confirmLabel: " ", cancelLabel: null);
-        Assert.AreEqual(Str.Get("Common.Confirm.Confirm"), o.Confirmation!.ConfirmLabel);
-        Assert.AreEqual(Str.Get("Common.Confirm.Cancel"),  o.Confirmation.CancelLabel);
+        Assert.AreEqual(Str.Get("Interaction.Confirm.Confirm"), o.Confirmation!.ConfirmLabel);
+        Assert.AreEqual(Str.Get("Interaction.Confirm.Cancel"),  o.Confirmation.CancelLabel);
 
         o.ShowConfirmation("T", "P", () => { }, confirmLabel: "Delete", cancelLabel: "Keep");
         Assert.AreEqual("Delete", o.Confirmation!.ConfirmLabel);

@@ -2,7 +2,8 @@ using System.Collections.Generic;
 using Nexaflow.Visuals.Terminal;
 using Nexaflow.Tests.Fixtures;
 using System;
-using Nexaflow.Visuals.Terminal.Shells;
+using Nexaflow.IO.Terminal.Shells;
+using Nexaflow.IO.Terminal;
 
 namespace Nexaflow.Tests.Features.Console;
 

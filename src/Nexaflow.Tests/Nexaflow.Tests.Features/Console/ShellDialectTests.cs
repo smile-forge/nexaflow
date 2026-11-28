@@ -1,6 +1,6 @@
 using System;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Terminal.Shells;
+using Nexaflow.IO.Terminal.Shells;
 
 namespace Nexaflow.Tests.Features.Console;
 

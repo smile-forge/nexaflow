@@ -16,7 +16,7 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | `IPageViewModel` on your ViewModel | yes | What the page is: `GetContext`, `GetClientTools`, `GetContextObject`, `GetContextGrant`, `Reinitialize` |
 | `[ViewFor(typeof(YourViewModel))]` on your view | yes | The view that draws it, with one constructor taking the view-model |
 | Add project reference in `Nexaflow.Core.csproj` | yes | So the feature DLL ships and `FeatureManager` reflection-discovers it at startup |
-| Add a default-button entry in `src/Nexaflow.Core/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
+| Add a default-button entry in `src/Nexaflow.Session/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
 | Help page | recommended | `Localization/en/help/<StaticPageKind>.md` in your project — what the page can do, shown by the Help pane beside it; snaplink it as the feature's `docs` concern ([localization.md](localization.md#help-pages)) |
 | `IQueryHandler` | optional | Handle AI input bar text |
@@ -499,6 +499,9 @@ each file that draws its own icon (a program, a shortcut, a customised folder) b
 that waits for a scroll to settle and draws the rows on screen first — so a virtualised list asks only for what is in
 view, and a recycled row is never handed its old path's icon. A Type column takes its text from
 `ShellFileTypes.NameFor`, the shell's own name for the kind ("Text Document"), safe to call from a background enumerator.
+`ShellFileIcons`, `ShellResourceIcons` and `ShellFileTypes` name no UI toolkit (`IO.Common`'s Shell namespace): an icon
+arrives as `ShellIconPixels`, posted to the asking thread through its `IAnswerThread`, and `FileIcon` and `ResourceIcon`
+turn each buffer into a WPF bitmap once with `ShellIconBitmaps`.
 
 
 **A file list in a cloud-synced folder shows sync status with `CloudStatusIcon`**, beside `FileIcon`. Read the folder

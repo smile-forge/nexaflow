@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Terminal.Models;
+using Nexaflow.IO.Terminal;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 

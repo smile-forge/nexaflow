@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.IO.Common.Shell;
 
 namespace Nexaflow.Visuals.Common.Shell;
 
@@ -30,14 +31,14 @@ public sealed class ShellIconRequest
     /// Asks through <paramref name="request"/>, which is handed the callback a better icon arrives on, and takes what it
     /// answers at once; the arrival redraws the element. A null request asks for nothing, leaving no icon in hand.
     /// </summary>
-    public void Ask(Func<Action<ImageSource>, ShellIconLookup>? request)
+    public void Ask(Func<Action<ShellIconPixels>, ShellIconLookup>? request)
     {
         IsStale = false;
         Icon    = null;
         if (request is null) return;
 
         var lookup = request(Arrived);
-        Icon     = lookup.Icon;
+        Icon     = lookup.Icon is { } known ? ShellIconBitmaps.Of(known) : null;
         _pending = lookup.Pending;
     }
 
@@ -49,10 +50,10 @@ public sealed class ShellIconRequest
         IsStale  = true;
     }
 
-    private void Arrived(ImageSource icon)
+    private void Arrived(ShellIconPixels icon)
     {
-        _pending = null;
-        Icon     = icon;
+    _pending = null;
+    Icon     = ShellIconBitmaps.Of(icon);
         _owner.InvalidateVisual();
     }
 }

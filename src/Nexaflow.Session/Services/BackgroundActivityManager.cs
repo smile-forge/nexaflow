@@ -189,4 +189,9 @@ public sealed class BackgroundActivityManager : IBackgroundActivityManager
         public void Fail(string? reason)       { if (reason is not null) manager.Dispatch(() => job.Detail = reason); }
         public void Update(string description) => manager.Dispatch(() => job.Detail = description);
     }
+
+    /// <summary>The jobs <paramref name="workspace"/>'s assistant set going that are still running. Work the app does of its own
+    /// accord is no workspace's, and never among them.</summary>
+    public List<BackgroundTask> RunningJobsOf(WorkspaceRuntime workspace)
+        => [.. Tasks.Where(task => ReferenceEquals(task.Workspace, workspace) && task.Status == TaskStatus.Running)];
 }

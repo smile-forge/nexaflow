@@ -96,4 +96,54 @@ public class MessageCenterTests
         }
         finally { _center.MessagePosted -= Handler; }
     }
+
+    [TestMethod]
+    public void TheUnreadCount_FollowsEveryMessageBeingRead_WhicheverWindowReadsIt()
+    {
+        var heard = 0;
+        _center.UnreadChanged += (_, _) => heard++;
+        var first = new NotificationItem { Title = "first" };
+        _center.Post(first);
+        _center.Post(new NotificationItem { Title = "second" });
+        Assert.AreEqual(2, _center.UnreadCount);
+
+        first.IsRead = true;
+        Assert.AreEqual(1, _center.UnreadCount, "read in place, not taken out of the inbox");
+
+        _center.MarkAllRead();
+        Assert.AreEqual(0, _center.UnreadCount);
+
+        _center.Remove(first);
+        first.IsRead = false;
+        Assert.AreEqual(0, _center.UnreadCount, "a message gone from the inbox is no longer counted");
+        Assert.AreEqual(4, heard);
+    }
+
+    [TestMethod]
+    public void AToast_IsClaimedByOneWindowOnly_AndAnInboxOnlyMessageByNone()
+    {
+        var toast     = new NotificationItem { Title = "toast" };
+        var inboxOnly = new NotificationItem { Title = "inbox", ShowToast = false };
+        _center.Post(toast);
+        _center.Post(inboxOnly);
+
+        Assert.IsTrue(_center.ClaimToast(toast));
+        Assert.IsFalse(_center.ClaimToast(toast), "another window does not toast it again");
+        Assert.IsFalse(_center.ClaimToast(inboxOnly));
+
+        var pending = new NotificationItem { Title = "while unfocused" };
+        _center.Post(pending);
+        CollectionAssert.AreEqual(new[] { pending }, _center.ClaimPendingToasts().ToList());
+        Assert.AreEqual(0, _center.ClaimPendingToasts().Count);
+    }
+
+    [TestMethod]
+    public void AToast_StaysUp_AsLongAsItsMessageNeeds()
+    {
+        Assert.AreEqual(TimeSpan.FromSeconds(6), new NotificationItem().ToastLifetime);
+        Assert.AreEqual(TimeSpan.FromSeconds(8), new NotificationItem { Severity = MessageSeverity.Error }.ToastLifetime);
+        Assert.AreEqual(TimeSpan.FromMinutes(5), new NotificationItem { Severity = MessageSeverity.Update }.ToastLifetime);
+        Assert.AreEqual(TimeSpan.FromMinutes(5), new NotificationItem { Actions = [new MessageAction("Retry", new CommunityToolkit.Mvvm.Input.RelayCommand(() => { }))] }.ToastLifetime);
+        Assert.AreEqual(TimeSpan.FromSeconds(30), new NotificationItem { Severity = MessageSeverity.Error, ToastDuration = TimeSpan.FromSeconds(30) }.ToastLifetime);
+    }
 }

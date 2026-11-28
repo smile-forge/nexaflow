@@ -284,7 +284,7 @@ public static class WpfStyles
                 : null,
             TextFont = TextFont,
             MonoFont = MonoFont,
-            IconFace = medium.Face(new Typeface(IconCatalog.FluentFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal)),
+            IconFace = medium.Face(new Typeface(IconFonts.FluentFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal)),
             Says = Str.Get,
         };
     }

@@ -17,32 +17,26 @@ using Nexaflow.Visuals.Icons;
 namespace Nexaflow.Core.ViewModels;
 
 /// <summary>
-/// Owns one window's ribbon <see cref="Items"/> collection. The ribbon LAYOUT is owned by the
-/// <see cref="Workspace"/> (shared by every WorkspaceRuntime on it): edits persist through the workspace's
-/// <see cref="RibbonLayoutService"/> and raise <see cref="Models.Workspace.RibbonChanged"/>, which
-/// every other window/Workspace on the same workspace observes to reload its own items live.
-/// The <see cref="WorkspaceRuntime"/> is held separately, only to resolve per-Workspace pin handlers.
+/// One window's ribbon: the <see cref="Items"/> it draws, mirroring its workspace's <see cref="WorkspaceRibbon"/>, which saves
+/// them and keeps every window on the workspace in step. An edit made here is saved as it happens; a change made elsewhere is
+/// taken up here. The <see cref="WorkspaceRuntime"/> is held separately, to resolve the pin handlers and the pages the editor offers.
 /// </summary>
 public partial class RibbonViewModel : ObservableObject
 {
     private WorkspaceRuntime? _runtime;
     private Workspace?   _workspace;
 
-    // The UI dispatcher this view-model was created on; marshal background callbacks through it.
+    // The UI dispatcher this view-model was created on; a change saved from another thread is taken up through it.
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
 
-    // Guards: _reloading suppresses save while we repopulate Items; _isSaving lets the window that
-    // originated a change skip its own RibbonChanged reload (and prevents save/reload feedback loops).
+    // Set while Items is filled from the workspace's ribbon, so filling it saves nothing.
     private bool _reloading;
-    private bool _isSaving;
 
     public ObservableCollection<RibbonItem> Items { get; } = [];
 
     /// <summary>
-    /// Openable pages offered in the editor's "add page" dropdown — each registration's context-item
-    /// page plus its <c>GetTopLevelPages</c> variants (This PC, named folders, …), minus anything already
-    /// on the ribbon. Refreshed each time the editor opens, since availability can depend on
-    /// workspace/config (e.g. a feature toggled off) and on the current ribbon contents.
+    /// Openable pages offered in the editor's "add page" dropdown, less anything already on the ribbon. Refreshed each time the
+    /// editor opens, since what is offered can depend on the workspace's config and on the ribbon's contents.
     /// </summary>
     public ObservableCollection<RibbonCatalogEntry> AvailablePages { get; } = [];
 
@@ -73,66 +67,39 @@ public partial class RibbonViewModel : ObservableObject
     /// <summary>The runtime this ribbon belongs to — used only to resolve its pin handlers and the pages the editor offers.</summary>
     public void SetRuntime(WorkspaceRuntime? workspace) => _runtime = workspace;
 
-    /// <summary>
-    /// Swap to a new workspace: unhook the old workspace's live-sync, clear, load the incoming layout.
-    /// Persistence is immediate per-edit, so there's nothing to flush on the way out.
-    /// </summary>
+    /// <summary>Shows another workspace's ribbon, following its changes instead of the last one's.</summary>
     public void SetWorkspace(Workspace? workspace)
     {
         if (ReferenceEquals(workspace, _workspace)) return;
 
-        _reloading = true;
-        try
-        {
-            if (_workspace is not null) _workspace.RibbonChanged -= OnWorkspaceRibbonChanged;
+        if (_workspace?.Ribbon is { } left) left.Changed -= OnRibbonChanged;
+        _workspace = workspace;
+        if (_workspace?.Ribbon is { } ribbon) ribbon.Changed += OnRibbonChanged;
 
-            foreach (var item in Items)
-                item.PropertyChanged -= OnItemChanged;
-            Items.Clear();
-
-            _workspace = workspace;
-            if (_workspace is not null) _workspace.RibbonChanged += OnWorkspaceRibbonChanged;
-
-            LoadOrBuildItems();
-
-            foreach (var item in Items)
-            {
-                item.PropertyChanged -= OnItemChanged;
-                item.PropertyChanged += OnItemChanged;
-            }
-        }
-        finally
-        {
-            _reloading = false;
-        }
+        Reload();
     }
 
     /// <summary>
-    /// Unhooks the shared <see cref="Models.Workspace.RibbonChanged"/> live-sync and the per-item
-    /// handlers. Must be called when the owning window closes: the Workspace outlives its windows,
-    /// so without this every closed window's ribbon view-model stays rooted by the event delegate
-    /// (and keeps reloading from disk on every ribbon edit).
+    /// Stops following the workspace's ribbon and the items. Must be called when the owning window closes: the workspace
+    /// outlives its windows, so without this every closed window's ribbon stays rooted by the event and keeps reloading.
     /// </summary>
     public void Detach()
     {
-        if (_workspace is not null) _workspace.RibbonChanged -= OnWorkspaceRibbonChanged;
+        if (_workspace?.Ribbon is { } ribbon) ribbon.Changed -= OnRibbonChanged;
         _workspace = null;
         Items.CollectionChanged -= OnItemsCollectionChanged;
         foreach (var item in Items)
             item.PropertyChanged -= OnItemChanged;
     }
 
-    /// <summary>
-    /// Another window on the same workspace changed the ribbon — reload our items from disk so the
-    /// edit shows live. Skipped on the window that originated the change (its items are already current).
-    /// </summary>
-    private void OnWorkspaceRibbonChanged(object? sender, EventArgs e)
+    /// <summary>The ribbon changed: taken up here unless this window made the change, whose items are already current.</summary>
+    private void OnRibbonChanged(object? by)
     {
-        if (_isSaving) return;
-        _ui.Invoke(ReloadFromDisk);
+        if (ReferenceEquals(by, this)) return;
+        _ui.Invoke(Reload);
     }
 
-    private void ReloadFromDisk()
+    private void Reload()
     {
         _reloading = true;
         try
@@ -140,11 +107,11 @@ public partial class RibbonViewModel : ObservableObject
             foreach (var item in Items)
                 item.PropertyChanged -= OnItemChanged;
             Items.Clear();
-            LoadOrBuildItems();
-            foreach (var item in Items)
+            foreach (var entry in _workspace?.Ribbon?.Entries ?? [])
             {
-                item.PropertyChanged -= OnItemChanged;
+                var item = RibbonItem.FromEntry(entry);
                 item.PropertyChanged += OnItemChanged;
+                Items.Add(item);
             }
         }
         finally
@@ -167,17 +134,12 @@ public partial class RibbonViewModel : ObservableObject
                 item.PropertyChanged += OnItemChanged;
             }
 
-        if (Items.Count == 0)
-        {
-            // Empty ribbon — re-seed defaults asynchronously (skip during edit mode
-            // where the user may be mid-clear).
-            if (!IsEditOpen)
-                _ui.BeginInvoke(BuildDefaults);
-        }
-        else
-        {
+        if (Items.Count > 0)
             Save();
-        }
+        // Emptied: saving brings the shipped buttons back, which refills Items — after this change has been heard, as a
+        // collection can't change while its change is told. Not while the editor is open, where the user may be mid-clear.
+        else if (!IsEditOpen)
+            _ui.BeginInvoke(Save);
     }
 
     private void OnItemChanged(object? sender, PropertyChangedEventArgs e) => Save();
@@ -185,46 +147,8 @@ public partial class RibbonViewModel : ObservableObject
     [RelayCommand]
     public void Save()
     {
-        if (_reloading || _workspace?.RibbonService is null) return;
-
-        _isSaving = true;
-        try
-        {
-            _workspace.RibbonService.Save(Items.Select(item => item.ToEntry()));
-            _workspace.RaiseRibbonChanged();   // live-reload other windows/Workspaces on this workspace
-        }
-        finally
-        {
-            _isSaving = false;
-        }
-    }
-
-    private void LoadOrBuildItems()
-    {
-        var saved = _workspace?.RibbonService?.Load();
-        if (saved is { Count: > 0 })
-        {
-            foreach (var entry in saved)
-                Items.Add(RibbonItem.FromEntry(entry));
-        }
-        else
-        {
-            BuildDefaults();
-        }
-    }
-
-    public void BuildDefaults()
-    {
-        foreach (var entry in RibbonLayoutService.LoadDefaults())
-            Items.Add(RibbonItem.FromEntry(entry));
-    }
-
-    public void AddItem(RibbonItem item, int insertAt = -1)
-    {
-        if (insertAt >= 0 && insertAt < Items.Count)
-            Items.Insert(insertAt, item);
-        else
-            Items.Add(item);
+        if (_reloading) return;
+        _workspace?.Ribbon?.Save(Items.Select(item => item.ToEntry()), by: this);
     }
 
     [RelayCommand]
@@ -266,52 +190,24 @@ public partial class RibbonViewModel : ObservableObject
             _reloading = false;
         }
 
-        if (Items.Count == 0) BuildDefaults();
         Save();
     }
 
-    /// <summary>
-    /// Rebuilds <see cref="AvailablePages"/> from the workspace's ribbon-catalog registrations,
-    /// excluding any page already on the ribbon (matched by page kind + params).
-    /// </summary>
     private void RefreshAvailablePages()
     {
         AvailablePages.Clear();
-        if (_runtime is null) return;
+        if (_runtime is null || _workspace?.Ribbon is not { } ribbon) return;
 
-        bool AlreadyInRibbon(string pageKind, Dictionary<string, string>? prms) =>
-            Items.Any(r => r.Kind == RibbonItemKind.Button
-                && r.PageKind == pageKind
-                && ParamsEqual(r.PageParams, prms));
-
-        var entries = _runtime.FeatureManager.GetRibbonCatalogPages(_runtime)
-            .Where(p => !string.IsNullOrEmpty(p.PageKind))
-            .Where(p => !AlreadyInRibbon(p.PageKind!, p.PageParams))
-            .Select(p => new RibbonCatalogEntry(p.Title, p.Icon, p.PageKind!, p.PageParams))
-            .OrderBy(e => e.Title, StringComparer.CurrentCultureIgnoreCase);
-
-        foreach (var entry in entries)
+        foreach (var entry in ribbon.OfferedPages(_runtime))
             AvailablePages.Add(entry);
     }
 
-    /// <summary>
-    /// Handle a tab drag-drop pin. Delegates to the registered <see cref="ITabPinHandler"/>
-    /// for the tab's page kind when one exists; otherwise snapshots the tab's current metadata.
-    /// </summary>
+    /// <summary>A tab dropped on the ribbon is pinned there; a button it already has flashes instead.</summary>
     [RelayCommand]
     public void Pin(TabPinRequest request)
     {
-        var (tab, insertIndex) = request;
-        if (string.IsNullOrEmpty(tab.PageKind)) return;
-
-        var handler = _runtime is not null
-            ? _runtime.FeatureManager.GetTabPinHandler(tab.PageKind, _runtime)
-            : null;
-
-        var result = handler is not null ? handler.Pin(tab, insertIndex) : TabMetadataResult(tab);
-        if (result is null) return;
-
-        InsertPin(result, insertIndex);
+        if (_runtime is null || _workspace?.Ribbon is not { } ribbon) return;
+        Flash(ribbon.PinTab(request.Tab, request.InsertIndex, _runtime));
     }
 
     /// <summary>The pin handlers of the runtime this ribbon belongs to: what may be dropped on it besides a tab. None before the
@@ -319,65 +215,18 @@ public partial class RibbonViewModel : ObservableObject
     public IReadOnlyList<IRibbonPinHandler> PinHandlers
         => _runtime is { } runtime ? runtime.FeatureManager.GetRibbonPinHandlers(runtime) : [];
 
-    /// <summary>
-    /// Handle a handler-based pin: the first <see cref="IRibbonPinHandler"/> that takes a kind the payload carries and
-    /// makes buttons of it has them inserted where they were dropped, in order, less any already there.
-    /// </summary>
+    /// <summary>Something other than a tab dropped on the ribbon is pinned by the handler that takes it; buttons it already has
+    /// flash instead.</summary>
     [RelayCommand]
     public void PinFromHandler(RibbonPinRequest request)
     {
-        foreach (var handler in PinHandlers)
-        {
-            if (!request.Payload.ContainsAny(handler.AcceptedKinds)) continue;
-
-            var pins = handler.Pin(request.Payload);
-            if (pins.Count == 0) continue;
-
-            var at = request.InsertIndex;
-            foreach (var pin in pins)
-                if (InsertPin(pin, at) && at >= 0) at++;
-            return;
-        }
+        if (_runtime is null || _workspace?.Ribbon is not { } ribbon) return;
+        Flash(ribbon.PinDropped(request, _runtime));
     }
 
-    private static RibbonPinResult TabMetadataResult(Page tab) => new()
+    private void Flash(IReadOnlyList<int> already)
     {
-        PageKind   = tab.PageKind!,   // caller guarantees non-empty
-        Label      = tab.Title,
-        Icon       = IconRef.Parse(tab.Icon),
-        PageParams = tab.PageParams is not null ? new(tab.PageParams) : null
-    };
-
-    private bool InsertPin(RibbonPinResult result, int insertIndex)
-    {
-        var duplicate = Items.FirstOrDefault(r =>
-            r.Kind == RibbonItemKind.Button &&
-            r.PageKind == result.PageKind &&
-            ParamsEqual(r.PageParams, result.PageParams));
-        if (duplicate is not null)
-        {
-            FlashItem?.Invoke(duplicate);
-            return false;
-        }
-
-        AddItem(new RibbonItem
-        {
-            Kind         = RibbonItemKind.Button,
-            Label        = result.Label,
-            Icon         = result.Icon,
-            IconResource = result.IconResource,
-            Foreground   = ColorSpec.Parse(result.AccentColor),
-            PageKind     = result.PageKind,
-            PageParams   = result.PageParams
-        }, insertIndex);
-        return true;
-    }
-
-    private static bool ParamsEqual(Dictionary<string, string>? a, Dictionary<string, string>? b)
-    {
-        if (ReferenceEquals(a, b)) return true;
-        if (a is null || b is null) return a is null && b is null;
-        if (a.Count != b.Count) return false;
-        return a.All(kv => b.TryGetValue(kv.Key, out var v) && v == kv.Value);
+        foreach (var at in already)
+            if (at >= 0 && at < Items.Count) FlashItem?.Invoke(Items[at]);
     }
 }

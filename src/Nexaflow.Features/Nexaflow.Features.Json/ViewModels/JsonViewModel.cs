@@ -5,7 +5,6 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.Services;
 using Nexaflow.IO.Common;
-using Nexaflow.Visuals.Common.Collections;
 using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Localization.Formatting;
 using Nexaflow.Localization;
@@ -15,6 +14,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
+using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.Json.ViewModels;
 

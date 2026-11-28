@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Windows.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Terminal;
-using Nexaflow.Visuals.Terminal.Models;
 using Nexaflow.Visuals.Terminal.ViewModels;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;

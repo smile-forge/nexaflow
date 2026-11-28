@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Nexaflow.Features.Tabular.Detection;
 using Nexaflow.IO.Common;
 using Nexaflow.IO.Common.Locations;
-using Nexaflow.Visuals.Common.Collections;
 
 namespace Nexaflow.Features.Tabular.Streaming;
 
