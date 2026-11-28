@@ -4,7 +4,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using Nexaflow.Interaction;
 
-namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
+namespace Nexaflow.Features.WindowsFileSystem.Model;
 
 public enum DriveStatus   { Ready, Loading, Unavailable }
 

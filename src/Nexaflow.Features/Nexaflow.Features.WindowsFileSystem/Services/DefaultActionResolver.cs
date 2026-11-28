@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Features.WindowsFileSystem.Model;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Localization;
 using System;

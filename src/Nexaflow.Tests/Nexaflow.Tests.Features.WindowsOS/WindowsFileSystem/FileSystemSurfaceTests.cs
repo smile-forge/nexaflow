@@ -18,6 +18,7 @@ using Nexaflow.Icons;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 using Nexaflow.Interaction;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -151,7 +152,7 @@ public class FileSystemSurfaceTests
     public async Task TheDropTooltipSaysWhichWayItWillGo_AndWhere()
     {
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.CopyToFormat", "Projects"),
                         target.GetDropDescription("Projects", isMove: false));
@@ -165,7 +166,7 @@ public class FileSystemSurfaceTests
     public async Task DroppingOntoTheListRatherThanAFolderNamesTheCurrentOne()
     {
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.CopyToFormat", Path.GetFileName(_scratch)),
                         target.GetDropDescription(targetFolderName: null, isMove: false));
@@ -176,7 +177,7 @@ public class FileSystemSurfaceTests
     public async Task OnlyAFileDropIsAccepted()
     {
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         Assert.IsTrue(target.CanAcceptDrop(Files(new[] { @"C:\a.txt" })));
         Assert.IsFalse(target.CanAcceptDrop(new DragPayload((DragKinds.Text, (object)"hello"))));
@@ -198,7 +199,7 @@ public class FileSystemSurfaceTests
         Directory.CreateDirectory(other);
 
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
         var dragged = Files(new[] { folder });
 
         Assert.IsTrue(target.IsSelfDrop(dragged, folder), "the folder being dragged is not a destination");
@@ -228,7 +229,7 @@ public class FileSystemSurfaceTests
         File.WriteAllText(moved, "y");
 
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         // The drop queues the work and returns — awaiting the operation is the point, not a nicety.
         target.Drop(Files(new[] { copied }), dest, move: false);
@@ -251,7 +252,7 @@ public class FileSystemSurfaceTests
         var dest = Path.Combine(_scratch, "dest");
         Directory.CreateDirectory(dest);
         var (vm, shell) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         target.Drop(Files(new[] { Path.Combine(_scratch, "gone.txt") }),
                     dest, move: false);
@@ -267,7 +268,7 @@ public class FileSystemSurfaceTests
     public async Task ThePromptForARightDragNamesWhereItWouldLand_AndPromisesNothingYet()
     {
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.ChoicePromptFormat", "Projects"), target.GetChoicePrompt("Projects"));
         Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.ChoicePromptFormat", Path.GetFileName(_scratch)),
@@ -282,7 +283,7 @@ public class FileSystemSurfaceTests
         var dest = Path.Combine(_scratch, "dest");
         Directory.CreateDirectory(dest);
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         Assert.IsNull(target.Capture(new DragPayload((DragKinds.Text, (object)"hello")), dest));
         Assert.IsNull(target.Capture(Files(Array.Empty<string>()), dest));
@@ -299,7 +300,7 @@ public class FileSystemSurfaceTests
         var dest = Path.Combine(_scratch, "dest");
         Directory.CreateDirectory(dest);
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
         IReadOnlyList<CarriedFile> attachment = [new CarriedFile("attached.txt", false, into => into.Write("from a mail"u8))];
 
         target.Drop(new DragPayload((DragKinds.FileContents, attachment)), dest, move: false);
@@ -322,7 +323,7 @@ public class FileSystemSurfaceTests
         File.WriteAllText(moved, "y");
 
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         // Capture and Execute are deliberately separated by the menu: the data object is only valid
         // inside the drop callback, and the answer arrives after it has returned.
@@ -362,7 +363,7 @@ public class FileSystemSurfaceTests
         File.WriteAllText(Path.Combine(source, "once.txt"), "x");
 
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         var plan = target.Capture(Files(new[] { source }), dest);
         Assert.IsNotNull(plan);
@@ -399,7 +400,7 @@ public class FileSystemSurfaceTests
         File.WriteAllText(file, "x");
 
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         var ontoItself = target.Capture(Files(new[] { file }), here);
         Assert.IsNotNull(ontoItself);
@@ -428,7 +429,7 @@ public class FileSystemSurfaceTests
         Directory.CreateDirectory(inside);
 
         var (vm, _) = await AtScratchAsync();
-        var target = new FileSystemDropTarget(vm);
+        var target = new FileSystemDropTarget(vm.Model);
 
         var plan = target.Capture(Files(new[] { folder }), inside);
         Assert.IsNotNull(plan);

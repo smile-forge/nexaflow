@@ -25,6 +25,7 @@ using Nexaflow.Visuals.Icons;
 using Nexaflow.Interaction;
 using Nexaflow.Visuals.Common.Dropping;
 using Nexaflow.Visuals.Common.Viewing;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Features.WindowsFileSystem.Views;
 
@@ -80,7 +81,7 @@ public partial class FileSystemView : UserControl, IDropTarget, ISelectionProvid
         InitializeComponent();
         ViewModel        = viewModel;
         _actionKeys      = new FileSystemKeyboardHandler(viewModel);
-        _dropTarget      = new FileSystemDropTarget(viewModel);
+        _dropTarget      = new FileSystemDropTarget(viewModel.Model);
         DataContext = viewModel;
         ViewModel.NavigationChanged += OnViewModelNavigationChanged;
         ViewModel.PropertyChanged   += OnViewModelPropertyChanged;

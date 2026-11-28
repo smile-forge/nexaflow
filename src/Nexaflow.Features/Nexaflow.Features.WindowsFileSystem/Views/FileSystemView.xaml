@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons"
-             xmlns:vm="clr-namespace:Nexaflow.Features.WindowsFileSystem.ViewModels"
+             xmlns:vm="clr-namespace:Nexaflow.Features.WindowsFileSystem.ViewModels" xmlns:model="clr-namespace:Nexaflow.Features.WindowsFileSystem.Model"
              xmlns:conv="clr-namespace:Nexaflow.Features.WindowsFileSystem.Converters"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:beh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
@@ -20,7 +20,7 @@
              names itself in its tooltip. -->
         <GridViewColumn x:Key="StatusColumn" Width="56" Header="{loc:Str WindowsFileSystem.Columns.Status}">
             <GridViewColumn.CellTemplate>
-                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                     <vcc:CloudStatusIcon Path="{Binding FullPath}" Listed="{Binding CloudState}" Revision="{Binding StatusRevision}"
                                          HorizontalAlignment="Left" VerticalAlignment="Center" Margin="2,0,0,0"/>
                 </DataTemplate>
@@ -32,7 +32,7 @@
              Placed after Modified, on a location that reports them only, by the view (PlacePosixColumns). -->
         <GridViewColumn x:Key="PermissionsColumn" Width="96" Header="{loc:Str WindowsFileSystem.Columns.Permissions}">
             <GridViewColumn.CellTemplate>
-                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                     <TextBlock Text="{Binding PermissionsLabel}" FontFamily="Consolas"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
                 </DataTemplate>
@@ -40,14 +40,14 @@
         </GridViewColumn>
         <GridViewColumn x:Key="OwnerColumn" Width="90" Header="{loc:Str WindowsFileSystem.Columns.Owner}">
             <GridViewColumn.CellTemplate>
-                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                     <TextBlock Text="{Binding Owner}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
                 </DataTemplate>
             </GridViewColumn.CellTemplate>
         </GridViewColumn>
         <GridViewColumn x:Key="GroupColumn" Width="90" Header="{loc:Str WindowsFileSystem.Columns.Group}">
             <GridViewColumn.CellTemplate>
-                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                     <TextBlock Text="{Binding Group}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
                 </DataTemplate>
             </GridViewColumn.CellTemplate>
@@ -299,7 +299,7 @@
                       VirtualizingPanel.VirtualizationMode="Recycling"
                       VirtualizingPanel.ScrollUnit="Item">
                 <TreeView.ItemTemplate>
-                    <HierarchicalDataTemplate DataType="{x:Type vm:FileSystemTreeNode}"
+                    <HierarchicalDataTemplate DataType="{x:Type model:FileSystemTreeNode}"
                                               ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal">
                             <!-- Icon area: 18×18, one child visible at a time -->
@@ -592,7 +592,7 @@
                                 <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Name}" Key="Name"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <Grid Width="20" Height="20" Margin="0,0,6,0" VerticalAlignment="Center">
 
@@ -741,7 +741,7 @@
                                 <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Type}" Key="TypeLabel"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                                     <TextBlock Text="{Binding TypeLabel}"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="12" VerticalAlignment="Center"/>
@@ -759,7 +759,7 @@
                                 </DataTemplate>
                             </GridViewColumn.HeaderTemplate>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                                     <TextBlock Text="{Binding FileSystem}"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="12" VerticalAlignment="Center"/>
@@ -773,7 +773,7 @@
                                 <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Size}" Key="SizeBytes"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                                     <TextBlock Text="{Binding SizeLabel}"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="12" VerticalAlignment="Center"/>
@@ -812,7 +812,7 @@
                                 <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Name}" Key="Name"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <!-- The shell's icon for the row, as Explorer draws it; its glyph until that arrives.
                                              A link carries an arrow in its corner. -->
@@ -862,7 +862,7 @@
                                 <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Type}" Key="TypeLabel"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                                     <TextBlock Text="{Binding TypeLabel}"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="12" VerticalAlignment="Center"/>
@@ -876,7 +876,7 @@
                                 <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Size}" Key="SizeBytes"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                                     <TextBlock Text="{Binding SizeLabel}"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="12" VerticalAlignment="Center"/>
@@ -890,7 +890,7 @@
                                 <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Modified}" Key="Modified"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
+                                <DataTemplate DataType="{x:Type model:FileSystemEntry}">
                                     <TextBlock Text="{Binding ModifiedLabel}"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="12" VerticalAlignment="Center"/>

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.WindowsFileSystem.Model;
 using Nexaflow.IO.Common;
 using System.Collections.Generic;
 using System.IO;
@@ -126,8 +127,8 @@ public sealed class FileCompanions
 public sealed class CompanionListing
 {
     private readonly FileCompanions _companions;
-    private readonly Dictionary<string, ViewModels.FileSystemEntry> _files = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<(ViewModels.FileSystemEntry Entry, FileCompanionKind Kind, string PrimaryName)> _held = [];
+    private readonly Dictionary<string, FileSystemEntry> _files = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<(FileSystemEntry Entry, FileCompanionKind Kind, string PrimaryName)> _held = [];
 
     internal CompanionListing(FileCompanions companions) => _companions = companions;
 
@@ -135,7 +136,7 @@ public sealed class CompanionListing
     /// Takes one entry. True when it is held back — a possible companion, decided by <see cref="Finish"/>; false when
     /// the caller lists it now.
     /// </summary>
-    public bool Hold(ViewModels.FileSystemEntry entry)
+    public bool Hold(FileSystemEntry entry)
     {
         if (entry.IsDirectory) return false;
         if (_companions.Parse(entry.Name) is { } parsed)
@@ -151,9 +152,9 @@ public sealed class CompanionListing
     /// The folder has been read. Each held companion whose primary was listed badges it and is dropped; the rest —
     /// orphans — are returned, to be listed as ordinary files.
     /// </summary>
-    public IReadOnlyList<ViewModels.FileSystemEntry> Finish()
+    public IReadOnlyList<FileSystemEntry> Finish()
     {
-        var orphans = new List<ViewModels.FileSystemEntry>();
+        var orphans = new List<FileSystemEntry>();
         foreach (var (entry, kind, primaryName) in _held)
         {
             if (_files.TryGetValue(primaryName, out var primary))

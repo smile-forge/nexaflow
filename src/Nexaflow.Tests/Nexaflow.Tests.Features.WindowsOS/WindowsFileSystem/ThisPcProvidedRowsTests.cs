@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

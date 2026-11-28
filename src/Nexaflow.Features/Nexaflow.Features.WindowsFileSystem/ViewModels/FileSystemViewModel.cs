@@ -3,43 +3,231 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Common.Search;
-using Nexaflow.Features.Common.ThisPc;
-using Nexaflow.Search;
 using Nexaflow.Features.Common.Viewlets;
-using Nexaflow.Features.WindowsFileSystem.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.Controls;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
+using Nexaflow.Features.WindowsFileSystem.Model;
+using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Interaction;
 using Nexaflow.IO.Common;
+using Nexaflow.Localization;
+using Nexaflow.Search;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.IO;
+using System.ComponentModel;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Data;
-using Nexaflow.Features.WindowsFileSystem.Operations;
-using Nexaflow.Localization;
-using Nexaflow.IO.Common.Shell;
-using Nexaflow.IO.Common.Cloud;
-using Nexaflow.IO.Common.Listing;
-using Nexaflow.IO.Common.Locations;
-using Nexaflow.Icons;
-using Nexaflow.Interaction;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
-// ── Main ViewModel ────────────────────────────────────────────────────────────
-
+/// <summary>
+/// The WPF file view's view-model over one <see cref="FileSystemModel"/>: what only this view needs — the footer's words,
+/// the action strip and its timing, the create picker and the define-new wizard, the operations panel — while where the tab
+/// is, what it lists and what the assistant is given are the model's.
+/// </summary>
 public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISearchable, IPasteTarget
 {
-    [ObservableProperty] private string _currentPath = string.Empty;
-    [ObservableProperty] private FileSystemEntry? _selectedEntry;
+    /// <summary>The tab, named in no UI toolkit.</summary>
+    public FileSystemModel Model { get; }
+
+    private readonly IShellServices _shell;
+
+    // ── Constructors ─────────────────────────────────────────────────────────
+
+    /// <summary>Opens a specific directory as the starting point.</summary>
+    public FileSystemViewModel(string targetDirectory, IShellServices shell, IAIService ai,
+                               IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
+                               FileSystemFeatureRegistry registry, FileOperationQueue operations, FileCompanions companions)
+        : this(shell, configs, vfs, registry, operations, companions)
+        => Model.Navigation.StartAt(targetDirectory);
+
+    /// <summary>Opens "This PC" showing all connected drives.</summary>
+    public static FileSystemViewModel CreateThisPc(IShellServices shell, IAIService ai,
+                                                   IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
+                                                   FileSystemFeatureRegistry registry, FileOperationQueue operations,
+                                                   FileCompanions companions)
+    {
+        using var _t = Timing.Measure("ThisPC.CreateThisPc (total, UI thread)");
+        var vm = new FileSystemViewModel(shell, configs, vfs, registry, operations, companions);
+        vm.Model.Navigation.StartAtThisPc();
+        return vm;
+    }
+
+    private FileSystemViewModel(IShellServices shell, IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
+                                FileSystemFeatureRegistry registry, FileOperationQueue operations, FileCompanions companions)
+    {
+        _shell = shell;
+        Model  = new FileSystemModel(shell, configs, vfs, registry, operations, companions);
+        // The action strip is rebuilt once the selection settles.
+        _actionDebounceTimer = shell.CreateUiDelay(TimeSpan.FromMilliseconds(150), OnActionDebounceTimer);
+        FileOperations = new FileOperationsPanelViewModel(Operations, shell);
+
+        Model.Location.PropertyChanged += OnLocationChanged;
+        Model.Listing.PropertyChanged  += OnListingChanged;
+        Model.Creation.PropertyChanged += OnCreationChanged;
+        Model.Listing.Counted          += () => UpdateEntryCountLabel(Model.Listing.FolderCount, Model.Listing.FileCount, 0);
+        Model.Navigation.Arrived       += () => OnSelectionChanged([]);
+    }
+
+    /// <summary>The model's changes, under the names this view binds.</summary>
+    private void OnLocationChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FolderLocation.CurrentPath)) OnPropertyChanged(nameof(CurrentPath));
+    }
+
+    private void OnListingChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(FolderListing.ListingFailure):
+                OnPropertyChanged(nameof(ListingFailure));
+                OnPropertyChanged(nameof(HasListingFailure));
+                OnPropertyChanged(nameof(ListingFailureText));
+                break;
+            case nameof(FolderListing.ActiveFilter):
+                OnPropertyChanged(nameof(ActiveFilter));
+                ApplyEntryFilter();
+                break;
+            case nameof(FolderListing.IsLoadingEntries):
+            case nameof(FolderListing.ShowsCloudStatus):
+            case nameof(FolderListing.ShowsPosixColumns):
+            case nameof(FolderListing.IsFolderBusy):
+            case nameof(FolderListing.FolderBusyMessage):
+            case nameof(FolderListing.SortColumn):
+            case nameof(FolderListing.SortAscending):
+                OnPropertyChanged(e.PropertyName);
+                break;
+        }
+    }
+
+    private void OnCreationChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(FileCreation.FileName):   OnPropertyChanged(nameof(CreateFileName));        break;
+            case nameof(FileCreation.NameExists): OnPropertyChanged(nameof(CreateNameExists));      break;
+            case nameof(FileCreation.Options):    OnPropertyChanged(nameof(SelectedCreateOptions)); break;
+            case nameof(FileCreation.CanCreate):
+                OnPropertyChanged(nameof(CanCreate));
+                CreateCommand.NotifyCanExecuteChanged();
+                break;
+        }
+    }
+
+    // ── Where the tab is ──────────────────────────────────────────────────────
+
+    public string CurrentPath  => Model.Location.CurrentPath;
+    public bool   IsThisPcMode => Model.Location.IsThisPc;
+    public string RootPath     => Model.Location.RootPath;
+
+    public ObservableCollection<FileSystemTreeNode>   TreeRoots => Model.Navigation.TreeRoots;
+    public RangeObservableCollection<FileSystemEntry> Entries   => Model.Listing.Entries;
+
+    /// <summary>
+    /// Raised whenever the current directory changes, with the ordered trail from the root label — each segment the path
+    /// a breadcrumb click browses to.
+    /// </summary>
+    public event Action<IReadOnlyList<(string Label, string Path)>>? NavigationChanged
+    {
+        add    => Model.Navigation.NavigationChanged += value;
+        remove => Model.Navigation.NavigationChanged -= value;
+    }
+
+    /// <summary>The runtime's file system, which the browser reads through.</summary>
+    internal IVirtualFileSystem Vfs => Model.Vfs;
+
+    internal FileSystemFeatureRegistry Registry => Model.Registry;
+
+    /// <summary>The companion files the features have declared — hidden in the list, carried by every operation.</summary>
+    internal FileCompanions Companions => Model.Companions;
+
+    /// <summary>Copy, move and delete work in flight, shared by every file-browser tab of the runtime.</summary>
+    public FileOperationQueue Operations => Model.Operations;
+
+    /// <summary>The panel above the tree that shows those operations while they run.</summary>
+    public FileOperationsPanelViewModel FileOperations { get; }
+
+    /// <summary>Surfaces a file-operation error (e.g. a failed drag-drop move) as a toast.</summary>
+    internal void ReportError(string message) => Model.ReportError(message);
+
+    /// <summary>The newest browse, done once the folder is open and its listing on the way.</summary>
+    internal Task Browsing => Model.Navigation.Browsing;
+
+    /// <summary>The newest read of the open folder, done once its every row is in <see cref="Entries"/>.</summary>
+    internal Task EntriesLoaded => Model.Listing.EntriesLoaded;
+
+    public Task BrowseToAsync(string path) => Model.Navigation.BrowseToAsync(path);
+    public void Reinitialize(Dictionary<string, string> pageParams) => Model.Navigation.Reinitialize(pageParams);
+    public void NavigateUp() => Model.Navigation.NavigateUp();
+    public void GoToThisPc(bool rebuildTree = false) => Model.Navigation.GoToThisPc(rebuildTree);
+    public void OnTreeNodeSelected(FileSystemTreeNode node) => Model.Navigation.OnTreeNodeSelected(node);
+    public void ResetRootToCurrentPath() => Model.Navigation.ResetRootToCurrentPath();
+    public Task ExpandToPathAsync(string path) => Model.Navigation.ExpandToPathAsync(path);
+    public Task<string?> NearestExistingAncestorAsync(string path) => Model.Navigation.NearestExistingAncestorAsync(path);
+
+    /// <summary>Reads the open folder and the tree again, keeping the tree's expanded state; the selection is cleared so the
+    /// action strip is worked out again.</summary>
+    public void Refresh() => Model.Navigation.Refresh();
+
+    /// <summary>Cancels any in-flight directory enumeration so no folder handle is held open — called by the
+    /// host before a viewlet mutates/deletes the current folder (see the folder-quiesce fan-out).</summary>
+    public void CancelEntryLoad() => Model.Listing.CancelRead();
+
+    [RelayCommand]
+    private Task OpenEntry(FileSystemEntry entry) => Model.Navigation.OpenAsync(entry);
+
+    /// <summary>Opens <paramref name="folderPath"/> as a new File Explorer tab in the window's right pane. Backs the tree's
+    /// "Open in right pane" context-menu item.</summary>
+    [RelayCommand]
+    private void OpenInRightPane(string? folderPath) => Model.Navigation.OpenInRightPane(folderPath);
+
+    // ── What the list shows ───────────────────────────────────────────────────
+
+    public bool    IsLoadingEntries  => Model.Listing.IsLoadingEntries;
+    public bool    ShowsCloudStatus  => Model.Listing.ShowsCloudStatus;
+    public bool    ShowsPosixColumns => Model.Listing.ShowsPosixColumns;
+    public string? ListingFailure    => Model.Listing.ListingFailure;
+
+    public bool HasListingFailure => ListingFailure is not null;
+
+    public string ListingFailureText => ListingFailure is null ? string.Empty : Str.Format("WindowsFileSystem.List.FailedFormat", ListingFailure);
+
+    /// <summary>Reads the folder again after a listing failed.</summary>
+    [RelayCommand]
+    private void RetryListing() => Refresh();
+
+    /// <summary>The column the rows are sorted by, so the headers draw the sort-direction glyph on it.</summary>
+    public string SortColumn    => Model.Listing.SortColumn;
+    public bool   SortAscending => Model.Listing.SortAscending;
+
+    [RelayCommand]
+    private void SortBy(string column) => Model.Listing.SortBy(column);
+
+    /// <summary>Active footer filter; drives which entries the list view shows.</summary>
+    public EntryFilter ActiveFilter
+    {
+        get => Model.Listing.ActiveFilter;
+        set => Model.Listing.ActiveFilter = value;
+    }
+
+    private void ApplyEntryFilter()
+    {
+        var view = CollectionViewSource.GetDefaultView(Entries);
+        if (view is null) return;
+        var shows = FolderListing.FilterFor(ActiveFilter);
+        view.Filter = shows is null ? null : o => o is FileSystemEntry entry && shows(entry);
+    }
+
+    [RelayCommand]
+    private void ToggleFolderFilter() => Model.Listing.ToggleFilter(EntryFilter.FoldersOnly);
+
+    [RelayCommand]
+    private void ToggleFileFilter() => Model.Listing.ToggleFilter(EntryFilter.FilesOnly);
 
     // ── Footer: clickable folder/file counts + quick-filter ────────────────────
     [ObservableProperty] private string _selectionSummary   = string.Empty; // "N selected · " or ""
@@ -50,391 +238,46 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     [ObservableProperty] private bool   _showCountSeparator;
     [ObservableProperty] private bool   _isEmpty = true;
 
-    /// <summary>Active footer filter; drives which entries the list view shows.</summary>
-    [ObservableProperty] private EntryFilter _activeFilter = EntryFilter.None;
+    /// <summary>Updates only the selection part of the footer, reusing the totals the listing last published — a selection
+    /// change never alters them, and counting the live collection would race the streaming loader.</summary>
+    private void UpdateSelectionCount(int selectedCount)
+        => UpdateEntryCountLabel(Model.Listing.FolderCount, Model.Listing.FileCount, selectedCount);
 
-    partial void OnActiveFilterChanged(EntryFilter value) => ApplyEntryFilter();
-
-    private void ApplyEntryFilter()
+    /// <summary>Sets the footer labels from already-known counts.</summary>
+    private void UpdateEntryCountLabel(int folders, int files, int selectedCount)
     {
-        var view = CollectionViewSource.GetDefaultView(Entries);
-        if (view is null) return;
-        view.Filter = ActiveFilter switch
-        {
-            EntryFilter.FoldersOnly => static o => o is FileSystemEntry { IsDirectory: true },
-            EntryFilter.FilesOnly   => static o => o is FileSystemEntry { IsDirectory: false },
-            _                       => null
-        };
+        HasFolders         = folders > 0;
+        HasFiles           = files   > 0;
+        ShowCountSeparator = folders > 0 && files > 0;
+        IsEmpty            = folders == 0 && files == 0;
+
+        FolderCountText  = folders == 1
+            ? Str.Format("WindowsFileSystem.Footer.FolderCountOne", folders)
+            : Str.Format("WindowsFileSystem.Footer.FolderCountMany", folders);
+        FileCountText    = files == 1
+            ? Str.Format("WindowsFileSystem.Footer.FileCountOne", files)
+            : Str.Format("WindowsFileSystem.Footer.FileCountMany", files);
+        SelectionSummary = selectedCount > 0 ? Str.Format("WindowsFileSystem.Footer.SelectedFormat", selectedCount) : string.Empty;
     }
 
-    [RelayCommand]
-    private void ToggleFolderFilter() =>
-        ActiveFilter = ActiveFilter == EntryFilter.FoldersOnly ? EntryFilter.None : EntryFilter.FoldersOnly;
-
-    [RelayCommand]
-    private void ToggleFileFilter() =>
-        ActiveFilter = ActiveFilter == EntryFilter.FilesOnly ? EntryFilter.None : EntryFilter.FilesOnly;
-
-    // ── File action strip ─────────────────────────────────────────────────────
-    private readonly FileActionManager _actionRegistry;
-    private readonly DefaultFileOpener _opener;
-    private readonly ExternalAppsConfig _externalAppsConfig;
-    public ObservableCollection<FileActionViewModel> FileActions { get; } = [];
-
-    // ── Ribbon pinning ────────────────────────────────────────────────────────
-
-    [RelayCommand(CanExecute = nameof(CanPinFileActionToRibbon))]
-    private void PinFileActionToRibbon(FileActionViewModel vm)
-    {
-        // Folder actions (wrapped in FolderActionAdapter) operate on the current directory,
-        // not the selected files. Capture the folder path so the pinned button re-opens
-        // the action at the same location.
-        IReadOnlyList<string> paths = vm.Action is FolderActionAdapter
-            ? (string.IsNullOrEmpty(CurrentPath) ? [] : [CurrentPath])
-            : CurrentSelection.Select(e => e.FullPath).ToList();
-        var payload = new FileActionPinPayload(vm.Action, paths);
-        _shell.PinToRibbon(FileSystemPageRegistration.FileActionKind, payload);
-    }
-
-    private bool CanPinFileActionToRibbon(FileActionViewModel? vm)
-        => vm is not null && !vm.IsDestructive && vm.IsRibbonPinnable;
-
-    // Debounce timer — action strip is only rebuilt after input has been idle
-    // for a short interval, so rapid selection changes (including double-clicks)
-    // never stall the UI thread.
-    private readonly IUiTimer _actionDebounceTimer;
-    private IReadOnlyList<FileSystemEntry> _pendingSelection = [];
-
-    // ── Multi-selection (forwarded from view) ─────────────────────────────────
-    public IReadOnlyList<FileSystemEntry> CurrentSelection { get; private set; } = [];
-
-    // ── Shift state (forwarded from view key events) ──────────────────────────
-    [ObservableProperty] private bool _shiftHeld;
-
-    partial void OnShiftHeldChanged(bool value)
-    {
-        foreach (var fa in FileActions)
-            fa.ShiftHeld = value;
-    }
-
-    // ── Create overlay (the "New" button) ──────────────────────────────────────
-    // A single pane: pick a file type from the icon list, name it below. The name is
-    // prefilled per type, its extension follows the selected type, and a live warning
-    // shows when the resolved name already exists in the current folder. A type that asks
-    // for options first (IFileCreateWithOptions) shows them between the two while chosen.
-
-    [ObservableProperty] private bool _createOverlayVisible;
-    [ObservableProperty] private CreateActionViewModel? _selectedCreateAction;
-    [ObservableProperty] private string _createFileName = string.Empty;
-    [ObservableProperty] private bool _createNameExists;
-
-    /// <summary>The options the chosen type asks for, opened on the current folder while it is chosen; null for a type a
-    /// name is enough for.</summary>
-    [ObservableProperty] private IFileCreateOptions? _selectedCreateOptions;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
-    private bool _canCreate;
-
-    public ObservableCollection<CreateActionViewModel> CreateActions { get; } = [];
-
-    /// <summary>Opens the create overlay, populated live from every create-action source.</summary>
-    public void OpenCreateOverlay()
-    {
-        if (!CanCreateHere) return;
-        OpenCreateOverlayWith(_actionRegistry.GetCreateActions());
-    }
-
-    /// <summary>Populates and shows the overlay for a given action set (also the unit-test seam).</summary>
-    internal void OpenCreateOverlayWith(IReadOnlyList<IFileCreateEntry> actions)
-    {
-        CreateActions.Clear();
-        foreach (var action in actions)
-            CreateActions.Add(new CreateActionViewModel(action, SelectCreateAction));
-
-        SelectedCreateAction = CreateActions.FirstOrDefault();
-        RecomputeCreateState();          // also covers the empty-list case
-        CreateOverlayVisible = true;
-    }
-
-    private void SelectCreateAction(CreateActionViewModel a) => SelectedCreateAction = a;
-
-    partial void OnSelectedCreateActionChanged(CreateActionViewModel? value)
-    {
-        foreach (var a in CreateActions)
-            a.IsSelected = ReferenceEquals(a, value);
-        SelectedCreateOptions = value?.Action is IFileCreateWithOptions asks ? asks.OpenOptions(RealFolder(CurrentPath)) : null;
-        CreateFileName = DefaultNameFor(value);   // triggers RecomputeCreateState via OnCreateFileNameChanged
-    }
-
-    /// <summary>Options left behind are closed; those now shown are followed, so Create waits on them.</summary>
-    partial void OnSelectedCreateOptionsChanged(IFileCreateOptions? oldValue, IFileCreateOptions? newValue)
-    {
-        if (oldValue is not null)
-        {
-            oldValue.PropertyChanged -= OnCreateOptionsChanged;
-            oldValue.Dispose();
-        }
-    if (newValue is not null) newValue.PropertyChanged += OnCreateOptionsChanged;
-    ApplyCreateGate();
-    }
-
-    private void OnCreateOptionsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-    if (e.PropertyName is nameof(IFileCreateOptions.CanCreate) or null) ApplyCreateGate();
-    }
-
-    /// <summary>The picker closed: the options it showed are closed with it.</summary>
-    partial void OnCreateOverlayVisibleChanged(bool value)
-    {
-        if (!value) SelectedCreateOptions = null;
-    }
-
-    partial void OnCreateFileNameChanged(string value) => RecomputeCreateState();
-
-    private static string DefaultNameFor(CreateActionViewModel? a)
-    {
-        if (a is null) return string.Empty;
-        // Extensionless types name the item after the type ("New Folder", "New Product"); files use "New File.ext".
-        return string.IsNullOrEmpty(a.FileExtension)
-            ? Str.Format("WindowsFileSystem.Create.NewItemFormat", a.DisplayName)
-            : Str.Get("WindowsFileSystem.Create.NewFileName") + a.FileExtension;
-    }
-
-    /// <summary>Applies the host extension rule: keep the user's extension, else append the type's.</summary>
-    private string ResolveCreateName()
-    {
-        var name = (CreateFileName ?? string.Empty).Trim();
-        if (name.Length == 0 || SelectedCreateAction is null) return name;
-        return Path.HasExtension(name) ? name : name + SelectedCreateAction.FileExtension;
-    }
-
-    /// <summary>The folder the selected kind makes its item in, as it names it: a kind made from a name alone goes through
-    /// the file system, so on a location it is the location's folder and takes the location's names; a kind with options
-    /// writes where Windows reaches the folder, and takes Windows' names. Null with no folder open.</summary>
-    private string? CreateFolder()
-        => string.IsNullOrEmpty(CurrentPath) ? null
-         : SelectedCreateAction?.Action is IFileCreateWithOptions ? RealFolder(CurrentPath)
-         : new Services.ShellPath(Vfs).RealForMutation(CurrentPath);
-
-    private void RecomputeCreateState()
-    {
-        var name = ResolveCreateName();
-        var folder = CreateFolder();
-        bool valid = SelectedCreateAction is not null && folder is not null && Vfs.CanName(folder, name);
-
-_createNameCheck?.Cancel();
-if (!valid || string.IsNullOrEmpty(CurrentPath))
-{
-CreateNameExists = false;
-_createNameFree  = valid;
-ApplyCreateGate();
-return;
-}
-
-_createNameFree = false;   // until the folder says the name is free
-ApplyCreateGate();
-var check = _createNameCheck = new CancellationTokenSource();
-CreateNameChecked = CheckCreateNameAsync(Vfs.ChildPath(folder!, name), check.Token);
-}
-
-/// <summary>Whether the folder last said the name typed is valid and free; the options the kind asks for are the
-/// other half of <see cref="CanCreate"/>.</summary>
-private bool _createNameFree;
-
-/// <summary>Create waits on both halves: a free name, and options that say enough. Either changing re-gates it without
-/// asking the folder again.</summary>
-private void ApplyCreateGate() =>
-CanCreate = _createNameFree && (SelectedCreateOptions?.CanCreate ?? true);
-
-    /// <summary>The newest name-taken question; an older one still waiting is cancelled.</summary>
-    private CancellationTokenSource? _createNameCheck;
-
-    /// <summary>The newest name-taken question, answered once <see cref="CanCreate"/> says what it found.</summary>
-    internal Task CreateNameChecked { get; private set; } = Task.CompletedTask;
-
-    /// <summary>Whether the name typed is taken, asked of the folder. On a location that is a round trip, so the newest
-    /// question wins and an older answer arriving late is dropped; a folder that cannot answer leaves the create to
-    /// report why.</summary>
-    private async Task CheckCreateNameAsync(string full, CancellationToken ct)
-    {
-        bool exists;
-        try
-        {
-            exists = await Vfs.ExistsAsync(full, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        catch (IOException)
-        {
-            exists = false;
-        }
-if (ct.IsCancellationRequested) return;
-
-CreateNameExists = exists;
-_createNameFree  = !exists;
-ApplyCreateGate();
-}
-
-    [RelayCommand(CanExecute = nameof(CanCreate))]
-    private async Task Create()
-    {
-        var entry = SelectedCreateAction?.Action;
-        if (entry is null) return;
-
-        var name = ResolveCreateName();
-        if (name.Length == 0) return;
-
-        // Made before the picker closes: closing it closes the options the item is made through.
-        try
-        {
-if (SelectedCreateOptions is { } options) options.Create(name);
-else if (entry is IFileCreateAction action && CreateFolder() is { } folder) await action.CreateItemAsync(folder, name);
-        }
-        catch (Exception ex)
-        {
-            _shell.ShowError(Str.Format("WindowsFileSystem.Create.FailedFormat", name, ex.Message));
-        }
-        CreateOverlayVisible = false;
-        Refresh();
-    }
-
-    [RelayCommand]
-    private void CancelCreate() => CreateOverlayVisible = false;
-
-    // ── "Define New" association wizard ─────────────────────────────────────────
-    [ObservableProperty] private bool _wizardOverlayVisible;
-    [ObservableProperty] private DefineNewWizardViewModel? _wizard;
-
-    /// <summary>
-    /// Opens the wizard that associates a file/extension/glob with an internal viewer or an
-    /// external app. Only available for a single selected file — folders, drives, "This PC" and
-    /// empty selections have no viewer/association concept.
-    /// </summary>
-    [RelayCommand(CanExecute = nameof(CanOpenDefineNewWizard))]
-    private void OpenDefineNewWizard()
-    {
-        if (CurrentSelection is not [{ IsDirectory: false, IsThisPcItem: false } file]) return;
-
-        Wizard = new DefineNewWizardViewModel(
-            _shell, _externalAppsConfig, Registry.FileActions,
-            CurrentPath, file.FullPath,
-            onClose: () =>
-            {
-                WizardOverlayVisible = false;
-                Wizard = null;
-                // Rebuild the action strip so the just-defined action is usable immediately,
-                // without re-enumerating the folder (which would clear the list selection).
-                OnSelectionChanged(CurrentSelection);
-            });
-        WizardOverlayVisible = true;
-    }
-
-    private bool CanOpenDefineNewWizard()
-        => !_isThisPcMode && CurrentSelection is [{ IsDirectory: false, IsThisPcItem: false }];
-
-    /// <summary>
-    /// Opens the relevant Options editor for an existing action so the user can tweak it: a
-    /// user-defined external app jumps to "External Apps" with that app selected; an internal
-    /// viewer jumps to "File Type Actions" with its experience selected.
-    /// </summary>
-    [RelayCommand]
-    private void ModifyAction(FileActionViewModel? vm)
-    {
-        switch (vm?.Action)
-        {
-            case CustomAction ca:
-                ExternalAppsEditorControl.PendingSelect = ca.Definition;
-                _shell.OpenOptions(_externalAppsConfig.ConfigName);   // "externalapps"
-                break;
-            case { OpensViewer: true } viewer:
-                FileMapEditorControl.PendingExperienceId = viewer.ExperienceId;
-                _shell.OpenOptions("filemap");                        // FileMapConfig.ConfigName
-                break;
-        }
-    }
-
-    // ── Refresh ───────────────────────────────────────────────────────────────
-    /// <summary>
-    /// Refreshes the file list and tree at the current path, keeping the
-    /// expanded state and selection intact.
-    /// </summary>
-    public void Refresh()
-    {
-        _refreshing = true;
-        try
-        {
-            if (_isThisPcMode)
-            {
-                GoToThisPc(rebuildTree: false);
-            }
-            else if (!string.IsNullOrEmpty(CurrentPath))
-            {
-                _ = RefreshTreeAsync(CurrentPath);
-                EntriesLoaded = RefreshEntriesAsync(inPlace: true);
-            }
-            // Clear selection after a refresh so the action strip re-evaluates
-            OnSelectionChanged([]);
-        }
-        finally
-        {
-            _refreshing = false;
-        }
-    }
-
-    /// <summary>Cancels any in-flight directory enumeration so no folder handle is held open — called by the
-    /// host before a viewlet mutates/deletes the current folder (see the folder-quiesce fan-out).</summary>
-    public void CancelEntryLoad() => _loadCts?.Cancel();
-
-    /// <summary>The real directory behind a (possibly mounted) browse location, or the path itself when
-    /// there isn't one. Creation and collision checks work in real paths; the mount is only a view.</summary>
-    private string RealFolder(string path) => Vfs.TryResolveReal(path) ?? path;
-
-    /// <summary>Whether "New" is offered: an open folder on disk, under a mount or on a location — not an archive or a
-    /// folder inside one, which changes through the archive members.</summary>
-    private bool CanCreateHere => !_isThisPcMode && !string.IsNullOrEmpty(CurrentPath) && !_inContainer;
-
-    /// <summary>
-    /// The nearest ancestor of <paramref name="path"/> that is still a folder, or null if none is (the caller then falls
-    /// back to This PC). Used to re-home a tab after its folder is deleted — walk up until something is displayable.
-    /// Walks through the file system, so under a mount the chain ends at the mount's root, on a location at its own.
-    /// Assumes <paramref name="path"/> itself is already gone.
-    /// </summary>
-    public async Task<string?> NearestExistingAncestorAsync(string path)
-    {
-        for (var ancestor = Vfs.GetParentPath(path); ancestor is not null; ancestor = Vfs.GetParentPath(ancestor))
-        {
-            try
-            {
-                if (await Vfs.IsDirectoryAsync(ancestor)) return ancestor;
-            }
-            catch (IOException) { /* this one cannot say; ask its parent */ }
-        }
-        return null;
-    }
-
-    // ── Folder-busy state ──────────────────────────────────────────────────────
-    // When another part of the app is mid-mutation on this folder (e.g. deleting this worktree), the shell
-    // marks it busy; we show a "please wait" panel in place of the file list until it clears, then the view
-    // re-evaluates the folder. The subscription is attached only while the view is loaded (the shell outlives
-    // the tab), so it can't leak the VM.
+    // ── Watching, while the view is shown ─────────────────────────────────────
 
     /// <summary>True while a long mutation is in flight on the current folder — the view shows a wait panel.</summary>
-    [ObservableProperty] private bool   _isFolderBusy;
-    [ObservableProperty] private string _folderBusyMessage = string.Empty;
+    public bool   IsFolderBusy      => Model.Listing.IsFolderBusy;
+    public string FolderBusyMessage => Model.Listing.FolderBusyMessage;
 
     /// <summary>Raised when a mutation on the current folder finishes (its busy mark cleared), so the view can
     /// refresh or re-home. Runs on the UI thread.</summary>
-    public event Action? FolderBusyCleared;
+    public event Action? FolderBusyCleared
+    {
+        add    => Model.Listing.FolderBusyCleared += value;
+        remove => Model.Listing.FolderBusyCleared -= value;
+    }
 
-    /// <summary>Begins observing the shell's folder-busy signal and syncs the current state. Called by the
-    /// view on load.</summary>
+    /// <summary>Begins observing the shell's folder-busy signal and syncs the current state. Called by the view on load.</summary>
     public void AttachBusyTracking()
     {
-        _shell.FolderBusyChanged += OnShellFolderBusyChanged;
-        RefreshBusyState();
+        Model.Listing.AttachBusyTracking();
 
         // The operations panel starts collapsed, so it cannot rely on its own Loaded to start watching
         // the queue — a collapsed control that only wakes when it loads can never become visible.
@@ -444,251 +287,61 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
     /// <summary>Stops observing the shell's folder-busy signal. Called by the view on unload so the long-lived
     /// shell doesn't retain this VM.</summary>
     public void DetachBusyTracking()
-{
-    _shell.FolderBusyChanged -= OnShellFolderBusyChanged;
-    FileOperations.Detach();
-}
-
-    /// <summary>
-    /// Begins observing the This PC contributors, so editing them in Options updates an open tab without
-    /// a switch away and back. Called by the view on load — the providers and the VFS are owned by the
-    /// shell and outlive the tab, so a permanent subscription would leak this VM.
-    /// <para>
-    /// The shell's own config→tab refresh cannot cover this: it maps a config to the page registrations
-    /// whose constructors take it, and the file browser's registration cannot reference another
-    /// feature's config type.
-    /// </para>
-    /// </summary>
-    public void AttachThisPcProviderTracking()
     {
-        foreach (var provider in Registry.ThisPcItemProviders) provider.Changed += OnThisPcItemsChanged;
-        Vfs.MountsChanged += OnThisPcItemsChanged;
-
-        // Catch up on what moved while unloaded — but only when something did. This runs on every switch
-        // back to a This PC tab, and rebuilding unconditionally cost that switch a full teardown: the rows
-        // were cleared and re-added, each one flashed back to Loading, and every drive was re-probed
-        // (readiness, capacity, a no-seek-penalty device query) for an answer it already had.
-        if (_isThisPcMode && !ThisPcRowsMatch(ThisPcBrowsePaths())) OnThisPcItemsChanged();
+        Model.Listing.DetachBusyTracking();
+        FileOperations.Detach();
     }
+
+    /// <summary>Begins observing the This PC contributors, so editing them in Options updates an open tab. Called by the
+    /// view on load.</summary>
+    public void AttachThisPcProviderTracking() => Model.Navigation.AttachThisPcProviderTracking();
 
     /// <summary>Stops observing the This PC contributors. Called by the view on unload.</summary>
-    public void DetachThisPcProviderTracking()
-    {
-        foreach (var provider in Registry.ThisPcItemProviders) provider.Changed -= OnThisPcItemsChanged;
-        Vfs.MountsChanged -= OnThisPcItemsChanged;
-    }
+    public void DetachThisPcProviderTracking() => Model.Navigation.DetachThisPcProviderTracking();
 
     /// <summary>
-    /// The browse paths This PC would show right now, in order — the identity <see cref="FillThisPc"/>
-    /// builds each row from. Costs nothing on the UI thread: every provider answers <c>GetItems</c> from what it already
-    /// knows, and the slow half of a row is <c>GetDetailAsync</c>.
-    /// </summary>
-    private List<string> ThisPcBrowsePaths()
-    {
-        var paths = new List<string>();
-        try
-        {
-            foreach (var row in ThisPcItemSet.Collect(Registry.ThisPcItemProviders))
-                paths.Add(BrowsePathOf(row.Item));
-        }
-        catch { /* a broken contributor is not a reason to rebuild */ }
-        return paths;
-    }
-
-    /// <summary>Where a This PC row is browsed: a volume at its own root, a contributed location under its own virtual root
-    /// (<c>::{id}</c>), never the folder behind it.</summary>
-    private static string BrowsePathOf(ThisPcItem item)
-        => item.Backing == ThisPcItemBacking.LocalPath ? VirtualMount.RootFor(item.Id) : item.TargetPath;
-
-    /// <summary>
-    /// Whether the rows on screen are still the ones <paramref name="paths"/> describes — same places, same
-    /// order. Per-row state a probe settles (readiness, free space, volume label) is deliberately not part
-    /// of it: that arrives on its own and a change to it is not a reason to rebuild the list.
-    /// </summary>
-    private bool ThisPcRowsMatch(IReadOnlyList<string> paths)
-    {
-        if (paths.Count != Entries.Count) return false;
-        for (int i = 0; i < paths.Count; i++)
-            if (!string.Equals(paths[i], Entries[i].FullPath, StringComparison.OrdinalIgnoreCase))
-                return false;
-        return true;
-    }
-
-    /// <summary>A provider may signal from any thread (a file watcher, a background probe), so hop to the
-    /// UI thread before touching the entry list.</summary>
-    private void OnThisPcItemsChanged()
-        => _ = _shell.RunOnUiAsync(() =>
-        {
-            if (_isThisPcMode) GoToThisPc(rebuildTree: false);
-        });
-
-    private void OnShellFolderBusyChanged() => RefreshBusyState();
-
-    /// <summary>Re-reads whether the current folder is busy; shows/hides the wait panel and, on a
-    /// busy→idle transition, fires <see cref="FolderBusyCleared"/> so the view re-evaluates the folder.</summary>
-    private void RefreshBusyState()
-    {
-        var message = string.IsNullOrEmpty(CurrentPath) ? null : _shell.GetFolderBusyMessage(CurrentPath);
-        var nowBusy = !string.IsNullOrEmpty(message);   // empty message ⇒ not busy
-        var wasBusy = IsFolderBusy;
-
-        FolderBusyMessage = message ?? string.Empty;
-        IsFolderBusy      = nowBusy;
-
-        if (wasBusy && !nowBusy) FolderBusyCleared?.Invoke();
-    }
-
-    partial void OnCurrentPathChanged(string value)
-    {
-        RefreshBusyState();
-        WatchCurrentFolder();
-    }
-
-    /// <summary>
-    /// Watches the open folder while the view is loaded, so the list keeps up with what changes there — a file added or
-    /// deleted elsewhere, one a sync provider downloads, freed or failed to sync — without the reader refreshing. Coming back
-    /// after being away catches up on what changed meanwhile. The clipboard is listened to as long, so the strip's Paste keeps
-    /// up with what is copied, here or anywhere else.
+    /// Watches the open folder while the view is loaded, so the list keeps up with what changes there. The clipboard is
+    /// listened to as long, so the strip's Paste keeps up with what is copied, here or anywhere else.
     /// </summary>
     public void AttachFolderWatching()
     {
-        _watchingFolder = true;
         _shell.Clipboard.KindsChanged -= OnClipboardChanged;
         _shell.Clipboard.KindsChanged += OnClipboardChanged;
-        WatchCurrentFolder();
-        if (!_missedFolderChanges) return;
-        _missedFolderChanges = false;
-        OnFolderChanged(new FolderChange(new HashSet<string>(), Whole: true));
+        Model.Listing.AttachFolderWatching();
     }
 
     public void DetachFolderWatching()
     {
-        _watchingFolder = false;
         _shell.Clipboard.KindsChanged -= OnClipboardChanged;
-        if (_folderWatch is not null) _missedFolderChanges = true;
-        _folderWatch?.Dispose();
-        _folderWatch = null;
+        Model.Listing.DetachFolderWatching();
     }
 
-    private void WatchCurrentFolder()
+    // ── Selection and the action strip ────────────────────────────────────────
+
+    [ObservableProperty] private FileSystemEntry? _selectedEntry;
+
+    public ObservableCollection<FileActionViewModel> FileActions { get; } = [];
+
+    /// <summary>What is selected in the list (forwarded from the view).</summary>
+    public IReadOnlyList<FileSystemEntry> CurrentSelection
     {
-        _folderWatch?.Dispose();
-        _folderWatch = null;
-        if (!_watchingFolder || _isThisPcMode || string.IsNullOrEmpty(CurrentPath)) return;
-
-        // Inside an archive there is nothing to watch: its container is a file. A folder on disk — a mounted one where it
-        // really is — is watched by the shell; one on a location through the location, where it can be.
-        if (_inContainer) return;
-        if (!Vfs.GetBacking(CurrentPath).IsFullyOnDisk() || Vfs.IsOnLocation(CurrentPath))
-        {
-            _ = WatchLocationAsync(CurrentPath);
-            return;
-        }
-        if (Vfs.TryResolveReal(CurrentPath) is not { } realPath) return;
-
-        _watchedPath = realPath;
-        _folderWatch = _shell.WatchFolder(realPath, OnFolderChanged);
+        get => Model.Selection;
+        private set => Model.Selection = value;
     }
 
-    /// <summary>Watches the open folder on a location that can watch; on one that cannot, the folder is read again when
-    /// the reader refreshes. The location reports from its own thread, so the change comes back through the shell.</summary>
-    private async Task WatchLocationAsync(string path)
+    // Debounce timer — action strip is only rebuilt after input has been idle
+    // for a short interval, so rapid selection changes (including double-clicks)
+    // never stall the UI thread.
+    private readonly IUiTimer _actionDebounceTimer;
+    private IReadOnlyList<FileSystemEntry> _pendingSelection = [];
+
+    // ── Shift state (forwarded from view key events) ──────────────────────────
+    [ObservableProperty] private bool _shiftHeld;
+
+    partial void OnShiftHeldChanged(bool value)
     {
-        ILocationWatch? watch;
-        try
-        {
-            watch = await Vfs.WatchChangesAsync(path, recursive: false);
-        }
-        catch (IOException) { return; }
-        if (watch is null) return;
-
-        // A newer folder, or the view going away, while the watch was being set up: it is not wanted any more.
-        if (!_watchingFolder || CurrentPath != path || _folderWatch is not null)
-        {
-            watch.Dispose();
-            return;
-        }
-        watch.Changed += _ => _shell.RunOnUiAsync(() => OnFolderChanged(new FolderChange(new HashSet<string>(), Whole: true)));
-        _folderWatch = watch;
-    }
-
-    /// <summary>
-    /// The open folder changed: the rows the shell named have their sync status read again, and the folder is read again in
-    /// place, so every row stays where it was and only what differs changes.
-    /// </summary>
-    private void OnFolderChanged(FolderChange change)
-    {
-        if (_isThisPcMode) return;
-        if (IsFolderBusy) return;   // the shell's own operation is changing it; the folder is read again when that finishes
-
-        if (ShowsCloudStatus)
-            foreach (var entry in Entries)
-                if (change.Touches(Path.Combine(_watchedPath, entry.Name))) entry.RecheckStatus();
-
-        if (IsLoadingEntries)
-        {
-            _reloadWhenLoaded = true;
-            return;
-        }
-        EntriesLoaded = RefreshEntriesAsync(inPlace: true);
-    }
-
-    /// <summary>
-    /// Returns a list of applicable <see cref="FileActionViewModel"/>s for the
-    /// given entries, suitable for use in a context menu.
-    /// Does <em>not</em> update the main action strip.
-    /// </summary>
-    /// <summary>
-    /// Finds the action of type <typeparamref name="T"/> in the current action strip and
-    /// executes it exactly as if the user clicked the button, including flash animation and
-    /// shift-force detection. Returns false when no such action is currently visible.
-    /// </summary>
-    public bool TryExecuteAction<T>() where T : class
-    {
-        if (ActionOf<T>() is not { } vm || !vm.ExecuteCommand.CanExecute(null)) return false;
-        vm.ExecuteCommand.Execute(null);
-        return true;
-    }
-
-    /// <summary>The strip's action of type <typeparamref name="T"/>, where the strip offers one now.</summary>
-    private FileActionViewModel? ActionOf<T>() where T : class
-        => FileActions.FirstOrDefault(a => a.Action is T || (a.Action is FolderActionAdapter adapter && adapter.Inner is T));
-
-    public IReadOnlyList<FileActionViewModel> BuildContextActions(IReadOnlyList<FileSystemEntry> entries)
-    {
-        // In This PC mode there is no open folder, so an empty selection has no target and the menu is empty.
-        // Anything that WAS clicked is a target though — a drive in the list, or a folder in the directory
-        // tree, which builds its own entry and is not restricted to what the list happens to be showing.
-        if (_isThisPcMode && entries.Count == 0) return [];
-
-        var canPerform = _actionRegistry.SnapshotCanPerform();
-
-        bool onlyFolders     = entries.Count > 0 && entries.All(e => e.IsDirectory);
-        bool anyDrives       = entries.Any(e => e.IsThisPcItem);
-        bool useFolderActions = entries.Count == 0 || onlyFolders || anyDrives;
-
-        IReadOnlyList<IFileAction> applicable = useFolderActions
-            ? FilterForVirtual(_actionRegistry.FilterFolderActions(entries, canPerform.Folder, CurrentPath), _inContainer)
-            // Right-click menu: hide OptionalExtension experiences (a secondary capability like inspecting a
-            // *.docx as an archive) — they stay on the action strip via the default-true FilterActions.
-            : _actionRegistry.FilterActions(entries, canPerform.File, includeOptional: false);
-
-        var paths = entries.Count > 0
-            ? entries.Select(e => e.FullPath).ToList()
-            : (!string.IsNullOrEmpty(CurrentPath) ? [CurrentPath] : new List<string>());
-
-        var result = new List<FileActionViewModel>();
-        // "Open With" sorts to the end of the menu, matching the action strip.
-        foreach (var action in applicable.OrderBy(a => a is OpenWithAction ? 1 : 0))
-        {
-            var vm = new FileActionViewModel(action);
-            vm.ShiftHeld = ShiftHeld;
-            vm.UpdatePaths(paths);
-            vm.ActionExecuted += Refresh;
-            vm.ActionFailed   += _shell.ShowError;
-            result.Add(vm);
-        }
-        return result;
+        foreach (var fa in FileActions)
+            fa.ShiftHeld = value;
     }
 
     /// <summary>
@@ -711,1524 +364,260 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
         // Restart the debounce window; the strip rebuild is deferred.
         _actionDebounceTimer.Stop();
 
-        // In This PC mode, a selected drive still gets folder actions (the debounce builder handles
-        // anyDrives). Only an empty selection there yields an empty strip — which is correct.
-        if (_isThisPcMode && !selected.Any(e => e.IsThisPcItem))
+        // On This PC, a selected drive still gets folder actions. Only an empty selection there yields an empty strip —
+        // which is correct.
+        if (IsThisPcMode && !selected.Any(e => e.IsThisPcItem))
         {
             FileActions.Clear();
             return;
         }
 
         _actionDebounceTimer.Start();
-
     }
 
-    /// <summary>
-    /// Fires on the UI (STA) thread after input has been idle for 150 ms.
-    /// Does the clipboard check and rebuilds the action strip.
-    /// </summary>
+    /// <summary>Fires on the UI thread after input has been idle for 150 ms, and rebuilds the action strip.</summary>
     private async void OnActionDebounceTimer()
     {
         var selected = _pendingSelection;
+        var offered  = await Model.Actions.ForStripAsync(selected);
 
-        // Snapshot CanPerformAction here, on the UI thread whose state the actions read.
-        var canPerform = _actionRegistry.SnapshotCanPerform();
-
-        bool onlyFolders = selected.Count > 0 && selected.All(e => e.IsDirectory);
-        bool anyDrives   = selected.Any(e => e.IsThisPcItem);
-        bool useFolderActions = selected.Count == 0 || onlyFolders || anyDrives;
-        var  currentPath = CurrentPath;   // captured for the background filter (open-folder gating)
-        var  inContainer = _inContainer;
-
-        // Filter built-in actions + resolve shell verbs + custom external apps —
-        // all pure background work.
-        var (applicable, shellVerbs, customActions) = await Task.Run(() =>
-        {
-            IReadOnlyList<IFileAction> builtIn;
-            if (useFolderActions)
-            {
-                builtIn = FilterForVirtual(
-                    _actionRegistry.FilterFolderActions(selected, canPerform.Folder, currentPath), inContainer);
-            }
-            else
-            {
-                builtIn = _actionRegistry.FilterActions(selected, canPerform.File);
-            }
-
-            // Only look up shell verbs for a single-file selection, and only when the
-            // user has enabled registry-based file type mapping.
-            List<ShellVerbAction> verbs = [];
-            if (ExternalAppRegistry.Instance.UseRegistryMapping &&
-                !useFolderActions && selected.Count == 1 && !selected[0].IsDirectory)
-            {
-                var entry      = selected[0];
-                var ext        = Path.GetExtension(entry.Name);
-                var info       = ShellTypeResolver.Resolve(ext);
-                if (info is not null)
-                {
-                    string experienceId = $"/shell/{ext.TrimStart('.').ToLowerInvariant()}";
-                    foreach (var verb in info.Verbs)
-                    {
-                        // Deduplicate: skip if a built-in already handles the same verb display name
-                        if (builtIn.Any(a => string.Equals(a.DisplayName, verb.FriendlyName,
-                                                            StringComparison.OrdinalIgnoreCase)))
-                            continue;
-
-                        var icon = ShellIconRef.Parse(verb.DefaultIconSpec);
-
-                        // Tooltip: prefer the verb's own resolved description, then the type description
-                        string? tooltip = verb.Tooltip
-                            ?? (string.IsNullOrEmpty(info.ProgIdDescription) ? null : info.ProgIdDescription);
-
-                        verbs.Add(new ShellVerbAction(
-                            Vfs,
-                            verb.Verb,
-                            verb.FriendlyName,
-                            verb.Command,
-                            experienceId,
-                            icon,
-                            tooltip));
-                    }
-                }
-            }
-
-            // User-defined external apps — apply to file selections regardless of count
-            // (the registry filters out single-file-only definitions on multi-select).
-            IReadOnlyList<CustomAction> customs = !useFolderActions
-                ? ExternalAppRegistry.Instance.Resolve(selected, Vfs)
-                : Array.Empty<CustomAction>();
-
-            return (builtIn, verbs, customs);
-        });
-
-        // Check the selection hasn't changed while we were on the background thread.
+        // Check the selection hasn't changed while the actions were worked out.
         if (!ReferenceEquals(selected, _pendingSelection)) return;
 
-        var paths = selected.Count > 0
-            ? selected.Select(e => e.FullPath).ToList()
-            : (!string.IsNullOrEmpty(CurrentPath) ? [CurrentPath] : new List<string>());
-
         FileActions.Clear();
+        foreach (var action in offered.Actions)
+            FileActions.Add(BuildActionVm(action, offered.Targets));
 
-        FileActionViewModel BuildActionVm(IFileAction action)
+        // "New" — the first item when an empty folder area is in focus (no file selected). It is a
+        // folder action (operates on the current folder) whose PerformAction opens the create overlay.
+        if (offered.OffersNew)
+            FileActions.Insert(0, BuildActionVm(new FolderActionAdapter(new NewMenuAction(OpenCreateOverlay)), offered.Targets));
+    }
+
+    private FileActionViewModel BuildActionVm(IFileAction action, IReadOnlyList<string> paths)
+    {
+        var vm = new FileActionViewModel(action);
+        vm.ShiftHeld = ShiftHeld;
+        vm.UpdatePaths(paths);
+        vm.ActionExecuted += Refresh;
+        vm.ActionFailed   += _shell.ShowError;
+        vm.FlashBegan += fa =>
+        {
+            foreach (var other in FileActions)
+                if (other != fa) other.IsDimmed = true;
+        };
+        vm.FlashEnded += _ =>
+        {
+            foreach (var other in FileActions)
+                other.IsDimmed = false;
+        };
+        return vm;
+    }
+
+    /// <summary>
+    /// The actions a context menu offers for <paramref name="entries"/>. Does <em>not</em> update the action strip.
+    /// </summary>
+    public IReadOnlyList<FileActionViewModel> BuildContextActions(IReadOnlyList<FileSystemEntry> entries)
+    {
+        var paths  = Model.Actions.TargetsOf(entries);
+        var result = new List<FileActionViewModel>();
+        foreach (var action in Model.Actions.ForMenu(entries))
         {
             var vm = new FileActionViewModel(action);
             vm.ShiftHeld = ShiftHeld;
             vm.UpdatePaths(paths);
             vm.ActionExecuted += Refresh;
             vm.ActionFailed   += _shell.ShowError;
-            vm.FlashBegan += fa =>
-            {
-                foreach (var other in FileActions)
-                    if (other != fa) other.IsDimmed = true;
-            };
-            vm.FlashEnded += _ =>
-            {
-                foreach (var other in FileActions)
-                    other.IsDimmed = false;
-            };
-            return vm;
+            result.Add(vm);
         }
-
-        void AddAction(IFileAction action) => FileActions.Add(BuildActionVm(action));
-
-        // Built-in actions first, but keep "Open With" as the last built-in — it sits just
-        // above the shell-handler list as the gateway to "any other app".
-        foreach (var action in applicable.Where(a => a is not OpenWithAction))
-            AddAction(action);
-        foreach (var action in applicable.Where(a => a is OpenWithAction))
-            AddAction(action);
-
-        foreach (var verb in shellVerbs)
-            AddAction(verb);
-
-        foreach (var custom in customActions)
-            AddAction(custom);
-
-        // "New" — the first item when an empty folder area is in focus (no file selected). It is a
-        // folder action (operates on the current folder) whose PerformAction opens the create overlay.
-        if (useFolderActions && selected.Count == 0 && CanCreateHere)
-        {
-            var newAction = new FolderActionAdapter(new NewMenuAction(OpenCreateOverlay));
-            FileActions.Insert(0, BuildActionVm(newAction));
-        }
-    }
-
-    private bool   _isThisPcMode;
-    public  bool   IsThisPcMode => _isThisPcMode;
-    private string _rootPath      = string.Empty;
-    public  string RootPath       => _rootPath;
-
-    // Active sort column (a FileSystemEntry property name) + direction. Observable so the
-    // GridView headers can render the sort-direction glyph on the active column.
-    [ObservableProperty] private string _sortColumn    = nameof(FileSystemEntry.Name);
-    [ObservableProperty] private bool   _sortAscending = true;
-
-    private bool   _navigating;
-    private bool   _refreshing;
-
-    // ── Background folder load ─────────────────────────────────────────────────
-    // The current directory's contents are loaded off the UI thread. Each load runs
-    // under its own token; starting a new one cancels the previous so rapid folder
-    // clicks always settle on the last-clicked folder and stale enumerations are
-    // abandoned. Folders at or below StreamThreshold are sorted and shown in one shot;
-    // larger folders stream in batches of at least ChunkSize (unsorted, filesystem order)
-    // so the first page appears immediately and the read never waits on the list. Every
-    // batch reaches the list as one notification, never one per entry.
-    [ObservableProperty] private bool _isLoadingEntries;
-
-    private CancellationTokenSource? _loadCts;
-    private bool _resortPending;
-
-    /// <summary>The open folder changed while it was being read: read it again, in place, once this reading is done.</summary>
-    private bool _reloadWhenLoaded;
-
-    /// <summary>
-    /// The open folder lies in a folder a cloud sync provider keeps (OneDrive, say), so the list carries a Status column: where
-    /// each file stands with the cloud, as Explorer shows it.
-    /// </summary>
-    [ObservableProperty] private bool _showsCloudStatus;
-
-    /// <summary>The folder is on a location that reports POSIX permissions, owner and group, so the list shows them.</summary>
-    [ObservableProperty] private bool _showsPosixColumns;
-
-    /// <summary>Why the folder could not be read through — gone, access denied, a dropped connection — or null when it was.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasListingFailure), nameof(ListingFailureText))]
-    private string? _listingFailure;
-
-    public bool HasListingFailure => ListingFailure is not null;
-
-    public string ListingFailureText => ListingFailure is null ? string.Empty : Str.Format("WindowsFileSystem.List.FailedFormat", ListingFailure);
-
-    /// <summary>Reads the folder again after a listing failed.</summary>
-    [RelayCommand]
-    private void RetryListing() => Refresh();
-
-    /// <summary>The open folder's watch, held while the view is loaded; null in This PC and inside an archive.</summary>
-    private IDisposable? _folderWatch;
-
-    /// <summary>The real directory <see cref="_folderWatch"/> watches, which the shell names changed entries under.</summary>
-    private string _watchedPath = string.Empty;
-
-    /// <summary>The view is loaded, so the open folder is watched.</summary>
-    private bool _watchingFolder;
-
-    /// <summary>The view was unloaded while a folder was watched: whatever changed meanwhile is caught up on its return.</summary>
-    private bool _missedFolderChanges;
-    private const int StreamThreshold = 1000;
-    private const int ChunkSize       = 512;
-
-    // ── Entry count ──────────────────────────────────────────────────────────
-
-    private int _selectedCount;
-
-    // Folder/file totals kept in step with the footer labels by the sink below. GetContext reads these
-    // instead of enumerating the live Entries collection, which the background loader mutates on its own
-    // thread (see UpdateEntryCountLabel / GetContext).
-    private int _folderCount;
-    private int _fileCount;
-
-    /// <summary>Updates only the selection part of the footer, reusing the totals the last mutation of
-    /// <see cref="Entries"/> published. A selection change never alters the folder/file totals, and
-    /// re-scanning here would race the streaming loader: <see cref="RefreshEntriesAsync"/> is started
-    /// fire-and-forget and appends on its own continuation, so a caller that reaches
-    /// <see cref="OnSelectionChanged"/> before that continuation is scheduled can enumerate the collection
-    /// mid-append (InvalidOperationException: Collection was modified).</summary>
-    private void UpdateSelectionCount(int selectedCount)
-        => UpdateEntryCountLabel(_folderCount, _fileCount, selectedCount);
-
-    /// <summary>Recomputes the totals in a single pass — for the paths that fill <see cref="Entries"/>
-    /// directly (the drive list, a newly created entry) rather than through the loader. Runs on the thread
-    /// that owns the collection, right after it mutated it.</summary>
-    private void RecountEntries()
-    {
-        int folders = 0, files = 0;
-        foreach (var e in Entries) { if (e.IsDirectory) folders++; else files++; }
-        UpdateEntryCountLabel(folders, files, 0);
-    }
-
-    /// <summary>Sets the footer labels from already-known counts (avoids re-scanning
-    /// <see cref="Entries"/> on every streamed chunk).</summary>
-    private void UpdateEntryCountLabel(int folders, int files, int selectedCount)
-    {
-        _selectedCount = selectedCount;
-        _folderCount   = folders;
-        _fileCount     = files;
-
-        HasFolders         = folders > 0;
-        HasFiles           = files   > 0;
-        ShowCountSeparator = folders > 0 && files > 0;
-        IsEmpty            = folders == 0 && files == 0;
-
-        FolderCountText  = folders == 1
-            ? Str.Format("WindowsFileSystem.Footer.FolderCountOne", folders)
-            : Str.Format("WindowsFileSystem.Footer.FolderCountMany", folders);
-        FileCountText    = files == 1
-            ? Str.Format("WindowsFileSystem.Footer.FileCountOne", files)
-            : Str.Format("WindowsFileSystem.Footer.FileCountMany", files);
-        SelectionSummary = selectedCount > 0 ? Str.Format("WindowsFileSystem.Footer.SelectedFormat", selectedCount) : string.Empty;
-    }
-
-    public ObservableCollection<FileSystemTreeNode>    TreeRoots { get; } = [];
-    public RangeObservableCollection<FileSystemEntry>  Entries   { get; } = [];
-
-    /// <summary>
-    /// Raised whenever the current directory changes.
-    /// The argument is the ordered list of path segments starting from the root label.
-    /// Each segment carries a Navigate action so the breadcrumb bar can navigate on click.
-    /// </summary>
-    public event Action<IReadOnlyList<(string Label, string Path)>>? NavigationChanged;
-
-    // ── Constructors ─────────────────────────────────────────────────────────
-
-    /// <summary>Opens a specific directory as the starting point.</summary>
-    public FileSystemViewModel(string targetDirectory, IShellServices shell, IAIService ai,
-                               IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
-                               FileSystemFeatureRegistry registry, FileOperationQueue operations, FileCompanions companions)
-        : this(shell, ai, configs, vfs, registry, operations, companions)
-    {
-        _rootPath = targetDirectory;
-        BuildDirectoryTree(targetDirectory);
-        BrowseToAsync(targetDirectory);
-    }
-
-    /// <summary>Opens "This PC" showing all connected drives.</summary>
-    public static FileSystemViewModel CreateThisPc(IShellServices shell, IAIService ai,
-                                                   IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
-                                                   FileSystemFeatureRegistry registry, FileOperationQueue operations,
-                                                   FileCompanions companions)
-    {
-        using var _t = Timing.Measure("ThisPC.CreateThisPc (total, UI thread)");
-        var vm = new FileSystemViewModel(shell, ai, configs, vfs, registry, operations, companions);
-        vm._rootPath     = string.Empty;
-        vm._isThisPcMode = true;
-        vm.CurrentPath   = string.Empty;
-
-        var thisPc = new FileSystemTreeNode(Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty, TreeNodeKind.ThisPc, vfs)
-        {
-            IsExpanded = true
-        };
-        vm.TreeRoots.Add(thisPc);
-
-        using (Timing.Measure("ThisPC.FillThisPc (enumerate places, UI thread)"))
-            vm.FillThisPc(thisPc, addTreeNodes: true);
-
-        using (Timing.Measure("ThisPC.RecountEntries"))
-            vm.RecountEntries();
-        vm.NavigationChanged?.Invoke([(Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty)]);
-        return vm;
+        return result;
     }
 
     /// <summary>
-    /// Fills the entry list (and optionally the tree) with every row of This PC — volumes and contributed locations alike —
-    /// from the one merge in <see cref="ThisPcItemSet.Collect"/>.
-    /// <para>
-    /// Every row gets the same treatment: it appears immediately in a Loading state and its provider's probe settles it
-    /// Ready or Unavailable, so neither a disconnected drive nor a sync folder that has gone can sit there pretending to
-    /// work.
-    /// </para>
+    /// Finds the action of type <typeparamref name="T"/> in the current action strip and
+    /// executes it exactly as if the user clicked the button, including flash animation and
+    /// shift-force detection. Returns false when no such action is currently visible.
     /// </summary>
-    private void FillThisPc(FileSystemTreeNode? thisPc, bool addTreeNodes)
+    public bool TryExecuteAction<T>() where T : class
     {
-        IReadOnlyList<ThisPcRow> rows;
-        using (Timing.Measure("ThisPC.ThisPcItemSet.Collect"))
-        {
-            try { rows = ThisPcItemSet.Collect(Registry.ThisPcItemProviders); }
-            catch { Entries.Clear(); return; }   // never let a contributor break This PC itself
-        }
-        Timing.Note("ThisPC.rows", rows.Count.ToString());
-
-        // Built in full, then committed in one go: an Add per row raised a CollectionChanged per row,
-        // where one Reset says the same thing. The probes start only once the rows are on screen — each
-        // settles the entry object it was handed, and that object is the same one either way.
-        var entries = new List<FileSystemEntry>(rows.Count);
-        var probes = new List<(ThisPcRow Row, FileSystemTreeNode? Node, FileSystemEntry Entry)>(rows.Count);
-
-        foreach (var row in rows)
-        {
-            var item = row.Item;
-            var path = BrowsePathOf(item);
-
-            var entry = new FileSystemEntry
-            {
-                Name           = item.Label,
-                FullPath       = path,
-                IsDirectory    = true,
-                IsThisPcItem   = true,
-                ProviderId     = item.Backing == ThisPcItemBacking.OwnPath ? null : item.Id,
-                DriveStatus    = DriveStatus.Loading,
-                DriveIconType  = MapIcon(item.Icon),
-                DriveKindLabel = item.TypeLabel,
-            };
-            entries.Add(entry);
-
-            FileSystemTreeNode? node = null;
-            if (thisPc is not null)
-            {
-                if (addTreeNodes)
-                {
-                    node = new FileSystemTreeNode(item.Label, path, TreeNodeKind.Drive, Vfs);
-                    thisPc.Children.Add(node);
-                }
-                else
-                {
-                    // The tree already holds nodes — reuse the matching one so expansion state survives.
-                    node = thisPc.Children.FirstOrDefault(
-                               c => string.Equals(c.FullPath, path, StringComparison.OrdinalIgnoreCase))
-                           ?? new FileSystemTreeNode(item.Label, path, TreeNodeKind.Drive, Vfs);
-                }
-                node.DriveIconType = entry.DriveIconType;
-            }
-
-            probes.Add((row, node, entry));
-        }
-
-        Entries.ReplaceAll(entries);
-
-        foreach (var (row, node, entry) in probes) _ = CheckThisPcItemAsync(row, node, entry);
+        if (ActionOf<T>() is not { } vm || !vm.ExecuteCommand.CanExecute(null)) return false;
+        vm.ExecuteCommand.Execute(null);
+        return true;
     }
 
-    /// <summary>Maps the shared place-kind onto the browser's own render vocabulary. A solid-state volume is a device fact
-    /// a row's detail reports once the drive has answered (<see cref="ThisPcItemDetail.Icon"/>).</summary>
-    private static DriveIconType MapIcon(ThisPcItemIcon icon) => icon switch
+    /// <summary>The strip's action of type <typeparamref name="T"/>, where the strip offers one now.</summary>
+    private FileActionViewModel? ActionOf<T>() where T : class
+        => FileActions.FirstOrDefault(a => a.Action is T || (a.Action is FolderActionAdapter adapter && adapter.Inner is T));
+
+    // ── Ribbon pinning ────────────────────────────────────────────────────────
+
+    [RelayCommand(CanExecute = nameof(CanPinFileActionToRibbon))]
+    private void PinFileActionToRibbon(FileActionViewModel vm)
     {
-        ThisPcItemIcon.Removable => DriveIconType.Removable,
-        ThisPcItemIcon.Optical   => DriveIconType.CDDVD,
-        ThisPcItemIcon.Network   => DriveIconType.Network,
-        ThisPcItemIcon.Cloud      => DriveIconType.Cloud,
-        ThisPcItemIcon.Linux      => DriveIconType.Linux,
-        ThisPcItemIcon.SolidState => DriveIconType.SSD,
-        _                        => DriveIconType.HDD,
-    };
-
-    /// <summary>Settles a This PC row from its provider's probe: its label, capacity, file system and icon once the device
-    /// has answered, Ready or Unavailable, and an expander when it holds folders.</summary>
-    private static async Task CheckThisPcItemAsync(ThisPcRow row, FileSystemTreeNode? node, FileSystemEntry entry)
-    {
-        using var _t = Timing.Measure($"ThisPC.Check {row.Item.Id} (probe + UI settle)");
-        ThisPcItemDetail detail;
-        try { detail = await row.DetailAsync(); }
-        catch { detail = new ThisPcItemDetail { Available = false }; }
-
-        // Resumes on the WPF dispatcher — safe to touch UI objects directly.
-        if (detail.Label is { Length: > 0 } label)
-        {
-            entry.Name = label;
-            if (node is not null) node.Name = label;
-        }
-
-        entry.DriveUsedBytes  = detail.UsedBytes;
-        entry.DriveTotalBytes = detail.TotalBytes;
-        if (detail.FileSystem is { } fileSystem) entry.FileSystem = fileSystem;
-        if (detail.Icon is { } icon) entry.DriveIconType = MapIcon(icon);
-        entry.DriveStatus = detail.Available ? DriveStatus.Ready : DriveStatus.Unavailable;
-
-        if (node is not null)
-        {
-            node.DriveIconType = entry.DriveIconType;
-            node.DriveStatus   = entry.DriveStatus;
-            if (detail.Available && detail.HasChildren && node.Children.Count == 0)
-                node.Children.Add(FileSystemTreeNode.Dummy);
-        }
+        // Folder actions (wrapped in FolderActionAdapter) operate on the current directory,
+        // not the selected files. Capture the folder path so the pinned button re-opens
+        // the action at the same location.
+        IReadOnlyList<string> paths = vm.Action is FolderActionAdapter
+            ? (string.IsNullOrEmpty(CurrentPath) ? [] : [CurrentPath])
+            : CurrentSelection.Select(e => e.FullPath).ToList();
+        var payload = new FileActionPinPayload(vm.Action, paths);
+        _shell.PinToRibbon(FileSystemPageRegistration.FileActionKind, payload);
     }
 
-    private readonly IShellServices _shell;
+    private bool CanPinFileActionToRibbon(FileActionViewModel? vm)
+        => vm is not null && !vm.IsDestructive && vm.IsRibbonPinnable;
 
-    /// <summary>The companion files the features have declared — hidden in the list, carried by every operation.</summary>
-    internal FileCompanions Companions { get; }
-    private readonly IAIService _ai;
+    // ── Create overlay (the "New" button) ──────────────────────────────────────
+    // A single pane: pick a file type from the icon list, name it below. The name is
+    // prefilled per type, its extension follows the selected type, and a live warning
+    // shows when the resolved name already exists in the current folder. A type that asks
+    // for options first (IFileCreateWithOptions) shows them between the two while chosen.
 
-    /// <summary>Surfaces a file-operation error (e.g. a failed drag-drop move) as a toast.
-    /// Used by <see cref="FileSystemDropTarget"/>, which only holds this view model.</summary>
-    internal void ReportError(string message) => _shell.ShowError(message);
+    [ObservableProperty] private bool _createOverlayVisible;
+    [ObservableProperty] private CreateActionViewModel? _selectedCreateAction;
 
-    /// <summary>The runtime's file system, which the browser reads through: archive files browse like folders, and a
-    /// connected location like any other.</summary>
-    internal IVirtualFileSystem Vfs { get; }
+    public ObservableCollection<CreateActionViewModel> CreateActions { get; } = [];
 
-    internal FileSystemFeatureRegistry Registry { get; }
-
-    /// <summary>Copy, move and delete work in flight. One queue per workspace runtime, so an operation
-    /// started in this tab is visible from every other file-browser tab and outlives this one.</summary>
-    public FileOperationQueue Operations { get; }
-
-    /// <summary>The panel above the tree that shows those operations while they run.</summary>
-    public FileOperationsPanelViewModel FileOperations { get; }
-
-    private FileSystemViewModel(IShellServices shell, IAIService ai,
-                                IReadOnlyDictionary<Type, IFeatureConfig> configs, IVirtualFileSystem vfs,
-                                FileSystemFeatureRegistry registry, FileOperationQueue operations, FileCompanions companions)
+    /// <summary>The name typed for the new item.</summary>
+    public string CreateFileName
     {
-        _shell          = shell;
-        // The action strip is rebuilt once the selection settles.
-        _actionDebounceTimer = shell.CreateUiDelay(TimeSpan.FromMilliseconds(150), OnActionDebounceTimer);
-        _ai             = ai;
-        Vfs             = vfs;
-        Registry        = registry;
-        Operations      = operations;
-        Companions      = companions;
-        FileOperations  = new FileOperationsPanelViewModel(Operations, shell);
-        _actionRegistry = new FileActionManager(Registry);
-        _opener         = new DefaultFileOpener(Registry);
-        _externalAppsConfig = configs.TryGetValue(typeof(ExternalAppsConfig), out var ec)
-                              && ec is ExternalAppsConfig eac ? eac : new ExternalAppsConfig();
-        FileMapManager.Instance.RegisterKnownExperiences(_actionRegistry.AllExperiences);
+        get => Model.Creation.FileName;
+        set => Model.Creation.FileName = value;
     }
 
-    /// <summary>True when the (file) path can be browsed as a folder — a real archive or a nested archive
-    /// entry. Real directories are handled separately.</summary>
-    private async Task<bool> IsExpandableAsync(string path)
-        => await Vfs.IsContainerAsync(path) || (Vfs.IsContainerName(Path.GetFileName(path)) && await Vfs.ExistsAsync(path));
+    public bool CreateNameExists => Model.Creation.NameExists;
 
-    /// <summary>Drops folder actions that don't make sense inside an archive (e.g. "Zip It"), when the folder they would
-    /// act on is one — <paramref name="inContainer"/>, settled when it was browsed to.</summary>
-    private static IReadOnlyList<IFileAction> FilterForVirtual(IReadOnlyList<IFileAction> actions, bool inContainer)
-        => inContainer
-            ? actions.Where(a => a is not FolderActionAdapter fa || fa.Inner.AppliesInsideArchive).ToList()
-            : actions;
+    /// <summary>The options the chosen type asks for, opened on the current folder while it is chosen; null for a type a
+    /// name is enough for.</summary>
+    public IFileCreateOptions? SelectedCreateOptions => Model.Creation.Options;
 
-    // ── Tree ─────────────────────────────────────────────────────────────────
+    public bool CanCreate => Model.Creation.CanCreate;
 
-    private void BuildDirectoryTree(string rootPath)
+    /// <summary>The newest name-taken question, answered once <see cref="CanCreate"/> says what it found.</summary>
+    internal Task CreateNameChecked => Model.Creation.NameChecked;
+
+    /// <summary>Opens the create overlay, populated live from every create-action source.</summary>
+    public void OpenCreateOverlay()
     {
-        _isThisPcMode = false;
-        TreeRoots.Clear();
-        var root = new FileSystemTreeNode(Path.GetFileName(rootPath) is { Length: > 0 } n ? n : rootPath, rootPath, Vfs)
-        {
-            IsExpanded = true
-        };
-        TreeRoots.Add(root);
+        if (!Model.Location.CanCreateHere) return;
+        OpenCreateOverlayWith(Model.ActionManager.GetCreateActions());
     }
 
-    /// <summary>
-    /// Re-roots the tree at the current path so the view starts fresh from
-    /// the folder the user has navigated to. Used when pinning a tab to the ribbon.
-    /// </summary>
-    public void ResetRootToCurrentPath()
+    /// <summary>Populates and shows the overlay for a given action set (also the unit-test seam).</summary>
+    internal void OpenCreateOverlayWith(IReadOnlyList<IFileCreateEntry> actions)
     {
-        if (_isThisPcMode || string.IsNullOrEmpty(CurrentPath)) return;
-        _rootPath = CurrentPath;
-        BuildDirectoryTree(CurrentPath);
-        // Select the new root node
-        var root = TreeRoots.FirstOrDefault();
-        if (root is not null) root.IsSelected = true;
+        CreateActions.Clear();
+        foreach (var action in actions)
+            CreateActions.Add(new CreateActionViewModel(action, SelectCreateAction));
+
+        SelectedCreateAction = CreateActions.FirstOrDefault();
+        Model.Creation.Recheck();          // also covers the empty-list case
+        CreateOverlayVisible = true;
     }
 
-    public void OnTreeNodeSelected(FileSystemTreeNode node)
+    private void SelectCreateAction(CreateActionViewModel a) => SelectedCreateAction = a;
+
+    partial void OnSelectedCreateActionChanged(CreateActionViewModel? value)
     {
-        // Guard: if we're already inside NavigateTo or Refresh (which calls SelectAndExpandPath
-        // which triggers SelectedItemChanged), skip to avoid re-entry.
-        if (_navigating || _refreshing) return;
-
-        if (node.Kind == TreeNodeKind.ThisPc)
-            GoToThisPc(rebuildTree: false);  // tree already has this node — don't rebuild
-        else if (!string.IsNullOrEmpty(node.FullPath))
-        {
-            // Opening a folder re-selects its tree node, and that selection arrives back here after
-            // _navigating has cleared — an echo of the navigation we just did, not a new one. Left alone
-            // it enumerated the folder a second time and threw the first result away mid-stream, which is
-            // visible whenever the cases differ (typing "D:\downloads" lands on the "D:\Downloads" node).
-            // SelectAndExpandPath announces the selection it is about to make so exactly that one is
-            // swallowed, and only that one.
-            if (_expectedTreeEcho is { } echo
-                && string.Equals(echo, node.FullPath, StringComparison.OrdinalIgnoreCase))
-            {
-                _expectedTreeEcho = null;
-                return;
-            }
-
-            // A real click on the folder already open means "reload this" — the cheap path that re-reads
-            // the entries and diffs the tree, rather than a full navigation to where we already are.
-            if (string.Equals(CurrentPath, node.FullPath, StringComparison.OrdinalIgnoreCase))
-            {
-                Refresh();
-                return;
-            }
-
-            _ = BrowseToAsync(node.FullPath);
-        }
+        foreach (var a in CreateActions)
+            a.IsSelected = ReferenceEquals(a, value);
+        Model.Creation.Choose(value?.Action);
     }
 
-    /// <summary>Opens <paramref name="folderPath"/> as a new File Explorer tab in the window's right
-    /// pane, splitting the tab area first if it isn't already split. Backs the tree's
-    /// "Open in right pane" context-menu item.</summary>
-    [RelayCommand]
-    private void OpenInRightPane(string? folderPath)
+    /// <summary>The picker closed: the options it showed are closed with it.</summary>
+    partial void OnCreateOverlayVisibleChanged(bool value)
     {
-        if (string.IsNullOrEmpty(folderPath)) return;
-        _shell.OpenTab("FileSystem", new()
-        {
-            ["mode"]  = "path",
-            ["path"]  = folderPath,
-            ["label"] = Vfs.GetDisplayName(folderPath),
-        }, inRightPane: true);
+        if (!value) Model.Creation.Close();
     }
 
-    /// <summary>
-    /// Switches to "This PC" mode: refreshes the right-panel drive list and
-    /// updates the breadcrumb, exactly as NavigateTo does for a real path.
-    /// If the tree is currently a directory tree (not already ThisPc) it is
-    /// rebuilt via the <paramref name="rebuildTree"/> flag.
-    /// Drive readiness is checked per-drive on a background thread to avoid
-    /// blocking the UI for slow/network drives.
-    /// </summary>
-    public async void GoToThisPc(bool rebuildTree = false)
+    [RelayCommand(CanExecute = nameof(CanCreate))]
+    private async Task Create()
     {
-        if (_navigating) return;
-        ++_browseTicket;   // a browse still asking about its folder is overtaken
-        _navigating = true;
-        try
-        {
-            // Abandon any in-flight folder load — we're replacing the list with drives.
-            _loadCts?.Cancel();
-            IsLoadingEntries = false;
-
-            _isThisPcMode    = true;
-            _inContainer     = false;
-            CurrentPath      = string.Empty;
-            ShowsCloudStatus  = false;
-            ShowsPosixColumns = false;
-            ListingFailure    = null;
-            ResetSortAndFilter();
-
-            _actionDebounceTimer.Stop();
-            FileActions.Clear();
-
-            FileSystemTreeNode? thisPcNode;
-            if (rebuildTree)
-            {
-                TreeRoots.Clear();
-                thisPcNode = new FileSystemTreeNode(Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty, TreeNodeKind.ThisPc, Vfs)
-                {
-                    IsExpanded = true
-                };
-                TreeRoots.Add(thisPcNode);
-            }
-            else
-            {
-                thisPcNode = TreeRoots.FirstOrDefault(n => n.Kind == TreeNodeKind.ThisPc);
-            }
-
-            // Populate entries immediately with all drives in Loading state,
-            // then resolve each drive individually on a background thread.
-            FillThisPc(thisPcNode, addTreeNodes: rebuildTree);
-
-            RecountEntries();
-            NavigationChanged?.Invoke([(Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty)]);
-
-            if (thisPcNode is not null)
-            {
-                ClearSelection(TreeRoots);
-                thisPcNode.IsSelected = true;
-            }
-        }
-        finally
-        {
-            _navigating = false;
-        }
-    }
-
-    // ── Right panel ──────────────────────────────────────────────────────────
-
-    /// <summary>The newest browse; an older one still asking whether its folder is one is dropped when it answers.</summary>
-    private int _browseTicket;
-
-    /// <summary>Whether the open folder is an archive or inside one — settled when it was browsed to. Such a place is
-    /// virtual: real-folder actions ("Zip It", "New") and watching do not apply there.</summary>
-    private bool _inContainer;
-
-    /// <summary>The newest browse, done once the folder is open and its listing on the way — what a caller waiting for
-    /// the browser to arrive awaits.</summary>
-    internal Task Browsing { get; private set; } = Task.CompletedTask;
-
-    /// <summary>The newest read of the open folder, done once its every row is in <see cref="Entries"/>.</summary>
-    internal Task EntriesLoaded { get; private set; } = Task.CompletedTask;
-
-    /// <summary>
-    /// Opens <paramref name="path"/> in the list and the tree: a folder, an archive browsable as one, or a folder inside an
-    /// archive. The file system is asked first — a round trip on a location — so a browse that a newer one overtakes while
-    /// it waits is dropped, and a path that is no folder leaves the browser where it was.
-    /// </summary>
-    public Task BrowseToAsync(string path) => Browsing = BrowseAsync(path);
-
-    /// <summary>
-    /// Shown again with a <c>path</c>: the folder already open is refreshed, another is browsed to. Without one the page
-    /// goes to This PC.
-    /// </summary>
-    public void Reinitialize(Dictionary<string, string> pageParams)
-    {
-        if (pageParams.TryGetValue("path", out var path) && !string.IsNullOrEmpty(path))
-        {
-            if (string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase))
-                Refresh();
-            else
-                _ = BrowseToAsync(path);
-        }
-        else
-        {
-            GoToThisPc(rebuildTree: true);
-        }
-    }
-
-    private async Task BrowseAsync(string path)
-    {
-        if (_navigating) return;
-        var ticket = ++_browseTicket;
-
-        bool isFolder, inContainer;
-        try
-        {
-            isFolder    = await Vfs.IsDirectoryAsync(path);
-            inContainer = isFolder && (Vfs.SplitOutermostContainer(path).Inner is not null || await Vfs.IsContainerAsync(path));
-        }
-        catch (IOException) { return; }
-        if (!isFolder || ticket != _browseTicket || _navigating) return;
-
-        _navigating = true;
-        try
-        {
-            _isThisPcMode = false;
-            _inContainer  = inContainer;
-            CurrentPath   = path;
-            ResetSortAndFilter();
-            EntriesLoaded = RefreshEntriesAsync(inPlace: false);
-            _ = ExpandToPathAsync(path);   // the tree follows as each level's folders are read
-            FireNavigationChanged(path);   // sync breadcrumb
-        }
-        finally
-        {
-            _navigating = false;
-        }
-
-        // Build the empty-selection action strip so the "New" button is available
-        // immediately on entering a folder (no click required).
-        OnSelectionChanged([]);
+        // Made before the picker closes: closing it closes the options the item is made through.
+        if (!await Model.Creation.CreateAsync()) return;
+        CreateOverlayVisible = false;
+        Refresh();
     }
 
     [RelayCommand]
-    private async Task OpenEntry(FileSystemEntry entry)
-    {
-        if (entry.IsDirectory) { await BrowseToAsync(entry.FullPath); return; }
-        // A real archive expands in place (browse its contents in this tab); a document that merely happens
-        // to be a container (.docx, .eml) keeps its own viewer. The policy is the /archive filemap mapping.
-        if (await IsExpandableAsync(entry.FullPath) && DefaultFileOpener.ExpandsInPlace(entry.FullPath))
-        { await BrowseToAsync(entry.FullPath); return; }
-        await OpenFileDefaultAsync(entry);
-    }
+    private void CancelCreate() => CreateOverlayVisible = false;
+
+    // ── "Define New" association wizard ─────────────────────────────────────────
+    [ObservableProperty] private bool _wizardOverlayVisible;
+    [ObservableProperty] private DefineNewWizardViewModel? _wizard;
 
     /// <summary>
-    /// Resolves and executes the default "open" action for a file via <see cref="DefaultFileOpener"/>
-    /// (FileExtension &gt; MagicNumber &gt; PerceivedType &gt; ContentType; internal beats shell at the
-    /// same specificity), refreshing the view when the action mutated the file system.
+    /// Opens the wizard that associates a file/extension/glob with an internal viewer or an
+    /// external app. Only available for a single selected file — folders, drives, "This PC" and
+    /// empty selections have no viewer/association concept.
     /// </summary>
-    private async Task OpenFileDefaultAsync(FileSystemEntry entry)
+    [RelayCommand(CanExecute = nameof(CanOpenDefineNewWizard))]
+    private void OpenDefineNewWizard()
     {
-        // Resolves the default action by extension and opens it; files inside an archive open through the
-        // VFS-aware readers (the opener's magic-byte sniff self-skips for a non-existent real path).
-        try
-        {
-            if (await _opener.OpenAsync(entry.FullPath)) Refresh();
-        }
-        catch (Exception ex)
-        {
-            // Double-click is the single most-used path in the app and it used to be exception-transparent:
-            // anything an action threw unwound out to the app-level dispatcher handler, which reports an
-            // anonymous "something went wrong" naming neither the file nor the viewer. Name the file here.
-            // A viewer that opens and then fails to build its view reports that itself, on its own tab.
-            _shell.ShowError(Str.Format("WindowsFileSystem.Open.FailedFormat", entry.Name, ex.Message));
-        }
+        if (CurrentSelection is not [{ IsDirectory: false, IsThisPcItem: false } file]) return;
+
+        Wizard = new DefineNewWizardViewModel(
+            _shell, Model.ExternalApps, Registry.FileActions,
+            CurrentPath, file.FullPath,
+            onClose: () =>
+            {
+                WizardOverlayVisible = false;
+                Wizard = null;
+                // Rebuild the action strip so the just-defined action is usable immediately,
+                // without re-enumerating the folder (which would clear the list selection).
+                OnSelectionChanged(CurrentSelection);
+            });
+        WizardOverlayVisible = true;
     }
 
-    public void NavigateUp()
+    private bool CanOpenDefineNewWizard()
+        => !IsThisPcMode && CurrentSelection is [{ IsDirectory: false, IsThisPcItem: false }];
+
+    /// <summary>
+    /// Opens the relevant Options editor for an existing action so the user can tweak it: a
+    /// user-defined external app jumps to "External Apps" with that app selected; an internal
+    /// viewer jumps to "File Type Actions" with its experience selected.
+    /// </summary>
+    [RelayCommand]
+    private void ModifyAction(FileActionViewModel? vm)
     {
-        if (_isThisPcMode) return;
-        // Through the VFS, not Directory.GetParent: inside a mount the chain runs up to the mount root
-        // and then to This PC, never out into the real folder the mount maps onto. Entering the same
-        // folder by its real path keeps the real chain — the two routes are separate journeys.
-        var parent = Vfs.GetParentPath(CurrentPath);
-        if (parent is not null)
-            _ = BrowseToAsync(parent);
-        else
-            GoToThisPc(rebuildTree: true); // at a drive or mount root, folder tree has no ThisPc node
+        switch (vm?.Action)
+        {
+            case CustomAction ca:
+                ExternalAppsEditorControl.PendingSelect = ca.Definition;
+                _shell.OpenOptions(Model.ExternalApps.ConfigName);   // "externalapps"
+                break;
+            case { OpensViewer: true } viewer:
+                FileMapEditorControl.PendingExperienceId = viewer.ExperienceId;
+                _shell.OpenOptions("filemap");                        // FileMapConfig.ConfigName
+                break;
+        }
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────────
 
-    /// <summary>AI surfaces of the viewlets active for the current folder. The view re-registers these
-    /// on every navigation (see <c>FileSystemView.RefreshViewlets</c>); empty when none apply.</summary>
-    private IReadOnlyList<IViewletAiSurface> _viewletSurfaces = [];
-
     /// <summary>Called by the view when the active viewlet set changes so their context + tools
     /// merge into <see cref="GetContext"/> / <see cref="GetClientTools"/>.</summary>
     public void SetActiveViewletSurfaces(IReadOnlyList<IViewletAiSurface> surfaces)
-        => _viewletSurfaces = surfaces;
+        => Model.Assistance.SetActiveViewletSurfaces(surfaces);
 
-    public string GetContext()
-    {
-        if (_isThisPcMode)
-        {
-            var drives = Entries.Count;
-            return $"File browser — This PC ({drives} drive{(drives == 1 ? "" : "s")}).";
-        }
-        if (string.IsNullOrEmpty(CurrentPath))
-            return "File browser — no location selected.";
-
-        // The entries are named, not only counted: "delete the folder called old" is answered from what is listed.
-        // Read on the UI thread, where the loader changes them (IPageViewModel.GetContext).
-        var listed  = Entries.ToList();
-        var folders = listed.Where(e => e.IsDirectory).Select(e => e.Name).ToList();
-        var files   = listed.Where(e => !e.IsDirectory).Select(e => e.Name).ToList();
-        var sb = new StringBuilder($"File browser at '{CurrentPath}'");
-        if (IsLoadingEntries) sb.Append(" (still listing)");
-        sb.Append('\n').Append(Listed("Folders", folders)).Append('\n').Append(Listed("Files", files));
-
-        var selection = CurrentSelection;
-        if (selection.Count > 0)
-        {
-            const int cap = 20;
-            sb.Append("\nSelected: ").Append(string.Join(", ", selection.Take(cap).Select(e => e.Name)));
-            if (selection.Count > cap) sb.Append($" and {selection.Count - cap} more");
-        }
-
-        // Append each active viewlet's context line (a .NET solution's build state, a git repo's status…).
-        foreach (var surface in _viewletSurfaces)
-        {
-            var line = surface.GetContext();
-            if (!string.IsNullOrWhiteSpace(line))
-                sb.Append('\n').Append(line);
-        }
-
-        return sb.ToString();
-    }
-
-    /// <summary>How many entries of a kind are named before the rest are counted: enough for any folder a request names
-    /// things in, few enough that a huge one does not crowd out the request.</summary>
-    private const int ListedNames = 150;
-
-    private static string Listed(string kind, IReadOnlyList<string> names)
-    {
-        if (names.Count == 0) return $"{kind}: none";
-        var text = $"{kind} ({names.Count}): " + string.Join(", ", names.Take(ListedNames));
-        return names.Count > ListedNames ? text + $" and {names.Count - ListedNames} more — find_files_by_name finds any of them" : text;
-    }
-
-    public IReadOnlyList<IClientTool> GetClientTools()
-    {
-        var tools = new List<IClientTool>
-        {
-            new GetFileListTool(this),
-            new FindFilesByNameTool(this),
-            new GetFileContentsTool(this),
-            new GetLineCountTool(this),
-            new GetFileStatsTool(this),
-            new CreateTextFileTool(this),
-            new CreateDirectoryTool(this),
-            new CopyTool(this),
-            new MoveTool(this),
-            new RenameTool(this),
-            new DeleteTool(this),
-        };
-
-        // Tools contributed by the active viewlets (dotnet build/test, git status/diff…).
-        foreach (var surface in _viewletSurfaces)
-            tools.AddRange(surface.GetClientTools());
-
-        return tools;
-    }
-
-    /// <summary>The folder these tools resolve relative names against (their confinement boundary).
-    /// Distinguishes one file-system tab from another when both are pinned as AI context.</summary>
-    public string? GetSecurityContext()
-        => IsThisPcMode                     ? "This PC"
-         : string.IsNullOrEmpty(CurrentPath) ? null
-         : CurrentPath;
-
-    /// <summary>The folder this tab shows, with everything under it — where the bytes are, for a mounted one; on This PC, every
-    /// drive it lists.</summary>
-    public ContextGrant GetContextGrant()
-        => IsThisPcMode ? ContextGrant.OfFolders(DriveInfo.GetDrives().Select(d => d.RootDirectory.FullName))
-         : string.IsNullOrEmpty(CurrentPath) ? ContextGrant.None
-         : ContextGrant.OfFolder(Vfs.TryResolveReal(CurrentPath));
-
-    /// <summary>
-    /// Risk of letting the AI act here: High when unconfined or system-critical (This PC, the system
-    /// drive root, or inside the Windows folder), Medium for a whole non-system drive root, else Low.
-    /// </summary>
-    public ContextSecurityRisk GetContextSecurityRisk()
-    {
-        if (IsThisPcMode) return ContextSecurityRisk.High;             // unconfined — AI can go anywhere
-        if (string.IsNullOrEmpty(CurrentPath)) return ContextSecurityRisk.High;
-
-        // A location reached only through its session is another machine: what is read there leaves the host it lives on. One
-        // whose host is this PC (a WSL distro) is judged as the folder this disk reaches it as, below.
-        if (Vfs.GetBacking(CurrentPath) == VirtualBacking.Remote
-            && (Vfs.GetCapabilities(CurrentPath) & LocationCapabilities.SameMachine) == 0)
-            return ContextSecurityRisk.High;
-
-        // Classify where the bytes REALLY are. A mounted path is "::id\…", which Path.GetFullPath cannot
-        // parse: the throw would land in the catch below and report Low — so a mount pointed at
-        // C:\Windows would read as safe. Inside an archive nothing resolves to a directory, so judge the
-        // archive file's own location instead. An unclassifiable path is High, not Low: not knowing where
-        // we are is precisely the case not to hand the AI.
-        string full;
-        try
-        {
-            var real = Vfs.TryResolveReal(CurrentPath) ?? Vfs.SplitOutermostContainer(CurrentPath).RealContainer;
-            full = Path.GetFullPath(real).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        }
-        catch { return ContextSecurityRisk.High; }
-
-        var windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows)
-                                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (!string.IsNullOrEmpty(windowsDir) &&
-            (full.Equals(windowsDir, StringComparison.OrdinalIgnoreCase) ||
-             full.StartsWith(windowsDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
-            return ContextSecurityRisk.High;                          // the Windows system folder
-
-        var driveRoot  = Path.GetPathRoot(full)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var systemRoot = Path.GetPathRoot(Environment.SystemDirectory)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (!string.IsNullOrEmpty(driveRoot) && full.Equals(driveRoot, StringComparison.OrdinalIgnoreCase))
-            return string.Equals(driveRoot, systemRoot, StringComparison.OrdinalIgnoreCase)
-                ? ContextSecurityRisk.High                            // system drive root (e.g. C:\)
-                : ContextSecurityRisk.Medium;                         // other drive root (e.g. D:\)
-
-        return ContextSecurityRisk.Low;
-    }
-
-    public IContext? GetContextObject()
-    {
-        if (IsThisPcMode)
-            return new FileSystemContext
-            {
-                RootPath        = string.Empty,
-                CurrentPath     = string.Empty,
-                AvailableDrives = DriveInfo.GetDrives()
-                                           .Select(d => d.RootDirectory.FullName)
-                                           .ToList()
-            };
-        if (string.IsNullOrEmpty(RootPath))
-        {
-            return new FileSystemContext
-            {
-                RootPath = CurrentPath,
-                CurrentPath = "",
-                SelectedItems = CurrentSelection.Select(e => e.FullPath).ToList()
-            };
-        }
-        return new FileSystemContext
-        {
-            RootPath      = RootPath,
-            CurrentPath   = CurrentPath,
-            SelectedItems = CurrentSelection.Select(e => e.FullPath).ToList()
-        };
-    }
+    public string GetContext() => Model.Assistance.GetContext();
+    public IReadOnlyList<IClientTool> GetClientTools() => Model.Assistance.GetClientTools();
+    public string? GetSecurityContext() => Model.Assistance.GetSecurityContext();
+    public ContextGrant GetContextGrant() => Model.Assistance.GetContextGrant();
+    public ContextSecurityRisk GetContextSecurityRisk() => Model.Assistance.GetContextSecurityRisk();
+    public IContext? GetContextObject() => Model.Assistance.GetContextObject();
 
     // ── ISearchable ───────────────────────────────────────────────────────────
 
-    /// <summary>Hits handed to the agent in one corpus query.</summary>
-    private const int SearchHitCap = 200;
+    public IReadOnlyList<ISearchTermRecognizer> TermRecognizers => Model.Assistance.TermRecognizers;
+    public string SearchTargetDescription => Model.Assistance.SearchTargetDescription;
+    public float ScoreQuery(string input) => Model.Assistance.ScoreQuery(input);
 
-    private IFileCorpusSearch? _corpusSearch;
+    public Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
+        => Model.Assistance.SearchAsync(request, display, ct);
 
-    // Resolved lazily from whichever feature owns a file index — never referenced directly, so the browser
-    // stays independent of the search feature (same seam as the archive codecs).
-    private IFileCorpusSearch? CorpusSearch =>
-        _corpusSearch ??= (_shell.DiscoverImplementations<IFileCorpusSearch>() ?? [])
-            .Select(t => { try { return Activator.CreateInstance(t) as IFileCorpusSearch; } catch { return null; } })
-            .FirstOrDefault(e => e is not null);
-
-    /// <summary>
-    /// This page searches files, so filename globs mean something here — plus whatever extra syntax the
-    /// index backing it understands (property constraints like <c>kind:document</c>), which arrives with
-    /// the backend rather than by referencing the feature that owns it.
-    /// <para>
-    /// Deliberately not cached: the corpus resolves lazily, and a snapshot taken before it existed would
-    /// leave the browser silently unable to parse constraints it can in fact enforce.
-    /// </para>
-    /// </summary>
-    public IReadOnlyList<ISearchTermRecognizer> TermRecognizers =>
-        [new GlobTermRecognizer(), .. CorpusSearch?.TermRecognizers ?? []];
-
-    public string SearchTargetDescription =>
-        IsThisPcMode                     ? "files across this PC"
-        : string.IsNullOrEmpty(RootPath) ? "files under the current folder"
-                                         : $"files under '{RootPath}'";
-
-    /// <summary>
-    /// Globs, quoted terms and property filters are strong evidence of a search; a bare path is
-    /// navigation and belongs to the <c>&gt;</c> handler, so it is damped rather than claimed.
-    /// </summary>
-    public float ScoreQuery(string input)
-    {
-        var score = SearchQueryScorer.Score(input);
-        var trimmed = input.Trim();
-        if (score > 0 && IsUnquotedAbsolutePath(trimmed)) score *= 0.25f;
-        return score;
-    }
-
-    private static bool IsUnquotedAbsolutePath(string input)
-    {
-        if (input.Length < 2) return false;
-        if (input[0] == '"' || input[0] == '\'') return false;
-        if (input.Contains('*') || input.Contains('?')) return false;   // globs stay as search
-        return Path.IsPathRooted(input);
-    }
-
-    // The browser can't settle a content regex itself — the verifier that reads candidate files lives with
-    // the search feature. So the agent is told which rows are proven and which are only possible, rather
-    // than being handed a set that silently mixes the two.
-    private static string RegexScopeNote(int confirmed, int possible, string pattern) =>
-        $"{confirmed} match(es) confirmed by file name; {possible} more came back from the index and " +
-        "may match inside the file — open a Search tab to have those checked.";
-
-    /// <summary>The query as the user wrote it, for a message about it.</summary>
-    private static string Described(SearchRequest request) =>
-        request.IsRegex ? $"/{request.Text}/" : $"'{request.Text}'";
-
-    public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
-    {
-        if (request.IsRegex && !request.TryCompileRegex(out _, out var error))
-            return SearchOutcome.Unsupported(Str.Format("WindowsFileSystem.Search.InvalidRegexFormat", error));
-
-        var context = GetContextObject() as FileSystemContext;
-        var scoped  = new FileSearchRequest(request, context?.RootPath ?? RootPath, context?.AvailableDrives ?? []);
-        if (!scoped.HasScope)
-            return SearchOutcome.Unsupported(Str.Get("WindowsFileSystem.Search.NoScope"));
-
-        if (!display)
-        {
-            // Agent-side read: query the index directly and leave the browser exactly as it was. This can't
-            // go through HandleObject — that seam is fire-and-forget UI ("do the default thing with this"),
-            // and the agent needs the hits back.
-            if (CorpusSearch is not { } engine)
-                return SearchOutcome.Unsupported("No file search index is available.");
-
-            var hits = await engine.SearchAsync(request, scoped.Root, scoped.Drives, SearchHitCap, ct);
-
-            // Nothing from the index isn't proof of absence — this folder may simply not be indexed. Say
-            // so, rather than letting the agent report "no such files". The manual scan reads every file
-            // in the tree, so it stays the user's call and is not something an agent starts.
-            if (hits.Count == 0)
-                return SearchOutcome.Narrowed(hits,
-                    $"Nothing matched {Described(request)} here. The Windows index returned nothing, which " +
-                    "may mean this location isn't indexed rather than that no file matches — opening a " +
-                    "Search tab offers a manual folder scan.");
-
-            if (!request.IsRegex)
-                return SearchOutcome.Found(hits);
-
-            // Some of these are proven (the name matched) and some are only index candidates. Reporting the
-            // split keeps the agent from presenting "might match" rows as findings.
-            var confirmed = hits.Count(h => h.State == SearchHitState.Verified);
-            return SearchOutcome.Narrowed(hits, RegexScopeNote(confirmed, hits.Count - confirmed, request.Text));
-        }
-
-        // Hand the search off and let whichever feature owns file search present it — the browser doesn't
-        // know, or need to know, that a Search tab is what appears.
-        return _shell.HandleObject(scoped)
-            ? SearchOutcome.None()      // the results surface is the feedback; nothing to say in chat
-            : SearchOutcome.Unsupported(Str.Get("WindowsFileSystem.Search.NoResultsSurface"));
-    }
-
-    private bool IsRootedOnDriveOrThisPc()
-    {
-        if (_isThisPcMode) return true;
-        if (string.IsNullOrEmpty(_rootPath)) return true; // navigated from This PC
-        // Root is a drive letter root like "C:\" with no further subpath
-        var root = Path.GetPathRoot(_rootPath);
-        return string.Equals(root, _rootPath, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(root?.TrimEnd('\\'), _rootPath.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Builds the ordered breadcrumb segments for the given path relative to _rootPath,
-    /// then raises NavigationChanged.
-    /// </summary>
-    private void FireNavigationChanged(string path)
-    {
-        var segments = new List<(string Label, string Path)>();
-
-        if (_isThisPcMode)
-        {
-            // Showing the "This PC" drive list — single root crumb only
-            segments.Add((Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty));
-        }
-        else if (string.IsNullOrEmpty(_rootPath))
-        {
-            // Navigated from "This PC" into a drive, a mount, or one of their subdirectories.
-            // Breadcrumb: This PC > C:\ > Folder > …, or This PC > OneDrive > Folder > …
-            // The VFS segments it because only it knows where a mount root is and what to call it —
-            // Path.GetPathRoot returns "" for a ::mount path and would collapse the trail.
-            segments.Add((Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty));
-            segments.AddRange(Vfs.GetBreadcrumbs(path));
-        }
-        else
-        {
-            // Standard directory mode rooted at _rootPath.
-            var rootLabel = Path.GetFileName(_rootPath) is { Length: > 0 } n ? n : _rootPath;
-            segments.Add((rootLabel, _rootPath));
-
-            if (!string.Equals(path, _rootPath, StringComparison.OrdinalIgnoreCase))
-            {
-                var relative = Path.GetRelativePath(_rootPath, path);
-                var parts    = relative.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
-                var built    = _rootPath;
-                foreach (var part in parts)
-                {
-                    built = Path.Combine(built, part);
-                    segments.Add((part, built));
-                }
-            }
-        }
-
-        NavigationChanged?.Invoke(segments);
-    }
-
-    /// <summary>
-    /// Expands the tree to the given path and marks that node as selected,
-    /// without refreshing entries (the caller is responsible for that).
-    /// </summary>
-    /// <summary>The one tree selection this view-model is itself about to cause, so
-    /// <see cref="OnTreeNodeSelected"/> can tell its own echo from a click by the user.</summary>
-    private string? _expectedTreeEcho;
-
-    /// <summary>The newest walk to a path in the tree; an older one still reading its way down gives up.</summary>
-    private int _expandTicket;
-
-    /// <summary>
-    /// Selects <paramref name="path"/>'s node in the tree, expanding each level on the way down. Each level's folders are
-    /// read before the walk goes into them — a round trip on a location — and a newer walk overtakes this one.
-    /// </summary>
-    public async Task ExpandToPathAsync(string path)
-    {
-        var ticket = ++_expandTicket;
-        _expectedTreeEcho = path;
-        // Clear any existing selection first
-        ClearSelection(TreeRoots);
-        // Walk the tree roots and expand each level to reach `path`
-        foreach (var root in TreeRoots.ToList())
-            if (await TryExpandToAsync(root, path, ticket)) break;
-    }
-
-    /// <summary>Every expanded node read again, then the open folder selected — what a refresh does to the tree.</summary>
-    private async Task RefreshTreeAsync(string path)
-    {
-        foreach (var root in TreeRoots.ToList())
-            await RefreshExpandedNodeAsync(root);
-        if (string.Equals(CurrentPath, path, StringComparison.OrdinalIgnoreCase))
-            await ExpandToPathAsync(path);
-    }
-
-    private static void ClearSelection(IEnumerable<FileSystemTreeNode> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            if (node.IsSelected) node.IsSelected = false;
-            if (node.Children.Count > 0) ClearSelection(node.Children);
-        }
-    }
-
-    /// <summary>
-    /// Diffs an expanded node's children against its folder: removes entries that no longer exist,
-    /// inserts new ones in sorted order. Recurses depth-first so deeper expansions are updated
-    /// before their parents, preserving IsExpanded state on all surviving nodes.
-    /// </summary>
-    private static async Task RefreshExpandedNodeAsync(FileSystemTreeNode node)
-    {
-        // Recurse first — virtual roots like "This PC" (FullPath="") must propagate into children
-        foreach (var child in node.Children.ToList())
-            await RefreshExpandedNodeAsync(child);
-
-        // Only diff nodes with a path and loaded children
-        if (string.IsNullOrEmpty(node.FullPath)) return;
-        if (!node.ChildrenLoaded) return;
-
-        // The listing is expressed in THIS node's path space: under a mount the children are ::mount\… however the
-        // folder behind it is reached, so the comparison below matches what the tree already holds.
-        var names = await FileSystemTreeNode.ChildFoldersAsync(node.Vfs, node.FullPath);
-        var childPaths = new HashSet<string>(names.Select(name => Path.Combine(node.FullPath, name)), StringComparer.OrdinalIgnoreCase);
-
-        // Remove children no longer there
-        for (int i = node.Children.Count - 1; i >= 0; i--)
-        {
-            if (!childPaths.Contains(node.Children[i].FullPath))
-                node.Children.RemoveAt(i);
-        }
-
-        // Insert children new there (maintains alphabetical order)
-        var existing = new HashSet<string>(node.Children.Select(c => c.FullPath), StringComparer.OrdinalIgnoreCase);
-        var inserted = new List<FileSystemTreeNode>();
-        foreach (var dir in childPaths.OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
-        {
-            if (existing.Contains(dir)) continue;
-            var newNode = new FileSystemTreeNode(Path.GetFileName(dir), dir, node.Vfs);
-            InsertSorted(node.Children, newNode);
-            inserted.Add(newNode);
-        }
-        // Same deal as a first read: a refreshed node's expander is settled off the dispatcher.
-        _ = FileSystemTreeNode.ProbeExpandersAsync(inserted);
-    }
-
-    private static void InsertSorted(ObservableCollection<FileSystemTreeNode> children, FileSystemTreeNode newNode)
-    {
-        for (int i = 0; i < children.Count; i++)
-        {
-            if (string.Compare(newNode.FullPath, children[i].FullPath, StringComparison.OrdinalIgnoreCase) < 0)
-            {
-                children.Insert(i, newNode);
-                return;
-            }
-        }
-        children.Add(newNode);
-    }
-
-    private async Task<bool> TryExpandToAsync(FileSystemTreeNode node, string target, int ticket)
-    {
-        if (ticket != _expandTicket) return true;   // overtaken: stop walking, and stop the caller too
-
-        if (string.Equals(node.FullPath, target, StringComparison.OrdinalIgnoreCase))
-        {
-            node.IsSelected = true;
-            node.IsExpanded = true;
-            return true;
-        }
-
-        // Only descend if the target is under this node.
-        // Empty FullPath means a virtual root (e.g. "This PC") — always descend into its children.
-        if (!string.IsNullOrEmpty(node.FullPath) && !PathScope.IsWithin(target, node.FullPath))
-            return false;
-
-        node.IsExpanded = true; // starts the read, if nothing has yet
-        await node.LoadChildrenAsync();
-
-        foreach (var child in node.Children.ToList())
-        {
-            if (await TryExpandToAsync(child, target, ticket))
-                return true;
-        }
-        return false;
-    }
-
-    /// <summary>One unit of work handed from the background enumerator to the UI consumer.
-    /// <paramref name="Replace"/> = the batch replaces whatever the list holds — the whole sorted set of a
-    /// small folder, or the first chunk of a streamed one; otherwise its items are appended after the
-    /// chunks already shown. Either way the list hears of it as one Reset.</summary>
-    /// <param name="Failure">Why the listing stopped before the folder was read through, on the batch that ends it; null when it did not.</param>
-    private readonly record struct LoadBatch(
-        IReadOnlyList<FileSystemEntry> Items, bool Replace, int Folders, int Files, bool InSyncRoot, string? Failure = null);
-
-    /// <summary>
-    /// Loads the current directory's contents, cancelling any load already in flight.
-    /// The background enumerator (<see cref="ProduceEntriesAsync"/>) runs off the UI thread
-    /// and hands batches through a bounded channel; this method consumes them and is the
-    /// only place that touches <see cref="Entries"/>. Because it was invoked on the UI
-    /// thread, every <c>await</c> here resumes on this VM's own UI context — no Dispatcher
-    /// or Application reference needed. The channel holds one batch, and the producer does not wait on it
-    /// mid-folder: what it reads while a batch is still waiting joins the next, so each turn here takes
-    /// everything found since the last.
-    /// <para>
-    /// Every batch is committed with one notification. One <c>Add</c> per entry, arriving straight after
-    /// the list was cleared and before it had been laid out again, left a scrolled list's virtualizing
-    /// panel working from the offset it had before the clear: it kept hundreds of rows realized and
-    /// arranged them with blank bands between, until the tab was closed.
-    /// </para>
-    /// <para>
-    /// <paramref name="inPlace"/> is a reload of the folder already listed — after a delete, a paste, a
-    /// refresh. Its rows stay until the first batch replaces them, so the list keeps the reader's place
-    /// rather than emptying and starting again from the top. A navigation empties the list at once: the
-    /// old folder's rows must not stand in for the new one's while it is read.
-    /// </para>
-    /// </summary>
-    private async Task RefreshEntriesAsync(bool inPlace)
-    {
-        using var _t = Timing.Measure($"Folder.RefreshEntriesAsync {CurrentPath} (total, UI thread)");
-        var path = CurrentPath;
-
-        // A mutation is in flight on this folder (e.g. it's being deleted): don't enumerate it — the view
-        // shows the "please wait" panel and we reload once the shell clears the busy mark.
-        if (IsFolderBusy) { Entries.Clear(); UpdateEntryCountLabel(0, 0, 0); IsLoadingEntries = false; return; }
-
-        // Every folder — on disk, under a mount, inside an archive, on a location — streams through the one listing
-        // the file system gives, so none of them is read on the UI thread and the first rows show before the last.
-
-        // Cancel (don't dispose) the previous load: a background thread may still hold its
-        // token, so disposing here could throw instead of cancelling cleanly.
-        _loadCts?.Cancel();
-        _loadCts = new CancellationTokenSource();
-        var ct = _loadCts.Token;
-
-        if (!inPlace)
-        {
-            Entries.Clear();
-            UpdateEntryCountLabel(0, 0, 0);
-            ListingFailure = null;
-        }
-        _resortPending = false;
-        IsLoadingEntries = true;
-        ShowsPosixColumns = (Vfs.GetCapabilities(path) & LocationCapabilities.Permissions) != 0;
-        var names = StringComparer.FromComparison(Vfs.GetNameComparison(path));
-
-        var channel = Channel.CreateBounded<LoadBatch>(new BoundedChannelOptions(1)
-        {
-            FullMode     = BoundedChannelFullMode.Wait,
-            SingleReader = true,
-            SingleWriter = true,
-        });
-
-        // Linked scope so we can always unblock the producer when the consumer stops.
-        using var scope = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        // Reloading in place, the rows are already on screen, so there is nothing to show sooner by streaming: the folder is read
-        // and sorted whole, and only what differs from the rows shown is applied, so the list keeps what the reader is looking at.
-        var producer = Task.Run(() => ProduceEntriesAsync(path, channel.Writer, scope.Token, stream: !inPlace), scope.Token);
-
-        var batches = 0;
-        try
-        {
-            await foreach (var batch in channel.Reader.ReadAllAsync(ct))
-            {
-                if (CurrentPath != path) break; // superseded mid-stream
-                batches++;
-                // The UI-thread half: everything below raises CollectionChanged, so this is the cost the
-                // list actually pays to show what the producer found.
-                using (Timing.Measure($"Folder.applyBatch#{batches} n={batch.Items.Count} replace={batch.Replace}"))
-                {
-                    if (batch.Replace && inPlace)
-                        Entries.MatchTo(batch.Items, entry => entry.FullPath, names, (kept, fresh) => kept.TakeOn(fresh));
-                    else if (batch.Replace)
-                        Entries.ReplaceAll(batch.Items);
-                    else
-                        Entries.AddRange(batch.Items);
-                    UpdateEntryCountLabel(batch.Folders, batch.Files, 0);
-                    ShowsCloudStatus = batch.InSyncRoot;
-                    ListingFailure   = batch.Failure;
-                }
-            }
-            Timing.Note("Folder.batches", batches.ToString());
-        }
-        catch (OperationCanceledException) { /* superseded by a newer navigation */ }
-        catch (Exception ex) { ListingFailure = ex.Message; }
-        finally
-        {
-            scope.Cancel();                       // unblock the producer if still writing
-            try { await producer; } catch { /* observe */ }
-
-            // Only finish if we're still the current load; a newer load owns the UI now.
-            if (!ct.IsCancellationRequested && CurrentPath == path)
-            {
-                // Nothing arrived: the folder could not be read (gone, access denied). The rows an in-place
-                // reload kept were waiting to be replaced, and there is nothing to replace them with.
-                if (batches == 0)
-                {
-                    Entries.Clear();
-                    UpdateEntryCountLabel(0, 0, 0);
-                    ShowsCloudStatus = false;
-                }
-                IsLoadingEntries = false;
-                if (_resortPending)
-                {
-                    _resortPending = false;
-                    ResortEntries();
-                }
-                if (_reloadWhenLoaded)
-                {
-                    _reloadWhenLoaded = false;
-                    EntriesLoaded = RefreshEntriesAsync(inPlace: true);
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Background enumeration. Buffers entries; if the buffer crosses
-    /// <see cref="StreamThreshold"/> it streams chunks (listing order, unsorted) so the
-    /// first page shows while the rest loads; the first chunk replaces what the list holds and
-    /// the rest append. After the first, a chunk is at least <see cref="ChunkSize"/> and holds everything read
-    /// while the list was taking the one before, so the read goes at the disk's pace and the list at its own. Smaller folders are sorted and sent as a single replace batch. Reads the
-    /// file system's listing, which carries name, size, timestamps, flags and — in a synced folder —
-    /// cloud state from one pass, with no second stat per entry.
-    /// </summary>
-    private async Task ProduceEntriesAsync(string path, ChannelWriter<LoadBatch> writer, CancellationToken ct, bool stream)
-    {
-        using var _t = Timing.Measure($"Folder.ProduceEntriesAsync {path} (background, incl. writer waits)");
-        Exception? error = null;
-        try
-        {
-            var buffer    = new List<FileSystemEntry>(StreamThreshold + 1);
-            bool streaming = false;
-            string? failure = null;
-            int folders = 0, files = 0;
-            var companions = Companions.Listing();
-
-            // Only a folder on this machine can be in a sync root; the listing carries each file's state in it.
-            bool inSyncRoot = Vfs.ResolveOnDisk(path) is { } realPath && CloudPlaceholders.IsInSyncRoot(realPath);
-            var enumerate = Timing.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
-
-            try
-            {
-                await foreach (var listed in Vfs.EnumerateAsync(path, ct))
-                {
-                    FileSystemEntry entry;
-                    try { entry = ToEntry(listed, path); }
-                    catch { continue; } // skip an entry we can't read
-
-                    if (companions.Hold(entry)) continue;   // decided once the whole folder has been read
-
-                    if (entry.IsDirectory) folders++; else files++;
-                    buffer.Add(entry);
-
-                    if (!streaming)
-                    {
-                        if (stream && buffer.Count > StreamThreshold)
-                        {
-                            // The first page goes over at once, so the list shows rows while the rest is read.
-                            streaming = true;
-                            await writer.WriteAsync(new(buffer, Replace: true, folders, files, inSyncRoot), ct);
-                            buffer = new List<FileSystemEntry>(ChunkSize);
-                        }
-                    }
-                    // Never waits on the list: while it is still taking the last batch, what is read here joins the next one.
-                    // Each turn of the UI thread ends in a rendered frame, so a read that waited would go at one chunk per frame
-                    // however fast the disk answers — seconds for a folder of tens of thousands.
-                    else if (buffer.Count >= ChunkSize && writer.TryWrite(new(buffer, false, folders, files, inSyncRoot)))
-                    {
-                        buffer = new List<FileSystemEntry>(ChunkSize);
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // Gone, access denied, a dropped connection — part way through, or before the first entry. What was read
-                // is listed, and the view says why the rest is not.
-                failure = ex.Message;
-            }
-
-            // A companion can be read before its file, so they were held back until now: those whose file is here
-            // are dropped (the file shows their badge), the rest — orphans — are listed as the ordinary files they are.
-            foreach (var orphan in companions.Finish())
-            {
-                files++;
-                buffer.Add(orphan);
-            }
-
-            if (Timing.Enabled)
-            {
-                Timing.Note($"Folder.enumerate+ToEntry {path}", $"{enumerate!.Elapsed.TotalMilliseconds:F1} ms");
-                Timing.Note($"Folder.entries {path}", $"{folders} folders, {files} files");
-            }
-
-            ct.ThrowIfCancellationRequested();
-
-            if (!streaming)
-            {
-                // Small/medium folder: sort the whole set (off the UI thread), one Reset.
-                List<FileSystemEntry> sorted;
-                using (Timing.Measure($"Folder.sort n={buffer.Count}"))
-                    sorted = ApplySort(buffer).ToList();
-            await writer.WriteAsync(new(sorted, true, folders, files, inSyncRoot, failure), ct);
-            }
-            else if (buffer.Count > 0 || failure is not null)
-            {
-                await writer.WriteAsync(new(buffer, false, folders, files, inSyncRoot, failure), ct);
-            }
-        }
-        catch (Exception ex) { error = ex; }
-        finally { writer.TryComplete(error); }
-    }
-
-    /// <summary>
-    /// Builds a row from one entry of the folder's listing; reads nothing more.
-    /// <para>
-    /// <paramref name="parentPath"/> is the location the user navigated to, which is <b>not</b> always where the bytes
-    /// are: under a mount it is the virtual root. The child's path is composed from it, because a mount exists precisely so
-    /// that the real location never surfaces. Inside an archive a nested archive is itself browsable, so it is presented as
-    /// a folder — it gets the folder affordance and double-click descends into it — while its type still names what it is.
-    /// </para>
-    /// </summary>
-    private FileSystemEntry ToEntry(LocationEntry listed, string parentPath)
-    {
-        bool inArchive = listed.Archive is not null;
-        bool isDir     = listed.IsDirectory || (inArchive && Vfs.IsContainerName(listed.Name));
-        var  fullPath  = Path.Combine(parentPath, listed.Name);
-        return new FileSystemEntry
-        {
-            Name        = listed.Name,
-            // A location lists a name as the segment its path holds; its row shows the name its folder has.
-            ShownName   = Vfs.IsOnLocation(fullPath) ? Vfs.GetDisplayName(fullPath) : listed.Name,
-            FullPath    = fullPath,
-            IsDirectory = isDir,
-            SizeBytes   = isDir ? 0 : listed.Size,
-            Modified    = listed.Modified,
-            InContainer = inArchive,
-            TypeName    = ShellFileTypes.NameFor(listed.IsDirectory ? string.Empty : Path.GetExtension(listed.Name), listed.IsDirectory),
-            CloudState  = listed.CloudState,
-            PosixMode   = listed.Mode,
-            Owner       = listed.Owner,
-            Group       = listed.Group,
-            SymlinkTarget = listed.SymlinkTarget,
-        };
-    }
-
-    private IEnumerable<FileSystemEntry> ApplySort(IEnumerable<FileSystemEntry> source)
-    {
-        Func<FileSystemEntry, object> key = SortColumn switch
-        {
-            nameof(FileSystemEntry.Modified)  => e => e.Modified,
-            // Drives report capacity via DriveTotalBytes; files via SizeBytes.
-            nameof(FileSystemEntry.SizeBytes) => e => (object)(e.IsThisPcItem ? e.DriveTotalBytes : e.SizeBytes),
-            nameof(FileSystemEntry.TypeLabel) => e => e.TypeLabel,
-            _ => e => e.Name
-        };
-
-        // Folders always first, then sort within group
-        return SortAscending
-            ? source.OrderBy(e => !e.IsDirectory).ThenBy(key)
-            : source.OrderBy(e => !e.IsDirectory).ThenByDescending(key);
-    }
-
-    /// <summary>Reorders the current <see cref="Entries"/> using the active sort — without
-    /// re-reading the directory, so it works in "This PC" (drive list) mode too. A global
-    /// sort needs the whole set, so it commits with one Reset (single fast fill). Large
-    /// sets are sorted off the UI thread.</summary>
-    private async void ResortEntries()
-    {
-        var path     = CurrentPath;
-        var snapshot = Entries.ToList();
-
-        var sorted = snapshot.Count > StreamThreshold
-            ? await Task.Run(() => ApplySort(snapshot).ToList())
-            : ApplySort(snapshot).ToList();
-
-        // A navigation may have replaced the contents while we were sorting.
-        if (CurrentPath != path) return;
-        Entries.ReplaceAll(sorted);
-    }
-
-    /// <summary>Resets sort to Name-ascending and clears the footer filter — called on navigation
-    /// so each folder starts from a clean view.</summary>
-    private void ResetSortAndFilter()
-    {
-        SortColumn    = nameof(FileSystemEntry.Name);
-        SortAscending = true;
-        ActiveFilter  = EntryFilter.None;
-    }
-
-    [RelayCommand]
-    private void SortBy(string column)
-    {
-        if (SortColumn == column)
-            SortAscending = !SortAscending;
-        else
-        {
-            SortColumn    = column;
-            SortAscending = true;
-        }
-
-        // If a load is still streaming, defer the sort until it completes (RefreshEntriesAsync
-        // applies the pending sort once the full set is in memory).
-        if (IsLoadingEntries) { _resortPending = true; return; }
-        ResortEntries();
-    }
+    // ── IPasteTarget ──────────────────────────────────────────────────────────
 
     /// <summary>Files pasted here land in the open folder, as the strip's Paste puts them there — while the strip offers it.</summary>
     public IReadOnlyList<string> PasteKinds => ActionOf<PasteFiles>() is not null ? PasteFiles.PastedKinds : [];
@@ -2245,5 +634,4 @@ else if (entry is IFileCreateAction action && CreateFolder() is { } folder) awai
         _actionDebounceTimer.Stop();
         _actionDebounceTimer.Start();
     }
-
 }

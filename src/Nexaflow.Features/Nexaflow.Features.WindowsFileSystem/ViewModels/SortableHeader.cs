@@ -1,3 +1,5 @@
+using Nexaflow.Features.WindowsFileSystem.Model;
+
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
 /// <summary>

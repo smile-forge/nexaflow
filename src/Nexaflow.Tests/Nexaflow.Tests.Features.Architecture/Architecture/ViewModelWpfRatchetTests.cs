@@ -35,11 +35,6 @@ public class ViewModelWpfRatchetTests
     private static string BaselineFile => Path.Combine(
         Root, "src", "Nexaflow.Tests", "Nexaflow.Tests.Features.Architecture", "Architecture", "view-models-on-wpf.txt");
 
-    /// <summary>A comment, or a literal read past whole so a <c>//</c> or <c>/*</c> inside one is not taken for a comment.</summary>
-    private static readonly Regex CommentsAndLiterals = new(
-        @"@""(?:[^""]|"""")*""|""(?:\\.|[^""\\\n])*""|'(?:\\.|[^'\\\n])+'|/\*.*?\*/|//[^\n]*",
-        RegexOptions.Compiled | RegexOptions.Singleline);
-
     private static readonly Regex Wpf = new(@"\bSystem\.Windows\b", RegexOptions.Compiled);
 
     [TestMethod]
@@ -90,20 +85,16 @@ public class ViewModelWpfRatchetTests
 
         foreach (var file in roots.SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)))
         {
-            if (IsBuildOutput(file) || !IsViewModel(file)) continue;
+            if (CodeWithoutComments.IsBuildOutput(file) || !IsViewModel(file)) continue;
 
-            var code = CommentsAndLiterals.Replace(File.ReadAllText(file), WithoutComment);
+            var code = CodeWithoutComments.Read(file);
             var wpf = Wpf.Match(code);
             if (!wpf.Success) continue;
 
-            found.Add(Path.GetRelativePath(Root, file).Replace('\\', '/'), 1 + code.AsSpan(0, wpf.Index).Count('\n'));
+            found.Add(Path.GetRelativePath(Root, file).Replace('\\', '/'), CodeWithoutComments.LineOf(code, wpf.Index));
         }
         return found;
     }
-
-    /// <summary>A comment becomes the line breaks it spanned, so a line number found after it still counts true; a literal stays.</summary>
-    private static string WithoutComment(Match match) =>
-        match.Value.StartsWith('/') ? new string('\n', match.Value.Count(c => c == '\n')) : match.Value;
 
     private static bool IsViewModel(string file) =>
         Path.GetFileName(file).Contains("ViewModel", StringComparison.Ordinal)
@@ -117,8 +108,4 @@ public class ViewModelWpfRatchetTests
                    .Where(l => l.Length > 0 && !l.StartsWith("#", StringComparison.Ordinal))
                    .ToHashSet(StringComparer.Ordinal);
     }
-
-    private static bool IsBuildOutput(string path) =>
-        path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-        || path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}");
 }

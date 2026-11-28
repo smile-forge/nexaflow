@@ -2,6 +2,7 @@ using Nexaflow.IO.Common;
 using System.ComponentModel;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

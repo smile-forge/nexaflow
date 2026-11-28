@@ -8,6 +8,7 @@ using Nexaflow.Tests.Fixtures;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Icons;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 

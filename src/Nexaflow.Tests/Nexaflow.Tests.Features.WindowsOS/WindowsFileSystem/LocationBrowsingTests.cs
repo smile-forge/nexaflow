@@ -8,6 +8,7 @@ using Nexaflow.IO.Common.Locations;
 using Nexaflow.IO.Location.Memory;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Localization;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -189,7 +190,7 @@ public sealed class LocationBrowsingTests
         await _vfs.WriteAllTextAsync($@"{Root}\docs\notes%2E", "dotted");
         var vm = await AtAsync($@"{Root}\docs");
 
-        await new Nexaflow.Features.WindowsFileSystem.ClientTools.MoveTool(vm).InvokeAsync(
+        await new Nexaflow.Features.WindowsFileSystem.ClientTools.MoveTool(vm.Model).InvokeAsync(
             new System.Text.Json.Nodes.JsonObject { ["source"] = "notes.", ["destination"] = "moved" }, CancellationToken.None);
 
         Assert.AreEqual("dotted", await _vfs.ReadAllTextAsync($@"{Root}\docs\moved"));
@@ -204,7 +205,7 @@ public sealed class LocationBrowsingTests
         await _vfs.WriteAllTextAsync($@"{Root}\Docs\secret", "not given");
         var vm = await AtAsync($@"{Root}\docs");
 
-        await new Nexaflow.Features.WindowsFileSystem.ClientTools.MoveTool(vm).InvokeAsync(
+        await new Nexaflow.Features.WindowsFileSystem.ClientTools.MoveTool(vm.Model).InvokeAsync(
             new System.Text.Json.Nodes.JsonObject { ["source"] = "/Docs/secret", ["destination"] = "taken" }, CancellationToken.None);
 
         Assert.AreEqual("not given", await _vfs.ReadAllTextAsync($@"{Root}\Docs\secret"));
@@ -220,7 +221,7 @@ public sealed class LocationBrowsingTests
         await _vfs.CreateDirectoryAsync($@"{Root}\docs\old");
         vm.Refresh();
         await vm.EntriesLoaded;
-        var tool  = new Nexaflow.Features.WindowsFileSystem.ClientTools.DeleteTool(vm);
+        var tool  = new Nexaflow.Features.WindowsFileSystem.ClientTools.DeleteTool(vm.Model);
         var file  = new System.Text.Json.Nodes.JsonObject { ["name"] = "a.txt" };
 
         var asked  = tool.Announce(file)!;
@@ -266,7 +267,7 @@ public sealed class LocationBrowsingTests
     {
         var vm = await AtAsync($@"{Root}\docs");
 
-        var result = await new Nexaflow.Features.WindowsFileSystem.ClientTools.RenameTool(vm).InvokeAsync(
+        var result = await new Nexaflow.Features.WindowsFileSystem.ClientTools.RenameTool(vm.Model).InvokeAsync(
             new System.Text.Json.Nodes.JsonObject { ["name"] = "a.txt", ["new_name"] = "x:y %41.txt" }, CancellationToken.None);
 
         Assert.IsTrue(result.Success, result.ToString());

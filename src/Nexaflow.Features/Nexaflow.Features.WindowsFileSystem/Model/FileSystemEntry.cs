@@ -7,7 +7,7 @@ using Nexaflow.Localization.Formatting;
 using Nexaflow.Localization;
 using Nexaflow.IO.Common.Shell;
 
-namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
+namespace Nexaflow.Features.WindowsFileSystem.Model;
 
 // ── File / folder entry shown in the right panel ──────────────────────────────
 

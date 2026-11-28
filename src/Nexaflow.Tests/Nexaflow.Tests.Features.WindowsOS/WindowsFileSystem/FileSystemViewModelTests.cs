@@ -8,6 +8,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ClientTools;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -357,7 +358,7 @@ public class FileSystemViewModelTests
         try
         {
             var vm     = await AtPathAsync(dir);
-            var result = await new CreateTextFileTool(vm).InvokeAsync(
+            var result = await new CreateTextFileTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "note.txt", ["content"] = "hello world" }, default);
 
             Assert.IsTrue(result.Success);
@@ -378,7 +379,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "exists.txt"), "old");
             var vm     = await AtPathAsync(dir);
-            var result = await new CreateTextFileTool(vm).InvokeAsync(
+            var result = await new CreateTextFileTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "exists.txt", ["content"] = "new" }, default);
 
             Assert.IsTrue(result.IsError);
@@ -396,7 +397,7 @@ public class FileSystemViewModelTests
             File.WriteAllText(Path.Combine(dir, "george-list.txt"), "x");
             File.WriteAllText(Path.Combine(dir, "other.txt"), "x");
             var vm     = await AtPathAsync(dir);
-            var result = await new FindFilesByNameTool(vm).InvokeAsync(
+            var result = await new FindFilesByNameTool(vm.Model).InvokeAsync(
                 new JsonObject { ["pattern"] = "george*" }, default);
 
             Assert.IsTrue(result.Success);
@@ -414,7 +415,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "data.txt"), "file body here");
             var vm     = await AtPathAsync(dir);
-            var result = await new GetFileContentsTool(vm).InvokeAsync(
+            var result = await new GetFileContentsTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "data.txt" }, default);
 
             Assert.IsTrue(result.Success);
@@ -432,7 +433,7 @@ public class FileSystemViewModelTests
         try
         {
             var vm     = await AtPathAsync(dir);
-            var result = await new GetFileContentsTool(vm).InvokeAsync(
+            var result = await new GetFileContentsTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = @"..\secret.txt" }, default);
 
             Assert.IsTrue(result.IsError);
@@ -451,7 +452,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "old.txt"), "body");
             var vm     = await AtPathAsync(dir);
-            var result = await new RenameTool(vm).InvokeAsync(
+            var result = await new RenameTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "old.txt", ["new_name"] = "new.txt" }, default);
 
             Assert.IsTrue(result.Success);
@@ -472,7 +473,7 @@ public class FileSystemViewModelTests
             File.WriteAllText(Path.Combine(dir, "a.txt"), "a");
             File.WriteAllText(Path.Combine(dir, "b.txt"), "b");
             var vm     = await AtPathAsync(dir);
-            var result = await new RenameTool(vm).InvokeAsync(
+            var result = await new RenameTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "a.txt", ["new_name"] = "b.txt" }, default);
 
             Assert.IsTrue(result.IsError);
@@ -491,7 +492,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "src.txt"), "payload");
             var vm     = await AtPathAsync(dir);
-            var result = await new CopyTool(vm).InvokeAsync(
+            var result = await new CopyTool(vm.Model).InvokeAsync(
                 new JsonObject { ["source"] = "src.txt", ["destination"] = "copy.txt" }, default);
 
             Assert.IsTrue(result.Success);
@@ -513,7 +514,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "src.txt"), "payload");
             var vm     = await AtPathAsync(dir);
-            var result = await new MoveTool(vm).InvokeAsync(
+            var result = await new MoveTool(vm.Model).InvokeAsync(
                 new JsonObject { ["source"] = "src.txt", ["destination"] = "moved.txt" }, default);
 
             Assert.IsTrue(result.Success);
@@ -534,7 +535,7 @@ public class FileSystemViewModelTests
             var path = Path.Combine(dir, "trash.txt");
             File.WriteAllText(path, "junk");
             var vm     = await AtPathAsync(dir);
-            var result = await new DeleteTool(vm).InvokeAsync(
+            var result = await new DeleteTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "trash.txt" }, default);
 
             Assert.IsTrue(result.Success);
@@ -551,7 +552,7 @@ public class FileSystemViewModelTests
         try
         {
             var vm     = await AtPathAsync(dir);
-            var result = await new DeleteTool(vm).InvokeAsync(
+            var result = await new DeleteTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "does-not-exist.txt" }, default);
 
             Assert.IsTrue(result.IsError);
@@ -568,7 +569,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "test.zip"), "");
             Directory.CreateDirectory(Path.Combine(dir, "old"));
-            var tool = new DeleteTool(await AtPathAsync(dir));
+            var tool = new DeleteTool((await AtPathAsync(dir)).Model);
 
             Assert.AreEqual(new ToolCallAnnouncement("delete", "file test.zip", "Deleting file test.zip", "File deleted.", "The file is unchanged."),
                             tool.Announce(new JsonObject { ["name"] = "test.zip" }));
@@ -587,7 +588,7 @@ public class FileSystemViewModelTests
         try
         {
             var vm     = await AtPathAsync(dir);
-            var result = await new CreateDirectoryTool(vm).InvokeAsync(
+            var result = await new CreateDirectoryTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "newfolder" }, default);
 
             Assert.IsTrue(result.Success);
@@ -605,7 +606,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllText(Path.Combine(dir, "data.bin"), new string('x', 42));
             var vm     = await AtPathAsync(dir);
-            var result = await new GetFileStatsTool(vm).InvokeAsync(
+            var result = await new GetFileStatsTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "data.bin" }, default);
 
             Assert.IsTrue(result.Success);
@@ -625,7 +626,7 @@ public class FileSystemViewModelTests
         {
             File.WriteAllLines(Path.Combine(dir, "lines.txt"), ["line1", "line2", "line3"]);
             var vm     = await AtPathAsync(dir);
-            var result = await new GetLineCountTool(vm).InvokeAsync(
+            var result = await new GetLineCountTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "lines.txt" }, default);
 
             Assert.IsTrue(result.Success);
@@ -642,7 +643,7 @@ public class FileSystemViewModelTests
         try
         {
             var vm     = await AtPathAsync(dir);
-            var result = await new GetLineCountTool(vm).InvokeAsync(
+            var result = await new GetLineCountTool(vm.Model).InvokeAsync(
                 new JsonObject { ["name"] = "nope.txt" }, default);
 
             Assert.IsTrue(result.IsError);

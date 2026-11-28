@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Nexaflow.IO.Common.Locations;
+using Nexaflow.Features.WindowsFileSystem.Model;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
