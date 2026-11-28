@@ -34,6 +34,9 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
     /// <summary>What measures the characters lines are set in, made the first time a line is broken into rows.</summary>
     private TextMeasure? _measure;
 
+    /// <summary>The empty run an empty line is laid as, shaped the first time one is.</summary>
+    private IShapedText? _empty;
+
     /// <summary>What the whole stretch is laid as.</summary>
     protected abstract string StretchKind { get; }
 
@@ -205,6 +208,18 @@ public abstract class LinedBuilder(ContentReading reading, EditState state, Layo
             }
 
             along += text.Length;
+        }
+
+        // An empty line is still a row of text a caret stands on: an empty run at the start of its line end, taking no room across and
+        // a row down, so a caret placed there, a press beside it, a step up or down onto it and a mark on the line all land on that row.
+        if (along == 0 && line.Children.Count > 0 && line.Children[^1] is { Kind: LineKinds.LineEnd } ending)
+        {
+            _empty ??= Medium.Shape(string.Empty, characters.Face, characters.Size, Ink(LineKinds.LineEnd));
+
+            apart.Open(LineKinds.LineEnd, new PartSlice(ending, 0, 0), default, LayoutStops.Before);
+            apart.Words(new LayoutWords(_empty, default, true, false));
+            apart.Covers(new LayoutRect(0, 0, 0, height));
+            apart.Close();
         }
 
         // A line end shown is marked where the line's last row ends.

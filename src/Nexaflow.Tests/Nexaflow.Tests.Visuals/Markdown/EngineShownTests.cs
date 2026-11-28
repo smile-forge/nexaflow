@@ -71,6 +71,41 @@ public class EngineShownTests
     });
 
     [TestMethod]
+    public void ACaretOnAnEmptyLine_StandsOnThatLinesOwnRow_AndSoDoesItsMark() => UiThread.Run(() =>
+    {
+        var engine = Laid("one\n\nthree", ContentLanguages.AsTyped);
+        var (above, empty, below) = (engine.Laid.Root.CaretRect(0), engine.Laid.Root.CaretRect(4), engine.Laid.Root.CaretRect(5));
+        var said = $"above {above}, empty {empty}, below {below}";
+
+        Assert.IsTrue(empty.Y >= above.Y + above.Height - 0.5, "the caret on an empty line stands below the line before it: " + said);
+        Assert.IsTrue(empty.Y + empty.Height <= below.Y + 0.5, "and above the line after it: " + said);
+        Assert.AreEqual(above.Height, empty.Height, 0.5, "as tall as a line: " + said);
+        Assert.AreEqual(below.X, empty.X, 0.5, "at the start of its line: " + said);
+
+        var near = engine.NearScreen(new LayoutRect(0, 0, 400, 1000))!.Value;
+        var row = engine.RowsOfLines(4, 4, near).Single();
+        Assert.AreEqual(empty.Y, row.Top, 0.5, "a mark on the empty line is drawn on its row: " + said);
+    });
+
+    [TestMethod]
+    public void AStepDownOrAPressOnAnEmptyLine_PutsTheCaretOnIt() => UiThread.Run(() =>
+    {
+        var engine = Laid("one\n\nthree", ContentLanguages.AsTyped);
+
+        engine.Apply(engine.State.MoveCaretTo(1), notify: false);
+        Assert.IsTrue(engine.Input(new ContentKey(EditingKey.Down)), "the key moves the caret");
+        Assert.AreEqual(4, engine.State.Caret, "down from the first line lands on the empty line, not past it");
+
+        Assert.IsTrue(engine.Input(new ContentKey(EditingKey.Down)));
+        Assert.AreEqual(5, engine.State.Caret, "and down again on the line after it");
+
+        var empty = engine.Laid.Root.CaretRect(4);
+        engine.Apply(engine.State.MoveCaretTo(0), notify: false);
+        engine.Input(new ContentPress(new LayoutPoint(200, empty.Y + (empty.Height / 2))));
+        Assert.AreEqual(4, engine.State.Caret, "a press along the empty line's row puts the caret on it");
+    });
+
+    [TestMethod]
     public void ThePointerIsABarOverWhatCanBeWrittenIn_AndAnArrowWhereNothingCan() => UiThread.Run(() =>
     {
         var engine = Laid("words to write in", ContentLanguages.AsTyped);
