@@ -403,11 +403,11 @@ public class SingleFormulaEditorTests
     // ── Harness ─────────────────────────────────────────────────────────────
 
     /// <summary>Runs <paramref name="test"/> against an editor holding <paramref name="latex"/> as one formula.</summary>
-    private static void RunInFormula(string latex, System.Action<MarkdownSurface> test) =>
+    private static void RunInFormula(string latex, System.Action<NexaTextSurface> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(latex, test, e => e.WrittenIn = "latex"));
 
     /// <summary>The editor holding the keyboard with the caret in the first thing written, which here is the formula.</summary>
-    private static DocumentBlock Focused(MarkdownSurface editor)
+    private static DocumentBlock Focused(NexaTextSurface editor)
     {
         Assert.IsTrue(editor.FocusFirstBlock(), "there is something written to type into");
         return MarkdownEditorHarness.Block(editor);
@@ -417,7 +417,7 @@ public class SingleFormulaEditorTests
     /// The formula, where the editor is drawing it as maths — null where it is drawing all of it as the characters
     /// written, which is what holding it open as source is.
     /// </summary>
-    private static DocumentBlock? ContentIn(MarkdownSurface editor)
+    private static DocumentBlock? ContentIn(NexaTextSurface editor)
     {
         if (MarkdownEditorHarness.Blocks(editor).Count == 0) return null;
 

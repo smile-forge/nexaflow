@@ -38,7 +38,7 @@ public class VennEditingTests
     private const string Teams = "venn-beta\n  set A[\"Frontend\"]\n    text A1[\"React\"]\n  set B[\"Backend\"]\n  union A,B[\"Shared\"]";
 
     /// <summary>The diagram inside a document, fenced, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Teams) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string diagram = Teams) =>
         MarkdownEditorHarness.Run("Teams:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
             var venn = MarkdownEditorHarness.Block(editor);
@@ -58,13 +58,13 @@ public class VennEditingTests
         venn.EndPointerSelect();
     }
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();

@@ -37,7 +37,7 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <md:MarkdownSurface Document="{Binding Text, Converter={x:Static md:AsEditedDocument.Instance}}"/>
+                    <md:NexaTextSurface Document="{Binding Text, Converter={x:Static md:AsEditedDocument.Instance}}"/>
                 </Border>
 
                 <!-- Timestamp, and (newest message only) the rewind affordance. -->
@@ -96,7 +96,7 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <md:MarkdownSurface Document="{Binding Text, Converter={x:Static md:AsEditedDocument.Instance}}"/>
+                <md:NexaTextSurface Document="{Binding Text, Converter={x:Static md:AsEditedDocument.Instance}}"/>
             </Border>
         </DataTemplate>
 
@@ -106,7 +106,7 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                     CornerRadius="14,14,14,4" Padding="14,10" Margin="0,6"
                     MaxWidth="720" HorizontalAlignment="Left">
-                <md:MarkdownSurface Document="{Binding Text, Converter={x:Static md:AsEditedDocument.Instance}}"/>
+                <md:NexaTextSurface Document="{Binding Text, Converter={x:Static md:AsEditedDocument.Instance}}"/>
             </Border>
         </DataTemplate>
 
@@ -174,7 +174,7 @@
                 <StackPanel>
                     <!-- The model's reason for wanting the tools. Computed all along but never shown, so an
                          approval prompt used to arrive with no stated purpose. Collapses when it gave none. -->
-                    <md:MarkdownSurface Document="{Binding Explanation, Converter={x:Static md:AsEditedDocument.Instance}}"
+                    <md:NexaTextSurface Document="{Binding Explanation, Converter={x:Static md:AsEditedDocument.Instance}}"
                                                Margin="0,0,0,8"
                                                Visibility="{Binding HasExplanation, Converter={StaticResource BoolVis}}"/>
 

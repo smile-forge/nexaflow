@@ -228,7 +228,7 @@ public class MarkdownPlaceTests
 
         MarkdownEditorHarness.Run(doc, editor =>
         {
-            var page = MarkdownEditorHarness.Drawn<System.Windows.Controls.ScrollViewer>(editor)!;
+            var page = editor;
 
             foreach (var to in new[] { 137.0, 441.5, 802.3 })
             {

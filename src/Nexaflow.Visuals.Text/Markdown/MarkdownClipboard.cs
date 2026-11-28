@@ -10,7 +10,8 @@ using Nexaflow.IO.Documents;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Common.Dropping;
-using Nexaflow.Visuals.Text.Markdown.Export;
+using Nexaflow.Markdown.Layout;
+using Nexaflow.Visuals.Text.Painting;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -30,58 +31,20 @@ public static class MarkdownClipboard
     /// <summary>Custom clipboard format carrying the raw markdown source.</summary>
     public const string MarkdownFormat = "Markdown";
 
-    /// <summary>
-    /// What a stretch of markdown amounts to in each of the ways a reader might want it pasted: as the
-    /// markdown itself, as the words with the marks taken off, and as marked-up text.
-    ///
-    /// <para>
-    /// <strong>Saying it is the renderer's; putting it anywhere is not.</strong> Which characters were chosen
-    /// and what they mean is what this knows. A clipboard is the application's — shared with every other thing
-    /// in the window, and subject to whatever the host has to say about what may leave it — so what comes back
-    /// is handed over rather than set.
-    /// </para>
-    /// </summary>
-    /// <param name="Markdown">The source, as written.</param>
-    /// <param name="Text">The words a reader sees, with the marks taken off.</param>
-    /// <param name="Html">The same, marked up — empty where it could not be.</param>
-    public sealed record ContentCopy(string Markdown, string Text, string Html, BitmapSource? Picture = null);
-
-    /// <summary>
-    /// What copying <paramref name="chosen"/> out of <paramref name="source"/> would put on a clipboard —
-    /// the whole document where nothing is chosen.
-    ///
-    /// <para>
-    /// The words and the marked-up text are the stretch as it is shown (<see cref="LayoutExport"/>), laid out on a white page and
-    /// written by the text and HTML writers. A clipboard takes no pictures: what another language drew goes as the code it is
-    /// written in, which is what pasting it anywhere that cannot draw the language can use.
-    /// </para>
-    /// </summary>
-    public static ContentCopy Copied(ContentDocument document, (int Start, int Length)? chosen)
-    {
-            var markdown = chosen is { Length: > 0 } picked && picked.Start >= 0 && picked.Start + picked.Length <= document.Length
-                ? document.Slice(picked.Start, picked.Length)
-                : document.ToString();
-
-            return Copied(markdown);
-        }
-
-        /// <summary><paramref name="markdown"/> as the clipboard holds it: as written, as words, and as a page.</summary>
-        public static ContentCopy Copied(string markdown)
-        {
-
-        var shown = LayoutExport.Exported(markdown, Occasion);
-
-        return new ContentCopy(markdown, Text.Written(shown), WrapCfHtml(Html.Written(shown)));
-    }
-
-    /// <summary>What a copy is laid out for: a white page, and no pictures.</summary>
-    private static readonly ExportOccasion Occasion = new();
-
     /// <summary>The words of a copy: what a reader sees, a blank line between blocks.</summary>
     private static readonly TextDocumentWriter Text = new();
 
     /// <summary>The marked-up text of a copy, each heading with the name a link reaches it by.</summary>
     private static readonly HtmlDocumentWriter Html = new(new HtmlWriting { Anchors = true });
+
+    /// <summary>The words a reader sees in <paramref name="copy"/>, with the marks taken off — what a plain destination is pasted.</summary>
+    public static string PlainWords(ContentCopy copy) => copy.Shown is { } shown ? Text.Written(shown) : copy.Markdown;
+
+    /// <summary>
+    /// <paramref name="copy"/> marked up, as a clipboard carries HTML — for a rich destination: Word, Outlook, mail. Empty where nothing
+    /// in it is marked up.
+    /// </summary>
+    public static string MarkedUp(ContentCopy copy) => copy.Shown is { } shown ? WrapCfHtml(Html.Written(shown)) : string.Empty;
 
     /// <summary>
     /// Extracts the best markdown representation from a clipboard or drag payload: the custom <see cref="MarkdownFormat"/> if
@@ -226,6 +189,9 @@ public static class MarkdownClipboard
         return text;
     }
 
+    /// <summary>What a copy that is a block of columns is marked with, as editors that pick out columns mark theirs.</summary>
+    public const string ColumnFormat = "MSDEVColumnSelect";
+
     /// <summary>
     /// <paramref name="copy"/> as what goes on a clipboard: its words, its markdown as the app's own kind, its marked-up text, and
     /// — for a block that draws a picture — the picture, as PNG. Whatever it is pasted into takes the one it can use: a document
@@ -233,18 +199,13 @@ public static class MarkdownClipboard
     /// </summary>
     public static ComposedPayload Payload(ContentCopy copy)
     {
-        var payload = ComposedPayload.OfText(copy.Text).With(MarkdownFormat, copy.Markdown);
-        if (copy.Html.Length > 0) payload = payload.With(DragKinds.Html, copy.Html);
-        if (copy.Picture is { } picture) payload = payload.With(DragKinds.Image, Png(picture));
+        var payload = ComposedPayload.OfText(PlainWords(copy)).With(MarkdownFormat, copy.Markdown);
+        if (MarkedUp(copy) is { Length: > 0 } html) payload = payload.With(DragKinds.Html, html);
+        if (copy.Picture is { } picture && Png(picture) is { } png) payload = payload.With(DragKinds.Image, png);
+        if (copy.Column) payload = payload.With(ColumnFormat, string.Empty);
         return payload;
     }
 
-    private static byte[] Png(BitmapSource picture)
-    {
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(picture));
-        using var png = new System.IO.MemoryStream();
-        encoder.Save(png);
-        return png.ToArray();
-    }
+    /// <summary>A picture drawn in this toolkit's medium, as PNG — null for one it holds no pixels of.</summary>
+    private static byte[]? Png(LayoutPicture picture) => picture is WpfPicture { Source: BitmapSource bitmap } ? WpfPainter.Png(bitmap) : null;
 }

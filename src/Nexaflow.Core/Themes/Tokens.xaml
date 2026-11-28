@@ -141,11 +141,11 @@
     <SolidColorBrush x:Key="Swatch.Lime"   Color="#A8D85C"/>
 
     <!-- ════ Syntax / code highlighting palette ════
-         Role-named colours for the text editor's syntax highlighting (tree-sitter + AvalonEdit .xshd),
+         Role-named colours for syntax highlighting (tree-sitter captures, by SyntaxTokenMap),
          kept SEPARATE from the categorical Swatch.* accent bank so each theme can art-direct code to its
          own mood without disturbing chart/series hues. These defaults are tuned for the dark themes
          (readable on a near-black editor); light and immersive themes override them in Theme.<name>.xaml.
-         Consumed at paint time by the editor colourizers (TreeSitterColorizer / XshdTheming). -->
+         Consumed at paint time by whatever colours code (TreeSitterColorizer, the shared engine's code layout). -->
     <SolidColorBrush x:Key="TextSwatch.Comment"   Color="#6A9955"/>
     <SolidColorBrush x:Key="TextSwatch.Keyword"   Color="#569CD6"/>
     <SolidColorBrush x:Key="TextSwatch.String"    Color="#CE9178"/>
@@ -154,6 +154,10 @@
     <SolidColorBrush x:Key="TextSwatch.Constant"  Color="#D19A66"/>
     <SolidColorBrush x:Key="TextSwatch.Function"  Color="#DCDCAA"/>
     <SolidColorBrush x:Key="TextSwatch.Operator"  Color="#C8C8C8"/>
+    <SolidColorBrush x:Key="TextSwatch.Whitespace" Color="#807880A0"/>
+    <SolidColorBrush x:Key="TextSwatch.CurrentLine" Color="#14FFFFFF"/>
+    <SolidColorBrush x:Key="TextSwatch.Inserted" Color="#7EC699"/>
+    <SolidColorBrush x:Key="TextSwatch.Deleted"  Color="#F08080"/>
     <SolidColorBrush x:Key="TextSwatch.Parameter" Color="#9CDCFE"/>
     <SolidColorBrush x:Key="TextSwatch.Tag"       Color="#569CD6"/>
     <SolidColorBrush x:Key="TextSwatch.Attribute" Color="#9CDCFE"/>

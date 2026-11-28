@@ -4,6 +4,7 @@ using Nexaflow.Markdown.Layout.Prose;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Localization;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -41,7 +42,7 @@ public static class LatexSyntax
             // the complaints are what the pieces of it say about themselves rather than a second list
             // kept alongside. What can be drawn is what the reading's own stages say each name means, which
             // is what the renderer sets from — so `a\ b` and every `\,` read here exactly as they draw.
-            var reading = new ContentEngine().Read("latex", latex, writing: true);
+            var reading = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Light).Read("latex", latex, writing: true);
 
             return reading.Root.SelfAndDescendants()
                 .Where(part => part.Node.Trouble is not null)

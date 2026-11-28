@@ -61,8 +61,7 @@ public class SyntaxHighlightConsistencyTests
             if (!Directory.Exists(dir)) continue;
             foreach (var src in Directory.EnumerateFiles(dir))
             {
-                var resolution = HighlightingRegistry.Resolve(Path.GetFileName(src));
-                if (resolution.TreeSitterLanguage is not { } grammar) continue; // skip files we don't grammar-highlight
+                if (TreeSitterLanguages.ForEdit(Path.GetFileName(src)) is not { } grammar) continue; // skip files we don't grammar-highlight
                 var highlighted = Path.Combine(highlightedRoot, langDir, Path.GetFileName(src));
                 if (File.Exists(highlighted))
                     yield return (src, highlighted, grammar);

@@ -10,13 +10,14 @@ using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editor;
 using NSubstitute;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Editor;
 
 /// <summary>
 /// Covers the read-write Edit Text view-model's save path (the data-loss-sensitive part): encoding/BOM
-/// round-trip, EOL normalization, dirty tracking, and the over-size read-only guard. Runs under
-/// <see cref="AsyncPump"/> because loading/saving mutate a thread-affine AvalonEdit <c>TextDocument</c>.
+/// round-trip, EOL normalization, dirty tracking, and the over-size read-only guard — headless, through the page's
+/// own document and its view of it, with nothing drawing either.
 /// </summary>
 [TestClass]
 [CoversNode("vtext-editor")]
@@ -61,11 +62,15 @@ public class FileTextEditorViewModelTests
         return s;
     }
 
+    /// <summary>Writes <paramref name="text"/> in place of everything the page holds, as an edit would — one step that can be taken back.</summary>
+    private static void Rewrite(FileTextEditorViewModel vm, string text) =>
+        vm.Document.Write(ContentChange.Write(0, vm.Document.Current.Length, text));
+
     private static bool HasUtf8Bom(byte[] b) => b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF;
 
     [TestMethod]
     [CoversNode("code-save")]
-    public void Save_RoundTripsUtf8NoBom() => AsyncPumpCore.Run(async () =>
+    public async Task Save_RoundTripsUtf8NoBom()
     {
         var path = Temp();
         File.WriteAllText(path, "alpha\nbeta\n", new UTF8Encoding(false));
@@ -74,25 +79,25 @@ public class FileTextEditorViewModelTests
             using var vm = new FileTextEditorViewModel(path, Shell(), VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
             Assert.IsFalse(vm.IsReadOnlyMode);
-            Assert.AreEqual("alpha\nbeta\n", vm.Document.Text);
+            Assert.AreEqual("alpha\nbeta\n", vm.Document.ToString());
             Assert.IsFalse(vm.IsDirty);
 
-            vm.Document.Text = "alpha\nbeta\ngamma\n";
+            Rewrite(vm, "alpha\nbeta\ngamma\n");
             Assert.IsTrue(vm.IsDirty);
 
             await vm.SaveCommand.ExecuteAsync(null);
 
-            Assert.IsFalse(vm.IsDirty);
+            Assert.IsFalse(vm.IsDirty, "what was saved is what it holds");
             Assert.IsFalse(HasUtf8Bom(File.ReadAllBytes(path)));
             Assert.AreEqual("alpha\nbeta\ngamma\n", File.ReadAllText(path));
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     [TestMethod]
     [CoversNode("code-ai-act")]
     [CoversNode("code-ai-context")]
-    public void AiTools_ReadEditReplaceSave_AndScopeReadinessPreview() => AsyncPumpCore.Run(async () =>
+    public async Task AiTools_ReadEditReplaceSave_AndScopeReadinessPreview()
     {
         var path = Temp();
         File.WriteAllText(path, "alpha\nbeta\n", new UTF8Encoding(false));
@@ -117,15 +122,16 @@ public class FileTextEditorViewModelTests
             var g = await get.InvokeAsync(new JsonObject(), CancellationToken.None);
             Assert.AreEqual("alpha\nbeta\n", g.Summary);
 
-            // set_editor_text replaces the whole document (unsaved)
+            // set_editor_text replaces the whole document (unsaved), as one step that can be taken back
             await set.InvokeAsync(new JsonObject { ["text"] = "one\ntwo\nthree\n" }, CancellationToken.None);
-            Assert.AreEqual("one\ntwo\nthree\n", vm.Document.Text);
+            Assert.AreEqual("one\ntwo\nthree\n", vm.Document.ToString());
             Assert.IsTrue(vm.IsDirty);
+            Assert.IsTrue(vm.Document.CanUndo, "an assistant's edit is taken back as the reader's are");
 
             // replace_all edits in place (case-insensitive by default) and reports the count
             var r = await repl.InvokeAsync(new JsonObject { ["find"] = "o", ["replace"] = "0" }, CancellationToken.None);
             Assert.IsFalse(r.IsError);
-            StringAssert.Contains(vm.Document.Text, "0ne");   // "one" → "0ne", "two" → "tw0"
+            StringAssert.Contains(vm.Document.ToString(), "0ne");   // "one" → "0ne", "two" → "tw0"
 
             // save_file persists to disk and clears the dirty flag
             await save.InvokeAsync(new JsonObject(), CancellationToken.None);
@@ -133,7 +139,7 @@ public class FileTextEditorViewModelTests
             StringAssert.Contains(File.ReadAllText(path), "0ne");
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     /// <summary>
     /// A project file has no highlighting grammar, so the editor's structural tools used to have nothing to say
@@ -141,7 +147,7 @@ public class FileTextEditorViewModelTests
     /// </summary>
     [TestMethod]
     [CoversNode("code-ai-act")]
-    public void EditDeclaration_At_EditsAProjectFile_AndRefusesAPathAndAnIdTogether() => AsyncPumpCore.Run(async () =>
+    public async Task EditDeclaration_At_EditsAProjectFile_AndRefusesAPathAndAnIdTogether()
     {
         var path = Path.Combine(TestTemp.Root, $"editvm_{Guid.NewGuid():N}.csproj");
         File.WriteAllText(path,
@@ -165,14 +171,14 @@ public class FileTextEditorViewModelTests
                 ["text"] = "3.0.0",
             }, CancellationToken.None);
             Assert.IsFalse(set.IsError, set.ModelText);
-            StringAssert.Contains(vm.Document.Text, "<PackageReference Include=\"NAudio\" Version=\"3.0.0\" />");
+            StringAssert.Contains(vm.Document.ToString(), "<PackageReference Include=\"NAudio\" Version=\"3.0.0\" />");
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     [TestMethod]
     [CoversNode("code-encoding")]
-    public void Save_PreservesBom_WhenOriginalHadBom() => AsyncPumpCore.Run(async () =>
+    public async Task Save_PreservesBom_WhenOriginalHadBom()
     {
         var path = Temp();
         File.WriteAllText(path, "x\n", new UTF8Encoding(true)); // BOM
@@ -182,17 +188,17 @@ public class FileTextEditorViewModelTests
             await vm.LoadAsync();
             Assert.AreEqual("UTF-8 with BOM", vm.SelectedEncoding.Name);
 
-            vm.Document.Text = "x\ny\n";
+            Rewrite(vm, "x\ny\n");
             await vm.SaveCommand.ExecuteAsync(null);
 
             Assert.IsTrue(HasUtf8Bom(File.ReadAllBytes(path)), "BOM should be re-emitted on save");
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     [TestMethod]
     [CoversNode("code-too-large")]
-    public void OverSizeLimit_OpensReadOnly_AndCannotSave() => AsyncPumpCore.Run(async () =>
+    public async Task OverSizeLimit_IsShownReadOnlyOverItsBlocks_AndCannotSave()
     {
         var path = Temp();
         File.WriteAllText(path, new string('a', 5000));
@@ -202,19 +208,22 @@ public class FileTextEditorViewModelTests
             await vm.LoadAsync();
 
             Assert.IsTrue(vm.IsReadOnlyMode);
-            Assert.AreEqual(string.Empty, vm.Document.Text);
+            Assert.AreEqual(new string('a', 5000), vm.Document.ToString(), "shown, read from the file a block at a time");
             Assert.IsFalse(vm.SaveCommand.CanExecute(null));
+            Assert.AreEqual(0, vm.CommandGroups.Count + vm.LineCommands.Count, "no command makes a file read over its blocks one string");
+
+            var read = await vm.GetClientTools().Single(t => t.Name == "get_editor_text").InvokeAsync(new JsonObject(), CancellationToken.None);
+            Assert.IsTrue(read.IsError, "there is no whole of it to hand the assistant");
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     [TestMethod]
     [CoversNode("vtext-editor-host")]
-    public void LineCommands_HideLineReorderingForCode() => AsyncPumpCore.Run(async () =>
+    public void LineCommands_HideLineReorderingForCode()
     {
         using var code = new FileTextEditorViewModel("snippet.cs", Shell(), VirtualFileSystem.Instance, Big);
         using var text = new FileTextEditorViewModel("notes.txt", Shell(), VirtualFileSystem.Instance, Big);
-        await Task.CompletedTask;
 
         // Line ops live in the footer "Lines" popup, not the floating panel.
         static bool OffersSort(FileTextEditorViewModel vm) => vm.LineCommands.Any(c => c.Name.Contains("Sort"));
@@ -222,31 +231,50 @@ public class FileTextEditorViewModelTests
         Assert.IsFalse(OffersSort(code), "code files must not offer line sorting");
         Assert.IsTrue(OffersSort(text), "text files should offer line sorting");
         Assert.IsFalse(code.CommandGroups.Any(g => g.Name == "Lines"), "Lines moved out of the floating panel");
-    });
+    }
 
     [TestMethod]
     [CoversNode("vtext-editor-host")]
     [CoversNode("code-commands")]
-    public void CommandGroups_HideSelectionOnlyGroups_UntilSelectionExists() => AsyncPumpCore.Run(async () =>
+    public void CommandGroups_HideSelectionOnlyGroups_UntilSelectionExists()
     {
         using var vm = new FileTextEditorViewModel("notes.txt", Shell(), VirtualFileSystem.Instance, Big);
-        await Task.CompletedTask;
+        vm.Document.Load("hello world");
 
         // No selection yet: Encode/Decode (all selection-scoped) are hidden; Checksum stays (it has document ops).
         Assert.IsFalse(vm.CommandGroups.Any(g => g.Name is "Encode" or "Decode"), "selection-only groups hidden without a selection");
         Assert.IsTrue(vm.CommandGroups.Any(g => g.Name == "Checksum"), "Checksum stays (document-scoped entries)");
 
-        vm.OnSelectionChanged(true);
+        vm.Editor.Select(0, 5);
         Assert.IsTrue(vm.CommandGroups.Any(g => g.Name == "Encode"), "Encode appears once there's a selection");
         Assert.IsTrue(vm.CommandGroups.Any(g => g.Name == "Decode"), "Decode appears once there's a selection");
 
-        vm.OnSelectionChanged(false);
+        vm.Editor.MoveCaretTo(3);
         Assert.IsFalse(vm.CommandGroups.Any(g => g.Name is "Encode" or "Decode"), "they hide again when the selection clears");
-    });
+    }
+
+    [TestMethod]
+    [CoversNode("code-commands")]
+    public void ASelectionCommand_WritesOverWhatIsPickedOut_AsOneStep()
+    {
+        using var vm = new FileTextEditorViewModel("notes.txt", Shell(), VirtualFileSystem.Instance, Big);
+        vm.Document.Load("hello world");
+        vm.Editor.Select(6, 5);
+
+        var encode = vm.CommandGroups.SelectMany(g => g.Commands)
+            .FirstOrDefault(c => c.Name.Contains("Base64", StringComparison.OrdinalIgnoreCase) && c.Name.Contains("encode", StringComparison.OrdinalIgnoreCase));
+        Assert.IsNotNull(encode, "a selection offers its encodings");
+
+        encode!.Run.Execute(null);
+
+        Assert.AreEqual("hello " + Convert.ToBase64String(Encoding.UTF8.GetBytes("world")), vm.Document.ToString());
+        Assert.IsNotNull(vm.Document.Undo(new EditState(vm.Document.Current, 0)));
+        Assert.AreEqual("hello world", vm.Document.ToString(), "one step takes it back");
+    }
 
     [TestMethod]
     [CoversNode("code-eol")]
-    public void Eol_NormalizedToCrlfOnSave() => AsyncPumpCore.Run(async () =>
+    public async Task Eol_NormalizedToCrlfOnSave()
     {
         var path = Temp();
         File.WriteAllText(path, "a\nb\n", new UTF8Encoding(false));
@@ -256,23 +284,22 @@ public class FileTextEditorViewModelTests
             await vm.LoadAsync();
             vm.SelectedEol = vm.AvailableEols.First(e => e.Eol == LineEnding.CrLf);
 
-            vm.Document.Text = "a\nb\nc\n"; // marks dirty
+            Rewrite(vm, "a\nb\nc\n"); // marks dirty
             await vm.SaveCommand.ExecuteAsync(null);
 
             Assert.AreEqual("a\r\nb\r\nc\r\n", File.ReadAllText(path));
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
-    // ── Toolbar: line-number gutter ───────────────────────────────────────────
+    // ── Toolbar: line-number gutter, whitespace ───────────────────────────────
 
     [TestMethod]
     [CoversNode("vtext-editor-host")]
     [CoversNode("code-line-numbers")]
-    public void LineNumbers_AreOnByDefault_AndTheToggleFlipsThem() => AsyncPumpCore.Run(async () =>
+    public void LineNumbers_AreOnByDefault_AndTheToggleFlipsThem()
     {
         using var vm = new FileTextEditorViewModel("snippet.cs", Shell(), VirtualFileSystem.Instance, Big);
-        await Task.CompletedTask;
 
         Assert.IsTrue(vm.ShowLineNumbers, "code opens with the gutter visible");
 
@@ -281,13 +308,27 @@ public class FileTextEditorViewModelTests
 
         vm.ShowLineNumbers = true;
         Assert.IsTrue(vm.ShowLineNumbers);
-    });
+    }
+
+    [TestMethod]
+    [CoversNode("vtext-editor-host")]
+    public void ACodeFile_IsWrittenInItsGrammar_AndAnythingElseInPlainText()
+    {
+        using var code = new FileTextEditorViewModel("snippet.cs", Shell(), VirtualFileSystem.Instance, Big);
+        using var text = new FileTextEditorViewModel("notes.txt", Shell(), VirtualFileSystem.Instance, Big);
+
+        Assert.AreEqual("c-sharp", code.WrittenIn);
+        Assert.IsFalse(code.IsPlainText);
+        Assert.AreEqual(Nexaflow.Markdown.PlainText.TextParser.Language, text.WrittenIn, "plain text, never markdown");
+        Assert.IsTrue(text.IsPlainText);
+        Assert.IsFalse(text.ShowWhitespace, "whitespace is shown only when asked for");
+    }
 
     // ── Status bar ────────────────────────────────────────────────────────────
 
     [TestMethod]
     [CoversNode("code-status-filesize")]
-    public void FileSize_IsReportedOnLoad_AndGrowsAfterASave() => AsyncPumpCore.Run(async () =>
+    public async Task FileSize_IsReportedOnLoad_AndGrowsAfterASave()
     {
         var path = Temp();
         File.WriteAllText(path, "abc", new UTF8Encoding(false));
@@ -298,17 +339,17 @@ public class FileTextEditorViewModelTests
             var onLoad = vm.FileSizeText;
             Assert.IsFalse(string.IsNullOrWhiteSpace(onLoad), "the footer shows a size once the file is read");
 
-            vm.Document.Text = new string('x', 20_000);
+            Rewrite(vm, new string('x', 20_000));
             await vm.SaveCommand.ExecuteAsync(null);
 
             Assert.AreNotEqual(onLoad, vm.FileSizeText, "the footer size refreshes from disk after a save");
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     [TestMethod]
     [CoversNode("code-status-state")]
-    public void UnsavedFlag_FollowsTheBuffer_AndUndoingBackToTheSavedStateClearsIt() => AsyncPumpCore.Run(async () =>
+    public async Task UnsavedFlag_FollowsTheBuffer_AndUndoingBackToTheSavedStateClearsIt()
     {
         var path = Temp();
         File.WriteAllText(path, "one\n", new UTF8Encoding(false));
@@ -319,18 +360,19 @@ public class FileTextEditorViewModelTests
             Assert.IsFalse(vm.IsDirty);
             Assert.IsFalse(vm.IsReadOnlyMode, "an editable file shows no read-only flag");
 
-            vm.Document.Text = "one\ntwo\n";
+            Rewrite(vm, "one\ntwo\n");
             Assert.IsTrue(vm.IsDirty, "the '● unsaved' flag follows the buffer");
+            Assert.AreEqual(3, vm.LineCount, "the footer counts the lines it holds now");
 
-            vm.Document.UndoStack.Undo();     // back to the saved state
+            vm.Document.Undo(new EditState(vm.Document.Current, 0));     // back to the saved state
             Assert.IsFalse(vm.IsDirty, "undoing every edit clears unsaved, it doesn't stay stuck on");
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     [TestMethod]
     [CoversNode("code-status-state")]
-    public void ReadOnlyFlag_IsSet_ForAFileOverTheEditableCeiling() => AsyncPumpCore.Run(async () =>
+    public async Task ReadOnlyFlag_IsSet_ForAFileOverTheEditableCeiling()
     {
         var path = Temp();
         File.WriteAllText(path, new string('a', 5000));
@@ -343,13 +385,13 @@ public class FileTextEditorViewModelTests
             Assert.IsFalse(vm.IsDirty);
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     // ── Reload (F5) + the external-change watch ───────────────────────────────
 
     [TestMethod]
     [CoversNode("code-reload")]
-    public void Refresh_RereadsTheFileFromDisk() => AsyncPumpCore.Run(async () =>
+    public async Task Refresh_RereadsTheFileFromDisk()
     {
         var path = Temp();
         File.WriteAllText(path, "original\n", new UTF8Encoding(false));
@@ -361,15 +403,16 @@ public class FileTextEditorViewModelTests
             File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false));
             await vm.RefreshCommand.ExecuteAsync(null);
 
-            Assert.AreEqual("changed elsewhere\n", vm.Document.Text);
+            Assert.AreEqual("changed elsewhere\n", vm.Document.ToString());
             Assert.IsFalse(vm.IsDirty, "a reload is the new saved baseline");
+            Assert.IsFalse(vm.Document.CanUndo, "nothing before a reload is taken back into it");
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     [TestMethod]
     [CoversNode("code-reload")]
-    public void Refresh_WithUnsavedEdits_AsksBeforeDiscardingThem() => AsyncPumpCore.Run(async () =>
+    public async Task Refresh_WithUnsavedEdits_AsksBeforeDiscardingThem()
     {
         var path = Temp();
         File.WriteAllText(path, "original\n", new UTF8Encoding(false));
@@ -381,21 +424,21 @@ public class FileTextEditorViewModelTests
 
             using var vm = new FileTextEditorViewModel(path, shell, VirtualFileSystem.Instance, Big);
             await vm.LoadAsync();
-            vm.Document.Text = "my unsaved work\n";
+            Rewrite(vm, "my unsaved work\n");
 
             File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false));
             await vm.RefreshCommand.ExecuteAsync(null);
 
-            Assert.AreEqual("my unsaved work\n", vm.Document.Text, "declining the prompt must keep the edits");
+            Assert.AreEqual("my unsaved work\n", vm.Document.ToString(), "declining the prompt must keep the edits");
             await shell.Received().ConfirmAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 
     [TestMethod]
     [CoversNode("code-reload")]
     [CoversNode("code-change-banner")]
-    public void ExternalChange_ReloadsAndRaisesTheBanner_ButIgnoresTheEditorsOwnWrite() => AsyncPumpCore.Run(async () =>
+    public async Task ExternalChange_ReloadsAndRaisesTheBanner_ButIgnoresTheEditorsOwnWrite()
     {
         var path = Temp();
         File.WriteAllText(path, "original\n", new UTF8Encoding(false));
@@ -417,19 +460,19 @@ public class FileTextEditorViewModelTests
 
             // A burst whose on-disk content still equals the buffer is our own save — ignored.
             onChanged!();
-            await Task.Yield();
+            await Task.Delay(50);
             Assert.IsFalse(vm.BannerVisible, "the editor's own write must not raise the banner");
 
             // A real external edit reloads and announces it. The previous burst's read may still be in
             // flight, so stand in for an external editor and wait for the handle rather than colliding.
             WhenFree(() => File.WriteAllText(path, "changed elsewhere\n", new UTF8Encoding(false)));
             onChanged!();
-            for (int i = 0; i < 50 && !vm.BannerVisible; i++) await Task.Delay(10);
+            for (int i = 0; i < 100 && !vm.BannerVisible; i++) await Task.Delay(10);
 
-            Assert.AreEqual("changed elsewhere\n", vm.Document.Text);
+            Assert.AreEqual("changed elsewhere\n", vm.Document.ToString());
             Assert.IsTrue(vm.BannerVisible);
             StringAssert.Contains(vm.BannerMessage, "changed on disk");
         }
         finally { DeleteWhenFree(path); }
-    });
+    }
 }

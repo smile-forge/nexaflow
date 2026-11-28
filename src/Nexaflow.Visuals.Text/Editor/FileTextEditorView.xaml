@@ -1,7 +1,7 @@
 <UserControl x:Class="Nexaflow.Visuals.Text.Editor.FileTextEditorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
@@ -64,7 +64,13 @@
                                   AutomationProperties.AutomationId="Editor_LineNumbers"
                                   IsChecked="{Binding ShowLineNumbers}"
                                   ToolTip="{loc:Str Text.Editor.LineNumbersTip}">
-                        <TextBlock Text="≡#" FontSize="12"/>
+                    <TextBlock Text="≡#" FontSize="12"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource TbToggle}"
+                                  AutomationProperties.AutomationId="Editor_Whitespace"
+                                  IsChecked="{Binding ShowWhitespace}"
+                                  ToolTip="{loc:Str Text.Editor.WhitespaceTip}">
+                        <TextBlock Text="·¶" FontSize="12"/>
                     </ToggleButton>
 
                     <Separator Style="{StaticResource TbSep}"/>
@@ -89,24 +95,26 @@
                 <ColumnDefinition Width="14"/>
             </Grid.ColumnDefinitions>
 
-            <avalon:TextEditor x:Name="Editor"
-                               Grid.Column="0"
-                               IsReadOnly="{Binding IsReadOnlyMode}"
-                               ShowLineNumbers="{Binding ShowLineNumbers}"
-                               FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                               FontSize="13"
-                               Margin="3,3,0,0"
-                               UseLayoutRounding="True"
-                               Background="{StaticResource BgBrush}"
-                               Foreground="{StaticResource TextBrush}">
-                <avalon:TextEditor.ContextMenu>
-                    <ContextMenu x:Name="EditorContextMenu">
-                        <MenuItem Header="{loc:Str Text.Editor.Cut}"   Command="ApplicationCommands.Cut"/>
-                        <MenuItem Header="{loc:Str Text.Editor.Copy}"  Command="ApplicationCommands.Copy"/>
-                        <MenuItem Header="{loc:Str Text.Editor.Paste}" Command="ApplicationCommands.Paste"/>
-                    </ContextMenu>
-                </avalon:TextEditor.ContextMenu>
-            </avalon:TextEditor>
+            <!-- The file as it is written in, coloured and folded by its grammar. The page's view-model holds the document and the view of it
+                 (caret, selection, what a search found); the surface draws them. Cut, copy and paste are on its own ribbon and keys. -->
+            <md:NexaTextSurface x:Name="Surface"
+                                Grid.Column="0"
+                                Document="{Binding Document}"
+                                Editor="{Binding Editor}"
+                                WrittenIn="{Binding WrittenIn}"
+                                IsReadOnly="{Binding IsReadOnlyMode}"
+                                ShowsWhitespace="{Binding ShowWhitespace}"
+                                HighlightsCaretLine="True"
+                                BaseFontSize="13"
+                                VerticalScrollBarVisibility="Auto"
+                                HorizontalScrollBarVisibility="Auto"
+                                Margin="3,3,0,0"
+                                Background="{StaticResource BgBrush}">
+                <md:NexaTextSurface.LeadingMargins>
+                    <md:FoldMargin/>
+                    <md:LineNumberMargin x:Name="LineNumbers"/>
+                </md:NexaTextSurface.LeadingMargins>
+            </md:NexaTextSurface>
 
             <!-- Floating command panel: Lines / Checksum / Encode / Decode (right side, like the file action strip) -->
             <Border VerticalAlignment="Top" HorizontalAlignment="Right"

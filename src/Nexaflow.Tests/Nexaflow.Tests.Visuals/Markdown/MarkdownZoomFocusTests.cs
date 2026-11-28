@@ -30,7 +30,7 @@ public class MarkdownZoomFocusTests
     [TestMethod]
     public void BaseFontSize_AppliesEvenWhileTheEditorHasFocus() => UiThread.Run(() =>
     {
-        var editor = new MarkdownSurface { IsReadOnly = false, Document = new EditedDocument("Body text.\n"), BaseFontSize = 15 };
+        var editor = new NexaTextSurface { IsReadOnly = false, Document = new EditedDocument("Body text.\n"), BaseFontSize = 15 };
         var window = new Window
         {
             Content = editor, Width = 600, Height = 400,

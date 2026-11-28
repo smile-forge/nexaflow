@@ -141,7 +141,7 @@ public class SlidingBoxTests
     [TestMethod]
     public void OnPaper_NothingSlides_AndTheLinesWrapInsideTheBox() => UiThread.Run(() =>
     {
-        var engine = new ContentEngine { Slides = false };
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { Slides = false };
         engine.Show(null, WpfStyles.Dark);
         engine.Start(Document);
         engine.Fit(Room);
@@ -154,7 +154,7 @@ public class SlidingBoxTests
     /// <summary><paramref name="document"/> laid to be written in at <see cref="Room"/>.</summary>
     private static ContentEngine Written(string document)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         engine.Show(null, WpfStyles.Dark);
         engine.Start(document);
         engine.Fit(Room);

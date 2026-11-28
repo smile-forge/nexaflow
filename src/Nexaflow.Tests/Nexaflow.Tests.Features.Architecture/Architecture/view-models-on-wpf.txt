@@ -65,7 +65,6 @@ src/Nexaflow.Features/Nexaflow.Features.Svg/ViewModels/SvgViewModel.cs
 src/Nexaflow.Features/Nexaflow.Features.SystemInfo/ViewModels/EnvironmentVariablesViewModel.cs
 src/Nexaflow.Features/Nexaflow.Features.SystemInfo/ViewModels/ServicesViewModel.cs
 src/Nexaflow.Features/Nexaflow.Features.Tabular/ViewModels/TabularViewModel.cs
-src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.cs
 src/Nexaflow.Features/Nexaflow.Features.UsbProbe/ViewModels/UsbToolTile.cs
 src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/KeyframeViewModel.cs
 src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/VideoViewModel.cs

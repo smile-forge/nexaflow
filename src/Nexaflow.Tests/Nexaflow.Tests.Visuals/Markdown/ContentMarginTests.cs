@@ -62,6 +62,28 @@ public class ContentMarginTests
     });
 
     [TestMethod]
+    public void ScrolledAFewLines_BeforeThePageIsPaintedAgain_TheLinesSaidStandWhereTheyAreDrawn() => UiThread.Run(() =>
+    {
+        var text = string.Concat(Enumerable.Range(0, 2_000).Select(line => $"line {line} of the document\n"));
+
+        Shown(text, surface =>
+        {
+            Settle(surface);
+            var tall = surface.LinesShown()[0].Height;
+
+            // A few lines on, within what was painted: the page is slid to it, not painted again yet.
+            surface.ScrollToVerticalOffset(surface.VerticalOffset + (5 * tall));
+            surface.UpdateLayout();
+
+            var lines = surface.LinesShown();
+            var atTop = lines.Where(line => line.Top + line.Height > 0.5).MinBy(line => line.Top)!;
+
+            Assert.AreEqual(6, atTop.Number, $"the line said to stand at the top, {atTop.Number}, is not the one drawn there");
+            Assert.AreEqual(0, atTop.Top, 0.5, $"line {atTop.Number} is said to stand {atTop.Top:0} down, where it is drawn at the top");
+        });
+    });
+
+    [TestMethod]
     [CoversNode("windowed-reading")]
     public void MovedWithinAUnitLaidInPart_EveryLineOnThePageIsLaidAndNumbered() => UiThread.Run(() =>
     {
@@ -77,7 +99,7 @@ public class ContentMarginTests
             var row = lines.Count > 0 ? lines[0].Height : 1;
 
             Assert.AreEqual(600, lines.FirstOrDefault().Number, 1, "the page does not start at the line gone to");
-            Assert.IsTrue(lines.Count >= 400 / row - 2, $"only {lines.Count} of the lines on the page were laid: the screen moved within a unit laid in part, and nothing laid what came onto it");
+            Assert.IsTrue(lines.Count >= (int)(surface.ViewportHeight / row) - 1, $"only {lines.Count} of the lines on a page {surface.ViewportHeight:0} tall were laid: the screen moved within a unit laid in part, and nothing laid what came onto it");
         });
     });
 
@@ -133,9 +155,9 @@ public class ContentMarginTests
     /// <paramref name="text"/> in a surface in a window, shown as typed with its lines wrapped unless <paramref name="typed"/> says not —
     /// what <paramref name="configure"/> does to it done first — and <paramref name="test"/> run on it once it is laid out and drawn.
     /// </summary>
-    internal static void Shown(string text, Action<MarkdownSurface> test, Action<MarkdownSurface>? configure = null, bool typed = true)
+    internal static void Shown(string text, Action<NexaTextSurface> test, Action<NexaTextSurface>? configure = null, bool typed = true)
     {
-        var surface = new MarkdownSurface { IsReadOnly = false, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var surface = new NexaTextSurface { IsReadOnly = false, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         if (typed) (surface.WrittenIn, surface.WrapsLines) = (ContentLanguages.AsTyped, true);
         configure?.Invoke(surface);
 
@@ -162,7 +184,7 @@ public class ContentMarginTests
     /// Lets <paramref name="surface"/> lay out and draw what it now shows, over a few passes — each one bounded, so a surface that never
     /// settles fails the test rather than hanging it.
     /// </summary>
-    internal static void Settle(MarkdownSurface surface)
+    internal static void Settle(NexaTextSurface surface)
     {
         for (var pass = 0; pass < 10; pass++)
         {
@@ -178,7 +200,7 @@ public class ContentMarginTests
         public List<ShownLine> Drew { get; } = [];
 
         /// <summary>The surface it stands beside.</summary>
-        public MarkdownSurface? Holder => Surface;
+        public NexaTextSurface? Holder => Surface;
 
         protected override Size MeasureOverride(Size availableSize) => new(wide, 0);
 

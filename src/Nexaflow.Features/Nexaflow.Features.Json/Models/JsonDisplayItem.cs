@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Markdown.Editing;
 using System.Text.Json;
 
 namespace Nexaflow.Features.Json.Models;
@@ -30,8 +31,16 @@ public sealed partial class JsonTreeDisplayItem : JsonDisplayItem
 // Replaces a node's subtree in the display list with an inline view. At most one at a time.
 public sealed partial class JsonInlineContentDisplayItem : JsonDisplayItem
 {
+    private EditedDocument? _document;
+
     public NodeViewMode ViewMode { get; init; }
     public string       RawJson  { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The node's JSON as it is written in Text mode: the document the inline editor shows and writes in, made from <see cref="RawJson"/>
+    /// the first time it is shown, and the row's own — so a recycled editor shows whichever row it is given, as that row was left.
+    /// </summary>
+    public EditedDocument Document => _document ??= new EditedDocument(RawJson);
 }
 
 public sealed partial class JsonVirtualDisplayItem : JsonDisplayItem

@@ -30,7 +30,7 @@ public class TreemapEditingTests
     private const string Map = "\"S\"\n    \"A\": 10\n    \"B\": 20\n\"T\"\n    \"C\": 30";
 
     /// <summary>The treemap inside a document, fenced as itself, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string treemap = Map) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string treemap = Map) =>
         MarkdownEditorHarness.Run("Spending:\n\n```treemap\n" + treemap + "\n```\n", editor =>
         {
             var block = MarkdownEditorHarness.Block(editor);
@@ -226,7 +226,7 @@ public class TreemapEditingTests
         {
             var alone = RightClick(editor, Inside(Tile(treemap, "A")));
             Assert.IsFalse(Pressable(alone, "treemap.box.merge"), "one box is nothing to merge");
-            Assert.AreEqual(Str.Get("Text.Treemap.Box.MergeHow"), Offered(alone, "treemap.box.merge").Name, "and it says how to pick boxes out");
+            Assert.AreEqual(Str.Get("Markdown.Treemap.Box.MergeHow"), Offered(alone, "treemap.box.merge").Name, "and it says how to pick boxes out");
             editor.ContextRibbon!.IsOpen = false;
 
             Pick(treemap, "A");
@@ -381,13 +381,13 @@ public class TreemapEditingTests
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
@@ -395,9 +395,9 @@ public class TreemapEditingTests
 
     private static string Trouble(DocumentBlock treemap) => string.Join(" | ", treemap.Diagnostics.Select(diagnostic => diagnostic.Message));
 
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, Rect over) => Ribbon(editor, new Point(over.X + 4, over.Bottom - 4));
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, Rect over) => Ribbon(editor, new Point(over.X + 4, over.Bottom - 4));
 
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, Point at)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, Point at)
     {
         var ribbon = editor.Shown.BuildRibbon(at) as DiagramRibbon;
         Assert.IsNotNull(ribbon, "a right-click opens the ribbon");
@@ -405,7 +405,7 @@ public class TreemapEditingTests
     }
 
     /// <summary>A right-click at <paramref name="at"/> as the reader makes one, and the ribbon it opened.</summary>
-    private static DiagramRibbon RightClick(MarkdownSurface editor, Point at)
+    private static DiagramRibbon RightClick(NexaTextSurface editor, Point at)
     {
         Assert.IsTrue(editor.ShowContextRibbon(at), "a right-click opens the ribbon");
         MarkdownEditorHarness.Pump();

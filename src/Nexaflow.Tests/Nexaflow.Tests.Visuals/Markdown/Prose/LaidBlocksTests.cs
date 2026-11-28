@@ -38,7 +38,7 @@ public class LaidBlocksTests
         foreach (var path in documents)
         {
             var text = File.ReadAllText(path);
-            var content = new ContentEngine();
+            var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
             Settled(content, text, style);
 
             // Typed in the middle, typed before everything so every block moves, taken back near the end, and undone.
@@ -57,7 +57,7 @@ public class LaidBlocksTests
                 // found in its own syntax, so each side lets its own land — the one laid again laying only what landed, and
                 // keeping the blocks whose reuse is the point of the test.
                 var again = Settled(content, edited, style);
-                var fresh = Settled(new ContentEngine(), edited, style);
+                var fresh = Settled(new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), edited, style);
 
                 Same(fresh, again, Path.GetFileName(path));
             }
@@ -123,20 +123,20 @@ public class LaidBlocksTests
         var path = TestSampleData.Files("markdown").First(file => Path.GetFileName(file) == "mixed-content.md");
         var text = File.ReadAllText(path);
 
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var settled = Settled(engine, text, WpfStyles.Dark);
 
         Assert.IsFalse(engine.Rereading, "nothing of it is still being read a second time");
 
         // And nothing left to land is what makes the two sides of the test above comparable at all: the same characters laid
         // afresh, every reading of theirs landed too, come out piece for piece the same.
-        Same(settled, Settled(new ContentEngine(), text, WpfStyles.Dark), "mixed-content.md");
+        Same(settled, Settled(new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), text, WpfStyles.Dark), "mixed-content.md");
     }
 
     [TestMethod]
     public void ABlockThatReadsAsItDidKeepsItsPicture()
     {
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
 
         var before = Wholes(content.Lay(null, EditState.For("First words.\n\nSecond words.\n"), WpfStyles.Dark, Room, false));
         var after = Wholes(content.Lay(null, EditState.For("First words.\n\nSecond words, and more.\n"), WpfStyles.Dark, Room, false));
@@ -148,7 +148,7 @@ public class LaidBlocksTests
     [TestMethod]
     public void ABlockSetDownAgainStandsForWhereItsCharactersNowAre()
     {
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         content.Lay(null, EditState.For("alpha\n\nbeta\n"), WpfStyles.Dark, Room, false);
 
         const string source = "an alpha\n\nbeta\n";
@@ -163,7 +163,7 @@ public class LaidBlocksTests
     public void ABlockWhoseLinkWasDefinedAgainElsewhereIsLaidAgain()
     {
         // The paragraph's characters are the same either side of the edit; where its link goes is not.
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
 
         var before = Wholes(content.Lay(null, EditState.For("Go [there][a].\n\n[a]: https://one.example\n"), WpfStyles.Dark, Room, false));
         var after = Wholes(content.Lay(null, EditState.For("Go [there][a].\n\n[a]: https://two.example\n"), WpfStyles.Dark, Room, false));
@@ -175,7 +175,7 @@ public class LaidBlocksTests
     public void AfterBeingToldToForgetNothingIsSetDownAsItWas()
     {
         // Which nodes of a diagram are opened is not in the characters, so a host changing it says so.
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         const string source = "First words.\n\nSecond words.\n";
 
         var before = Wholes(content.Lay(null, EditState.For(source), WpfStyles.Dark, Room, false));
@@ -188,12 +188,12 @@ public class LaidBlocksTests
     [TestMethod]
     public void ABlockShownAsItWasWrittenIsNotKeptAsIfItWereRead()
     {
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         const string source = "# Title\n\nwords\n";
 
         content.Lay(null, new EditState(source, 7, null, new RawZone(0, 7)), WpfStyles.Dark, Room, false);
         var read = content.Lay(null, EditState.For(source), WpfStyles.Dark, Room, false);
-        var fresh = new ContentEngine().Lay(null, EditState.For(source), WpfStyles.Dark, Room, false);
+        var fresh = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay(null, EditState.For(source), WpfStyles.Dark, Room, false);
 
         Same(fresh, read, "a title shown as written, then read");
     }
@@ -273,7 +273,7 @@ public class LaidBlocksTests
     {
         // A Gantt chart's today is part of what its block means, read with it — so a block that reads as it did is set down as it was.
         const string chart = "```mermaid\ngantt\n    dateFormat YYYY-MM-DD\n    Task :2024-01-01, 3d\n```\n";
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
 
         var before = Wholes(content.Lay(null, EditState.For(chart + "\nWords.\n"), WpfStyles.Dark, Room, false));
         var after = Wholes(content.Lay(null, EditState.For(chart + "\nMore words.\n"), WpfStyles.Dark, Room, false));

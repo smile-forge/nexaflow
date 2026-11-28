@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.ViewModels;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Features.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
@@ -15,10 +16,10 @@ namespace Nexaflow.Tests.Features.Text;
 
 /// <summary>
 /// The Notepad-parity editor affordances layered on top of the existing search engine: the Find &amp; Replace
-/// bar (open/close, match-case, regex, replace), Go-to-line, editor zoom, and the undo-stack reset that keeps
-/// Ctrl+Z from reverting programmatic composition. Cases that touch the AvalonEdit <c>TextDocument</c> run
-/// under <see cref="AsyncPump"/>; the two that mutate a live find field drain the ~250 ms live-search debounce
-/// before the pump completes so no continuation is posted after it closes.
+/// bar (open/close, match-case, regex, replace), Go-to-line, editor zoom, and undo that starts from what was
+/// read. Cases that load a file run under <see cref="AsyncPump"/>, so what the page awaits comes back to one
+/// thread; the ones that set a live find field drain the ~250 ms live-search debounce before the pump completes
+/// so no continuation is posted after it closes.
 /// </summary>
 [TestClass]
 public class TextFindReplaceTests
@@ -30,15 +31,8 @@ public class TextFindReplaceTests
         return path;
     }
 
-    /// <summary>A shell whose RunOnUiAsync runs the delegate inline — the substitute default swallows it, which
-    /// would no-op the UI-marshalled replace path.</summary>
-    private static IShellServices RunningShell()
-    {
-        var shell = Substitute.For<IShellServices>();
-        shell.RunOnUiAsync(Arg.Any<Action>())
-             .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
-        return shell;
-    }
+    /// <summary>A shell whose RunOnUiAsync does its work at once — a substitute alone would no-op the UI-marshalled replace path.</summary>
+    private static IShellServices RunningShell() => UiRunningShell.Over(Substitute.For<IShellServices>());
 
     private static TextViewModel Make(IShellServices? shell = null)
         => new("nonexistent.txt", shell ?? Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
@@ -107,6 +101,45 @@ public class TextFindReplaceTests
         finally { File.Delete(path); }
     });
 
+    [TestMethod]
+    [CoversNode("text-viewer-searchbar")]
+    public void EachWordTyped_IsFoundWhereverItIsWritten() => AsyncPump.Run(async () =>
+    {
+        var path = WriteTemp("the lazy dog 130000\nline 130000\na dog\nnothing here\n");
+        try
+        {
+            using var vm = Make(path);
+            await vm.LoadAsync(CancellationToken.None);
+
+            // Typed, the search runs once typing pauses: waited for by what it says, however long a busy machine takes to start it.
+            vm.FindText = "dog 130000";
+            for (var wait = 0; wait < 500 && (vm.IsSearchRunning || vm.SearchMatchCount == 0); wait++) await Task.Delay(10);
+
+            Assert.AreEqual(4, vm.SearchMatchCount, "every dog and every 130000 is found — two on the line holding both, one on each holding either — not only the line holding both");
+        }
+        finally { File.Delete(path); }
+    });
+
+    [TestMethod]
+    [Timeout(60_000, CooperativeCancellation = true)]
+    [CoversNode("text-viewer-searchbar")]
+    public void ALineHalfWayDownALargeFile_IsFound() => AsyncPump.Run(async () =>
+    {
+        var text = new StringBuilder();
+        for (var line = 1; line <= 600_000; line++) text.Append($"{line:0000000}  The quick brown fox jumps over the lazy dog, line {line} of the sample.\n");
+        var path = WriteTemp(text.ToString());
+
+        try
+        {
+            using var vm = Make(path, RunningShell());
+            await vm.LoadAsync(CancellationToken.None);
+
+            await vm.SearchConventionalAsync("line 300000 of");
+            Assert.AreEqual(1, vm.SearchMatchCount, "the one line that says it was not found");
+        }
+        finally { File.Delete(path); }
+    });
+
     // ── Regex ───────────────────────────────────────────────────────────────────
 
     [TestMethod]
@@ -146,7 +179,10 @@ public class TextFindReplaceTests
 
             Assert.IsTrue(vm.IsEditing, "Replace All auto-enters editing on an editable file");
             Assert.IsTrue(vm.IsDirty);
-            Assert.AreEqual("X\nbar\nX\nX", vm.Document.Text);
+            Assert.AreEqual("X\nbar\nX\nX", vm.Document.ToString());
+
+            vm.Document.Undo(vm.Editor.State);
+            Assert.AreEqual("foo\nbar\nfoo\nfoo", vm.Document.ToString(), "Replace All is one step to take back");
 
             await Task.Delay(300); // drain the live-search debounce the FindText set scheduled
         }
@@ -169,7 +205,8 @@ public class TextFindReplaceTests
             vm.ReplaceText = "X";
             await vm.ReplaceCurrentCommand.ExecuteAsync(null);
 
-            Assert.AreEqual("X\nbar\nfoo", vm.Document.Text, "only the current match is replaced");
+            Assert.AreEqual("X\nbar\nfoo", vm.Document.ToString(), "only the current match is replaced");
+            Assert.IsTrue(vm.IsEditing, "replacing starts editing");
             Assert.IsTrue(vm.IsDirty);
             Assert.AreEqual(1, vm.SearchMatchCount, "the remaining-match count updates");
         }
@@ -198,8 +235,8 @@ public class TextFindReplaceTests
             Assert.IsNotNull(confirm, "Go to line opens a shell text prompt");
 
             confirm!("3");
-            Assert.AreEqual(3, vm.Document.GetLineByOffset(vm.ScrollToOffset).LineNumber,
-                "the requested line is scrolled into view");
+            Assert.AreEqual(2, vm.Document.Current.LineOf(vm.Editor.Caret), "the caret goes to the requested line");
+            Assert.AreEqual(vm.Document.Current.OffsetOf(2), vm.Editor.Caret, "at its start");
 
             confirm!("not-a-number");
             shell.Received().ShowError(Arg.Any<string>());
@@ -237,22 +274,23 @@ public class TextFindReplaceTests
 
     [TestMethod]
     [CoversNode("text-viewer-undo-redo")]
-    public void Undo_IsClearedAfterLoad_ThenTracksUserEdits() => AsyncPump.Run(async () =>
+    public void Undo_StartsFromWhatWasRead_ThenTracksEdits() => AsyncPump.Run(async () =>
     {
         var path = WriteTemp("alpha\nbeta");
         try
         {
             using var vm = Make(path);
             await vm.LoadAsync(CancellationToken.None);
-            Assert.IsFalse(vm.Document.UndoStack.CanUndo, "the initial load is the baseline, not an undoable edit");
+            Assert.IsFalse(vm.Document.CanUndo, "what was read is where undo starts, not a step of its own");
 
-            vm.IsEditing = true;
-            vm.Document.Insert(0, "X");
-            Assert.IsTrue(vm.Document.UndoStack.CanUndo, "a user edit is undoable");
+            await vm.ToggleEditingCommand.ExecuteAsync(null);
+            vm.Document.Write(ContentChange.Write(0, 0, "X"));
+            Assert.IsTrue(vm.Document.CanUndo, "an edit can be taken back");
 
-            vm.Document.UndoStack.Undo();
-            Assert.AreEqual("alpha\nbeta", vm.Document.Text, "undo reverts the edit, not the load composition");
-            Assert.IsTrue(vm.Document.UndoStack.CanRedo, "redo is now available");
+            vm.Document.Undo(vm.Editor.State);
+            Assert.AreEqual("alpha\nbeta", vm.Document.ToString(), "undo takes back the edit, and only the edit");
+            Assert.IsTrue(vm.Document.CanRedo, "and it can be done again");
+            Assert.IsFalse(vm.IsDirty, "taken back to what was read, there is nothing to save");
         }
         finally { File.Delete(path); }
     });

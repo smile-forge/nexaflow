@@ -19,7 +19,7 @@ STAGES      the language's stages     → AST      IAstStage actors, each handin
   │
 BUILD       the language's builder    → Laid     a layout tree, every piece saying what it was drawn from
   │
-PAINT       ContentElement            → pixels   painting, hit-testing, the caret, selection, editing
+PAINT       ContentElement            → pixels   painting what the engine says is shown; the pointer's pixels into the content's units
 ```
 
 ## Ownership
@@ -35,6 +35,17 @@ permissions are unremarkable.
 | A **builder** | turning the AST into a layout tree | read source, print the AST, decide anything from an offset, name the language table |
 | The **engine** | orchestration: running the pipeline, the lifetime of a render, every cache, all editing state | draw |
 | The **element** | painting the layout tree and turning gestures into edits of the source | lay anything out itself |
+
+**Where each lives.** Everything above the element names no UI toolkit and lives in `Nexaflow.Markdown`: the trees, the
+languages and their parsers, stages and builders, and under `Engine/` the engine itself — `ContentEngine`, the language
+table and each language's edits and ribbon models, the stages the engine adds, find, the view's numbers (the room content
+is laid in, where the page stands, which lines, marks and carets stand near the screen), what a copy holds, and the walk
+that writes a document out — with each view's editing state (`ContentEditor`, `ContentFind`) and a document read by
+characters, words and lines (`ContentTextUnits`) in `Editing/`. What draws it is `Nexaflow.Visuals.Text`: the surface
+(`NexaTextSurface`), turning a toolkit's keys, pointer, properties, scrolling, commands and screen reader into the engine's
+calls; the element, which paints; the margins; the clipboard's formats; and the medium and painters (`Painting/`). So
+another toolkit's surface is a second painter over the same engine, and `EngineAssemblyRulesTests` holds the engine to
+reaching no toolkit.
 
 ## 1. The two trees
 
@@ -199,7 +210,7 @@ unit counts as coming to more of it once the screen itself reaches past what was
 lays again only near the edge of what is laid, a screen either side giving it room. A caret sent somewhere not laid — the
 end of a long document — goes there as it is, and is laid there and brought onto the page (`ContentEngine.Snap`). A place
 brought onto the page — found, gone to, laid to — is left where it stands if it is on the screen already, and otherwise stood
-half way down it, so what comes before and after it is there to read it by (`ContentElement.BringOnto`); a caret kept on the
+half way down it, so what comes before and after it is there to read it by (`ContentEngine.BringOnto`); a caret kept on the
 screen as it moves is brought only as far as it needs. A builder that cannot lay part
 of what it reads lays all of it, as every builder but those laying line by line does. A line of code is coloured
 and cut in one pass (`CodeParser.InLines`), and one said and coloured as a line the reading was cut into before is that
@@ -211,7 +222,7 @@ reading holds the characters as written, cut for the stretches laid into lines, 
 (`TextParser.InLines`, run as the stage `TextIntoLines`): the pieces whatever looks into text — a spelling, a name — finds there.
 Text and code are laid line by line on one base (`LinedBuilder`): the language says what its stretch and its lines are laid as,
 what each piece is inked in and which runs a line is set as — a token each for code, the whole line for text — and the base lays,
-keeps and wraps them. Where the host asks for it (`LayoutHost.WrapsLines`, set by `MarkdownSurface.WrapsLines`), a line too long
+keeps and wraps them. Where the host asks for it (`LayoutHost.WrapsLines`, set by `NexaTextSurface.WrapsLines`), a line too long
 for the room carries on in rows beneath, broken after the last space that fits and a word wider than a row broken where the row
 ends, the spaces a row ends on hanging past it and no row ended after nothing but the line's indent, and the rows after the
 first carrying on under that indent — unless it takes half the room or more (`LineRows`). A run a row break cuts is laid as
@@ -224,14 +235,45 @@ its lines unless its language wraps them (`ContentLanguage.WrapsLines`, `Content
 the box, and code's are kept whole. A box narrower than the lines it keeps whole keeps to its room and slides sideways inside it
 (`LayoutSlide`, §8): what it holds is set slid along and cut to the box (`LayoutPaint.Clip`, which a piece's reach is cut to as
 well), with a bar under it saying how much shows and where along. Content laid for paper slides nothing, so there a box's lines
-wrap instead and all of them show (`ContentEngine.Slides`).
+wrap instead and all of them show (`ContentEngine.Slides`). A page that is itself code or text with its lines kept whole slides
+the same way at the top (`NexaTextSurface.HorizontalScrollBarVisibility`): it is laid in the page's width and asks for as much as
+its widest line laid reaches (`ContentEngine.SlidingRoom`), and Shift with the wheel slides it.
+
+**A tab reaches to the next tab stop**, the stops `LayoutStyle.TabWidth` characters apart from the line's start
+(`LinedSetting.TabAcross`): a piece of its own standing for its one character, which a caret stands either side of and never inside,
+and counted the same way wherever a line is broken into rows or a unit's height is said. Where the style shows whitespace
+(`LayoutStyle.ShowsWhitespace`), each space, tab and line end has a faint mark drawn over it in `TextSwatch.Whitespace` — a piece
+standing for nothing written and taking no room, so a caret, a selection, a copy and a search meet the text as they would without it.
+Both are the style's, so a line kept under other settings is laid again (`KeptLaying`), and only content laid line by line has
+either: prose, formulas and diagrams set their own space.
+
+**Code folds whole lines, the same way a document folds its sections.** What can be folded is the code reading's own syntax: the
+background pass that parses a version reads its folds from the tree it just made (`CodeHighlighter.FoldsIn`), and a later version
+carries them through the edits since (`CodeSyntax.Folds`), so nothing is parsed on the thread that lays content out. What is folded
+is the view's (`ContentEditor.Folds`, `ContentFolds`), held by anchors: a fold keeps the line its start is on and hides every line
+after it up to the one its end is on, standing in the engine's folded sections as those lines (`ContentEngine.CodeFold`), so a line
+a fold hides is answered hidden as a block under a folded heading is, is not laid and takes no room, the line it starts on carries a
+mark (`LinedSetting.FoldKind`), and a unit not laid is estimated without the lines folded in it. A caret, a found match or a jump
+sent onto a hidden line opens what hid it. Beside the lines a `FoldMargin` draws a handle on each line a fold starts on, and a press
+folds or opens it through the view.
+
+Alt with a drag, or Alt with Shift and the arrows, picks out a block of columns in content laid line by line: the same columns of
+every line from one to another (`ColumnSelection.Between`), carried as what is picked out (`ColumnRanges`, one stretch a line, with
+the corners it was stretched between) so every edit knows to write on each. Columns are counted as the line is set, a tab reaching
+its next stop, so a block picks out what stands in a column on the page however each line's indent was written. Typing, Backspace,
+Delete and a paste write on every line as one change (`ColumnSelection.Written`, `Erased`); a line too short to reach the block is
+filled out with spaces only where something is written there, and a paste with as many lines as the block puts one on each. Typing
+on joins the step being written on every line at once, as it does at one caret (`EditHistory`). Each line of the block draws its
+own caret, and a copy is its lines, marked on the clipboard as a block (`MarkdownClipboard.ColumnFormat`). Code past the colouring
+ceiling (`CodeSyntax.ColoursUpTo`) is laid as written, uncoloured and unfolded, which the surface says (`ColoursWithheld`) for a
+page to show.
 
 **What stands beside the page is drawn from the lines, not into the content.** A builder that lays content line by line says
 where each line it laid stands (`Laid.Lines`); the engine says which of them stand between two heights on the page, and
 their numbers, from the document's line index (`ContentEngine.LinesBetween`), laid whole or a unit at a time; and the
-surface says the ones on its visible page, in its own frame (`MarkdownSurface.LinesShown`). Margins — line numbers,
+surface says the ones on its visible page, in its own frame (`NexaTextSurface.LinesShown`). Margins — line numbers,
 breakpoints, a fold's handles — stand in a stack on each side of the page, outward from it in the order listed
-(`MarkdownSurface.LeadingMargins`, `TrailingMargins`), each a control of its own (`ContentMargin`) drawn again whenever the
+(`NexaTextSurface.LeadingMargins`, `TrailingMargins`), each a control of its own (`ContentMargin`) drawn again whenever the
 surface scrolls or lays out. Nothing a margin draws is content: no caret stands in it and no selection or search reaches
 it, and a margin that picks lines out asks the surface to, so what is picked out is the content's.
 
@@ -426,7 +468,7 @@ characters and the blocks they show and gathers the highest rank in each. From i
   the heading answering to that name, the steps after it are looked for in its section, and a link lands as far as it
   still goes. A title path (`Guide > Setup`, what a snaplink records) is matched on the whole chain of headings holding
   one (`ContentEngine.Titled`), each title read as the markdown it was written as. A heading a list already holds — an
-  outline panel's row — is handed back as itself (`OutlineHeading`, `MarkdownSurface.Show`), never as a path.
+  outline panel's row — is handed back as itself (`OutlineHeading`, `NexaTextSurface.Show`), never as a path.
 
 **What the reader has folded away of a document is the engine's too**, kept by the name each heading answers to, so a
 section stays folded through every edit. A heading of the document's own offers to fold its section in its corner
@@ -543,29 +585,43 @@ stays one (`EditKind.Dropping`, `ContentEngine.Brought`).
 
 **The rest is shared and comes with the element.** Shift chooses from where the choosing started and Ctrl adds or takes
 back what is pressed (`ContentElement.BeginPointerSelect`); up and down go to the nearest line with somewhere to stand,
-at the place nearest the column (`LayoutQuery.StepVertical`); undo takes back a stretch of writing, each step the change it
+at the place nearest the column (`LayoutQuery.StepVertical`); Ctrl+Left and Ctrl+Right go to the next start of a word, a run
+of punctuation or a line, and Ctrl+Backspace and Ctrl+Delete take that much out, each a step of its own (`ContentWordEdges`);
+Shift+Delete and Shift+Insert cut and paste; undo takes back a stretch of writing, each step the change it
 wrote and the change that takes it back (`EditHistory`); the pointer is a bar only over what can be written in
 (`LayoutQuery.Writable`). A block's corner offers what its language says (`Editing.Corner`): code no
-picture of itself, prose no corner at all. A language that implements any of these itself is off-spec.
+picture of itself, prose no corner at all. A language that implements any of these itself is off-spec. Ctrl+B and Ctrl+I are
+the other way round: strong and emphasised are a language's to say (`EditKind.Emboldening`, `EditKind.Emphasising`), so
+markdown wraps what is picked out in its marks and code and plain text, which have no way to say either, write nothing.
 
 ## 10. The element and the surface
 
-`MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the focus,
-and what a search turned up, and answers what the engine asks of a control — a copy to be put on the clipboard, what is
-on one, a picture of a block, a page. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
+`NexaTextSurface` is the one control a page hosts, as many times as it shows content: it holds the bars that scroll the engine's
+view, the focus, and what a search turned up, and answers what the engine asks of a control — a copy to be put on the clipboard,
+what is on one, a picture of a block, a page. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
 engine holds.
+
+**The view of the page is the engine's.** The engine decides what to read and lay from what is on screen, holds the reader still
+while what stands above them comes to its height, and brings a place onto the page — so where the view stands is its to keep too,
+in the content's own units (`ContentEngine.View`). Content that scrolls itself is drawn on an element only as large as the view,
+measured from where the view stood when it was painted; the bars, the wheel, Page Up and Down, a caret moving and a line gone to
+all move the engine's view, and the element only draws it. This is not a nicety: drawing takes its places in single precision,
+so a line millions of pixels down a long document, handed over where it stands on the page, comes out somewhere else — or, past
+about ten million, not at all. Measured from the view, nothing drawn is ever more than a screen or two from nought. A move within
+what was painted round the view slides the picture, a screen at most, and paints nothing. Content shown whole inside something that
+scrolls it — a reply in a conversation — has no view of its own, and is drawn where it stands.
 
 The engine keeps the content as it is being written — the document, the caret, the selection, what was written so it can be taken
 back, and the laid tree — and makes every edit to it. The document is one immutable version per edit (`ContentDocument`): an edit is
 a `ContentChange` made to a version, and the version it makes knows the change both ways, so what is kept to take an edit back and
 what whoever shows the content is told both read what changed rather than comparing two documents. It knows where every line
 starts (`LineOf`, `OffsetOf`), so going to a line, and saying which line a place is on, asks the document rather than reading it
-(`MarkdownFind.Line`, `MarkdownSurface.GoTo`): a line far down a long document is found as quickly as the first, and laid there. It also lays out the buttons in the corner of the block
+(`MarkdownFind.Line`, `NexaTextSurface.GoTo`): a line far down a long document is found as quickly as the first, and laid there. It also lays out the buttons in the corner of the block
 the pointer is over, since only it knows both where the block came out and what its language offers
 (`ContentEngine.Corner`), and a press on one is a press like any other. The element paints all that and says where the
 reader is.
 
-**The document is the page's, and holds itself.** A page hands the surface an `EditedDocument` (`MarkdownSurface.Document`):
+**The document is the page's, and holds itself.** A page hands the surface an `EditedDocument` (`NexaTextSurface.Document`):
 a plain object, with no control in it, holding the version the document is at, what was written so it can be taken back, and
 whether it differs from what was last saved. The surface's engine writes in it and the page reads from it — `IsDirty`, `Changed`
 with the change itself, and the characters only when it saves them (`WriteTo`). Nothing hands the text back to the page as it is
@@ -575,6 +631,78 @@ through it; another view of the same document — the raw half beside a rendered
 object, so what is written in either is taken up by both and taken back from either, with one history between them, and the
 text is held once. Being a plain object, the document, its history and whether it was saved stay where they
 are when what draws them does not.
+
+**A file the size of the disk costs its table of blocks.** A document can stand over a file rather than hold it
+(`ContentDocument.Of(ContentFile)`): a `ContentFile` is scanned into blocks of about 64 KB, each cut where a character starts,
+keeping for each where it lies and how many characters and line breaks it decodes to — so the document's rope is made of leaves
+that name blocks, and nothing is read to make it. Reading decodes only the blocks read and keeps the last few dozen; an edit
+cuts a leaf into a stretch of the same block, and what is written is held beside it. The file is opened to be read and shared
+with writers — a log goes on growing under it, and `Scan` takes up what was added — and an `Editable` one is held against
+other writers on its first edit (`HoldForEdit`), once it is known to be what was scanned; a `ReadOnly` one, a log, never is.
+Encodings whose characters can be found the start of from their bytes alone — UTF-8, UTF-16, UTF-32 and the single-byte ones
+(`ContentFile.Reads`) — are read this way; a file in any other is read whole.
+
+A long edit never becomes a string either. What a long stretch held as a rope is written over is kept to be written back as a
+stretch of the version it came from (`ContentWrite.Held`), sharing its leaves, and a stretch written that is held so goes into the
+rope as those leaves — so taking out half a file and taking it back costs the paths cut, and its length is known without reading it
+(`ContentWrite.WrittenLength`). The history counts only the characters it holds in memory (`ContentRope.HeldCharacters`). A
+document nothing has been written in takes up what another program added to its file (`EditedDocument.Grow`, told as `Grown`),
+with nothing to take back; growing at its start lets the steps go, since every offset they name has moved. Saving
+(`ContentFile.Save`) writes the whole document to a file beside the one it replaces and puts it in its place, then holds the same
+characters over the file just written (`EditedDocument.Rebase`, told as `Rebased`): a version made from the last by a change
+writing nothing, so every view, mark, anchor and step carries straight across without comparing the two.
+
+**Text and code are read where the reader is.** A language whose every line start is somewhere its windowed parse can start
+(`ContentLanguage.ReadsFromLineStarts`) need not read everything before what it shows: its reading holds what it has not come to as
+stretches skipped (`ContentUnit.Skipped`), each only a width, and reads into one where the screen, the caret, what is picked out or a
+jump reaches (`ContentUnits.ReadInto`) — from a line with something written on it, as every unit starts. A stretch skipped stands as
+tall as its lines, counted from the document without reading them (`ContentLanguage.LineHeight`); once a few hundred units are read,
+those farthest from the screen are let go of again (`ContentEngine.LetFarGo`); and a change into a stretch skipped reads nothing. So a
+file the size of the disk costs what is near the reader, a jump to its end reads its end, and the background has nothing to read.
+
+**A file longer than one document is shown through a window** (`ContentFileWindow`): a document over at most half a billion
+characters of it, which moves as the reader does (`MoveTo`, `Reach`). Before and after the window lie stretches — the file's own,
+only where they lie in it, or what was written while the window was over them, as the document it came to — and moving the window
+is one change to its document (told as `Moved`): what leaves it cut away and kept, what comes into it written in as the leaves it
+was held in, so views, marks and anchors carry through it and nothing written is lost. There is one history, in the file's offsets:
+every step keeps where the window started when it was written (`EditHistory.Origin`) and is shifted by however far the window has
+moved since, and taking back or writing again a step outside the window first moves the window to it (`EditedDocument.ReachUndo`,
+which the engine asks before it takes a step back). Saving writes every stretch in order — the file's own a block at a time —
+beside the file, and the window then stands over the file just written with every step kept.
+
+**So is a view of it.** Where the caret is, what is picked out and which lines are on the page are a `ContentEditor`, as
+plain an object as the document, which a page holds beside it and hands the surface (`NexaTextSurface.Editor`) — or the
+surface makes one of its own. The engine showing it is its view (`IContentEditorView`): what the page asks — put the caret
+there, pick that out, write this over it, bring line forty half way down — goes to the engine and is made as a key is made,
+and the engine says back where it now stands (`ContentEditor.Stood`), so the editor stands wherever the engine does and says
+so once (`CaretMoved`, `SelectionChanged`, `Scrolled`). With nothing showing it the editor makes what it is asked itself, and
+a line asked for waits for something to show it, so a view-model drives it, and is tested, with no control at all. A place
+held in the document — a fold's ends, a mark, a bookmark — is a `ContentAnchor` (`EditedDocument.Anchor`), carried through
+every change and every step taken back before the change is said, by the one rule every place is carried by
+(`ContentChange.Carried`): what is written in front of it pushes it along, and a stretch written over that holds it leaves it
+at the start of what took its place, or at its end where it leans after. The document keeps its anchors in blocks of a few
+dozen, each with a shift of its own, so a write moves the ones it touches one by one and every block after it by one sum.
+
+**What a host draws over the content is marks, never ink in it.** A view holds layers of marks (`ContentEditor.Marks`,
+`ContentMarkLayer`): what a search found (`FoundMarks`, a layer every view has), each level a log line is at, the lines a filter
+leaves out (`LineMarks`). A mark is a wash or a line round characters, a wash or a veil across every row of a line, or a bar under
+them, and names the theme token it is inked in, resolved when it is drawn — never a colour, except a bar under a colour the
+document itself writes. A layer is asked only about the stretch painted round the screen (`ContentEngine.MarksNear`), and
+nothing before a screen is known, so marking every line of a long file costs a screen's worth. The lines of that stretch are
+sliced once for every layer (`ContentMarkRequest.Lines`), and what more than one layer works out from a line — a log line parsed —
+is worked out once for them all (`LineReading`, `ContentMarkRequest.Read`). A layer is carried through every change before the
+change is drawn, so a mark stays over what it named; and it says when it changes, which is a repaint and nothing else. The line
+the caret is on can be washed too (`NexaTextSurface.HighlightsCaretLine`). Nothing marked changes what is laid: recolouring the
+characters themselves is the language's, from its stages.
+
+**Every page searches through one search** (`ContentFind`), which the page drives and only adapts to its own words. Over the
+lines of a file a page shows (`FileFind`, through `ShownFile`, so a window onto a file too long for a document is searched as the
+whole file) it reads a line at a time off the page, finds the lines a query (`LineQuery`) finds, marks the query's matches on the
+lines drawn and no others, steps from the line looked at or from the caret, narrows to lines chosen, and runs again once writing
+pauses, the reader kept on the match they were on. Over a document held whole (`PlaceFind`) it finds a place at a time — by a
+query asked of each line, found again after an edit only on the lines it touched, or by a finder reading what a page draws — and
+is found again when the page says the document has come to read. The Text and log viewers, the code editor, the Markdown page and
+the surface all drive it.
 
 What happened is the engine's to say, and the surface says it again to the page as routed events: `SourceChanged` (what
 changed, and whether it was written, taken back, put there or loaded), `Selected` (what is picked out — words, a note, a box in
@@ -598,7 +726,7 @@ written — a number set to two places, a title without its quotes. A run saying
 showing it — the share a slice takes — is neither, and stepping never stops in it.
 
 **A block keeps the picture it was painted as** (`LayoutKept`), so a keystroke paints the block typed in and a caret
-blinking paints nothing. Only the blocks near the screen are painted (`ContentElement.OnScreen`), and a tree put down whole
+blinking paints nothing. Only the blocks near the screen are painted (`ContentEngine.OnScreen`), and a tree put down whole
 that stands nowhere near it — a unit, a line of code — is not gone into. A picture is held only while something draws it:
 what the page is drawn as holds the pictures on it, and the picture of a block scrolled far away is let go without anything
 going looking for it.
@@ -826,7 +954,7 @@ rather than eleven. **A picture is one mark** in a piece standing for the charac
 **Writing a document out in another format walks its layout, not its reading.** The reading is what a document *means*;
 the layout tree is what it *looks like*, and the two are not one to one: stages and builders add what nobody wrote — an
 alert's colour and the word it calls itself, a list's numbers as drawn, a box ticked — and content in another language is
-whatever that language drew. So the walk (`LayoutExport`, in `Visuals.Text`, since laying out is WPF) lays a document out
+whatever that language drew. So the walk (`LayoutExport`, the engine's, laying out through the medium it is handed) lays a document out
 read-only and walks it into a format-neutral document (`ExportDocument`, in `Nexaflow.Markdown/Export`): what each piece
 *is* comes from the part it was laid from — a heading's rank and anchor, a list's counting and looseness, a cell's
 alignment and span, a link's address — and what it *looks like* from the pieces laid from it. Content in another language

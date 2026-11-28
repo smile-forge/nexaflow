@@ -68,7 +68,7 @@ public class MarkdownDocumentTests
     public void AShownLineIsTextToItsEndsAndNoFurther()
     {
         var state = new EditState("# Title\n", 0, null, new RawZone(0, 7));
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
 
         // At its start there is nothing of it left to take, so the key stops rather than eating the line before it.
         Assert.IsNotNull(ContentEngine.Edited(EditKind.Erasing, string.Empty, Land(content, state)));
@@ -81,7 +81,7 @@ public class MarkdownDocumentTests
     public void TypingIntoAShownLineKeepsItShown()
     {
         var state = new EditState("# Title\n", 7, null, new RawZone(0, 7));
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
 
         var typed = ContentEngine.Edited(EditKind.Typing, "!", Land(content, state));
 
@@ -92,7 +92,7 @@ public class MarkdownDocumentTests
     [TestMethod]
     public void DeleteIsLeftAloneEntirely()
     {
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var state = new EditState("# Title\n", 7);
 
         Assert.IsNull(ContentEngine.Edited(EditKind.Deleting, string.Empty, Land(content, state)));
@@ -215,7 +215,7 @@ public class MarkdownDocumentTests
 
     private static EditState? Erase(string source, int caret)
     {
-        var content = new ContentEngine();
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
 
         return ContentEngine.Edited(EditKind.Erasing, string.Empty, Land(content, new EditState(source, caret)));
     }

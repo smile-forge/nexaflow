@@ -216,7 +216,7 @@ public class LilyPondCorpusParityTests
     /// <summary>A source engraved as the page shows it, at the sweep's width.</summary>
     private static RenderTargetBitmap Engraved(string source, string dialect)
     {
-        var element = new Nexaflow.Visuals.Text.Editing.ContentElement(source, WpfStyles.Light, new ContentEngine(), dialect) { IsReadOnly = true };
+        var element = new Nexaflow.Visuals.Text.Editing.ContentElement(source, WpfStyles.Light, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), dialect) { IsReadOnly = true };
         element.Measure(new Size(Width, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 

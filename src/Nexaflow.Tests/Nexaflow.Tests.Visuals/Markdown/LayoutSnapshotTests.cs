@@ -98,7 +98,7 @@ public class LayoutSnapshotTests
     private static Laid Lay(string text, bool readOnly)
     {
         var style = WpfStyles.Dark;
-        return new ContentEngine().Lay(null, EditState.For(text), style, Room, readOnly);
+        return new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay(null, EditState.For(text), style, Room, readOnly);
     }
 
     private static string Dump(Laid laid)

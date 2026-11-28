@@ -272,18 +272,16 @@ otherwise have to be carried across the boundary in section 5.
 **Goal.** A language is one folder: parser, stages and builder together, with the layout tree and the renderer a
 shared thing it uses. `InternalsVisibleTo` stops being load-bearing.
 
-**Where it stands.** The layout tree needs WPF and `Nexaflow.Markdown` is WPF-free, so every builder lives apart from
-the language it belongs to, in `Nexaflow.Visuals.Text`, reaching its language's `internal` node types across an
-assembly boundary. R7's "internal to the assembly its stages live in" is read across that boundary rather than
-enforced by it.
+**Where it stands.** The layout tree, every builder and the engine are WPF-free and in `Nexaflow.Markdown`, so R7's
+"internal to the assembly its stages live in" is held by one assembly; only painting, the surface and its element are in
+`Nexaflow.Visuals.Text`. A language is still not one folder: its parser, kinds and stages stand in its own folder, its
+builder under `Layout/`, and its edits and ribbon model under `Engine/Markdown/`.
 
 **Benefit.** A language becomes reviewable in one place — the thing that makes a new one cheap to add and an existing
-one safe to change. Layout becomes testable without WPF, which brings the layout snapshot guards into the fast suite.
-And the boundary starts enforcing R7 instead of documenting it.
+one safe to change.
 
-**Shape.** Two pieces, in order: a layout tree that is WPF-free and still fast enough to paint at scroll speed, in
-`Nexaflow.Visuals`; then the builders move back beside their languages. The first is a substantial piece of work in its
-own right and needs measuring before it is designed.
+**Shape.** Each language's builder, edits and ribbon model brought beside its parser and stages, a move within the one
+assembly that changes no behaviour, language by language.
 
 **Depends on.** Section 2 — a builder that still reads cannot move. Largest in the plan, and last.
 

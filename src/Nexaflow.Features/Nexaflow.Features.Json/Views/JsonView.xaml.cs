@@ -1,4 +1,4 @@
-using ICSharpCode.AvalonEdit;
+
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Json.Models;
 using Nexaflow.Features.Json.ViewModels;
@@ -63,77 +63,20 @@ public partial class JsonView : UserControl
         _vm.TriggerVirtualLoads();
     }
 
-    // ── Inline AvalonEdit (Text mode) ────────────────────────────────────────
-    // Virtualization may recycle the same TextEditor instance to a different
-    // inline content row, so:
-    //   * always read item from DataContext at handler-fire time (no closure capture)
-    //   * subscribe handlers idempotently (clear-tag-then-attach)
-    //   * skip Text reassignment if already in sync, to avoid layout thrash that
-    //     causes the outer ListBox to jitter
 
-    private void InlineEditor_Loaded(object sender, RoutedEventArgs e)
+
+    // ── Inline editor (Text mode) ─────────────────────────────────────────────
+    // The surface shows the row's own document, bound in the template, so a recycled editor shows whichever row it is given; what is
+    // written is committed to the tree when the editor lets go of the keyboard, where it differs from what was last committed.
+
+    private void InlineEditor_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (sender is not TextEditor editor) return;
-        if (editor.DataContext is not JsonInlineContentDisplayItem item) return;
+        // The row from the editor's DataContext now — virtualization may have handed it another row since it was made.
+        if (sender is not FrameworkElement { DataContext: JsonInlineContentDisplayItem item }) return;
+        if (!item.Document.IsDirty) return;
 
-        if (editor.Text != item.RawJson)
-            editor.Text = item.RawJson;
-
-        // Idempotent subscription: remove first in case Loaded already fired for
-        // this instance (recycling, re-template, etc.).
-        editor.LostFocus      -= InlineEditor_LostFocus;
-        editor.LostFocus      += InlineEditor_LostFocus;
-        editor.PreviewMouseWheel -= InlineEditor_PreviewMouseWheel;
-        editor.PreviewMouseWheel += InlineEditor_PreviewMouseWheel;
-        editor.MouseEnter     -= InlineEditor_MouseEnter;
-        editor.MouseEnter     += InlineEditor_MouseEnter;
-    }
-
-    private void InlineEditor_LostFocus(object? sender, RoutedEventArgs e)
-    {
-        // Read item from current DataContext, NOT a captured variable — virtualization
-        // may have recycled this editor to a different row since Loaded ran.
-        if (sender is not TextEditor editor) return;
-        if (editor.DataContext is not JsonInlineContentDisplayItem item) return;
-        if (editor.Text == item.RawJson) return;
-        _vm.CommitRawJson(item.Node, editor.Text);
-    }
-
-    private void InlineEditor_MouseEnter(object sender, MouseEventArgs e)
-    {
-        // Give the editor focus so wheel events go to its internal ScrollViewer first.
-        if (sender is TextEditor editor && !editor.TextArea.IsKeyboardFocusWithin)
-            editor.TextArea.Focus();
-    }
-
-    private void InlineEditor_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        // Manually drive the editor's internal ScrollViewer and mark the event handled,
-        // so wheel scrolling over the editor never bubbles to the outer ListBox.
-        if (sender is not TextEditor editor) return;
-        var sv = FindScrollViewer(editor);
-        if (sv is null) return;
-
-        // 3 lines per wheel notch — same feel as the outer list
-        var delta = e.Delta > 0 ? -3 : 3;
-        for (var i = 0; i < Math.Abs(delta); i++)
-        {
-            if (e.Delta > 0) sv.LineUp();
-            else             sv.LineDown();
-        }
-        e.Handled = true;
-    }
-
-    private static ScrollViewer? FindScrollViewer(DependencyObject root)
-    {
-        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
-        {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (child is ScrollViewer sv) return sv;
-            var nested = FindScrollViewer(child);
-            if (nested is not null) return nested;
-        }
-        return null;
+        _vm.CommitRawJson(item.Node, item.Document.ToString());
+        item.Document.MarkSaved();
     }
 
     // ── Inline DataGrid (Table mode) ─────────────────────────────────────────

@@ -40,7 +40,7 @@ public class DiagramEscapingTests
         {
             var document = File.ReadAllText(path).Replace("\r\n", "\n");
 
-            foreach (var holder in new ContentEngine().Read(null, document).Root.SelfAndDescendants().Where(part => ContentNested.Language(part) == "mermaid"))
+            foreach (var holder in new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Read(null, document).Root.SelfAndDescendants().Where(part => ContentNested.Language(part) == "mermaid"))
             {
                 Typing($"{Path.GetFileName(path)} @{holder.Start}", ContentNested.Own(holder.Part(Roles.Body)!.Node), broken);
                 diagrams++;
@@ -55,7 +55,7 @@ public class DiagramEscapingTests
     /// <summary>Every character typed at every place <paramref name="source"/> draws something written, one at a time; each that leaves a line unread is told to <paramref name="broken"/>.</summary>
     private static void Typing(string what, string source, List<string> broken)
     {
-        var laid = new ContentEngine().Lay("mermaid", EditState.For(source), WpfStyles.Dark, 700, readOnly: false);
+        var laid = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay("mermaid", EditState.For(source), WpfStyles.Dark, 700, readOnly: false);
         var held = Held(source);
 
         var places = laid.Root.SelfAndDescendants()

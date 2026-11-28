@@ -8,10 +8,10 @@ namespace Nexaflow.Tests.Fixtures;
 /// <summary>
 /// Runs an async delegate to completion on the calling thread under a single-threaded
 /// <see cref="SynchronizationContext"/>, so every continuation resumes on that one thread.
-/// Needed to unit-test view-models that mutate an AvalonEdit <c>TextDocument</c> — it is thread-affine and
-/// throws if touched from a different thread than the one that created it, which is exactly what happens
-/// when an <c>async</c> load resumes on a thread-pool thread. Construct the view-model <em>inside</em> the
-/// delegate so it too is owned by the pump thread.
+/// Needed to unit-test view-models that load and read off the page across <c>await</c>s, as a page does on
+/// its UI thread: without it a continuation resumes on a thread-pool thread, and what the page holds is
+/// touched from two threads at once, which nothing on a page is written for. Construct the view-model
+/// <em>inside</em> the delegate so it too is owned by the pump thread.
 /// <para>
 /// The single implementation behind both test projects' <c>AsyncPump</c> forwarders — they can't reference
 /// each other, and two copies of a harness this subtle drift.

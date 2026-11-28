@@ -32,7 +32,7 @@ public class TreeViewEditingTests
     private const string Drawn = "├── src/\n│   ├── a.ts\n│   └── b.ts\n└── README.md";
 
     /// <summary>The tree inside a document, fenced as itself, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string tree = Tree) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string tree = Tree) =>
         MarkdownEditorHarness.Run("Files:\n\n```treeview\n" + tree + "\n```\n", editor =>
         {
             var block = MarkdownEditorHarness.Block(editor);
@@ -136,9 +136,9 @@ public class TreeViewEditingTests
                                                 "treeview.level.out", "treeview.describe", "treeview.icons", "treeview.delete" }, ids);
 
             var file = Offered(ribbon, "treeview.kind");
-            Assert.AreEqual(Str.Get("Text.TreeView.Node.As"), file.Caption, "drawn as \"As\" and what it would turn the node into");
-            Assert.AreEqual(Str.Get("Text.TreeView.Node.AsFolder"), file.Name, "a file is offered to be made a folder");
-            Assert.AreEqual(Str.Get("Text.TreeView.Node.AsFile"), Offered(Ribbon(editor, Row(tree, "src")), "treeview.kind").Name, "and a folder a file");
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Node.As"), file.Caption, "drawn as \"As\" and what it would turn the node into");
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Node.AsFolder"), file.Name, "a file is offered to be made a folder");
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Node.AsFile"), Offered(Ribbon(editor, Row(tree, "src")), "treeview.kind").Name, "and a folder a file");
         }));
 
     [TestMethod]
@@ -176,14 +176,14 @@ public class TreeViewEditingTests
         InADocument((editor, tree) =>
         {
             var ribbon = Ribbon(editor, Row(tree, "a.ts"));
-            Assert.AreEqual(Str.Get("Text.TreeView.Icons.Show"), Offered(ribbon, "treeview.icons").Name);
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Icons.Show"), Offered(ribbon, "treeview.icons").Name);
 
             Click(ribbon, "treeview.icons");
             StringAssert.Contains(tree.Source, "---\nconfig:\n  treeView:\n    showIcons: true\n---\nsrc/", tree.Source);
             Assert.AreEqual(string.Empty, Trouble(tree));
 
             var shown = Ribbon(editor, Row(tree, "README.md"));
-            Assert.AreEqual(Str.Get("Text.TreeView.Icons.Hide"), Offered(shown, "treeview.icons").Name, "with icons shown, it hides them");
+            Assert.AreEqual(Str.Get("Markdown.TreeView.Icons.Hide"), Offered(shown, "treeview.icons").Name, "with icons shown, it hides them");
 
             Click(shown, "treeview.icons");
             StringAssert.Contains(tree.Source, "    showIcons: false\n", tree.Source);
@@ -295,13 +295,13 @@ public class TreeViewEditingTests
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
@@ -309,7 +309,7 @@ public class TreeViewEditingTests
 
     private static string Trouble(DocumentBlock tree) => string.Join(" | ", tree.Diagnostics.Select(diagnostic => diagnostic.Message));
 
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, Rect over)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, Rect over)
     {
         var ribbon = editor.Shown.BuildRibbon(new Point(over.Right - 3, over.Top + (over.Height / 2))) as DiagramRibbon;
         Assert.IsNotNull(ribbon, "a right-click opens the ribbon");

@@ -24,7 +24,7 @@ using Nexaflow.Tests.Visuals.Dropping;
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
-/// Driving a real <see cref="MarkdownSurface"/> that is written in, in a shown (off-screen) window — keys and text raised
+/// Driving a real <see cref="NexaTextSurface"/> that is written in, in a shown (off-screen) window — keys and text raised
 /// as WPF raises them, and the clipboard answered as the application answers it.
 ///
 /// <para>
@@ -46,12 +46,12 @@ internal static class MarkdownEditorHarness
     /// <summary>Shows an editor loaded with <paramref name="markdown"/>, runs <paramref name="test"/>, closes it.</summary>
     /// <param name="configure">
     /// Applied before the text is loaded, for the properties that change what the document even is —
-    /// <see cref="MarkdownSurface.WrittenIn"/> decides whether the text is a document or maths, so setting it afterwards
+    /// <see cref="NexaTextSurface.WrittenIn"/> decides whether the text is a document or maths, so setting it afterwards
     /// would mean loading the text once as the wrong thing.
     /// </param>
-    public static void Run(string markdown, Action<MarkdownSurface> test, Action<MarkdownSurface>? configure = null)
+    public static void Run(string markdown, Action<NexaTextSurface> test, Action<NexaTextSurface>? configure = null)
     {
-        var editor = new MarkdownSurface
+        var editor = new NexaTextSurface
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -99,7 +99,7 @@ internal static class MarkdownEditorHarness
     }
 
     /// <summary>Raises a genuine keystroke's worth of text on the editor.</summary>
-    public static void RaiseTextInput(MarkdownSurface editor, string text)
+    public static void RaiseTextInput(NexaTextSurface editor, string text)
     {
         var composition = new TextComposition(InputManager.Current, editor, text);
         editor.RaiseEvent(new TextCompositionEventArgs(InputManager.Current.PrimaryKeyboardDevice, composition)
@@ -109,7 +109,7 @@ internal static class MarkdownEditorHarness
     }
 
     /// <summary>Types <paramref name="text"/> into the editor one character at a time.</summary>
-    public static void Type(MarkdownSurface editor, string text)
+    public static void Type(NexaTextSurface editor, string text)
     {
         foreach (var character in text) RaiseTextInput(editor, character.ToString());
     }
@@ -123,7 +123,7 @@ internal static class MarkdownEditorHarness
     /// so a synthetic Shift or Ctrl cannot be pressed from in here — anything that turns on a modifier belongs in a UI
     /// journey, where the keys are real.
     /// </remarks>
-    public static void RaiseKey(MarkdownSurface editor, Key key)
+    public static void RaiseKey(NexaTextSurface editor, Key key)
     {
         var source = PresentationSource.FromVisual(editor)
                      ?? throw new InvalidOperationException("the editor must be in a shown window");
@@ -132,21 +132,21 @@ internal static class MarkdownEditorHarness
     }
 
     /// <summary>Puts the caret <paramref name="at"/> characters into the markdown the editor was handed.</summary>
-    public static void PlaceCaret(MarkdownSurface editor, int at) =>
+    public static void PlaceCaret(NexaTextSurface editor, int at) =>
         editor.Shown.TakeCaret(Math.Clamp(at, 0, editor.Document.ToString().Length));
 
     /// <summary>Puts the caret at the start of the <paramref name="block"/>th block of the document.</summary>
-    public static void CaretAtStartOf(MarkdownSurface editor, int block) => editor.Shown.TakeCaret(Blocked(editor, block).Start);
+    public static void CaretAtStartOf(NexaTextSurface editor, int block) => editor.Shown.TakeCaret(Blocked(editor, block).Start);
 
     /// <summary>Puts the caret at the end of the <paramref name="block"/>th block of the document.</summary>
-    public static void CaretAtEndOf(MarkdownSurface editor, int block)
+    public static void CaretAtEndOf(NexaTextSurface editor, int block)
     {
         var (start, length) = Blocked(editor, block);
         editor.Shown.TakeCaret(start + length);
     }
 
     /// <summary>Where the <paramref name="index"/>th block of the document is written, its line endings left off.</summary>
-    private static (int Start, int Length) Blocked(MarkdownSurface editor, int index)
+    private static (int Start, int Length) Blocked(NexaTextSurface editor, int index)
     {
         var source = editor.Shown.Markdown;
         var blocks = Nexaflow.Visuals.Text.Markdown.MarkdownBlocks.Split(source);
@@ -167,33 +167,29 @@ internal static class MarkdownEditorHarness
     }
 
     /// <summary>Whether the editor has the keyboard.</summary>
-    public static bool HasKeyboard(MarkdownSurface editor) => editor.IsKeyboardFocusWithin;
+    public static bool HasKeyboard(NexaTextSurface editor) => editor.IsKeyboardFocusWithin;
 
-    /// <summary>How far down the editor is scrolled, and how much there is to scroll.</summary>
-    public static (double Offset, double Extent, double Viewport) Scrolled(MarkdownSurface editor)
-    {
-        var scroller = Drawn<ScrollViewer>(editor)!;
-
-        return (scroller.VerticalOffset, scroller.ExtentHeight, scroller.ViewportHeight);
-    }
+    /// <summary>How far down the editor's view stands, how tall its page is, and how tall the view.</summary>
+    public static (double Offset, double Extent, double Viewport) Scrolled(NexaTextSurface editor) =>
+        (editor.VerticalOffset, editor.ExtentHeight, editor.ViewportHeight);
 
     /// <summary>The text the editor is showing, as a reader reads it — every run of words on the page, in order.</summary>
-    public static string Showing(MarkdownSurface editor) =>
+    public static string Showing(NexaTextSurface editor) =>
         string.Join("\n", editor.Shown.Laid.Root.SelfAndDescendants()
             .Where(piece => piece.Words is not null)
             .Select(piece => piece.Words!.Glyphs.Text));
 
     /// <summary>How tall a line of the document's body text is drawn — what a change of text size shows up as.</summary>
-    public static double BodyHeight(MarkdownSurface editor) =>
+    public static double BodyHeight(NexaTextSurface editor) =>
         editor.Shown.Laid.Root.SelfAndDescendants()
             .First(piece => piece.Kind == LayoutPieces.Words && piece.Words is { Maps: true })
             .Bounds.Height * editor.Shown.Zoom;
 
     /// <summary>Sweeps a selection over everything the editor is showing.</summary>
-    public static void SelectAll(MarkdownSurface editor) => editor.SelectAll();
+    public static void SelectAll(NexaTextSurface editor) => editor.SelectAll();
 
     /// <summary>What is picked out in the editor, and whether anything is.</summary>
-    public static (bool Any, string Text) Picked(MarkdownSurface editor) =>
+    public static (bool Any, string Text) Picked(NexaTextSurface editor) =>
         (editor.Shown.Current.HasSelection, editor.Shown.SelectedText);
 
     /// <summary>The first thing of its kind the editor drew, or null where it drew none.</summary>
@@ -208,10 +204,10 @@ internal static class MarkdownEditorHarness
     }
 
     /// <summary>The <paramref name="index"/>th block of another language in the document — a diagram, a formula, a tune.</summary>
-    public static DocumentBlock Block(MarkdownSurface editor, int index = 0) => new(editor, index);
+    public static DocumentBlock Block(NexaTextSurface editor, int index = 0) => new(editor, index);
 
     /// <summary>Every block of another language the document drew, in the order written — or the whole of it, where it is written in one.</summary>
-    internal static IReadOnlyList<ContentPart> Blocks(MarkdownSurface editor)
+    internal static IReadOnlyList<ContentPart> Blocks(NexaTextSurface editor)
     {
         var drawn = editor.Shown.Laid.Root.SelfAndDescendants()
             .Select(piece => piece.Part switch { ContentPart part => part, TexPart tex => tex.Of, _ => null })
@@ -243,7 +239,7 @@ internal static class MarkdownEditorHarness
 /// parts it was read into last time are not the ones there now.
 /// </para>
 /// </summary>
-internal sealed class DocumentBlock(MarkdownSurface editor, int index)
+internal sealed class DocumentBlock(NexaTextSurface editor, int index)
 {
     private MarkdownElement Element => editor.Shown;
 
@@ -305,9 +301,9 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     public int Caret => Element.Caret;
 
     /// <summary>Whether the caret is in this block.</summary>
-    public bool HasCaret => Element.HasCaret && Caret >= Start && Caret <= End;
+    public bool HasCaret => Element.Engine.HasCaret && Caret >= Start && Caret <= End;
 
-    public bool ShowsCaret => Element.ShowsCaret && Caret >= Start && Caret <= End;
+    public bool ShowsCaret => Element.Engine.ShowsCaret && Caret >= Start && Caret <= End;
 
     /// <summary>The stretch shown as written, counted from <see cref="Origin"/>.</summary>
     public (int Start, int Length)? ShownAsWritten =>
@@ -334,16 +330,18 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     /// <summary>Picks out the whole of the block's own text.</summary>
     public void SelectAll() => Element.Restore(Element.Current.Select(Origin, Latex.Length));
 
-    public void BeginPointerSelect(Point at) => Element.BeginPointerSelect(at);
+    // Every point a test hands over is where something stands on the page, as the laid tree says; the element is the view of the page, so
+    // each is put where it stands on the element first.
+    public void BeginPointerSelect(Point at) => Element.BeginPointerSelect(Element.FromContent(at));
 
-    public void BeginPointerSelect(Point at, ModifierKeys modifiers) => Element.BeginPointerSelect(at, modifiers);
+    public void BeginPointerSelect(Point at, ModifierKeys modifiers) => Element.BeginPointerSelect(Element.FromContent(at), modifiers);
 
-    public void ExtendPointerSelect(Point at) => Element.ExtendPointerSelect(at);
+    public void ExtendPointerSelect(Point at) => Element.ExtendPointerSelect(Element.FromContent(at));
 
     public void EndPointerSelect() => Element.EndPointerSelect();
 
     /// <summary>What the pointer is over a point on the page.</summary>
-    public Cursor? PointerCursor(Point at) => Element.PointerCursor(at);
+    public Cursor? PointerCursor(Point at) => Element.PointerCursor(Element.FromContent(at));
 
     /// <summary>A picture of the block as it is on the page.</summary>
     public System.Windows.Media.Imaging.BitmapSource? Picture(Brush? ground = null) => editor.CapturePicture(Holder, ground);

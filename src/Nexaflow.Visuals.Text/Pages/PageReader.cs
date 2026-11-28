@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Pages;
 
@@ -400,7 +401,7 @@ public static partial class DiagramDrawing
         var fences = Fence().Matches(reply);
         if (fences.Count == 0) return null;
         string source = fences[^1].Groups["source"].Value.Trim();
-        return source.Length > 0 && new ContentEngine().Troubles(MermaidFenceParser.Language, source).Count == 0 ? source : null;
+        return source.Length > 0 && new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Light).Troubles(MermaidFenceParser.Language, source).Count == 0 ? source : null;
     }
 
     [GeneratedRegex(@"```mermaid[ \t]*\r?\n(?<source>.*?)```", RegexOptions.Singleline)]

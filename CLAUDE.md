@@ -64,7 +64,8 @@ src/
   Nexaflow.Interaction/               WPF-free input vocabulary: KeyModifiers, drag payloads, IDropTarget + IPasteTarget, the async clipboard — the window's DropRouter and ClipboardRouter do the rest; and the toolkit-free view-model helpers (collections, undo history, the shell's questions)
   Nexaflow.Localization/              WPF-free words in the user's language: Str, and the size / duration / time formatters
   Nexaflow.Visuals.Common/            shared WPF controls, converters, formatters — only what needs WPF; toolkit-free code goes in Interaction / IO.* / Media / Icons
-  Nexaflow.Visuals.Text/              markdown shown or written in — one MarkdownSurface, never hand-roll a RichTextBox
+  Nexaflow.Markdown/                  WPF-free content pipeline: the syntax and layout trees, every language and builder, and the text engine (Engine/) that holds and decides everything a text surface shows and edits
+  Nexaflow.Visuals.Text/              the WPF text surface over that engine — NexaTextSurface paints and maps input; never hand-roll a RichTextBox
   Nexaflow.Visuals.Terminal/          terminal input logic
   Nexaflow.IO.Common/                 WPF-free IO leaves: encoding, glob, hashing, codec/archive contracts, VFS, file watching, the shell's file types, icons and cloud statuses
   Nexaflow.IO.Terminal/               PTY host, shells, and the console's toolkit-free logic

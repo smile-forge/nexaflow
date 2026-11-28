@@ -55,6 +55,7 @@ public sealed class CodeHighlighter : IDisposable
     {
         ["jinja"] = "html",   // markup parses as html; python injected into {{ }}/{% %}
         ["xaml"]  = "xml",    // XAML is XML; the id stays distinct so the outline can read WPF meaning
+        ["tex-file"] = "latex", // a LaTeX file; "latex" is the maths a fence or a formula is written in
     };
 
     private CodeHighlighter(string grammarId, Language language, Parser parser, string queryText)
@@ -108,7 +109,7 @@ public sealed class CodeHighlighter : IDisposable
     public IReadOnlyList<HighlightSpan> Highlight(string text)
     {
         var spans = new List<HighlightSpan>();
-        HighlightInto(spans, text, 0, null, new InjectionBudget());
+        HighlightInto(spans, TextSource.Of(text), 0, null, new InjectionBudget());
         return spans;
     }
 
@@ -123,12 +124,22 @@ public sealed class CodeHighlighter : IDisposable
     }
 
     /// <summary>
-    /// The coloured spans of <paramref name="tree"/>, parsed from <paramref name="text"/>, that reach into the stretch from
-    /// <paramref name="start"/> to <paramref name="end"/>, each cut to it: a string or a comment running past either end is coloured for
-    /// the part of it inside. An embedded language reaching into the stretch is parsed whole from what holds it, so a fragment running
-    /// past the stretch reads as it does in all of the text. Char offsets in <paramref name="text"/>; outer spans first, embedded after.
+    /// <paramref name="text"/>, read a stretch at a time, parsed again from <paramref name="old"/> as <see cref="Parse(string, Tree?)"/> is —
+    /// without it ever being copied into one string; the tree reads its nodes' text from it.
     /// </summary>
-    public IReadOnlyList<HighlightSpan> Highlight(Tree tree, string text, int start, int end)
+    public Tree? Parse(TextSource text, Tree? old)
+    {
+        _parser.IncludedRanges = NoRanges;
+        return _parser.Parse(text, old);
+    }
+
+    /// <summary>
+    /// The coloured spans of <paramref name="tree"/> that reach into the stretch from <paramref name="start"/> to <paramref name="end"/>, each
+    /// cut to it: a string or a comment running past either end is coloured for the part of it inside. An embedded language reaching into the
+    /// stretch is parsed whole from what holds it, so a fragment running past the stretch reads as it does in all of the text. Char offsets in
+    /// the text the tree was parsed from (<see cref="Tree.Text"/>), read only where something needs it; outer spans first, embedded after.
+    /// </summary>
+    public IReadOnlyList<HighlightSpan> Highlight(Tree tree, int start, int end)
     {
         var spans = new List<HighlightSpan>();
         if (end <= start || Query() is not { } query) return spans;
@@ -137,6 +148,7 @@ public sealed class CodeHighlighter : IDisposable
             foreach (var capture in cursor.Captures)
                 Cut(spans, capture.Node.StartIndex, capture.Node.EndIndex, capture.Name, start, end);
 
+        var text = tree.Text;
         var found = new List<HighlightSpan>();
         if (_grammarId == "xaml") XamlHighlighting.AddValueSpans(tree.RootNode, text, 0, found);
 
@@ -159,18 +171,18 @@ public sealed class CodeHighlighter : IDisposable
     }
 
     /// <summary>Whether an embedded fragment — <paramref name="part"/> at <paramref name="offset"/>, or the ranges of a combined one — reaches into <paramref name="start"/>..<paramref name="end"/>.</summary>
-    private static bool Reaches(string part, int offset, TreeSitter.Range[]? included, int start, int end) =>
+    private static bool Reaches(TextSource part, int offset, TreeSitter.Range[]? included, int start, int end) =>
         included is null ? offset < end && offset + part.Length > start : included.Any(range => range.StartIndex < end && range.EndIndex > start);
 
     // <paramref name="included"/> null ⇒ parse the whole <paramref name="text"/> (offset shifts isolated child
     // spans). Non-null ⇒ a combined parse over those ranges, whose node offsets are already in <paramref
     // name="text"/> coordinates (so offset is the parent's, not per-fragment).
-    private void HighlightInto(List<HighlightSpan> spans, string text, int offset,
+    private void HighlightInto(List<HighlightSpan> spans, TextSource text, int offset,
         TreeSitter.Range[]? included, InjectionBudget budget)
     {
-        if (string.IsNullOrEmpty(text) || Query() is not { } query) return;
+        if (text.Length == 0 || Query() is not { } query) return;
         _parser.IncludedRanges = included ?? NoRanges;
-        using var tree = _parser.Parse(text);
+        using var tree = _parser.Parse(text, null);
         if (tree is null) return;
 
         foreach (var capture in query.Execute(tree.RootNode).Captures)
@@ -196,18 +208,19 @@ public sealed class CodeHighlighter : IDisposable
     /// Folds inside embedded languages are included too (offset into parent coordinates).</summary>
     public IReadOnlyList<FoldRange> GetFolds(string text)
     {
+        var source = TextSource.Of(text);
         var folds = new List<FoldRange>();
-        GetFoldsInto(folds, text, 0, null, new InjectionBudget());
-        TrimToContent(folds, text);
+        GetFoldsInto(folds, source, 0, null, new InjectionBudget());
+        TrimToContent(folds, source);
         return folds;
     }
 
     /// <summary>
     /// Pulls every fold end back off the line delimiter it may have landed on, and drops what that leaves
-    /// empty. A fold ending <i>inside</i> a delimiter is the one shape a folding consumer cannot render:
-    /// AvalonEdit rejects such an element outright, and because it throws from the render pass the shell's
-    /// unhandled-exception handler cannot recover it - the layout stays dirty, WPF re-measures, it throws
-    /// again. That live-lock wrote 170MB of one identical stack trace in 85 seconds for a customer.
+    /// empty. A fold ending <i>inside</i> a delimiter - between the return and the line feed of a CRLF - ends on
+    /// no line: not the one the break ends, nor the next. A view that folds whole lines cannot place it, and
+    /// one that draws a fold as an element of its own may refuse it from its render pass, where nothing can
+    /// recover - the layout stays dirty, is measured again, and refuses again.
     /// <para>
     /// The source is the grammars, not us: c, cpp, java, rust, python and ruby all match a line comment as
     /// "up to the newline", so the token swallows the CR of a CRLF and a comment-run fold ends between the
@@ -215,7 +228,7 @@ public sealed class CodeHighlighter : IDisposable
     /// construction - for those six, for the ones that already behave, and for any grammar added later.
     /// </para>
     /// </summary>
-    private static void TrimToContent(List<FoldRange> folds, string text)
+    private static void TrimToContent(List<FoldRange> folds, TextSource text)
     {
         for (int i = 0; i < folds.Count; i++)
         {
@@ -227,21 +240,44 @@ public sealed class CodeHighlighter : IDisposable
         folds.RemoveAll(f => f.End <= f.Start);
     }
 
-    private void GetFoldsInto(List<FoldRange> folds, string text, int offset,
+    private void GetFoldsInto(List<FoldRange> folds, TextSource text, int offset,
         TreeSitter.Range[]? included, InjectionBudget budget)
     {
-        if (string.IsNullOrEmpty(text)) return;
+        if (text.Length == 0) return;
         _parser.IncludedRanges = included ?? NoRanges;
-        using var tree = _parser.Parse(text);
+        using var tree = _parser.Parse(text, null);
         if (tree is null) return;
 
+        this.FoldsFrom(tree.RootNode, text, offset, budget, folds);
+    }
+
+    /// <summary>
+    /// The folds of a tree already parsed — the code reading's own, read on the background pass that parsed it, so nothing is parsed again to
+    /// say what folds — with what is written in another language inside it, and each pulled back off the line ending it closes on. The text
+    /// is the tree's own (<see cref="Tree.Text"/>), read only where a fold needs it.
+    /// </summary>
+    public IReadOnlyList<FoldRange> FoldsIn(Tree tree)
+    {
+        var text = tree.Text;
+        var folds = new List<FoldRange>();
+        if (text.Length == 0) return folds;
+
+        this.FoldsFrom(tree.RootNode, text, 0, new InjectionBudget(), folds);
+        TrimToContent(folds, text);
+
+        return folds;
+    }
+
+    /// <summary>The folds under <paramref name="root"/>, read from <paramref name="text"/>, set <paramref name="offset"/> along, into <paramref name="folds"/>.</summary>
+    private void FoldsFrom(Node root, TextSource text, int offset, InjectionBudget budget, List<FoldRange> folds)
+    {
         var local = new List<FoldRange>();
         var comments = new List<CommentSpan>();
-        CollectFolds(tree.RootNode, local, comments);
+        CollectFolds(root, local, comments);
         AddCommentFolds(comments, text, local);
         foreach (var f in local) folds.Add(new FoldRange(f.Start + offset, f.End + offset));
 
-        ForEachInjection(text, tree.RootNode, offset, budget,
+        ForEachInjection(text, root, offset, budget,
             (child, t, o, inc) => child.GetFoldsInto(folds, t, o, inc, budget));
     }
 
@@ -270,7 +306,7 @@ public sealed class CodeHighlighter : IDisposable
     /// <summary>Folds comment blocks: a multi-line block comment, or a run of consecutive comments that each
     /// start their own line (so trailing end-of-line comments are not folded). Adjacent comments on
     /// consecutive lines merge into a single fold; a lone single-line comment is left alone.</summary>
-    private static void AddCommentFolds(List<CommentSpan> comments, string text, List<FoldRange> folds)
+    private static void AddCommentFolds(List<CommentSpan> comments, TextSource text, List<FoldRange> folds)
     {
         if (comments.Count == 0) return;
 
@@ -297,7 +333,7 @@ public sealed class CodeHighlighter : IDisposable
     }
 
     /// <summary>True if only whitespace precedes <paramref name="offset"/> on its line (the comment owns the line).</summary>
-    private static bool IsAtLineStart(string text, int offset)
+    private static bool IsAtLineStart(TextSource text, int offset)
     {
         int i = Math.Min(offset, text.Length) - 1;
         while (i >= 0 && (text[i] == ' ' || text[i] == '\t')) i--;
@@ -330,7 +366,7 @@ public sealed class CodeHighlighter : IDisposable
     public IReadOnlyList<InjectionRange> FindInjections(string text)
     {
         if (string.IsNullOrEmpty(text) || !LanguageInjections.HasInjections(_grammarId)) return [];
-        return WithParseTree(text, root => LanguageInjections.Find(_grammarId, root, text)) ?? [];
+        return WithParseTree(text, root => LanguageInjections.Find(_grammarId, root, TextSource.Of(text))) ?? [];
     }
 
     /// <summary>Returns the parse tree as an s-expression (for AI/graphify structural understanding), or null
@@ -338,16 +374,16 @@ public sealed class CodeHighlighter : IDisposable
     /// Capped to keep large files from flooding a tool result.</summary>
     public string? GetParseTree(string text, int maxChars = 20_000)
     {
-        var expr = BuildParseTree(text, null, new InjectionBudget());
+        var expr = BuildParseTree(TextSource.Of(text ?? string.Empty), null, new InjectionBudget());
         if (expr is null) return null;
         return expr.Length > maxChars ? expr[..maxChars] + " …(truncated)" : expr;
     }
 
-    private string? BuildParseTree(string text, TreeSitter.Range[]? included, InjectionBudget budget)
+    private string? BuildParseTree(TextSource text, TreeSitter.Range[]? included, InjectionBudget budget)
     {
-        if (string.IsNullOrEmpty(text)) return null;
+        if (text.Length == 0) return null;
         _parser.IncludedRanges = included ?? NoRanges;
-        using var tree = _parser.Parse(text);
+        using var tree = _parser.Parse(text, null);
         var expr = tree?.RootNode.Expression;
         if (expr is null) return null;
 
@@ -364,11 +400,11 @@ public sealed class CodeHighlighter : IDisposable
 
     /// <summary>Discovers the embedded ranges in <paramref name="root"/> (must be live) and invokes
     /// <paramref name="visit"/> with each child highlighter and how to parse it: an <b>isolated</b> range is
-    /// passed its substring (and the absolute offset), while a <b>combined</b> group is passed the parent text
+    /// passed its own text (and the absolute offset), while a <b>combined</b> group is passed the parent text
     /// plus <c>IncludedRanges</c> so its non-contiguous fragments parse as one tree in original coordinates.
     /// Honours the depth/count budget and skips self-injection and unavailable grammars.</summary>
-    private void ForEachInjection(string text, Node root, int offset, InjectionBudget budget,
-        Action<CodeHighlighter, string, int, TreeSitter.Range[]?> visit)
+    private void ForEachInjection(TextSource text, Node root, int offset, InjectionBudget budget,
+        Action<CodeHighlighter, TextSource, int, TreeSitter.Range[]?> visit)
     {
         if (budget.Depth >= MaxDepth) return;
         if (!LanguageInjections.HasInjections(_grammarId)) return;
@@ -380,18 +416,18 @@ public sealed class CodeHighlighter : IDisposable
 
         budget.Depth++;
 
-        foreach (var inj in injections)   // isolated ranges → parse each substring on its own
+        foreach (var inj in injections)   // isolated ranges → parse each fragment on its own
         {
             if (inj.GroupKey is not null) continue;
             if (budget.Remaining <= 0) break;
             if (inj.TargetGrammarId == _grammarId) continue;                          // self-injection guard
             if (inj.Start < 0 || inj.Length <= 0 || inj.End > text.Length) continue;
-            var sub = text.Substring(inj.Start, inj.Length);
+            var sub = text.GetText(inj.Start, inj.End);
             if (string.IsNullOrWhiteSpace(sub)) continue;
             var child = GetChild(inj.TargetGrammarId);
             if (child is null) continue;                                              // grammar unavailable → no-op
             budget.Remaining--;
-            try { visit(child, sub, offset + inj.Start, null); }
+            try { visit(child, TextSource.Of(sub), offset + inj.Start, null); }
             catch { /* a bad embedded fragment must never break the host's highlighting */ }
         }
 

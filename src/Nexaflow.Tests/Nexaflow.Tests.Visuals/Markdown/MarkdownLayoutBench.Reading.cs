@@ -51,7 +51,7 @@ public partial class MarkdownLayoutBench
     /// <summary>One document, opened on a surface in a window and read: each step timed until the window has nothing left to do.</summary>
     private static Dictionary<string, object> Reading(string name, string text)
     {
-        var surface = new MarkdownSurface
+        var surface = new NexaTextSurface
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -79,7 +79,7 @@ public partial class MarkdownLayoutBench
 
             Settle();
 
-            var scroller = surface.Scroller;
+            var scroller = surface;
             var element = surface.Shown;
 
             // Down from the top a screen at a time, as a reader goes through it: what laying further on the way costs.
@@ -100,7 +100,8 @@ public partial class MarkdownLayoutBench
             // Halfway down, the pointer moving over a screen of it: the cursor it shows, the block it is over, and a drag down
             // the screen from its top.
             To(scroller, 0.5);
-            var top = new Point(120, scroller.VerticalOffset + 80);
+            // The element is the view, so a point on it is measured from the view's top.
+            var top = new Point(120, 80);
             Point Along(int step, int across) => new(top.X + (step * across % 500), top.Y + (step * 18));
 
             var pointed = 0;
@@ -165,9 +166,9 @@ public partial class MarkdownLayoutBench
     };
 
     /// <summary>Scrolls to <paramref name="depth"/> of the way down and waits for it to be laid and painted there.</summary>
-    private static void To(ScrollViewer scroller, double depth)
+    private static void To(NexaTextSurface surface, double depth)
     {
-        scroller.ScrollToVerticalOffset(scroller.ScrollableHeight * depth);
+        surface.ScrollToVerticalOffset(surface.ScrollableHeight * depth);
         Settle();
     }
 

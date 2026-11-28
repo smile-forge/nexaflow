@@ -12,9 +12,8 @@ namespace Nexaflow.Markdown.Layout.PlainText;
 /// ink.
 ///
 /// <para>
-/// A line is set as one run of its words, as prose sets a run of them. The words are the reading's (<see cref="TextKinds.Word"/>), for
-/// whatever looks into them, and nothing is drawn differently for any one of them yet — so setting each on its own would only shape
-/// them one at a time.
+/// A line is set as one run of what is written on it, as the reading holds it (<see cref="TextParser.InLines"/>): nothing is drawn
+/// differently for any one word of it, so setting each on its own would only shape them one at a time.
 /// </para>
 /// </summary>
 public sealed class TextBuilder(ContentReading reading, EditState state, LayoutStyle style, bool isReadOnly, ILayoutMedium medium,
@@ -29,14 +28,11 @@ public sealed class TextBuilder(ContentReading reading, EditState state, LayoutS
 
     protected override LayoutInk Ink(string kind) => Style.Text;
 
-    /// <summary>The line's words and the spaces between them, as one run standing for all of it but its line end.</summary>
+    /// <summary>What is written on the line, as the one run standing for all of it but its line end.</summary>
     protected override IEnumerable<(ISourcePart Part, string Text, string Kind)> Runs(ContentPart line)
     {
-        var words = line.Children.Where(piece => piece.Kind != LineKinds.LineEnd).ToList();
-        if (words.Count == 0) yield break;
+        if (line.Children.Count == 0 || line.Children[0] is not { Kind: Kinds.Words } written) yield break;
 
-        var text = words.Count == 1 ? words[0].Text : string.Concat(words.Select(piece => piece.Text));
-
-        yield return (new PartSlice(line, 0, text.Length), text, Kinds.Words);
+        yield return (new PartSlice(line, 0, written.Text.Length), written.Text, Kinds.Words);
     }
 }

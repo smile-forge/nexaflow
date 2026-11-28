@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Features.Logs;
 /// pair. These decide which lines the user can still see, so a silently-dropped bound or a filter that
 /// survives its own clear is a correctness bug, not a cosmetic one.
 /// <para>
-/// Everything here runs synchronously with no file load, no <c>TextDocument</c> mutation and no watcher.
+/// Everything here runs synchronously with no file load and no watcher.
 /// The tail/head reader is covered by <see cref="LogViewModelTests"/>, the toolbar and status bar by
 /// <see cref="LogSurfaceTests"/>, and the controls end-to-end by the UI journey.
 /// </para>

@@ -47,7 +47,7 @@ public class MarkdownExportTests
     [TestMethod]
     public void WhatAnotherLanguageDrawsInACellIsThePictureThatCellHolds_WhereTheOccasionKeepsPictures() => UiThread.Run(() =>
     {
-        var document = Exported("| f |\n|---|\n| $x^2$ |\n", new ExportOccasion { Pictures = true });
+        var document = Exported("| f |\n|---|\n| $x^2$ |\n", new ExportOccasion { Style = WpfStyles.Light, Pictures = true });
         var cell = ((ExportTable)document.Blocks.Single()).Rows[1].Cells.Single();
         var drawn = ((ExportWords)cell.Blocks.Single()).Words.OfType<ExportDrawnSpan>().Single().Drawing;
 
@@ -84,15 +84,15 @@ public class MarkdownExportTests
     [TestMethod]
     public void ACopyCarriesTheWordsAndTheMarkedUpTextOfWhatWasCopied() => UiThread.Run(() =>
     {
-        var copy = MarkdownClipboard.Copied("# Title\n\nSome **bold** and `code`.\n");
+        var copy = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Light).CopyOf("# Title\n\nSome **bold** and `code`.\n");
 
-        Assert.AreEqual("Title\n\nSome bold and code.\n", copy.Text);
-        StringAssert.Contains(copy.Html, "<!--StartFragment--><h1 id=\"title\">Title</h1>");
-        StringAssert.Contains(copy.Html, "<p>Some <strong>bold</strong> and <code>code</code>.</p>");
+        Assert.AreEqual("Title\n\nSome bold and code.\n", MarkdownClipboard.PlainWords(copy));
+        StringAssert.Contains(MarkdownClipboard.MarkedUp(copy), "<!--StartFragment--><h1 id=\"title\">Title</h1>");
+        StringAssert.Contains(MarkdownClipboard.MarkedUp(copy), "<p>Some <strong>bold</strong> and <code>code</code>.</p>");
     });
 
     private static ExportDocument Exported(string markdown, ExportOccasion? occasion = null) =>
-        LayoutExport.Exported(markdown, occasion ?? new ExportOccasion());
+        LayoutExport.Exported(markdown, occasion ?? new ExportOccasion { Style = WpfStyles.Light }, WpfMedium.OnThisThread);
 
     private static uint Argb(Color colour) => ((uint)colour.A << 24) | ((uint)colour.R << 16) | ((uint)colour.G << 8) | colour.B;
 }

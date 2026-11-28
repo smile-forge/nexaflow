@@ -318,7 +318,7 @@ public sealed partial class ExecutableViewModel
         HasManifest  = !manifest.IsEmpty;
         if (!HasManifest) return;
 
-        ManifestXml = manifest.RawXml ?? string.Empty;
+        ManifestDocument.Load(manifest.RawXml ?? string.Empty);
 
         if (manifest.ParseError is { } error)
         {

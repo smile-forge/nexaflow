@@ -8,7 +8,7 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [AngouriMath](https://github.com/asc-community/AngouriMath) (built from source) | MIT |
 | [Anthropic C# SDK](https://github.com/anthropics/anthropic-sdk-csharp) | MIT |
 | [ANTLR 4 runtime](https://github.com/antlr/antlr4) (via AngouriMath) | BSD-3-Clause |
-| [AvalonEdit](https://github.com/icsharpcode/AvalonEdit) | MIT |
+
 | [BouncyCastle](https://github.com/bcgit/bc-csharp) (via MimeKit) | MIT |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) (+ Common, Diagnostics, HighPerformance) | MIT |
 | [Concentus](https://github.com/lostromb/concentus) (+ Oggfile) | MIT |
@@ -62,6 +62,10 @@ licence shown; the full texts are in each project's repository. "via" names the 
 | [tree-sitter](https://github.com/tree-sitter/tree-sitter) | MIT |
 | [TreeSitter.DotNet](https://github.com/mariusgreuel/tree-sitter-dotnet-bindings) (+ bundled grammars) | MIT |
 | [tree-sitter-xml](https://github.com/tree-sitter-grammars/tree-sitter-xml) (built from source) | MIT |
+| [tree-sitter-powershell](https://github.com/airbus-cert/tree-sitter-powershell) (built from source) | MIT |
+| [tree-sitter-sql](https://github.com/DerekStride/tree-sitter-sql) (built from source) | MIT |
+| [tree-sitter-diff](https://github.com/tree-sitter-grammars/tree-sitter-diff) (built from source) | MIT |
+| [tree-sitter-latex](https://github.com/latex-lsp/tree-sitter-latex) (built from source) | MIT |
 | [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) (+ Microsoft.Extensions.*, Microsoft.Bcl.*, and the C#/WinRT Windows SDK projection) | MIT |
 

@@ -4,8 +4,10 @@ using NSubstitute;
 using Nexaflow.Features.Code.ViewModels;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Search;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Features.Infrastructure;
 
 namespace Nexaflow.Tests.Features.Search;
 
@@ -54,7 +56,7 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
     protected override string Snapshot(ISearchable page)
     {
         var vm = (CodeViewModel)page;
-        return $"{vm.SearchMatchCount}|{vm.IsSearchActive}|{vm.CurrentSearchTerm}|{vm.SearchHighlights.Count}";
+        return $"{vm.SearchMatchCount}|{vm.IsSearchActive}|{vm.CurrentSearchTerm}|{Washed(vm).Count}";
     }
 
     // ── Code-specific behaviour beyond the shared contract ────────────────────
@@ -77,7 +79,8 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
 
         Assert.AreEqual(2, vm.SearchMatchCount, "two lines mention alpha42");
         Assert.IsTrue(vm.IsSearchActive);
-        Assert.AreEqual(2, vm.SearchHighlights.Count, "each occurrence is painted, not just counted");
+        Assert.AreEqual(2, Washed(vm).Count, "each occurrence is marked, not just counted");
+        Assert.AreEqual(Washed(vm)[0], vm.Editor.Found.LookedAt, "the first is the one looked at");
         Assert.AreEqual(LiteralTermInContent, vm.CurrentSearchTerm);
     });
 
@@ -90,8 +93,8 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
 
         // An offset that isn't the match is the failure this catches: the highlight would sit beside the
         // word, which looks like a rendering bug rather than a search one.
-        foreach (var (offset, length) in vm.SearchHighlights)
-            Assert.AreEqual(LiteralTermInContent, vm.Document.GetText(offset, length));
+        foreach (var (offset, length) in Washed(vm))
+            Assert.AreEqual(LiteralTermInContent, vm.Document.Current.Slice(offset, length));
     });
 
     [TestMethod]
@@ -117,8 +120,46 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
 
         Assert.IsTrue(rendered);
         Assert.AreEqual(1, vm.SearchMatchCount, "only the agent's chosen line stays in the match set");
-        Assert.AreEqual(1, vm.SearchHighlights.Count,
+        Assert.AreEqual(1, Washed(vm).Count,
             "the highlights must follow the narrowed set, not keep painting the discarded match");
+    });
+
+    [TestMethod]
+    public void SteppingThroughMatches_MovesTheCaretAndWhichIsLookedAt() => WithPage(async page =>
+    {
+        var vm = (CodeViewModel)page;
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+        var places = Washed(vm);
+        var lines = places.Select(place => vm.Document.Current.LineOf(place.Start)).ToArray();
+
+        Assert.AreEqual(lines[0], vm.Document.Current.LineOf(vm.Editor.Caret), "the caret goes to the first match's line");
+
+        vm.FindNextMatchCommand.Execute(null);
+
+        Assert.AreEqual(places[1], vm.Editor.Found.LookedAt);
+        Assert.AreEqual(lines[1], vm.Document.Current.LineOf(vm.Editor.Caret));
+
+        vm.ClearSearchCommand.Execute(null);
+        Assert.IsTrue(vm.Editor.Found.IsEmpty, "clearing a search takes its marks away");
+    });
+
+    [TestMethod]
+    public void WritingAboveAMatch_KeepsItsMarkOnIt_AndTheSearchRunsAgain() => WithPage(async page =>
+    {
+        var vm = (CodeViewModel)page;
+        await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
+        Assert.AreEqual(2, vm.SearchMatchCount);
+
+        vm.Document.Write(ContentChange.Write(0, 0, "// alpha42 written above\n"));
+
+        // At once, the marks are on what they found, carried with it.
+        var document = vm.Document.Current;
+        Assert.IsTrue(Washed(vm).All(place => document.Slice(place.Start, place.Length) == LiteralTermInContent));
+
+        // Once writing pauses, the search is run again over what is written now.
+        for (var wait = 0; wait < 200 && vm.SearchMatchCount != 3; wait++) await Task.Delay(10);
+        Assert.AreEqual(3, vm.SearchMatchCount, "the line written above is counted");
+        Assert.AreEqual(3, Washed(vm).Count);
     });
 
     [TestMethod]
@@ -140,4 +181,7 @@ public sealed class CodeSearchableTests : SearchableContentConformanceTests
         Assert.IsTrue(outcome.Failed);
         Assert.IsFalse(string.IsNullOrWhiteSpace(outcome.Message));
     });
+
+    /// <summary>Every match the editor washes as found, over the whole file.</summary>
+    private static IReadOnlyList<(int Start, int Length)> Washed(CodeViewModel vm) => EditorMarks.MarkedBy(vm.Editor, FoundMarks.WashToken);
 }

@@ -77,6 +77,25 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
     /// <summary>A version of <paramref name="text"/> made from no other: loaded, or handed in whole.</summary>
     public static ContentDocument Of(string? text) => Holding(text ?? string.Empty, 0, null, null);
 
+    /// <summary>
+    /// A version of blocks <paramref name="first"/> up to <paramref name="last"/> (one past the last) of <paramref name="file"/> — every block it has
+    /// scanned, where nothing says — made from no other: a rope whose leaves name where the characters stand, so nothing is read to make it. A
+    /// stretch shorter than <see cref="RopeFrom"/> is read and held as one string, as any short document is.
+    /// </summary>
+    public static ContentDocument Of(ContentFile file, int first = 0, int? last = null)
+    {
+        var to = last ?? file.BlockCount;
+        var (_, length) = file.CharactersOf(first, to);
+
+        if (length > int.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(last), $"blocks {first} to {to} hold {length} characters, more than one document can");
+
+        if (ContentRope.OfFile(file, first, to) is not { } rope) return Of(string.Empty);
+        if (rope.Length < RopeFrom) return Of(string.Create(rope.Length, rope, static (into, held) => held.CopyTo(0, into)));
+
+        return new(null, rope, 0, null, null);
+    }
+
     /// <summary>Nothing written.</summary>
     public static ContentDocument Empty { get; } = Of(string.Empty);
 
@@ -110,6 +129,9 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
     /// <summary>The rope its characters are held in, for the tests of how they are held — or null where they are one string.</summary>
     internal ContentRope? Rope => _rope;
 
+    /// <summary>How many of its characters are held in memory rather than left where they stand in a file: what keeping it costs.</summary>
+    internal int HeldCharacters => _flat?.Length ?? _rope!.HeldCharacters;
+
     /// <summary>The character at <paramref name="offset"/>.</summary>
     public char this[int offset] => _flat is { } flat ? flat[offset] : _rope![offset];
 
@@ -140,6 +162,36 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         return new(null, cut, 0, null, null);
     }
 
+    /// <summary>
+    /// This version's characters as <paramref name="same"/> holds them — the same characters over the file they were saved to — made from this
+    /// version by a change writing nothing, so whatever has this version carries everything it holds across without comparing the two.
+    /// </summary>
+    internal ContentDocument Restated(ContentDocument same)
+    {
+        if (same.Length != this.Length)
+            throw new ArgumentException($"{same.Length} characters are not the same characters as {this.Length}", nameof(same));
+
+        return new ContentDocument(same._flat, same._rope, this.Version, new ContentChange([], 0), new ContentChange([], 0));
+    }
+
+    /// <summary>
+    /// <paramref name="parts"/>, one after another, as one version made from no other — the leaves of each held as they are, so joining stretches
+    /// over a file reads none of them.
+    /// </summary>
+    internal static ContentDocument Joined(IReadOnlyList<ContentDocument> parts)
+    {
+        if (parts.Count == 1) return parts[0];
+
+        var length = parts.Sum(part => (long)part.Length);
+        if (length > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(parts), $"{length} characters are more than one document can hold");
+        if (length < RopeFrom) return Of(string.Concat(parts.Select(part => part.ToString())));
+
+        ContentRope? rope = null;
+        foreach (var part in parts) rope = ContentRope.Joined(rope, part._rope ?? ContentRope.Of(part._flat!));
+
+        return new ContentDocument(null, rope, 0, null, null);
+    }
+
     /// <summary>The characters from <paramref name="start"/> on, as many as <paramref name="into"/> holds.</summary>
     public void CopyTo(int start, Span<char> into)
     {
@@ -161,6 +213,27 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         if (to == start) return [];
 
         return _flat is { } flat ? [flat.AsMemory(start, to - start)] : _rope!.Chunks(start, to);
+    }
+
+    /// <summary>
+    /// Each line from <paramref name="line"/> on, in order, until <paramref name="each"/> says to stop: its number, where it starts, and what is
+    /// written on it without its line end — read a stretch at a time, so going through every line of a long document reads each character once,
+    /// where finding each line again from the top would read its whole stretch again for every line in it.
+    /// </summary>
+    public void LinesFrom(int line, Func<int, int, string, bool> each, CancellationToken cancel = default)
+    {
+        var start = this.OffsetOf(Math.Clamp(line, 0, Math.Max(0, this.LineCount - 1)));
+        var going = true;
+
+        using var lines = new ContentLineSplitter((number, at, text) => going = going && each((int)number, (int)at, text), cancel, line, start);
+
+        foreach (var chunk in this.Chunks(start))
+        {
+            if (!going) return;
+            lines.Write(chunk.Span);
+        }
+
+        if (going) lines.Ended();
     }
 
     /// <summary>Where <paramref name="value"/> is first found from <paramref name="start"/> on, before <paramref name="end"/> — or -1.</summary>
@@ -289,15 +362,17 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
 
     /// <summary>
     /// This version with <paramref name="change"/> made to it — or this version itself, where the change writes nothing different.
-    /// The change's writes are in this version's offsets and do not overlap, as every <see cref="ContentChange"/>'s are.
+    /// The change's writes are in this version's offsets and do not overlap, as every <see cref="ContentChange"/>'s are. A long stretch
+    /// written over is kept to be written back as a stretch of this version (<see cref="ContentWrite.Held"/>), sharing its leaves, and a
+    /// stretch written that is held so goes into the rope as the leaves it is — so neither way does a long edit become a string.
     /// </summary>
     public ContentDocument Apply(ContentChange change)
     {
         var writes = change.Writes.OrderBy(write => write.Start).ToList();
         var length = this.Length;
 
-        if (writes.Count == 0 || writes.All(write => write.Length == write.Text.Length && write.Start >= 0 && write.End <= length
-                                                     && this.Holds(write.Start, write.Text)))
+        if (writes.Count == 0 || writes.All(write => write.Held is null && write.Length == write.WrittenLength && write.Start >= 0
+                                                     && write.End <= length && this.Holds(write.Start, write.Text)))
             return this;
 
         var inverse = new List<ContentWrite>(writes.Count);
@@ -309,22 +384,25 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
                 throw new ArgumentException($"a write over {write.Start}..{write.End} overlaps another or runs past the {length} characters written", nameof(change));
 
             at += write.Start - from;
-            inverse.Add(new ContentWrite(at, write.Text.Length, this.Slice(write.Start, write.Length)));
-            at += write.Text.Length;
+            inverse.Add(this.Piece(at, write.WrittenLength, write.Start, write.Length));
+            at += write.WrittenLength;
             from = write.End;
         }
 
         var made = at + length - from;
-        var forward = new ContentChange([.. writes.Select(write => new ContentWrite(write.Start, write.Length, write.Text))], change.Caret);
+        var forward = new ContentChange([.. writes.Select(write => write.Bare())], change.Caret);
         var backward = new ContentChange(inverse, inverse[0].Start);
 
         // Held as it was where it stays on its side of the line it would switch at; a rope is made, or let go of, once, on the edit
-        // that crosses it.
-        if (_rope is { } rope && made >= FlatBelow)
+        // that crosses it — and made, however it was held, where a stretch written is held as one, which a string could hold only by
+        // reading all of it.
+        if (made >= FlatBelow && (_rope is not null || writes.Any(write => write.Held is { Roped: true })))
         {
+            var rope = _rope ?? ContentRope.Of(_flat!);
+
             // Written from the last back, so every write's offsets still mean what they did.
             for (var write = writes.Count - 1; write >= 0; write--)
-                rope = ContentRope.Spliced(rope, writes[write].Start, writes[write].End, writes[write].Text)!;
+                rope = ContentRope.Spliced(rope, writes[write].Start, writes[write].End, Inserted(writes[write]));
 
             return new ContentDocument(null, rope, this.Version, forward, backward);
         }
@@ -332,7 +410,19 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         if (_flat is { } flat && made < RopeFrom) return new ContentDocument(Written(flat, writes, made), null, this.Version, forward, backward);
 
         return Holding(Written(this.ToString(), writes, made), this.Version, forward, backward);
+
+        // What a write puts in a rope: the leaves of what it holds, or a tree of its string.
+        static ContentRope? Inserted(ContentWrite write) => write.Held is { Rope: { } leaves } ? leaves : ContentRope.Of(write.Text);
     }
+
+    /// <summary>
+    /// A write from <paramref name="at"/> over <paramref name="over"/> characters of whatever it is written into, of this version's characters from
+    /// <paramref name="start"/> over <paramref name="length"/>: a string, or — a long stretch of a rope — a stretch sharing its leaves.
+    /// </summary>
+    private ContentWrite Piece(int at, int over, int start, int length) =>
+        _rope is not null && length >= FlatBelow
+            ? new ContentWrite(at, over, this.Stretch(start, length))
+            : new ContentWrite(at, over, this.Slice(start, length));
 
     /// <summary>
     /// What changed from <paramref name="earlier"/> to this, both ways: the change that makes this from it, and the one that makes it
@@ -347,9 +437,20 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         var same = SameFromEnd(earlier, this, Math.Min(earlier.Length, this.Length) - start);
         var (removed, inserted) = (earlier.Length - start - same, this.Length - start - same);
 
-        return (new ContentChange([new ContentWrite(start, removed, this.Slice(start, inserted))], start + inserted),
-                new ContentChange([new ContentWrite(start, inserted, earlier.Slice(start, removed))], start + removed));
+        return (new ContentChange([this.Piece(start, removed, start, inserted)], start + inserted),
+                new ContentChange([earlier.Piece(start, inserted, start, removed)], start + removed));
     }
+
+    /// <summary>
+    /// The change that makes <paramref name="after"/> from <paramref name="before"/> where one version is known to be made from the other — the
+    /// change it was made by, or for a step taken back, the one that undoes what made <paramref name="before"/> — nothing written for the same
+    /// version; and null where neither says, so whoever asks decides whether comparing the two is worth what it costs.
+    /// </summary>
+    public static ContentChange? Between(ContentDocument before, ContentDocument after) =>
+        ReferenceEquals(before, after) ? new ContentChange([], 0)
+        : after.MadeFrom(before) ? after.Change
+        : before.MadeFrom(after) ? before.Inverse
+        : null;
 
     /// <summary>Writes the characters to <paramref name="writer"/> a stretch at a time, without a copy of all of them being made.</summary>
     public void WriteTo(TextWriter writer)
@@ -367,7 +468,7 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         if (ReferenceEquals(this, other)) return true;
         if (_flat is { } flat && other._flat is { } theirs) return string.Equals(flat, theirs, StringComparison.Ordinal);
 
-        return this.Length == other.Length && SameFromStart(this, other) == this.Length;
+        return this.Length == other.Length && SameCharacters(this, other);
     }
 
     public override bool Equals(object? obj) => this.Equals(obj as ContentDocument);
@@ -396,8 +497,9 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
             {
                 said.Text.AsSpan(from, write.Start - from).CopyTo(into[at..]);
                 at += write.Start - from;
-                write.Text.AsSpan().CopyTo(into[at..]);
-                at += write.Text.Length;
+                var text = write.Text;
+                text.AsSpan().CopyTo(into[at..]);
+                at += text.Length;
                 from = write.End;
             }
 
@@ -470,6 +572,32 @@ public sealed class ContentDocument : IEquatable<ContentDocument>, IContentChara
         }
 
         return shortest;
+    }
+
+    /// <summary>
+    /// Whether two versions as long as each other hold the same characters: read a stretch at a time in step, a stretch both hold in the very
+    /// same leaf — what a version shares with the one it was made from, which after an edit is nearly all of it — known the same by where it
+    /// is held, and only the rest compared character by character.
+    /// </summary>
+    private static bool SameCharacters(ContentDocument left, ContentDocument right)
+    {
+        if (left._rope is { } leftRope && right._rope is { } rightRope) return ContentRope.SameCharacters(leftRope, rightRope);
+        using var ours = left.Chunks().GetEnumerator();
+        using var theirs = right.Chunks().GetEnumerator();
+        var (mine, yours) = (ReadOnlyMemory<char>.Empty, ReadOnlyMemory<char>.Empty);
+
+        while (true)
+        {
+            while (mine.IsEmpty && ours.MoveNext()) mine = ours.Current;
+            while (yours.IsEmpty && theirs.MoveNext()) yours = theirs.Current;
+            if (mine.IsEmpty || yours.IsEmpty) return mine.IsEmpty && yours.IsEmpty;
+
+            var taken = Math.Min(mine.Length, yours.Length);
+            var (here, there) = (mine[..taken], yours[..taken]);
+            if (!here.Equals(there) && !here.Span.SequenceEqual(there.Span)) return false;
+
+            (mine, yours) = (mine[taken..], yours[taken..]);
+        }
     }
 
     /// <summary>How many characters <paramref name="left"/> and <paramref name="right"/> end with alike, looking back no further than <paramref name="most"/>.</summary>

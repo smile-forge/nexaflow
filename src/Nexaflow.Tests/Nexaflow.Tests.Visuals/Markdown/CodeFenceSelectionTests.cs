@@ -48,7 +48,7 @@ public class CodeFenceSelectionTests
         Sweep(surface, Before(surface, "x = 1"), After(surface, "2;"));
         surface.Pressed(Key.C, ModifierKeys.Control);
 
-        Assert.AreEqual(Dragged, asked.Single().Text.ReplaceLineEndings("\n"), "the code picked out, and no fence round it");
+        Assert.AreEqual(Dragged, MarkdownClipboard.PlainWords(asked.Single()).ReplaceLineEndings("\n"), "the code picked out, and no fence round it");
     });
 
     [TestMethod]
@@ -61,11 +61,11 @@ public class CodeFenceSelectionTests
         surface.Pressed(Key.C, ModifierKeys.Control);
 
         Assert.AreEqual(Dragged, surface.Shown.Current.SelectedText, "a reader who may not write may still pick code out");
-        Assert.AreEqual(Dragged, asked.Single().Text.ReplaceLineEndings("\n"), "and copy it");
+        Assert.AreEqual(Dragged, MarkdownClipboard.PlainWords(asked.Single()).ReplaceLineEndings("\n"), "and copy it");
     });
 
     /// <summary>A press, a move half way and a move the rest of the way, and letting go — as a hand drags.</summary>
-    private static void Sweep(MarkdownSurface surface, Point from, Point to)
+    private static void Sweep(NexaTextSurface surface, Point from, Point to)
     {
         var element = surface.Shown;
         element.BeginPointerSelect(from);
@@ -75,21 +75,21 @@ public class CodeFenceSelectionTests
     }
 
     /// <summary>Just inside the first character of <paramref name="text"/>, where a press means the place before it.</summary>
-    private static Point Before(MarkdownSurface surface, string text)
+    private static Point Before(NexaTextSurface surface, string text)
     {
         var box = Character(surface, surface.Document.ToString().IndexOf(text, StringComparison.Ordinal));
         return new Point(box.Left + 0.5, box.Top + (box.Height / 2));
     }
 
     /// <summary>Just inside the right edge of the first character of <paramref name="text"/>, where a press means the place after it.</summary>
-    private static Point After(MarkdownSurface surface, string text)
+    private static Point After(NexaTextSurface surface, string text)
     {
         var box = Character(surface, surface.Document.ToString().IndexOf(text, StringComparison.Ordinal));
         return new Point(box.Right - 0.5, box.Top + (box.Height / 2));
     }
 
     /// <summary>Where the character at <paramref name="offset"/> is drawn, in the element's own units.</summary>
-    private static Rect Character(MarkdownSurface surface, int offset)
+    private static Rect Character(NexaTextSurface surface, int offset)
     {
         Assert.IsTrue(offset >= 0, "precondition: the text is in the document");
 
@@ -98,9 +98,9 @@ public class CodeFenceSelectionTests
         return new Rect(box.X * zoom, box.Y * zoom, box.Width * zoom, box.Height * zoom);
     }
 
-    private static List<MarkdownClipboard.ContentCopy> Copies(MarkdownSurface surface)
+    private static List<ContentCopy> Copies(NexaTextSurface surface)
     {
-        var asked = new List<MarkdownClipboard.ContentCopy>();
+        var asked = new List<ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
         return asked;
     }
@@ -109,9 +109,9 @@ public class CodeFenceSelectionTests
     /// The document laid out, and laid again once its code's grammar has read it — what a reader has in front of them by the time
     /// they drag. A drag begun on the first laying would be begun on pieces the second one replaces.
     /// </summary>
-    private static MarkdownSurface Shown(string markdown, bool readOnly = false)
+    private static NexaTextSurface Shown(string markdown, bool readOnly = false)
     {
-        var surface = new MarkdownSurface { Document = new EditedDocument(markdown), IsReadOnly = readOnly };
+        var surface = new NexaTextSurface { Document = new EditedDocument(markdown), IsReadOnly = readOnly };
 
         surface.Measure(new Size(640, 2000));
         surface.Arrange(new Rect(0, 0, 640, 2000));

@@ -40,7 +40,7 @@ public class LongDocumentTests
 
     private static ContentEngine LaidOut(string document)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(document, WpfStyles.Dark, null, engine);
 
         element.Measure(new Size(600, double.PositiveInfinity));

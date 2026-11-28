@@ -90,9 +90,9 @@ public sealed record EditState(
     /// </summary>
     public int SelectionLength => HasSelection ? Selection[^1].End - Selection[0].Start : 0;
 
-    /// <summary>The selected source. Disjoint stretches come back joined, in order.</summary>
+    /// <summary>The selected source. Disjoint stretches come back joined, in order; a block of columns a line of it a line.</summary>
     public string SelectedText =>
-        string.Concat(Selection.Select(r => Document.Slice(r.Start, r.Length)));
+        Selected is ColumnRanges block ? ColumnSelection.Text(Document, block) : string.Concat(Selection.Select(r => Document.Slice(r.Start, r.Length)));
 
     /// <summary>The source being shown literally, or empty.</summary>
     public string RawText =>
@@ -160,6 +160,8 @@ public sealed record EditState(
     /// </summary>
     public EditState Write(string text, RawZone? shown = null)
     {
+        // Over a block of columns, on every line of it.
+        if (Selected is ColumnRanges block) return ColumnSelection.Written(this, block, text);
         if (HasSelection) return Written(OverSelection(text), SelectionStart + text.Length, shown);
 
         var at = Clamp(Caret);
@@ -224,6 +226,7 @@ public sealed record EditState(
     /// </param>
     public EditState Backspace((int Start, int Length)? renderedBefore = null)
     {
+        if (Selected is ColumnRanges block) return ColumnSelection.Erased(this, block, forward: false);
         if (HasSelection) return DeleteSelection();
         if (Caret <= 0) return this;
 
@@ -257,6 +260,7 @@ public sealed record EditState(
     /// <summary>Forward delete. Never un-renders — you cannot be looking at what is ahead of the caret.</summary>
     public EditState Delete()
     {
+        if (Selected is ColumnRanges block) return ColumnSelection.Erased(this, block, forward: true);
         if (HasSelection) return DeleteSelection();
         if (Caret >= Document.Length) return this;
 

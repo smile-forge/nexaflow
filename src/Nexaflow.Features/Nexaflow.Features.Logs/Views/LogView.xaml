@@ -1,7 +1,7 @@
 <UserControl x:Class="Nexaflow.Features.Logs.Views.LogView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
@@ -191,16 +191,19 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- AvalonEdit -->
-            <avalon:TextEditor x:Name="Editor"
-                               Grid.Column="0"
-                               IsReadOnly="True"
-                               FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                               FontSize="13"
-                               Background="{StaticResource BgBrush}"
-                               Foreground="{StaticResource TextBrush}"
-                               ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                               ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+            <!-- The log, read over its blocks on disk and never written in. The page's view-model holds the document and the view of it — what is
+            marked on its lines, where the page stands, what a search found — and the surface draws them; the line-picking margin is put
+            beside it by the code-behind, which hands it the view-model. -->
+            <md:NexaTextSurface x:Name="Surface"
+            Grid.Column="0"
+            Document="{Binding Document}"
+            Editor="{Binding Editor}"
+            WrittenIn="{Binding WrittenIn}"
+            IsReadOnly="True"
+            BaseFontSize="13"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalScrollBarVisibility="Auto"
+            Background="{StaticResource BgBrush}"/>
 
             <!-- Filter side panel (always visible) -->
             <Border Grid.Column="1"

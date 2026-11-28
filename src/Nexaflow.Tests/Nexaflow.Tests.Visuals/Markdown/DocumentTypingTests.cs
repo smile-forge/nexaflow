@@ -9,6 +9,7 @@ using System.Windows.Controls.Primitives;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -114,7 +115,7 @@ public class DocumentTypingTests
 
             CollectionAssert.AreEqual(ContentLanguages.Insertable.Select(language => language.DisplayName?.Invoke() ?? language.Name).ToArray(),
                                       adds.Select(option => option.Name).ToArray(), "one for each language, in the table's order");
-            Assert.IsTrue(adds.All(option => option.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as its icon");
+            Assert.IsTrue(adds.All(option => option.Shape is WpfShape { Geometry: { IsFrozen: true } shape } && !shape.IsEmpty()), "each drawn as its icon");
         }));
 
     [TestMethod]
@@ -148,7 +149,7 @@ public class DocumentTypingTests
     private const string Pie = "```mermaid\npie\n    title Pets\n    \"Dogs\" : 40\n```";
 
     /// <summary>The ribbon a right-click on the words <paramref name="over"/> opens.</summary>
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, string over)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, string over)
     {
         var at = editor.Document.ToString().IndexOf(over, System.StringComparison.Ordinal);
         var box = editor.Shown.Laid.Root.SelfAndDescendants().Last(piece => piece.Words is not null && piece.Sits().Start <= at && at < piece.Sits().End).Bounds;

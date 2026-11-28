@@ -15,8 +15,8 @@ public static class TextSetting
     /// <paramref name="wrapsIn"/> — said without laying it (<see cref="LinedSetting.HeightOf"/>).
     /// </summary>
     public static double HeightOf(ContentNode tree, LayoutStyle style, ILayoutMedium medium, double? wrapsIn) =>
-        LinedSetting.HeightOf(tree, Characters(style), medium, wrapsIn);
+        LinedSetting.HeightOf(tree, Characters(style), medium, wrapsIn, style.TabWidth, style.DevicePixel);
 
     /// <summary>How far apart text's lines are set.</summary>
-    public static double LineHeight(LayoutStyle style, ILayoutMedium medium) => LinedSetting.LineHeight(Characters(style), medium);
+    public static double LineHeight(LayoutStyle style, ILayoutMedium medium) => LinedSetting.LineHeight(Characters(style), medium, style.DevicePixel);
 }

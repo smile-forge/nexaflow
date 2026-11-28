@@ -100,7 +100,7 @@ public class CodeLanguageTests
     [TestMethod]
     public void AFenceInADocumentIsReadAgainWhenItsReadingLands()
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var document = "# Code\n\n```csharp\n" + Unread(Source) + "```\n";
 
         Assert.IsTrue(Reread(engine, () => engine.Lay(null, EditState.For(document), WpfStyles.Dark, 480, readOnly: true)), "it said so");
@@ -208,7 +208,7 @@ public class CodeLanguageTests
     /// <summary><paramref name="source"/> laid out once the grammar has read it, which happens off the way to drawing.</summary>
     private static Laid Landed(string language, string source)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         Laid Lay() => engine.Lay(language, EditState.For(source), WpfStyles.Dark, 480, readOnly: true);
 
         Assert.IsTrue(Reread(engine, () => Pieces(Lay()).Any(kind => kind != Kinds.Verbatim)), "the grammar read it");

@@ -6,7 +6,7 @@ namespace Nexaflow.Tests.Components.Syntax;
 
 /// <summary>
 /// Probe: confirms the C# grammar native loads and pins down whether <c>Node.StartIndex/EndIndex</c> are
-/// UTF-16 char offsets (what AvalonEdit needs), UTF-8 byte offsets, or UTF-16 byte offsets. The comment
+/// UTF-16 char offsets (what a document's offsets are), UTF-8 byte offsets, or UTF-16 byte offsets. The comment
 /// "// café" is 7 UTF-16 units but 8 UTF-8 bytes (é = 2 bytes), so the end index disambiguates.
 /// </summary>
 [TestClass]

@@ -41,7 +41,7 @@ public class FlowchartRenameTests
     /// </summary>
     private static string Typed(string markdown, string says, string text)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(markdown, WpfStyles.Dark, engine: engine) { IsReadOnly = false };
 
         element.Measure(new Size(900, double.PositiveInfinity));

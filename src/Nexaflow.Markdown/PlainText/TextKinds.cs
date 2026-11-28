@@ -11,7 +11,4 @@ public static class TextKinds
     /// typed on and sets down every line that reads as it did as it was laid.
     /// </summary>
     public const string Line = "text-line";
-
-    /// <summary>A word of a line: a run of its characters between spaces — what a spelling, or a name, is looked for in.</summary>
-    public const string Word = "text-word";
 }

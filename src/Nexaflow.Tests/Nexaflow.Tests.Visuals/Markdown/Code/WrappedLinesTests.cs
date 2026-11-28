@@ -127,7 +127,7 @@ public class WrappedLinesTests
     /// <summary><paramref name="text"/> shown on a screen <see cref="Room"/> wide, read and laid — as typed unless a language is named.</summary>
     private static ContentEngine Shown(string text, bool wraps, string? language = ContentLanguages.AsTyped)
     {
-        var engine = new ContentEngine { WrapsLines = wraps };
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WrapsLines = wraps };
         engine.Show(language, WpfStyles.Dark);
         engine.OnScreen = Screen.ToLayout();
         engine.Start(text);

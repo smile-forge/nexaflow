@@ -23,7 +23,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 ///
 /// <para>
 /// For a test about what a language draws — where its pieces go, what it looks like — rather than about a document. What a
-/// document adds, writing in the content and answering what its pieces offer, is tested on a <see cref="MarkdownSurface"/>,
+/// document adds, writing in the content and answering what its pieces offer, is tested on a <see cref="NexaTextSurface"/>,
 /// where it happens.
 /// </para>
 /// </summary>
@@ -35,7 +35,7 @@ internal static class Alone
         if (!ContentLanguages.Reads(language)) throw new ArgumentException($"no language reads '{language}'", nameof(language));
 
         var style = palette ?? WpfStyles.FromTheme();
-        return new ContentElement(source, style, new ContentEngine(inputs), language)
+        return new ContentElement(source, style, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs), language)
         {
             Cursor = Cursors.Arrow,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -48,6 +48,6 @@ internal static class Alone
     {
         var named = dialect == MusicDialect.LilyPond ? "lilypond" : "abc";
 
-        return new(source, palette, new ContentEngine(), named) { IsReadOnly = true, Zoom = zoom };
+        return new(source, palette, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark), named) { IsReadOnly = true, Zoom = zoom };
     }
 }

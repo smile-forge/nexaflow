@@ -158,9 +158,9 @@ public class DiagramNestingTests
     });
 
     /// <summary>A whole document on a surface, measured and arranged as a reader is shown it.</summary>
-    private static MarkdownSurface Settled(string markdown)
+    private static NexaTextSurface Settled(string markdown)
     {
-        var surface = new MarkdownSurface { Document = new EditedDocument(markdown) };
+        var surface = new NexaTextSurface { Document = new EditedDocument(markdown) };
 
         surface.Measure(new Size(900, 2000));
         surface.Arrange(new Rect(0, 0, 900, 2000));

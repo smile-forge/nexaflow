@@ -7,9 +7,9 @@ namespace Nexaflow.Features.Text.ClientTools;
 
 /// <summary>
 /// The AI tool surface for a text file: page through it, search it (edit-aware), and — with approval —
-/// edit it by line number or find/replace. Every mutating tool funnels through the same
-/// <see cref="TextViewModel"/>/<c>OverlayTextFile</c> the user edits, so AI edits show in the viewport,
-/// are searchable, and persist via the same streaming save.
+/// edit it by line number or find/replace. Every mutating tool writes in the same document the reader
+/// edits (<see cref="TextViewModel"/>), so the assistant's edits show on the page, can be taken back,
+/// are searchable, and are saved as the reader's are.
 /// </summary>
 internal static class TextEditorTools
 {
@@ -80,14 +80,15 @@ internal static class TextEditorTools
             ToolSafety.RequiresApproval,
             async (args, ct) =>
             {
-                if (!vm.CanEdit) return ToolResult.Error("This file can't be edited.");
-                vm.EnsureEditing();
+                if (!await vm.Shell.RunOnUiAsync(() => vm.EnsureEditingAsync())) return ToolResult.Error("Another program is writing this file, so it can't be edited now.");
+                
                 int start = ToolArgs.Int(args, "start_line", 1);
                 int end   = ToolArgs.Int(args, "end_line", start);
                 // Raw, not Str: line content is whitespace/newline-significant (a trailing '\n' keeps the line
                 // break; Str would trim it and merge the replacement into the following line).
                 var text  = ToolArgs.Raw(args, "new_text", "text", "content") ?? string.Empty;
-                await vm.ApplyAiLineEditAsync(start - 1, end - 1, text, ct);
+                if (!await vm.ApplyAiLineEditAsync(start - 1, end - 1, text, ct))
+                    return ToolResult.Error($"Lines {start}–{end} reach further than one edit can hold in a file this long. Edit them a part at a time.");
                 return ToolResult.Ok($"edited lines {start}–{end}", $"Replaced lines {start}–{end}. Unsaved — call save_file to persist.");
             },
             parallelizable: false),
@@ -107,10 +108,10 @@ internal static class TextEditorTools
             ToolSafety.RequiresApproval,
             async (args, ct) =>
             {
-                if (!vm.CanEdit) return ToolResult.Error("This file can't be edited.");
+                if (!await vm.Shell.RunOnUiAsync(() => vm.EnsureEditingAsync())) return ToolResult.Error("Another program is writing this file, so it can't be edited now.");
                 var find = ToolArgs.Str(args, "find", "pattern", "search");
                 if (string.IsNullOrEmpty(find)) return ToolResult.Error("No 'find' provided.");
-                vm.EnsureEditing();
+                
                 int start = ToolArgs.Int(args, "start_line", 1);
                 int end   = ToolArgs.Int(args, "end_line", vm.LineCount);
                 var repl  = ToolArgs.Str(args, "replace", "replacement", "to") ?? string.Empty;
@@ -132,12 +133,12 @@ internal static class TextEditorTools
             ToolSafety.RequiresApproval,
             async (args, ct) =>
             {
-                if (!vm.CanEdit) return ToolResult.Error("This file can't be edited.");
+                if (!await vm.Shell.RunOnUiAsync(() => vm.EnsureEditingAsync())) return ToolResult.Error("Another program is writing this file, so it can't be edited now.");
                 var find = ToolArgs.Str(args, "find", "pattern", "search");
                 if (string.IsNullOrEmpty(find)) return ToolResult.Error("No 'find' provided.");
-                vm.EnsureEditing();
+                
                 var repl = ToolArgs.Str(args, "replace", "replacement", "to") ?? string.Empty;
-                long toLine = vm.Engine?.TotalLines ?? vm.LineCount;
+                long toLine = vm.TotalLines;
                 int n = await vm.ApplyAiReplaceAsync(find, repl, ToolArgs.Bool(args, "regex"),
                     ToolArgs.Bool(args, "case_sensitive"), 0, toLine, ct);
                 return ToolResult.Ok($"replaced {n} occurrence(s)", $"Replaced {n} occurrence(s) file-wide. Unsaved — call save_file to persist.");
@@ -146,7 +147,7 @@ internal static class TextEditorTools
 
         new DelegateClientTool(
             "save_file",
-            "Save the file, merging the edits into it (streaming bulk-copy of unchanged regions).",
+            "Save the file with every edit written in it.",
             [],
             ToolSafety.RequiresApproval,
             async (_, _) =>

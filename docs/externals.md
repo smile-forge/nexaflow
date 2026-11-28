@@ -8,10 +8,11 @@ whole file before touching anything under `external/`.
 A third-party dependency is a NuGet package wherever the published package will do. The ones here are the
 exceptions — each had to be built from source because its package was stale, broken or short of what Nexaflow needs —
 and Nexaflow consumes them via a fork the `smile-forge` org controls.
-The .NET libraries are wired in with `ProjectReference` (never `PackageReference`); the odd one out
-(**tree-sitter-xml**) is a **native C grammar** and is the documented exception to that rule — there is no
-`.csproj` to reference, so it is *compiled* by an MSBuild target instead (see **Native grammar submodules**
-below). This lets Nexaflow build against our version while keeping upstream sync working.
+The .NET libraries are wired in with `ProjectReference` (never `PackageReference`); the odd ones out
+(**tree-sitter-xml**, **-powershell**, **-sql**, **-diff** and **-latex**) are **native C grammars** and the documented
+exception to that rule — there is no `.csproj` to reference, so each is *compiled* by an MSBuild target instead
+(see **Native grammar submodules** below). This lets Nexaflow build against our version while keeping upstream
+sync working.
 **usbids** is the one that is data rather than code — no project at all, a single file embedded as a resource
 (its table is below).
 **Never vendor/copy this source into the tree — submodules only.**
@@ -72,6 +73,20 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | Do **NOT** reference | Test/Utilities projects; individual format libs (use the `Containers`/`FileSystems` meta-projects) | The `dtd/` grammar (we only build `xml/`); the Rust/Node/Swift/Python bindings |
 | Notes | Default branch is unusual — **base feature branches off `LTRData.DiscUtils-initial`**. Builds for `net10.0` only: an integration commit on `nexaflow` sets it in the `Library`, `Integrations`, `Tests` and `Utilities` `Directory.Build.props` (and the few projects that set their own), so the fork still builds whole; the source generator stays `netstandard2.0`, as a compiler analyzer must. `SignAssembly=false` (the `SigningKey.snk` isn't needed). `.gitmodules` sets **`ignore = untracked`** (see gotchas). | Supplies the `xml` grammar for `.xaml`/`.xml`/`.xsl` (TreeSitter.DotNet bundles ~30 natives but no XML one). MIT. Sources are self-contained — `xml/src/tree_sitter/*.h` are vendored, and `scanner.c` includes `../../common/scanner.h`, so the `xml/` + `common/` layout must be preserved. Needs the **MSVC C toolchain**. Objects go to `src/Nexaflow.Syntax/obj/native/`, never into the submodule — so this one needs **no** `ignore = untracked`. |
 
+…and four more grammars the bindings repo does not carry, each wired exactly as **tree-sitter-xml** is — a row
+with a `Root` in `tools/tree-sitter-grammars.props`, compiled by the same target, no `ProjectReference`:
+
+| | **tree-sitter-powershell** | **tree-sitter-sql** | **tree-sitter-diff** | **tree-sitter-latex** |
+|---|---|---|---|---|
+| Submodule path | `external/tree-sitter-powershell` | `external/tree-sitter-sql` | `external/tree-sitter-diff` | `external/tree-sitter-latex` |
+| `origin` (committed, our fork) | `https://github.com/smile-forge/tree-sitter-powershell.git` | `https://github.com/smile-forge/tree-sitter-sql.git` | `https://github.com/smile-forge/tree-sitter-diff.git` | `https://github.com/smile-forge/tree-sitter-latex.git` |
+| `upstream` (original) | `https://github.com/airbus-cert/tree-sitter-powershell.git` | `https://github.com/DerekStride/tree-sitter-sql.git` | `https://github.com/tree-sitter-grammars/tree-sitter-diff.git` | `https://github.com/latex-lsp/tree-sitter-latex.git` |
+| **Upstream default branch** | **`main`** | **`main`** — ⚠ but `nexaflow` is based on **`gh-pages`** | **`main`** | **`master`** |
+| Tracked integration branch | `nexaflow` | `nexaflow` | `nexaflow` | `nexaflow` |
+| In-flight feature branches | *(none — `nexaflow` is `upstream/main`)* | *(none — `nexaflow` is `upstream/gh-pages`)* | *(none — `nexaflow` is `upstream/main`)* | `feat/generated-parser` — upstream git-ignores the generated `src/parser.c` and publishes it nowhere, so the grammar could not be built without Node and the tree-sitter CLI; the branch commits what tree-sitter 0.27.2 (the runtime's version) generates from `src/grammar.json`, ABI 15, with its `src/tree_sitter/` headers; branched off `upstream/master` |
+| Nexaflow consumer project | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` |
+| Notes | `.ps1` `.psm1` `.psd1`. MIT. `src/parser.c` + `scanner.c` are committed upstream. | `.sql`, and SQL heredocs in Ruby. MIT. **`main` does not commit the generated `parser.c`**; upstream's release workflow publishes it to `gh-pages`, so `nexaflow` follows `upstream/gh-pages` and a bump is recipe 6 from that branch. `parser.c` is ~45 MB; the DLL ~13 MB. | `.diff` `.patch`. MIT. `parser.c` committed upstream. The repo moved from `the-mikedavis/tree-sitter-diff` to the `tree-sitter-grammars` org. | `.tex` `.sty` `.cls` `.ltx`, registered as `tex-file` and aliased onto this native (`CodeHighlighter.NativeAlias`) because `latex` names the maths language. MIT. A bump is recipe 6 and then **regenerating `parser.c`** on `feat/generated-parser` — `tree-sitter generate src/grammar.json` with the CLI release matching the runtime's tag (needs neither Node nor the grammar's npm packages) — and merging that into `nexaflow` again. |
+
 …and the fourth, kept in its own table because its wiring is a hybrid the columns above can't express
 (a `ProjectReference` **plus** nested C submodules we compile):
 
@@ -82,7 +97,7 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | `upstream` (original) | `https://github.com/mariusgreuel/tree-sitter-dotnet-bindings.git` |
 | **Upstream default branch** | **`main`** |
 | Tracked integration branch | `nexaflow` |
-| In-flight feature branches | *(none — see the note on upstream being dormant)* |
+| In-flight feature branches | `feat/parse-from-reader` — a document held as anything but one string had to be copied into one for every parse, and every tree kept it; `Parser.Parse(TextSource, Tree?)` reads the source a stretch at a time through `ts_parser_parse`, and a tree parsed so reads its nodes' text through it (`Tree.Text`); branched off `nexaflow` (see the note on upstream being dormant) |
 | Nexaflow consumer project | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` |
 | Wired project(s) | `external/tree-sitter-dotnet-bindings/src/TreeSitter.csproj` (the managed bindings; **replaced the `TreeSitter.DotNet` PackageReference**). The natives are **not** built by that project — see below. |
 | Do **NOT** reference | `tests/`, `examples/`. Don't build the repo's `tree-sitter-native/*.vcxproj`: they'd need all 29 grammar submodules and produce languages Nexaflow never registers. |
@@ -355,8 +370,9 @@ the solution is missing an entry, so this cannot rot again.
 
 ### Native grammar submodules (the `ProjectReference` exception)
 
-`tree-sitter-xml` is a **C** grammar, not a .NET library — there is no `.csproj`, so rule "`ProjectReference`,
-never `PackageReference`" cannot apply. It is instead **compiled from source on build**. Everything else about
+`tree-sitter-xml`, `-powershell`, `-sql`, `-diff` and `-latex` are **C** grammars, not .NET libraries — there is no
+`.csproj`, so rule "`ProjectReference`, never `PackageReference`" cannot apply. Each is instead **compiled from
+source on build**. Everything else about
 the submodule convention (org fork, `upstream` remote, `nexaflow` integration branch, pin-by-commit, atomic
 `feat/*` branches) is unchanged.
 
@@ -392,9 +408,9 @@ the submodule convention (org fork, `upstream` remote, `nexaflow` integration br
   `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`, or Build Tools). The script fails with an explicit
   install instruction if it is missing.
 - **Adding another grammar** later: add one row to `tools/tree-sitter-grammars.props` (id + `SourceDir`,
-  plus `Root` only if it lives outside the bindings submodule, as `xml` does). The build script, the
-  `Content` items and the submodule bootstrap all follow from that row. A brand-new *submodule* still needs
-  a sentinel path in `Directory.Build.targets`' `EnsureSubmodulesInitialized` condition.
+  plus `Root` only if it lives outside the bindings submodule, as `xml`, `powershell`, `sql`, `diff` and `latex` do).
+  The build script, the `Content` items and the submodule bootstrap all follow from that row, and a grammar
+  that is a submodule of its own is populated like any other, from `.gitmodules`.
 - **A stale grammar has no natural alarm**, which is why `GrammarParseHealthTests` asserts that every `.cs`
   and `.xaml` file under `src/` parses, and names the C# features this repo actually relies on. Before that
   guard existed, a grammar too old for the language silently produced *absence* — and absence reads as a
@@ -417,9 +433,8 @@ the submodule convention (org fork, `upstream` remote, `nexaflow` integration br
   MSBuild walk-up finds theirs and stops before Nexaflow's root, so they don't inherit Nexaflow's `x64`
   (they build AnyCPU managed IL, which the x64 host consumes fine). Nexaflow has no `Directory.Packages.props`,
   so there's no CPM collision.
-- **A new submodule ⇒ add a sentinel path** to the `EnsureSubmodulesInitialized` condition in
-  `Directory.Build.targets` (a file that only exists once the submodule is checked out), or a fresh
-  worktree won't self-populate it.
+- **A new submodule populates itself in a fresh worktree** — `EnsureSubmodulesInitialized`
+  (`tools/ensure-submodules.targets`) checks every path `.gitmodules` declares, so there is nothing to add.
 - **New `src/**` project ⇒ add it to `Nexaflow.slnx`** (guard: `SolutionMembershipTests`).
 - **A submodule project that `src/` references goes in the solution too**, under the `/External/` folder.
   This reverses earlier advice that they were exempt because ProjectReference builds them transitively.

@@ -70,7 +70,7 @@ the config strictly and rejects unknown keys, including a `//` — hence this fi
 ### `io-common` — `Nexaflow.IO.Common` via `Nexaflow.Tests.IO`
 
 The cleanest 1:1 in the repo. `Tests.IO` references the IO projects and nothing else, and every subject is a
-pure function over bytes or text: `EncodingDetector`, `Glob`, `Hashing`, `Base64Codec`, `TextLineIndex`,
+pure function over bytes or text: `EncodingDetector`, `Glob`, `Hashing`, `Base64Codec`,
 `FileSplitter`. No WPF anywhere in the chain, so it is also the safe one to run on the machine you are
 sitting at. Start here.
 

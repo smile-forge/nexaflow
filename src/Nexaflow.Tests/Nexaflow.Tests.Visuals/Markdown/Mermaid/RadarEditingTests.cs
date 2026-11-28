@@ -34,7 +34,7 @@ public class RadarEditingTests
     private const string Skills = "radar-beta\n  axis ui[\"UI\"], api\n  curve alice[\"Alice\"]{ ui: 3, api: 4 }\n  curve bob{2, 5}";
 
     /// <summary>The chart inside a document, fenced, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Skills) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string diagram = Skills) =>
         MarkdownEditorHarness.Run("Skills:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
             var radar = MarkdownEditorHarness.Block(editor);
@@ -54,13 +54,13 @@ public class RadarEditingTests
         radar.EndPointerSelect();
     }
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();

@@ -4,8 +4,9 @@ using Nexaflow.Markdown.Lines;
 namespace Nexaflow.Markdown.PlainText;
 
 /// <summary>
-/// Plain text, read: one run of its characters, held as written — and, once it is to be laid, cut into lines, each into its words and
-/// the spaces between them (<see cref="InLines"/>), the pieces whatever looks into the text — a spelling, a name — finds there.
+/// Plain text, read: one run of its characters, held as written — and, once it is to be laid, cut into lines, each one run of what is
+/// written on it and its line end (<see cref="InLines"/>). A line is set as one run, so it is held as one: a piece for every word of a
+/// document would cost a node, a part and a string each, for nothing that asks for them.
 ///
 /// <para>
 /// Nothing in it is anything but characters: no grammar, nothing that opens and closes. So it is read a stretch at a time as everything
@@ -27,8 +28,8 @@ public static class TextParser
 
     /// <summary>
     /// <paramref name="tree"/>, a stretch of text, with every body of it cut at its line ends into lines (<see cref="TextKinds.Line"/>),
-    /// each its words (<see cref="TextKinds.Word"/>) and the runs of space between them (<see cref="Kinds.Space"/>), and the line end
-    /// closing it (<see cref="LineKinds.LineEnd"/>), a return before a line feed the line end's.
+    /// each what is written on it (<see cref="Kinds.Words"/>) and the line end closing it (<see cref="LineKinds.LineEnd"/>), a return
+    /// before a line feed the line end's.
     /// </summary>
     public static ContentNode InLines(ContentNode tree)
     {
@@ -68,25 +69,15 @@ public static class TextParser
     }
 
     /// <summary>
-    /// The line of <paramref name="text"/> from <paramref name="start"/> to <paramref name="end"/>, read at <paramref name="at"/>: its words and
-    /// the runs of space between them, and its line end a piece of its own.
+    /// The line of <paramref name="text"/> from <paramref name="start"/> to <paramref name="end"/>, read at <paramref name="at"/>: what is written
+    /// on it as one run, and its line end a piece of its own.
     /// </summary>
     private static ContentNode Line(string text, int start, int end, int at)
     {
         var written = end > start && text[end - 1] == '\n' ? end - 1 > start && text[end - 2] == '\r' ? end - 2 : end - 1 : end;
-        var parts = new List<ContentNode>();
+        var parts = new List<ContentNode>(2);
 
-        for (var from = start; from < written;)
-        {
-            var space = text[from] is ' ' or '\t';
-            var to = from + 1;
-
-            while (to < written && (text[to] is ' ' or '\t') == space) to++;
-
-            parts.Add(ContentNode.Leaf(space ? Kinds.Space : TextKinds.Word, text[from..to], offset: at + from));
-            from = to;
-        }
-
+        if (written > start) parts.Add(ContentNode.Leaf(Kinds.Words, text[start..written], offset: at + start));
         if (end > written) parts.Add(ContentNode.Leaf(LineKinds.LineEnd, text[written..end], Roles.Separator, offset: at + written));
 
         return ContentNode.Branch(TextKinds.Line, parts, Roles.Element, offset: at + start);

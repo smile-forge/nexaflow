@@ -54,8 +54,8 @@ usually a few lines and leaves the control thinner:
 - **Markdown's scroll-to-heading deep link** — the interesting part is matching a `>`-joined heading path
   against the document's outline (so duplicate names under different parents stay distinct), not the scroll, so it
   is `ContentOutline.Titled`, asked through the engine that laid the document (`ContentEngine.Titled`).
-- **Code's `.xshd` theming** — the name→role heuristic is in `SyntaxTokenMap` beside the tree-sitter
-  capture→role map, not in `XshdTheming`. One role palette, both engines, both testable.
+- **Code's colours** — the capture→role map is `SyntaxTokenMap`, not the colourizer that paints with it, so every
+  capture a query names is asked of it without a window.
 - **SysInfo's health colouring** — `StatusToBrushConverter.Convert` exposes the status→`TextSwatch.*` mapping as
   `ResourceKey`, so "every status resolves to a semantic token, and an unknown one paints as plain text rather
   than implying a verdict" is assertable without an `Application`.
@@ -98,8 +98,8 @@ A **device** is not automatically an excuse either. Audio's engine only exists a
 "every transport command is safe before it exists" — the half that actually breaks — is unit-testable even
 though playing a sound is not. Split the leaf's rule from the device call and test the half you can.
 
-Some leaves are only reachable through the real control (a rendered `RichTextBox`, a live AvalonEdit
-selection). Those get a control-level test in an off-screen window (`MarkdownEditorHarness`) tagged
+Some leaves are only reachable through the real control (a rendered `RichTextBox`, a key pressed into a
+live surface). Those get a control-level test in an off-screen window (`MarkdownEditorHarness`) tagged
 `TestCategory=UI` — still one test per leaf, just not headless.
 
 ### When a node genuinely can't be unit-tested
@@ -636,7 +636,7 @@ holds on to, and for the largest document each layer it holds and what opening i
 with corpus totals for every nested language, every stage of each language's own
 pipeline, and every kind of block. Rich text (RTF) is laid through the same steps — its samples and one long document
 written as a word processor writes one — and totalled on its own (`rtfTotals`), so the markdown totals compare with every
-run before it. And what **reading** a long document costs once it is open (`reading`), timed on a `MarkdownSurface` in a
+run before it. And what **reading** a long document costs once it is open (`reading`), timed on a `NexaTextSurface` in a
 window until the window is idle, since that is where it is paid — a screen down at a time from the top, the thumb dragged
 anywhere, a turn of the wheel at three depths, the pointer's cursor and the block it is over, a drag down a screen, and
 picking everything out — over a generated lecture script about a megabyte long and full of formulas, and
@@ -645,7 +645,7 @@ and asserts nothing.
 
 What **writing** costs is its own test and its own file (`WhatWritingInADocumentCosts`, `markdown-writing-bench-*.json`),
 because an edit laid as a changed string pays for laying out and painting and nothing else. Its keys go in as the window's
-do (`ContentEngine.Input`), to a `MarkdownSurface` in a window, each timed until the window is idle, so the edit, the history
+do (`ContentEngine.Input`), to a `NexaTextSurface` in a window, each timed until the window is idle, so the edit, the history
 kept, the host told, laying out and painting are all in it. Over generated prose and C# at 50 KB, 1 MB and 50 MB, and prose
 holding a 1 MB and a 5 MB C# fence, it times a keystroke at the top, middle and end (in and after the fence), taking back
 the last step, taking back fifty one at a time, pasting a megabyte and carrying a word down the screen, each with what it
@@ -959,10 +959,14 @@ tree — that is the maintenance step.
 `Features.Common` (contracts) has no test folder of its own; its client-tool wire-protocol parser
 (`ClientBlockParser`) and the agent loop are tested in `Tests.Core` (`Unit/ClientTools/`).
 
-The windowed-reader view-models load into a thread-affine AvalonEdit `TextDocument` across `await`
-points, so `LogViewModel`/`TextViewModel` tests run under `Infrastructure/AsyncPump.cs` (a
-single-threaded synchronization context). `LogViewModel`'s background head-reassembly needs a live UI
-`Dispatcher`, so that one path is left to the UI smoke rather than a unit test.
+The file-reading view-models load and read off the page across `await` points, so `LogViewModel`/`TextViewModel`
+tests run under `Infrastructure/AsyncPump.cs` (a single-threaded synchronization context): their continuations
+come back to one thread as they do on the page. Each takes a smaller window and, for Logs, a smaller tail than it
+ships with, so a short file is read the way a long one is. Three helpers in the suite's `Infrastructure/` stand in
+for what a running shell and surface give a page: `UiRunningShell`, whose `RunOnUiAsync` does its work at once (a
+substitute alone hands back a default task and never does it); `ScrollRecorder`, attached to a page's editor as its
+view, which keeps the lines the page asked to be put on screen; and `EditorMarks`, what the editor's mark layers
+make over the whole document — what a level wash, a filter veil or a search would draw.
 
 ### Core shell (`Nexaflow.Tests.Core`)
 
@@ -978,7 +982,7 @@ solution — which is why everything that does **not** need Core lives in the su
 ### Visuals (`Nexaflow.Tests.Visuals`)
 
 Covers the `Nexaflow.Visuals.*` libraries, with no reference to Core: markdown parsing and rendering
-(`MarkdownBuilder`, `MarkdownSurface`, extensions, pipeline, every language's builder and the layered layout), the
+(`MarkdownBuilder`, `NexaTextSurface`, extensions, pipeline, every language's builder and the layered layout), the
 LaTeX formula tree/layout/caret model, the music engraver, writing in a document, `Visuals.Text`'s
 editor surface and highlighting, the shared controls and pan/zoom layout, and the WebView2 surface.
 
@@ -1024,9 +1028,8 @@ no Visuals. That is the point of the split rather than a side effect: these test
 no shell and no config root (no IO library reaches one), so they are the fastest suite to run and the one
 least able to fail for a reason that is not about its subject.
 
-- **`Common/`** — `Base64Codec`, `DirectoryMover`, `FileSplitter`, `Glob`, `Hashing`, `OverlayTextFile`,
-  `TextLineIndex`, `TextTransforms`, and `FileTransferEngine`'s verified copies (a test seam changes what landed
-  before the read-back). `Common/Audio/` holds the speech devices' tests; `SerialPortCatalogTests` lists this machine's
+- **`Common/`** — `Base64Codec`, `DirectoryMover`, `FileSplitter`, `Glob`, `Hashing`, `TextTransforms`, and
+  `FileTransferEngine`'s verified copies (a test seam changes what landed before the read-back). `Common/Audio/` holds the speech devices' tests; `SerialPortCatalogTests` lists this machine's
   COM ports without opening any. The USB probe's audio test signals, meter and endpoint catalog are that feature's own,
   tested in `Tests.Features.WindowsOS/UsbProbe/`; WAV, PNG and resampling are `Nexaflow.Media`'s, tested in
   `Tests.Components/Media/`.

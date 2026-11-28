@@ -101,7 +101,7 @@ public class MarkdownLinkTests
         // points at the screen, and leave the words the writer wrote exactly as they were.
         var laid = Lay("[the Help button](locate:Chrome_HelpButton) and [the web](https://example.com/x)\n",
                        (where, _) => where.StartsWith("locate:")
-                           ? new LinkLook(Brushes.Orange, Before: "\U0001F4CD", After: "\u29c9")
+                           ? new LinkLook(LayoutColor.Of(0xFF, 0xA5, 0x00), Before: "\U0001F4CD", After: "\u29c9")
                            : null);
 
         var drawn = string.Concat(Words(laid).Select(piece => piece.Words!.Glyphs.Text));
@@ -167,7 +167,7 @@ public class MarkdownLinkTests
         // it between them — which is the thing that quietly stops working when a surface is swapped underneath.
         var offered = new List<string>();
 
-        var view = new MarkdownSurface
+        var view = new NexaTextSurface
         {
             LinkDecorator = (where, _) =>
             {

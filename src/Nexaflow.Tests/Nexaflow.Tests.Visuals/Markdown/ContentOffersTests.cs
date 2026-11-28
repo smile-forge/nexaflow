@@ -10,6 +10,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Localization;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -35,11 +36,11 @@ public class ContentOffersTests
     {
         const string source = "# Title\n\nWords with **bold** in them.\n";
 
-        var whole = MarkdownClipboard.Copied(ContentDocument.Of(source), null);
+        var whole = Copied(source, null);
 
         Assert.AreEqual(source, whole.Markdown, "nothing chosen means the document");
-        StringAssert.Contains(whole.Text, "Words with bold in them", "the words a reader sees, marks taken off");
-        StringAssert.Contains(whole.Html, "<strong", "and the same marked up, for anywhere that wants it that way");
+        StringAssert.Contains(MarkdownClipboard.PlainWords(whole), "Words with bold in them", "the words a reader sees, marks taken off");
+        StringAssert.Contains(MarkdownClipboard.MarkedUp(whole), "<strong", "and the same marked up, for anywhere that wants it that way");
     }
 
     [TestMethod]
@@ -49,10 +50,10 @@ public class ContentOffersTests
         const string source = "# Title\n\nWords with **bold** in them.\n";
         var at = source.IndexOf("**bold**", System.StringComparison.Ordinal);
 
-        var picked = MarkdownClipboard.Copied(ContentDocument.Of(source), (at, "**bold**".Length));
+        var picked = Copied(source, (at, "**bold**".Length));
 
         Assert.AreEqual("**bold**", picked.Markdown, "the markdown as written, not as this renderer would write it");
-        StringAssert.Contains(picked.Text, "bold");
+        StringAssert.Contains(MarkdownClipboard.PlainWords(picked), "bold");
     }
 
     [TestMethod]
@@ -61,9 +62,9 @@ public class ContentOffersTests
     {
         const string source = "words\n";
 
-        Assert.AreEqual(source, MarkdownClipboard.Copied(ContentDocument.Of(source), (900, 5)).Markdown);
-        Assert.AreEqual(source, MarkdownClipboard.Copied(ContentDocument.Of(source), (-3, 5)).Markdown);
-        Assert.AreEqual(source, MarkdownClipboard.Copied(ContentDocument.Of(source), (0, 0)).Markdown);
+        Assert.AreEqual(source, Copied(source, (900, 5)).Markdown);
+        Assert.AreEqual(source, Copied(source, (-3, 5)).Markdown);
+        Assert.AreEqual(source, Copied(source, (0, 0)).Markdown);
     }
 
     [TestMethod]
@@ -238,23 +239,27 @@ public class ContentOffersTests
     [TestMethod]
     [CoversNode("markdown-context-menu")]
     public void NothingIsOfferedToAReaderWhoMayNotWrite() =>
-        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Ribbon(new ContentAsk(string.Empty, ContentDocument.Of("words\n")) { IsReadOnly = true }).Count);
+        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Ribbon(new ContentAsk(string.Empty, ContentDocument.Of("words\n")) { IsReadOnly = true, Medium = WpfMedium.OnThisThread, Style = WpfStyles.Dark }).Count);
 
     [TestMethod]
     public void EveryOfferIsSomethingAReaderCanRead() => UiThread.Run(() =>
     {
         // A verb is what the renderer calls it; what a reader sees is words.
-        Assert.AreEqual(Str.Get("Text.Ribbon.Copy"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Copy)));
-        Assert.AreEqual(Str.Get("Text.Ribbon.SavePicture"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Save)));
-        Assert.AreEqual(Str.Get("Text.Ribbon.OpenLink"), DiagramRibbon.Names(new LayoutIntent(LayoutVerbs.Navigate)));
+        Assert.AreEqual(Str.Get("Markdown.Ribbon.Copy"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Copy)));
+        Assert.AreEqual(Str.Get("Markdown.Ribbon.SavePicture"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Save)));
+        Assert.AreEqual(Str.Get("Markdown.Ribbon.OpenLink"), RibbonMarks.Names(new LayoutIntent(LayoutVerbs.Navigate)));
 
         // And a content's own verb says whatever it said for itself.
-        Assert.AreEqual("Sharpen", DiagramRibbon.Names(new LayoutIntent("sharpen", null, "Sharpen")));
+        Assert.AreEqual("Sharpen", RibbonMarks.Names(new LayoutIntent("sharpen", null, "Sharpen")));
     });
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static ContentAsk Ask(string named, string source) => new(named, ContentDocument.Of(source));
+    /// <summary>What copying <paramref name="chosen"/> out of <paramref name="source"/> would put on a clipboard.</summary>
+    private static ContentCopy Copied(string source, (int Start, int Length)? chosen) =>
+        new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Light).CopyOf(ContentDocument.Of(source), chosen);
+
+    private static ContentAsk Ask(string named, string source) => new(named, ContentDocument.Of(source)) { Medium = WpfMedium.OnThisThread, Style = WpfStyles.Dark };
 
     /// <summary>The handle a journey presses a button by.</summary>
     private static string Id(Button button) => System.Windows.Automation.AutomationProperties.GetAutomationId(button);

@@ -7,7 +7,8 @@
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="MarkdownView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:engine="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Markdown">
 
     <UserControl.InputBindings>
         <KeyBinding Key="D0"       Modifiers="Control" Command="{Binding Zoom.ResetZoomCommand}"/>
@@ -485,11 +486,11 @@
                 <!-- The whole document as it is typed, wrapped as a page of text: a second surface on the document the rendered
                      half shows, so there is one copy of it and one history of what was written, whichever half it was written in.
                      It washes what a search found whether or not it has the keyboard. -->
-                <md:MarkdownSurface x:Name="SourceBox"
+                <md:NexaTextSurface x:Name="SourceBox"
                                     Grid.Column="0"
                                     AutomationProperties.AutomationId="Markdown_SourceBox"
                                     Visibility="{Binding ShowSource, Converter={StaticResource BoolVis}}"
-                                    WrittenIn="{x:Static md:ContentLanguages.AsTyped}"
+                                    WrittenIn="{x:Static engine:ContentLanguages.AsTyped}"
                                     WrapsLines="True"
                                     IsReadOnly="False"
                                     BaseFontSize="{Binding Zoom.FontSize}"
@@ -497,10 +498,10 @@
                                                         ContentPadding="4,24,40,48"
                                                         VerticalScrollBarVisibility="Auto"
                                                         Document="{Binding Document}">
-                                        <md:MarkdownSurface.LeadingMargins>
+                                        <md:NexaTextSurface.LeadingMargins>
                                             <md:LineNumberMargin/>
-                                        </md:MarkdownSurface.LeadingMargins>
-                                    </md:MarkdownSurface>
+                                        </md:NexaTextSurface.LeadingMargins>
+                                    </md:NexaTextSurface>
 
                 <!-- Only in the split: drag it to give either half more of the pane. -->
                 <GridSplitter Grid.Column="1"
@@ -512,7 +513,7 @@
 
                 <!-- Rendered markdown with inline editing. The reading inset is ContentPadding, not a Margin,
                      so the editor's scrollbar sits flush against the minimap (a right margin would gap it). -->
-                <md:MarkdownSurface x:Name="Editor"
+                <md:NexaTextSurface x:Name="Editor"
                                          Grid.Column="2"
                                          ContentPadding="40,24,40,48"
                                          IsReadOnly="False"

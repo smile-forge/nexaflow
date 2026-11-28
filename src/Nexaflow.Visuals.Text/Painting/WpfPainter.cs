@@ -36,15 +36,21 @@ public static class WpfPainter
     /// (<see cref="Around"/>), and one far from it lets its picture go — so a long document costs a screen of pictures however long it
     /// is. Null paints everything.
     /// </param>
-    public static void Paint(DrawingContext dc, LayoutPiece piece, Brush ink, Rect? showing = null)
+    /// <param name="by">
+    /// How far along the page is drawn from where it stands — minus the top of the view, for a page drawn from there. It is added where each
+    /// piece is placed, in full, so what reaches the drawing context stands near nought however far down a long document it is: drawing
+    /// takes its places in single precision, and a place millions of pixels down comes out somewhere else, or not at all.
+    /// </param>
+    public static void Paint(DrawingContext dc, LayoutPiece piece, Brush ink, Rect? showing = null, LayoutVector by = default)
     {
         if (!piece.Exists) return;
 
         var foreground = WpfMedium.OnThisThread.Ink(ink);
-        var near = showing is { } shown ? Around(shown) : (Rect?)null;
+        var from = new Vector(by.X, by.Y);
+        var near = showing is { } shown ? Rect.Offset(Around(shown), from) : (Rect?)null;
 
-        Descend(dc, piece, foreground, washes: true, default, near);
-        Descend(dc, piece, foreground, washes: false, default, near);
+        Descend(dc, piece, foreground, washes: true, from, near);
+        Descend(dc, piece, foreground, washes: false, from, near);
     }
 
     /// <summary>
@@ -59,9 +65,9 @@ public static class WpfPainter
     /// <summary>
     /// Paints one piece where it sits on the page, rather than where it sits in its parent — for a caller redrawing part of a tree on
     /// its own. Everything holding it is entered first and draws nothing, because a piece's place is relative and its frame is
-    /// therefore the thing above it.
+    /// therefore the thing above it. The page is drawn moved along by <paramref name="by"/>, as <see cref="Paint"/> draws it.
     /// </summary>
-    public static void PaintOne(DrawingContext dc, LayoutPiece piece, Brush ink)
+    public static void PaintOne(DrawingContext dc, LayoutPiece piece, Brush ink, LayoutVector by = default)
     {
         if (!piece.Exists) return;
 
@@ -69,13 +75,13 @@ public static class WpfPainter
         var above = new List<LayoutPiece>();
         for (var up = piece.DrawnHolder; up.Exists; up = up.DrawnHolder) above.Add(up);
 
-        var offset = default(Vector);
+        var offset = new Vector(by.X, by.Y);
         var pushed = 0;
 
         for (var at = above.Count - 1; at >= 0; at--)
         {
-            var by = above[at].Offset;
-            offset += new Vector(by.X, by.Y);
+            var step = above[at].Offset;
+            offset += new Vector(step.X, step.Y);
             pushed += Enter(dc, above[at].Painting, ref offset);
         }
 

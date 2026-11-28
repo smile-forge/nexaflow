@@ -18,8 +18,9 @@ namespace Nexaflow.Markdown.Editing;
 /// </para>
 /// <para>
 /// <strong>A step is a stretch of writing in one place.</strong> Typing a sentence is one thing done, not forty, so an
-/// edit that carries on from where the last one left the caret joins it. Putting the caret anywhere else and writing
-/// there starts the next step — which is what a reader means by "the last thing I did".
+/// edit that carries on from where the last one left the caret joins it — on every line at once, for a block of columns
+/// (<see cref="ColumnRanges"/>). Putting the caret anywhere else and writing there starts the next step — which is what a
+/// reader means by "the last thing I did".
 /// </para>
 /// <para>
 /// <strong>The changes are true only of the document they were left at.</strong> Taking a step back is asked of the document as
@@ -66,6 +67,19 @@ public sealed class EditHistory
     public bool IsAtSaved => _saved == _undo.Count;
 
     /// <summary>
+    /// Where, in the whole of what is written, the document the history last left starts: nought, except for the window onto a file too long
+    /// for one document, where it is where the window starts. Every step is kept with where it was written, so a step written before the
+    /// window moved is taken back where it was written.
+    /// </summary>
+    public long Origin { get; private set; }
+
+    /// <summary>Where, in the whole of what is written, the step the next undo takes back writes — or null where there is none.</summary>
+    public (long Start, long End)? UndoSpan => _undo.Count == 0 ? null : Span(_undo[^1].Backward, _undo[^1].Origin);
+
+    /// <summary>Where, in the whole of what is written, the step the next redo writes again writes — or null where there is none.</summary>
+    public (long Start, long End)? RedoSpan => _redo.Count == 0 ? null : Span(_redo[^1].Forward, _redo[^1].Origin);
+
+    /// <summary>
     /// Says that the document went from <paramref name="before"/> to <paramref name="after"/> because somebody wrote in it
     /// — joining the step being written where it carries on from where that step left the caret.
     /// </summary>
@@ -74,19 +88,19 @@ public sealed class EditHistory
         if (ReferenceEquals(before.Document, after.Document)) return;
 
         var (forward, backward) = after.Document.ChangesFrom(before.Document);
-        if (forward.Writes.All(write => write.Length == 0 && write.Text.Length == 0)) return;
+        if (forward.Writes.All(write => write.Length == 0 && write.WrittenLength == 0)) return;
 
         _redo.Clear();
         if (_saved > _undo.Count) _saved = -1;
 
-        if (_open is { } open && ReferenceEquals(_left, before.Document) && open.After.Caret == before.Caret
+        if (_open is { } open && open.Origin == this.Origin && ReferenceEquals(_left, before.Document) && open.After.Caret == before.Caret
             && Joined(open, forward, before) is { } joined)
         {
             _undo[^1] = _open = joined with { After = Placed(after) };
         }
         else
         {
-            _undo.Add(_open = new EditStep(forward, backward, Placed(before), Placed(after)));
+            _undo.Add(_open = new EditStep(forward, backward, Placed(before), Placed(after), this.Origin));
         }
 
         _left = after.Document;
@@ -95,31 +109,61 @@ public sealed class EditHistory
     }
 
     /// <summary>
-    /// The state to go back to from <paramref name="now"/>, or null where there is nothing to take back. Whatever was
-    /// being written is finished: the next edit is a step of its own.
+    /// The state to go back to from <paramref name="now"/>, or null where there is nothing to take back — or the step to take back lies outside
+    /// the window onto a file the document is (<see cref="EditedDocument.ReachUndo"/> moves it there first). Whatever was being written is
+    /// finished: the next edit is a step of its own.
     /// </summary>
     public EditState? Undo(EditState now)
     {
         if (_undo.Count == 0 || !Applies(now)) return null;
 
         var step = _undo[^1];
+        if (!Inside(step.Backward, step.Origin, now.Document.Length)) return null;
+
         _undo.RemoveAt(_undo.Count - 1);
         _redo.Add(step);
 
-        return Taken(now.Document.Apply(step.Backward), step.Before);
+        var by = (int)(step.Origin - this.Origin);
+        return Taken(now.Document.Apply(Shifted(step.Backward, by)), Shifted(step.Before, by));
     }
 
-    /// <summary>The state to go forward to again from <paramref name="now"/>, or null where nothing was taken back.</summary>
+    /// <summary>The state to go forward to again from <paramref name="now"/>, or null where nothing was taken back — or what was lies outside the window.</summary>
     public EditState? Redo(EditState now)
     {
         if (_redo.Count == 0 || !Applies(now)) return null;
 
         var step = _redo[^1];
+        if (!Inside(step.Forward, step.Origin, now.Document.Length)) return null;
+
         _redo.RemoveAt(_redo.Count - 1);
         _undo.Add(step);
 
-        return Taken(now.Document.Apply(step.Forward), step.After);
+        var by = (int)(step.Origin - this.Origin);
+        return Taken(now.Document.Apply(Shifted(step.Forward, by)), Shifted(step.After, by));
     }
+
+    /// <summary>Where <paramref name="change"/>, written where a window starting at <paramref name="origin"/> stood, writes in the whole of what is written.</summary>
+    private static (long Start, long End) Span(ContentChange change, long origin) =>
+        change.Writes.Count == 0 ? (origin + change.Caret, origin + change.Caret)
+            : (origin + change.Writes.Min(write => write.Start), origin + change.Writes.Max(write => write.End));
+
+    /// <summary>Whether <paramref name="change"/>, written where a window starting at <paramref name="origin"/> stood, writes inside the document as long as <paramref name="length"/> the history now leaves.</summary>
+    private bool Inside(ContentChange change, long origin, int length)
+    {
+        var (start, end) = Span(change, origin);
+        return start >= this.Origin && end <= this.Origin + length;
+    }
+
+    /// <summary><paramref name="change"/> with every offset moved <paramref name="by"/>.</summary>
+    private static ContentChange Shifted(ContentChange change, int by) =>
+        by == 0 ? change : new ContentChange([.. change.Writes.Select(write => write with { Start = write.Start + by })], change.Caret + by);
+
+    /// <summary><paramref name="place"/> with every offset moved <paramref name="by"/>.</summary>
+    private static EditPlace Shifted(EditPlace place, int by) =>
+        by == 0 ? place : new EditPlace(
+            place.Caret + by,
+            place.Selected?.Select(range => new EditRange(range.Start + by, range.Length)).ToList(),
+            place.Raw is { } raw ? new RawZone(raw.Start + by, raw.End + by) : null);
 
     /// <summary>
     /// The document as it stood before the step <paramref name="now"/> is part of — what taking that step back would put back — and the one
@@ -129,17 +173,17 @@ public sealed class EditHistory
     /// </summary>
     public (ContentDocument Before, ContentWrite Written)? Begun(EditState last, EditState now)
     {
-        var open = _open is { } step && ReferenceEquals(_left, last.Document) && _undo.Count > 0 && ReferenceEquals(_undo[^1], step) ? step : null;
+        var open = _open is { } step && step.Origin == this.Origin && ReferenceEquals(_left, last.Document) && _undo.Count > 0 && ReferenceEquals(_undo[^1], step) ? step : null;
 
         var forward = ReferenceEquals(last.Document, now.Document) ? null
                     : now.Document.MadeFrom(last.Document) ? now.Document.Change!
                     : now.Document.ChangesFrom(last.Document).Forward;
 
-        if (forward is null || forward.Writes.All(write => write.Length == 0 && write.Text.Length == 0))
+        if (forward is null || forward.Writes.All(write => write.Length == 0 && write.WrittenLength == 0))
             return open is null ? null : (last.Document.Apply(open.Backward), Spanned(open.Forward, last.Document));
 
         if (open is not null && open.After.Caret == last.Caret && Joined(open, forward, last) is { } joined)
-            return (last.Document.Apply(open.Backward), joined.Forward.Writes[0]);
+            return (last.Document.Apply(open.Backward), Spanned(joined.Forward, now.Document));
 
         return (last.Document, Spanned(forward, now.Document));
     }
@@ -148,13 +192,34 @@ public sealed class EditHistory
     private static ContentWrite Spanned(ContentChange change, ContentDocument after)
     {
         var (from, to) = (change.Writes.Min(write => write.Start), change.Writes.Max(write => write.End));
-        var reached = to + change.Writes.Sum(write => write.Text.Length - write.Length);
+        var reached = to + change.Writes.Sum(write => write.WrittenLength - write.Length);
 
         return new ContentWrite(from, to - from, after.Slice(from, reached - from));
     }
 
     /// <summary>Ends the step being written, so the next edit starts one of its own however near it lands.</summary>
     public void Break() => _open = null;
+
+    /// <summary>
+    /// Says that the document the history last left, <paramref name="from"/>, is now <paramref name="now"/>: the same characters held another
+    /// way, or grown past where any step writes. Every step still says what it did where it did it, so none is lost.
+    /// </summary>
+    public void Restate(ContentDocument from, ContentDocument now)
+    {
+        if (ReferenceEquals(_left, from)) _left = now;
+    }
+
+    /// <summary>
+    /// Says the window onto a file the history is kept for moved <paramref name="by"/> characters through the file, the document it last left,
+    /// <paramref name="from"/>, becoming <paramref name="now"/>: every step is still taken back where in the file it was written, and what is
+    /// written next is a step of its own.
+    /// </summary>
+    public void Moved(ContentDocument from, ContentDocument now, long by)
+    {
+        this.Origin += by;
+        this.Restate(from, now);
+        _open = null;
+    }
 
     /// <summary>Says that what is written now has been saved, so <see cref="IsAtSaved"/> is true here and until something else is written.</summary>
     public void MarkSaved()
@@ -223,30 +288,57 @@ public sealed class EditHistory
 
     /// <summary>
     /// <paramref name="open"/> carried on by <paramref name="forward"/>, written at <paramref name="before"/> — or null where the
-    /// two are not one stretch of writing: each is one write, and the second is written at the caret, against or inside what the
-    /// first wrote. The step that comes of it writes the whole stretch the two touched, from what it was before the first.
+    /// two are not one stretch of writing: they write as many stretches as each other, the caret is at one of the second's, and each
+    /// of the second's is written against or inside what its counterpart in the first wrote — one stretch, as typing does, or one on
+    /// every line of a block of columns. The step that comes of it writes each whole stretch the two touched, from what it was before
+    /// the first.
     /// </summary>
     private static EditStep? Joined(EditStep open, ContentChange forward, EditState before)
     {
-        if (open.Forward.Writes is not [var first] || open.Backward.Writes is not [var undone] || forward.Writes is not [var next]) return null;
+        var (wrote, undone, next) = (open.Forward.Writes, open.Backward.Writes, forward.Writes);
+        if (wrote.Count == 0 || undone.Count != wrote.Count || next.Count != wrote.Count) return null;
 
-        // What the open step wrote, where it stands in the document the next write is made to.
-        var (wroteFrom, wroteTo) = (first.Start, first.Start + first.Text.Length);
-        if (before.Caret < next.Start || before.Caret > next.End || next.End < wroteFrom || next.Start > wroteTo) return null;
+        // Typing joins what it typed; a stretch held as a document's leaves is a long edit of its own, never part of a run of typing.
+        if (wrote.Any(write => write.Held is not null) || undone.Any(write => write.Held is not null) || next.Any(write => write.Held is not null)) return null;
+        if (!next.Any(write => before.Caret >= write.Start && before.Caret <= write.End)) return null;
 
         var written = before.Document;
-        var (from, to) = (Math.Min(wroteFrom, next.Start), Math.Max(wroteTo, next.End));
+        var forwards = new ContentWrite[wrote.Count];
+        var backwards = new ContentWrite[wrote.Count];
 
-        // Outside what the open step wrote, the document it was written to reads as the one before it did; inside, as what it
-        // wrote over.
-        var was = written.Slice(from, wroteFrom - from) + undone.Text + written.Slice(wroteTo, to - wroteTo);
-        var now = written.Slice(from, next.Start - from) + next.Text + written.Slice(next.End, to - next.End);
-        var reached = to - first.Text.Length + first.Length;
+        // How far the open step moved what follows each stretch, how far the joined one does, and where the last stretch joined ended.
+        var (shifted, grown, reached) = (0, 0, 0);
+
+        for (var at = 0; at < wrote.Count; at++)
+        {
+            var (first, then) = (wrote[at], next[at]);
+            if (undone[at].Text.Length != first.Length) return null;
+
+            // What the open step wrote here, where it stands in the document the next write is made to.
+            var (wroteFrom, wroteTo) = (first.Start + shifted, first.Start + shifted + first.Text.Length);
+            if (then.End < wroteFrom || then.Start > wroteTo) return null;
+
+            var (from, to) = (Math.Min(wroteFrom, then.Start), Math.Max(wroteTo, then.End));
+
+            // Outside what the open step wrote, the document it was written to reads as the one before it did; inside, as what it
+            // wrote over.
+            var was = written.Slice(from, wroteFrom - from) + undone[at].Text + written.Slice(wroteTo, to - wroteTo);
+            var now = written.Slice(from, then.Start - from) + then.Text + written.Slice(then.End, to - then.End);
+            var start = from - shifted;
+            if (start < reached) return null;
+
+            forwards[at] = new ContentWrite(start, was.Length, now);
+            backwards[at] = new ContentWrite(start + grown, now.Length, was);
+
+            shifted += first.Text.Length - first.Length;
+            grown += now.Length - was.Length;
+            reached = start + was.Length;
+        }
 
         return open with
         {
-            Forward = new ContentChange([new ContentWrite(from, reached - from, now)], forward.Caret),
-            Backward = new ContentChange([new ContentWrite(from, now.Length, was)], from + was.Length),
+            Forward = new ContentChange(forwards, forward.Caret),
+            Backward = new ContentChange(backwards, backwards[0].Start + backwards[0].Text.Length),
         };
     }
 
@@ -255,10 +347,18 @@ public sealed class EditHistory
     /// <summary>Where the caret was, what was picked out and what was shown as written — a state without its document.</summary>
     private readonly record struct EditPlace(int Caret, IReadOnlyList<EditRange>? Selected, RawZone? Raw);
 
-    /// <summary>One step: the change written and the change that takes it back, and the state either side of it without its document.</summary>
-    private sealed record EditStep(ContentChange Forward, ContentChange Backward, EditPlace Before, EditPlace After)
+    /// <summary>
+    /// One step: the change written and the change that takes it back, and the state either side of it without its document — all in the
+    /// offsets of the document it was written in, which started at <paramref name="Origin"/> in the whole of what is written.
+    /// </summary>
+    private sealed record EditStep(ContentChange Forward, ContentChange Backward, EditPlace Before, EditPlace After, long Origin)
     {
-        /// <summary>How many characters it holds, written and written over.</summary>
-        public long Held => Forward.Writes.Sum(write => (long)write.Text.Length) + Backward.Writes.Sum(write => (long)write.Text.Length);
+        /// <summary>
+        /// How many characters it holds in memory, written and written over — a stretch kept as a document's leaves counting only those
+        /// held in memory, so a long stretch of a file costs what keeping its place costs.
+        /// </summary>
+        public long Held => Forward.Writes.Sum(Kept) + Backward.Writes.Sum(Kept);
+
+        private static long Kept(ContentWrite write) => write.Held?.HeldCharacters ?? write.WrittenLength;
     }
 }

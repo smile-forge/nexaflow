@@ -7,6 +7,7 @@ using System.Windows.Automation.Provider;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Editing;
+using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Stages;
@@ -52,7 +53,7 @@ public class LaidLinkTests
         // The help pane's locate: links carry a pin in front, which is the host's and not the writer's.
         var view = Shown("[the Help button](locate:Chrome_HelpButton)\n",
                          decorate: (where, _) => where.StartsWith("locate:")
-                             ? new LinkLook(Brushes.Orange, Before: "\U0001F4CD", Says: "Shows where it is")
+                             ? new LinkLook(LayoutColor.Of(0xFF, 0xA5, 0x00), Before: "\U0001F4CD", Says: "Shows where it is")
                              : null);
 
         var link = Hyperlinks(view).Single();
@@ -100,15 +101,15 @@ public class LaidLinkTests
 
     // ── Driving ─────────────────────────────────────────────────────────────
 
-    private static MarkdownSurface Shown(string markdown, double width = 640,
+    private static NexaTextSurface Shown(string markdown, double width = 640,
                                          System.Func<string, string, LinkLook?>? decorate = null)
     {
-        var view = new MarkdownSurface { LinkDecorator = decorate, Document = new EditedDocument(markdown) };
+        var view = new NexaTextSurface { LinkDecorator = decorate, Document = new EditedDocument(markdown) };
         Settle(view, width);
         return view;
     }
 
-    private static void Settle(MarkdownSurface view, double width = 640)
+    private static void Settle(NexaTextSurface view, double width = 640)
     {
         view.Measure(new Size(width, 2000));
         view.Arrange(new Rect(0, 0, width, 2000));
@@ -116,7 +117,7 @@ public class LaidLinkTests
     }
 
     /// <summary>Every Hyperlink in the surface's automation tree, in the order UI Automation lists them.</summary>
-    private static List<AutomationPeer> Hyperlinks(MarkdownSurface view)
+    private static List<AutomationPeer> Hyperlinks(NexaTextSurface view)
     {
         var found = new List<AutomationPeer>();
         Walk(UIElementAutomationPeer.CreatePeerForElement(view));

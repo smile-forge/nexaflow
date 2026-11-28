@@ -68,6 +68,66 @@ public class CodeHighlighterTests
 
     [TestMethod]
     [CoversNode("syntax-queries")]
+    public void PowerShell_ColoursKeywordsCommandsVariablesAndStrings()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("powershell");
+        const string src = "function Get-One {\n  param($Name)\n  Write-Host \"hi\" $Name\n}\n";
+        var pairs = Captured(highlighter!, src);
+
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "function"));
+        CollectionAssert.Contains(pairs, (cap: "function", text: "Get-One"));
+        CollectionAssert.Contains(pairs, (cap: "function", text: "Write-Host"));
+        CollectionAssert.Contains(pairs, (cap: "variable", text: "$Name"));
+        CollectionAssert.Contains(pairs, (cap: "string", text: "\"hi\""));
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-queries")]
+    public void Sql_ColoursKeywordsTablesAndNumbers()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("sql");
+        const string src = "SELECT name FROM people WHERE age > 42;";
+        var pairs = Captured(highlighter!, src);
+
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "SELECT"));
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "WHERE"));
+        CollectionAssert.Contains(pairs, (cap: "type", text: "people"));
+        CollectionAssert.Contains(pairs, (cap: "number", text: "42"));
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-queries")]
+    public void Diff_ColoursWhatIsAddedAndWhatIsTakenOut()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("diff");
+        const string src = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n";
+        var pairs = Captured(highlighter!, src);
+
+        Assert.IsTrue(pairs.Any(p => p.cap == "deleted" && p.text.StartsWith("-old")), "the line taken out");
+        Assert.IsTrue(pairs.Any(p => p.cap == "inserted" && p.text.StartsWith("+new")), "the line added");
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-queries")]
+    public void TexFile_ColoursCommandsEnvironmentsMathsAndLabels()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("tex-file");
+        const string src = "% note\n\\begin{document}\n\\section{One}\\label{sec:one}\nSee $x$ and \\ref{sec:one}.\n\\end{document}\n";
+        var pairs = Captured(highlighter!, src);
+
+        CollectionAssert.Contains(pairs, (cap: "comment", text: "% note"));
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "\\begin"));
+        CollectionAssert.Contains(pairs, (cap: "type", text: "document"));
+        CollectionAssert.Contains(pairs, (cap: "keyword", text: "\\section"));
+        CollectionAssert.Contains(pairs, (cap: "attribute", text: "sec:one"));
+        CollectionAssert.Contains(pairs, (cap: "constant", text: "$x$"));
+    }
+
+    private static (string cap, string text)[] Captured(CodeHighlighter highlighter, string src) =>
+        highlighter.Highlight(src).Select(s => (cap: s.Capture, text: src.Substring(s.Start, s.Length))).ToArray();
+
+    [TestMethod]
+    [CoversNode("syntax-queries")]
     public void UnknownGrammar_ReturnsNull()
     {
         Assert.IsNull(CodeHighlighter.TryCreate("nonsense-lang"));
@@ -146,16 +206,19 @@ public class CodeHighlighterTests
         ["json"]              = "{\n  \"a\": {\n    \"b\": 1\n  }\n}\n",
         ["embedded-template"] = "<%# alpha %>\n<%# beta %>\n<div>\n  <p>x</p>\n</div>\n",
         ["razor"]             = "@* alpha *@\n@* beta *@\n<div>\n  <p>x</p>\n</div>\n",
+        ["powershell"]        = "# alpha\n# beta\nfunction Get-One {\n  return 1\n}\n",
+        ["sql"]               = "-- alpha\n-- beta\nCREATE FUNCTION one() RETURNS int AS $$\nBEGIN\n  RETURN 1;\nEND;\n$$ LANGUAGE plpgsql;\n",
+        ["diff"]              = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,2 +1,2 @@\n-old\n+new\n same\n",
+        ["tex-file"]          = "% alpha\n% beta\n\\begin{document}\n\\section{One}\nHello $x^2$.\n\\end{document}\n",
     };
 
     public static IEnumerable<object[]> FoldSampleGrammars() =>
         FoldSamples.Keys.Select(k => new object[] { k });
 
     /// <summary>
-    /// A fold must never end strictly inside a line delimiter. AvalonEdit refuses such an element, and it
-    /// refuses it from the render pass — where the shell cannot recover, because handling the exception
-    /// leaves the layout dirty and WPF just re-measures and throws again. One customer's log was that
-    /// live-lock: the same trace 17,724 times in 85 seconds, 170MB.
+    /// A fold must never end strictly inside a line delimiter: it would end on no line, which a view folding
+    /// whole lines cannot place, and one drawing folds as elements may refuse from its render pass — where
+    /// nothing recovers, because the layout stays dirty and is measured, and refused, again and again.
     /// <para>
     /// It only bites on CRLF, since a one-character delimiter has no "strictly inside". Every folding test
     /// here used \n literals, which is exactly why c, cpp, java, rust, python and ruby all shipped broken —
@@ -188,7 +251,7 @@ public class CodeHighlighterTests
             bool insideDelimiter = f.End < src.Length && src[f.End - 1] == '\r' && src[f.End] == '\n';
             Assert.IsFalse(insideDelimiter,
                 $"[{grammarId}/{endings}] fold [{f.Start}..{f.End}) ends between the \\r and the \\n — "
-                + "AvalonEdit throws on this from the render pass and the shell cannot recover");
+                + "it ends on no line, so a view folding whole lines cannot place it");
         }
     }
 

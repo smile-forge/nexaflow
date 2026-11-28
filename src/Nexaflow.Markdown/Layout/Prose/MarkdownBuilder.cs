@@ -3,6 +3,7 @@ using System.Text;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.PlainText;
 using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Markdown.Layout.Prose;
@@ -202,7 +203,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             case MarkdownKinds.List: Listed(into, part, x, room); return;
             case MarkdownKinds.Item: Item(into, part, x, room, null); return;
             case MarkdownKinds.Table: Tabled(into, part, x, room); return;
-            case Kinds.Block: Fenced(into, part, x, room); return;
+            case Kinds.Block:
+            case MarkdownKinds.Code: Fenced(into, part, x, room); return;
 
             case MarkdownKinds.Definition: Blocks(into, Body(part), x, room); return;
             case MarkdownKinds.Term: Text(into, Body(part), x, room, Face.Plain with { Bold = true, Ink = Style.DefTerm }); return;
@@ -213,7 +215,6 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
             case MarkdownKinds.Html: Muted(into, part, x, room); return;
 
-            case MarkdownKinds.Code:
             case MarkdownKinds.Reference: AsWritten(into, part, x, room); return;
 
             default:
@@ -515,10 +516,12 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     private void Fenced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        // Text and code are set as what the page shows as written is: in the same box, laid in the room inside it.
-        var pad = BoxedAsWritten(part) ? WrittenPad : 0;
+        // Text and code are set as what the page shows as written is: in the same box, laid in the room inside it. The document's own code — a
+        // fence naming no language, code indented — is plain text, laid as a fence of text is, so every fence sets its lines alike.
+        var writtenIn = part.Kind == MarkdownKinds.Code ? TextParser.Language : null;
+        var pad = writtenIn is not null || BoxedAsWritten(part) ? WrittenPad : 0;
         var inside = Math.Max(1, room - pad * 2);
-        var nested = Nested(part, inside, LayoutStanding.Block);
+        var nested = Nested(part, inside, LayoutStanding.Block, writtenIn);
 
         if (nested is { Draws: true, Laid.ShowsSource: false } inset)
         {

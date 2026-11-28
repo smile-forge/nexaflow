@@ -826,6 +826,44 @@ public static class LayoutQuery
         return -1;
     }
 
+    /// <summary>
+    /// The last place in the document that starts at or above <paramref name="below"/>, wherever across the page it is. -1 where none does.
+    ///
+    /// <para>
+    /// What ends a stretch near the screen. The first place below it will not do: what is laid of a long file is only what has been looked
+    /// at, so the first place below the screen can be the end of the file, shown once, with everything between still unread — and a stretch
+    /// ended there takes in all of it.
+    /// </para>
+    /// </summary>
+    public static int StopAbove(this LayoutPiece root, double below)
+    {
+        var places = Index(root);
+        var to = places.Count;
+
+        // A tree made of the trees it mounts stacks them down the page in the order their places come, so no place of a tree starting below is
+        // the last above: only the places up to the last tree starting that far up are looked at.
+        if (places is MountedList<CaretPlace> mounted && root.Tree is { } tree && root.At == 0)
+        {
+            to = 0;
+
+            for (var part = mounted.Parts - 1; part >= 0; part--)
+                if (new LayoutPiece(tree, part + 1).Bounds is { IsEmpty: false } bounds && bounds.Top <= below + Hair)
+                {
+                    to = part + 1 < mounted.Parts ? mounted.StartOf(part + 1) : places.Count;
+                    break;
+                }
+        }
+
+        for (var index = to - 1; index >= 0; index--)
+        {
+            var where = places[index].Against.Bounds;
+
+            if (!where.IsEmpty && where.Top <= below + Hair) return places[index].Offset;
+        }
+
+        return -1;
+    }
+
 
 
     /// <summary>
@@ -862,12 +900,17 @@ public static class LayoutQuery
         if (!from.Exists) return null;
         var fromX = root.CaretRect(offset).X;
 
+        // The row of each level up is the one holding the child the walk came up through — known as it climbs, so nothing below is searched.
+        var through = from;
         foreach (var ancestor in from.Ancestors())
         {
+            var holding = through;
+            through = ancestor;
+
             var rows = ancestor.Rows();
             if (rows.Count < 2) continue;
 
-            var mine = rows.FindIndex(r => r.Any(p => p.SelfAndDescendants().Contains(from)));
+            var mine = rows.FindIndex(r => r.Contains(holding));
             if (mine < 0) continue;
 
             // Walk outwards past any row with nowhere in it to stand. A fraction lays out as numerator, bar, denominator —
@@ -972,20 +1015,44 @@ public static class LayoutQuery
     /// </summary>
     public static List<List<LayoutPiece>> Rows(this LayoutPiece piece)
     {
-        var rows = new List<List<LayoutPiece>>();
+        // Each child measured once — a tree of mounted trees composes a child's bounds from its frames on every ask — and taken in order down
+        // the page, so a child can only join a row still open above it: one whose lowest child reaches past its top. Rows closed by then never
+        // reach anything later, so a step through a document laid a long way is one pass over its children, not one per pair of them.
+        var placed = new List<(LayoutPiece Piece, LayoutRect Where)>();
+        foreach (var child in piece.Children)
+            if (child.Bounds is { Height: > 0 } where) placed.Add((child, where));
 
-        foreach (var child in piece.Children.Where(c => c.Bounds.Height > 0).OrderBy(c => c.Bounds.Y))
+        placed.Sort((a, b) => a.Where.Y.CompareTo(b.Where.Y));
+
+        var rows = new List<List<(LayoutPiece Piece, LayoutRect Where)>>();
+        var open = new List<(int Row, double Bottom)>();
+
+        foreach (var (child, where) in placed)
         {
-            var where = child.Bounds;
-            var row = rows.FirstOrDefault(r =>
-                r.Any(p => p.Bounds.Top < where.Bottom - Hair && where.Top < p.Bounds.Bottom - Hair));
+            open.RemoveAll(row => row.Bottom - Hair <= where.Top);
 
-            if (row is null) rows.Add([child]);
-            else row.Add(child);
+            // The first row begun that it overlaps, as its own height says.
+            var joined = open.FindIndex(row => where.Top < row.Bottom - Hair);
+            if (joined < 0)
+            {
+                rows.Add([(child, where)]);
+                open.Add((rows.Count - 1, where.Bottom));
+                continue;
+            }
+
+            var (index, bottom) = open[joined];
+            rows[index].Add((child, where));
+            open[joined] = (index, Math.Max(bottom, where.Bottom));
         }
 
-        foreach (var row in rows) row.Sort((a, b) => a.Bounds.X.CompareTo(b.Bounds.X));
-        return rows;
+        var laid = new List<List<LayoutPiece>>(rows.Count);
+        foreach (var row in rows)
+        {
+            row.Sort((a, b) => a.Where.X.CompareTo(b.Where.X));
+            laid.Add(row.ConvertAll(placedChild => placedChild.Piece));
+        }
+
+        return laid;
     }
 
     // ── LayoutShape helpers ────────────────────────────────────────────────────
@@ -1071,11 +1138,11 @@ public static class LayoutQuery
         OnPage(piece) is not { } region || region.Touches(area);
 
     /// <summary>
-    /// The shape a piece stands in, where it sits on the page — or null for a piece that stands in its box, which is
-    /// nearly all of them. What a press is tested against, and what a wash is drawn over: the box round a diagonal
-    /// arrow is mostly not the arrow.
+    /// The shape <paramref name="piece"/> stands in, where it stands on the page — moved along by <paramref name="by"/>, for a page drawn from
+    /// somewhere other than its top, with the move worked into where the shape is placed rather than laid over it after.
     /// </summary>
-    public static LayoutShape? OnPage(this LayoutPiece piece) => piece.Region is { } region ? piece.Frame.Out(region, piece.Tree!.Medium) : null;
+    public static LayoutShape? OnPage(this LayoutPiece piece, LayoutVector by = default) =>
+        piece.Region is { } region ? (piece.Frame with { Anchor = piece.Frame.Anchor + by }).Out(region, piece.Tree!.Medium) : null;
 
     /// <summary>
     /// Whether <paramref name="at"/> is in <paramref name="piece"/> rather than merely nearest it.
@@ -1181,11 +1248,10 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The shapes a stretch of source washes: every leaf standing in a shape of its own (see
-    /// <see cref="LayoutBuilder.Occupies"/>) that belongs to something inside the stretch, where it sits on the page. What
-    /// <see cref="RangeRects"/> leaves out, so the two together are the whole of it.
+    /// The shapes the pieces standing for <paramref name="length"/> characters from <paramref name="start"/> stand in, where they do not stand
+    /// in boxes — moved along by <paramref name="by"/>, as <see cref="OnPage"/> moves each.
     /// </summary>
-    public static IReadOnlyList<LayoutShape> RangeRegions(this LayoutPiece root, int start, int length, LayoutRect? near = null)
+    public static IReadOnlyList<LayoutShape> RangeRegions(this LayoutPiece root, int start, int length, LayoutRect? near = null, LayoutVector by = default)
     {
         if (length <= 0 || !root.Exists) return [];
 
@@ -1194,7 +1260,7 @@ public static class LayoutQuery
         // A leaf belongs to what it is drawn inside, so every leaf whose owner is covered is inside something covered.
         return [.. LeavesUnder(covered)
                        .Where(leaf => leaf.Region is not null && covered.Contains(leaf.Selectable()))
-                       .Select(leaf => OnPage(leaf)!)];
+                       .Select(leaf => OnPage(leaf, by)!)];
     }
 
     /// <summary>
@@ -1319,8 +1385,10 @@ public static class LayoutQuery
     /// are made between things that face each other with nothing else of the wash between and are square, so a
     /// taller side stands up out of the band the way a capital does from a line of text. Where <paramref name="near"/> is said,
     /// only what reaches it is washed — a selection down a long document is painted a screen of it at a time.
+    /// The shape is made moved along by <paramref name="by"/>, for a page drawn from somewhere other than its top: where it stands far down a
+    /// long document is worked out here, in full, rather than left to whatever draws it.
     /// </summary>
-    public static LayoutShape? Wash(this LayoutPiece root, IReadOnlyList<EditRange> selection, double pad, LayoutRect? near = null)
+    public static LayoutShape? Wash(this LayoutPiece root, IReadOnlyList<EditRange> selection, double pad, LayoutRect? near = null, LayoutVector by = default)
     {
         if (root.Tree is not { } tree) return null;
 
@@ -1356,16 +1424,16 @@ public static class LayoutQuery
 
         var medium = tree.Medium;
         var pen = medium.Outline(evenOdd: false);
-        foreach (var rect in pieces.Concat(joined))
+        foreach (var rect in pieces.Concat(joined).Select(rect => LayoutRect.Offset(rect, by)))
         {
-            pen.Begin(rect.TopLeft, filled: true, closed: true);
+        pen.Begin(rect.TopLeft, filled: true, closed: true);
             pen.PolyLineTo([rect.TopRight, rect.BottomRight, rect.BottomLeft], stroked: false);
         }
 
         var shape = pen.Close();
 
         // What stands in a shape of its own is washed as that shape, grown by the pad the way a rectangle is.
-        var regions = selection.SelectMany(range => root.RangeRegions(range.Start, range.Length, near)).ToList();
+        var regions = selection.SelectMany(range => root.RangeRegions(range.Start, range.Length, near, by)).ToList();
         if (regions.Count == 0) return shape;
 
         var washed = shape;

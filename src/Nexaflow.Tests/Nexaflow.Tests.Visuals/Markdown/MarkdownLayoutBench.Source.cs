@@ -2,13 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 
-using ICSharpCode.AvalonEdit;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
@@ -17,20 +16,18 @@ using Nexaflow.Visuals.Text.Painting;
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
-/// What the raw half of the Markdown page holds beside the document both halves show — measured before it is replaced, to say whether
-/// replacing it gains anything.
+/// What a surface of the engine's holds beside the document it shows, two ways: over the text held as a string (<c>engine</c>), as a
+/// page that was handed it holds it, and over the same text read from a file on disk a block at a time (<c>onDisk</c>), as the Text
+/// viewer, the log viewer and a code file past the editable ceiling hold it.
 ///
 /// <para>
-/// The half the page has is AvalonEdit's box, which keeps the text a second time in a document of its own, its lines in a tree of its
-/// own and what was typed in a history of its own. The half it would have is a surface of the engine's holding the page's own
-/// document (<see cref="EditedDocument"/>), so no copy of it and one history between the halves. Each is put in a window, hidden as the
-/// rendered view leaves it and shown as the source view shows it, and what it holds is read from the heap once it has settled, then
-/// again after <see cref="SourceKeys"/> keystrokes. The document itself is made before each measure and counted in none: the page holds
-/// it whichever half shows it.
+/// Each is put in a window, hidden as the rendered view leaves it and shown as the source view shows it, and what it holds is read from
+/// the heap once it has settled, then again after <see cref="SourceKeys"/> keystrokes. The document itself is made before each measure
+/// and counted in none: the page holds it whichever way it is read.
 /// </para>
 /// <para>
-/// The history the page keeps of those keystrokes is measured on its own (<c>historyKb</c>). The engine's half writes it, so its
-/// <c>typedKb</c> includes it; AvalonEdit's half pays it too, through the rendered half every keystroke is handed to, on top of its own.
+/// The history the page keeps of those keystrokes is measured on its own (<c>historyKb</c>); each half writes it, so its <c>typedKb</c>
+/// includes it.
 /// </para>
 /// <para>
 /// The engine's half is laid as code no grammar reads, which is how the raw half draws — uncoloured — except that code does not wrap
@@ -84,21 +81,12 @@ public partial class MarkdownLayoutBench
         {
             var showing = shown ? "shown" : "hidden";
 
-            row[$"avalonEdit {showing}"] = Held(new EditedDocument(text), _ => AvalonHalf(text, shown), editor =>
-            {
-                editor.TextArea.Caret.Offset = editor.Document.TextLength;
-                for (var key = 0; key < SourceKeys; key++) editor.TextArea.PerformTextInput("x");
-            });
+            row[$"engine {showing}"] = Held(new EditedDocument(text), document => EngineHalf(document, shown), surface => TypedAtTheEnd(surface, text.Length));
 
-            row[$"engine {showing}"] = Held(new EditedDocument(text), document => EngineHalf(document, shown), surface =>
-            {
-                var engine = surface.Engine;
-                engine.Uncover(text.Length);
-                Settle();
-                engine.MoveCaretTo(text.Length);
-                for (var key = 0; key < SourceKeys; key++) engine.Input(new ContentText("x"));
-                ReadAll(surface);
-            });
+            var (onDisk, file) = OnDisk(text);
+            row[$"onDisk {showing}"] = Held(onDisk, document => EngineHalf(document, shown), surface => TypedAtTheEnd(surface, text.Length));
+            file.Dispose();
+            File.Delete(file.Path);
         }
 
         row["historyKb"] = Math.Round(Typed(new EditedDocument(text)), 1);
@@ -131,36 +119,36 @@ public partial class MarkdownLayoutBench
         };
     }
 
-    /// <summary>AvalonEdit's box as the page sets it, given the whole text as the page gives it, with nothing to take back.</summary>
-    private static (TextEditor Half, Window Window) AvalonHalf(string text, bool shown)
+    /// <summary>
+    /// <paramref name="text"/> written to a file and opened as a document over its blocks on disk — as the Text viewer, the log viewer and a
+    /// code file past the editable ceiling open one — with the file, to let go of and delete once the half is done with it.
+    /// </summary>
+    private static (EditedDocument Document, ContentFile File) OnDisk(string text)
     {
-        var editor = new TextEditor
-        {
-            WordWrap = true,
-            ShowLineNumbers = false,
-            FontFamily = new FontFamily("Consolas, Courier New"),
-            FontSize = 14,
-            Padding = new Thickness(40, 24, 40, 48),
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Visibility = shown ? Visibility.Visible : Visibility.Collapsed,
-        };
+        var path = TestTemp.CreateFile(".txt");
+        File.WriteAllText(path, text, new UTF8Encoding(false));
 
-        var window = Hosted(editor);
-        window.Show();
+        var file = ContentFile.Open(path, new UTF8Encoding(false), 0, ContentFileAccess.Editable);
+        file.Scan();
+
+        return (new EditedDocument(ContentDocument.Of(file)), file);
+    }
+
+    /// <summary><see cref="SourceKeys"/> keystrokes at the end of what <paramref name="surface"/> shows, <paramref name="length"/> characters of it, every line of it then read.</summary>
+    private static void TypedAtTheEnd(NexaTextSurface surface, int length)
+    {
+        var engine = surface.Engine;
+        engine.Uncover(length);
         Settle();
-
-        editor.Document.Text = text;
-        editor.Document.UndoStack.ClearAll();
-        Settle();
-
-        return (editor, window);
+        engine.MoveCaretTo(length);
+        for (var key = 0; key < SourceKeys; key++) engine.Input(new ContentText("x"));
+        ReadAll(surface);
     }
 
     /// <summary>A surface of the engine's holding <paramref name="document"/> as written, once it has read all of it.</summary>
-    private static (MarkdownSurface Half, Window Window) EngineHalf(EditedDocument document, bool shown)
+    private static (NexaTextSurface Half, Window Window) EngineHalf(EditedDocument document, bool shown)
     {
-        var surface = new MarkdownSurface
+        var surface = new NexaTextSurface
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -224,7 +212,7 @@ public partial class MarkdownLayoutBench
     }
 
     /// <summary>Waits while <paramref name="surface"/> reads what it has not read yet, up to <see cref="ReadBudget"/>.</summary>
-    private static void ReadAll(MarkdownSurface surface)
+    private static void ReadAll(NexaTextSurface surface)
     {
         var reading = Stopwatch.StartNew();
         while (!surface.Engine.ReadingRest.IsCompleted && reading.Elapsed < ReadBudget)

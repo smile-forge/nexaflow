@@ -37,7 +37,7 @@ public sealed class MarkdownElement : LinkedElement
     /// <param name="source">What to show, loaded in place of what <paramref name="engine"/>'s document holds — or null to show what it holds as it is.</param>
     public MarkdownElement(string? source, LayoutStyle palette, ILayoutActions? host = null, ContentEngine? engine = null,
                            string? language = null)
-        : this(engine ?? new ContentEngine(), source, palette, host, language)
+        : this(engine ?? new ContentEngine(WpfMedium.OnThisThread, palette), source, palette, host, language)
     {
     }
 
@@ -70,129 +70,6 @@ public sealed class MarkdownElement : LinkedElement
     /// </summary>
     public void Restore(EditState state) => Apply(state, notify: false);
 
-    /// <summary>
-    /// The places a search turned up, and which of them is the one being looked at.
-    ///
-    /// <para>
-    /// <strong>Drawn over, never written into.</strong> A found word is washed at paint time from the offsets
-    /// it was found at; nothing in the tree is changed to mark it, so clearing a search costs a repaint and
-    /// there is no state to get out of step with the document. It is the same bargain the selection makes.
-    /// </para>
-    /// </summary>
-    public (IReadOnlyList<(int Start, int Length)> Places, int At) Showing
-    {
-        get => _showing;
-        set
-        {
-            _showing = (value.Places ?? [], value.At);
-
-            InvalidateVisual();
-        }
-    }
-
-    private (IReadOnlyList<(int Start, int Length)> Places, int At) _showing = ([], -1);
-
-    /// <inheritdoc/>
-    protected override void PaintOver(DrawingContext dc)
-    {
-        base.PaintOver(dc);
-
-        for (var at = 0; at < _showing.Places.Count; at++)
-        {
-            var (start, length) = _showing.Places[at];
-            var runs = LayoutQuery.Clusters(Laid.Root.RangeRects(start, length), 0);
-
-            foreach (var run in runs)
-                dc.DrawRectangle(Palette.Marked.Brush(), Edge(at == _showing.At), run.ToWpf());
-        }
-    }
-
-    /// <summary>
-    /// What is drawn round a found word. The one being looked at is outlined as well as washed, because a
-    /// wash alone cannot say which of several is the one — and the glyphs are already down by the time this
-    /// paints, so their colour is not ours to change.
-    /// </summary>
-    private Pen? Edge(bool looking)
-    {
-        if (!looking) return null;
-
-        var pen = new Pen(Palette.Accent.Brush(), Math.Max(1, Palette.TextSize / 13.5));
-        pen.Freeze();
-
-        return pen;
-    }
-
-    /// <summary>
-    /// Brings a stretch of the source into view and picks it out.
-    ///
-    /// <para>
-    /// Where it lands is worked out from the offsets, which every piece carries whatever language drew it — so
-    /// a hit inside a diagram is found the same way a hit in a paragraph is, and neither had to be searched for
-    /// on the page.
-    /// </para>
-    /// <para>
-    /// In a long document shown a stretch at a time, a place not laid yet is laid to first, and comes onto the page once it is.
-    /// </para>
-    /// <para>
-    /// <strong>What is scrolled to is not always what was found.</strong> A word inside a diagram is a few
-    /// pixels of a picture, and putting those few pixels at the top of the view shows a reader the middle of a
-    /// chart with no idea what they are looking at. So where the hit sits inside content another language laid
-    /// out, the whole of that is brought into view instead, with the hit still picked out inside it.
-    /// </para>
-    /// </summary>
-    /// <returns>Whether the document had it to show.</returns>
-    public bool Show((int Start, int Length) what, bool choose = true)
-    {
-        var found = Laid.Root.RangeRects(what.Start, what.Length);
-
-        // A place inside a section the reader folded away is opened before it is shown.
-        if (found.Count == 0 && Unfold(what.Start)) found = Laid.Root.RangeRects(what.Start, what.Length);
-
-        // One a long document has not laid yet is laid to, and brought onto the page once it is; it is picked out now, so the
-        // caret is there when it arrives.
-        if (found.Count == 0)
-        {
-            if (!Uncover(what.Start)) return false;
-
-            if (choose && what.Length > 0) Apply(State.Select(what.Start, what.Length), notify: false);
-
-            return true;
-        }
-
-        // A box slid away from it slides to it: its end, and then its start, which is what shows where it cannot all show at once.
-        SlideOnto(what.Start + what.Length);
-        SlideOnto(what.Start);
-
-        var shown = Whole(what);
-
-        BringOnto(new LayoutRect(shown.X, shown.Y, shown.Width, shown.Height));
-
-        if (choose && what.Length > 0) Apply(State.Select(what.Start, what.Length), notify: false);
-
-        return true;
-    }
-
-    /// <summary>
-    /// What a reader has to see for a place to mean anything: the place itself, unless it sits inside content
-    /// another language drew, in which case the whole of that.
-    /// </summary>
-    private Rect Whole((int Start, int Length) what)
-    {
-        var found = Laid.Root.RangeRects(what.Start, what.Length);
-        var place = found[0];
-
-        foreach (var rect in found) place = LayoutRect.Union(place, rect);
-
-        for (var piece = Laid.Root.PieceAt(new LayoutPoint(place.X + (place.Width / 2), place.Y + (place.Height / 2)));
-             piece.Exists;
-             piece = piece.Parent)
-        {
-            if (piece.Part.TreePart() is not { } part) continue;
-            if (ContentLanguages.Held(part) is null) continue;
-
-            return piece.Bounds.ToWpf();
-        }
-
-        return place.ToWpf();
-    }
+    /// <summary>Brings a stretch of the source into view and picks it out, and says whether the document had it to show (<see cref="ContentEngine.ShowPlace"/>).</summary>
+    public bool Show((int Start, int Length) what, bool choose = true) => ShowPlace(what, choose);
 }

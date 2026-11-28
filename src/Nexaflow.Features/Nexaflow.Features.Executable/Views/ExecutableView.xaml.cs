@@ -13,7 +13,7 @@ using Nexaflow.Features.Executable.ViewModels;
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Visuals.Common.Layout;
 using Nexaflow.Visuals.Common.Viewing;
-using Nexaflow.Visuals.Text.Editor.Highlighting;
+
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Features.Executable.Views;
@@ -59,9 +59,7 @@ public partial class ExecutableView : UserControl
         // whole page sideways and pushed the tab rail off screen. Selecting text is not a request
         // to navigate, so those requests are swallowed here.
         AddHandler(RequestBringIntoViewEvent,
-                   new RequestBringIntoViewEventHandler(OnRequestBringIntoView), handledEventsToo: true);
-
-        SyncManifest();
+        new RequestBringIntoViewEventHandler(OnRequestBringIntoView), handledEventsToo: true);
     }
 
     private static void OnRequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
@@ -167,7 +165,7 @@ public partial class ExecutableView : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ExecutableViewModel.ManifestXml))            SyncManifest();
+        
         if (e.PropertyName == nameof(ExecutableViewModel.HasDependencySelection)) SyncDetailPane();
     }
 
@@ -199,25 +197,6 @@ public partial class ExecutableView : UserControl
 
         DependencyDetailColumn.MinWidth = 0;
         DependencyDetailColumn.Width    = new GridLength(0);
-    }
-
-    /// <summary>
-    /// AvalonEdit's document is not a dependency property, so the raw-XML pane is filled in code.
-    /// XML has no tree-sitter grammar in this repo, but AvalonEdit ships a built-in definition for
-    /// it — taken through the registry, which retints it to the app's palette. The shipped colours
-    /// are tuned for a light background and come out unreadable on a dark theme (purple on cyan).
-    /// </summary>
-    private void SyncManifest()
-    {
-        ManifestEditor.Text = _vm.ManifestXml;
-        ManifestEditor.SyntaxHighlighting = HighlightingRegistry.Themed("XML");
-
-        // AvalonEdit paints its own selection and current-line colours, which default to a light
-        // scheme and are invisible against a dark surface.
-        ManifestEditor.TextArea.SelectionBrush =
-            TryFindResource("AccentSubtleBrush") as Brush ?? ManifestEditor.TextArea.SelectionBrush;
-        ManifestEditor.TextArea.SelectionForeground = null;
-        ManifestEditor.Options.HighlightCurrentLine = false;
     }
 
     /// <summary>The module a press on the diagram landed on, under the name the walk gave it.</summary>

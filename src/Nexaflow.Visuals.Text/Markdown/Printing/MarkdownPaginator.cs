@@ -67,8 +67,8 @@ public sealed class MarkdownPaginator : DocumentPaginator
             _sheet = value;
 
             var room = Room;
-            _laid = new ContentEngine(_inputs) { Slides = false }.Lay(_language, EditState.For(_markdown), _style, room.Width, readOnly: true);
-            _pages = PaperPages.Cut(_laid, room);
+            _laid = new ContentEngine(WpfMedium.OnThisThread, _style, _inputs) { Slides = false }.Lay(_language, EditState.For(_markdown), _style, room.Width, readOnly: true);
+            _pages = PaperPages.Cut(_laid, new LayoutSize(room.Width, room.Height));
         }
     }
 

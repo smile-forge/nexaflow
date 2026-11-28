@@ -70,7 +70,7 @@ public class AbcKeyTests
     private static string Pressed(int caret, EditKind kind, string text)
     {
         var state = new EditState(Tune, caret);
-        var laid = new ContentEngine().Lay("abc", state, WpfStyles.Dark, 700, readOnly: false);
+        var laid = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay("abc", state, WpfStyles.Dark, 700, readOnly: false);
         var made = ContentEngine.Edited(kind, text, new Landing(state, laid, -1));
 
         Assert.IsNotNull(made, $"{kind} '{text}' at {caret} was not answered at all");

@@ -64,6 +64,8 @@ public class CodeJourneyTests : UiJourneyTestBase
         CheckPresent("Line-ending selector", "Editor_Eol");
         CheckInvoke("Line-numbers toggle", "Editor_LineNumbers");   // view-only, safe to flip
         CheckInvoke("Line-numbers toggle (back)", "Editor_LineNumbers");
+        CheckInvoke("Whitespace toggle", "Editor_Whitespace");             // view-only, safe to flip
+        CheckInvoke("Whitespace toggle (back)", "Editor_Whitespace");
 
         // Save is disabled on a freshly-opened, unmodified buffer — assert that rather than clicking it,
         // so the journey never writes to the shared sample file.
@@ -126,8 +128,9 @@ public class CodeJourneyTests : UiJourneyTestBase
             Assert.IsNotNull(map, "The code map panel did not open.");
 
             // The diagram is drawn rather than built from controls, so its rows are not elements to find. What the wheel is
-            // to move is the panel, and the panel is scrollable only once the diagram has been laid out taller than it.
-            var scroller = WaitFor(() => map!.FindAllDescendants().FirstOrDefault(e =>
+            // to move is the panel — the map is the pane it scrolls — and it is scrollable only once the diagram has been laid
+            // out taller than it.
+            var scroller = WaitFor(() => new[] { map! }.Concat(map!.FindAllDescendants()).FirstOrDefault(e =>
                 e.Patterns.Scroll.PatternOrDefault is { VerticallyScrollable.Value: true }), 10);
             Assert.IsNotNull(scroller, "The code map never grew taller than its panel, so the diagram did not render.");
             var scroll = scroller!.Patterns.Scroll.Pattern;

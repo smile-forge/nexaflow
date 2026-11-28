@@ -22,15 +22,19 @@ namespace Nexaflow.Syntax;
 internal static class XamlHighlighting
 {
     /// <summary>Namespace prefixes and markup-extension structure for every attribute under <paramref name="root"/>.</summary>
-    public static void AddValueSpans(Node root, string text, int offset, List<HighlightSpan> spans)
+    public static void AddValueSpans(Node root, TextSource source, int offset, List<HighlightSpan> spans)
     {
         foreach (var attribute in Attributes(root))
             foreach (var child in attribute.Children)
             {
-                if (child.Type == "Name")
-                    AddPrefix(child.StartIndex, child.EndIndex, text, offset, spans);
-                else if (child.Type == "AttValue")
-                    AddMarkupExtension(child.StartIndex, child.EndIndex, text, offset, spans);
+                {
+                    // Each name and value read on its own, so a document held in pieces is never made one string to colour it.
+                    if (child.Type is not ("Name" or "AttValue") || child.EndIndex <= child.StartIndex) continue;
+
+                    var text = source.GetText(child.StartIndex, child.EndIndex);
+                    if (child.Type == "Name") AddPrefix(0, text.Length, text, offset + child.StartIndex, spans);
+                    else AddMarkupExtension(0, text.Length, text, offset + child.StartIndex, spans);
+                }
             }
     }
 

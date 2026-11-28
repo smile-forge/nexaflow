@@ -7,7 +7,8 @@ Opens a text file of any size, and can search it, edit it and split it into smal
 ## Opening a file
 
 - The file action is called As Text, and the tab takes the file's name. Files inside an archive open the same way.
-- A file of 100 KB or more is read from the top a window at a time. The line count is right from the start, lines you have not scrolled to yet are blank until the viewer reaches them, and the status bar reads Streaming.
+- A file of any size opens without being held in memory: the viewer reads it through once to count its lines, then reads from disk only what is on screen, as you scroll to it.
+- A file too long to hold as one document — past about 500 million characters — is shown a stretch at a time, which moves as you scroll; its lines are still numbered as lines of the whole file, and the status bar reads Streaming.
 - The encoding is detected when the file opens. If characters look wrong, re-read the file as UTF-8, UTF-16 LE, UTF-16 BE, Latin-1 or System Default. [Show me](locate:Text_Encoding)
 
 ## Moving around
@@ -23,18 +24,19 @@ Opens a text file of any size, and can search it, edit it and split it into smal
 - The search covers the whole file, not only the part on screen. The match count is in the bar and in the status bar, and every match is marked down the strip at the right edge.
 - F3 or Enter goes to the next match, Shift+F3 or Shift+Enter to the previous. Esc from the find box closes the bar.
 - With `*?` on, which is how it starts, `*` stands for a run of characters, `?` for one, and a plain word matches as a word rather than inside a longer one. `.*` runs the query as a regular expression instead, and `Aa` makes it case-sensitive. [Show me](locate:Text_MatchCase,Text_UseWildcards,Text_UseRegex)
-- Replace and Replace All turn editing on themselves. Replace All works through the whole file, not just the loaded part.
+- Replace and Replace All turn editing on themselves. Replace All works through the whole file, not just the part on screen.
 
 ## Editing and saving
 
-- Files open read-only. Edit turns editing on, and the button then reads Editing. [Show me](locate:Text_EditToggle,Text_Save)
-- Save with Ctrl+S or the Save button; the file is written in the encoding shown in the encoding box. Until then the tab title carries an asterisk.
-- Undo is Ctrl+Z and redo is Ctrl+Y. In a large file, loading a further part of the file drops the undo history.
-- A large file inside an archive cannot be edited in place — extract or split it first.
+- Files open read-only, and other programs may go on writing them. Edit turns editing on, and the button then reads Editing. [Show me](locate:Text_EditToggle,Text_Save)
+- While you are editing, no other program can write the file. If one is writing it when you press Edit, editing is refused; if it changed since it was opened, it is read again first.
+- Save with Ctrl+S or the Save button; the file is written in the encoding shown in the encoding box. Until then the tab title carries an asterisk. Saving keeps your undo history, and a file of any size saves the same way.
+- Undo is Ctrl+Z and redo is Ctrl+Y, as far back as the file was opened, however far you have scrolled.
+- Stop editing to let other programs write the file again; unsaved edits are offered to be discarded first.
 
 ## Watching and splitting
 
-- Monitoring is on when a file opens: a change on disk reloads the file and shows a banner over the text pane. Changes made while you are editing, or while a save is running, are ignored. [Show me](locate:Text_Monitor)
+- Monitoring is on when a file opens: a change on disk reloads the file, keeping your place, and shows a banner over the text pane. [Show me](locate:Text_Monitor)
 - Split writes the file out as several new files beside it — by line count, by size in MB, or at lines matching a regular expression. The original is left as it is, and the work runs in the background. [Show me](locate:Text_SplitToggle,Text_SplitNow)
 
 ## The assistant

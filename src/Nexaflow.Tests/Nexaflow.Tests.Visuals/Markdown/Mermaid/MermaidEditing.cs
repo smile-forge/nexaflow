@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 /// a keystroke.
 ///
 /// <para>
-/// Driven through a real <see cref="MarkdownSurface"/> being written in, because that is the whole claim: the diagram is
+/// Driven through a real <see cref="NexaTextSurface"/> being written in, because that is the whole claim: the diagram is
 /// pieces of the document's one laid tree, a press in it puts the document's caret among its words, and a key typed there
 /// is asked of the diagram's own language before anything else. A diagram's own tests say what to press and what should
 /// come of it; everything round that is the same for every diagram, and is here.
@@ -26,7 +26,7 @@ public abstract class MermaidEditing
     protected abstract string Source { get; }
 
     /// <summary>Shows the block in a document, and hands back a view of it.</summary>
-    internal void InADocument(Action<MarkdownSurface, DocumentBlock> test) =>
+    internal void InADocument(Action<NexaTextSurface, DocumentBlock> test) =>
         MarkdownEditorHarness.Run("Below:\n\n```mermaid\n" + Source + "\n```\n", editor =>
         {
             var diagram = MarkdownEditorHarness.Block(editor);
@@ -47,7 +47,7 @@ public abstract class MermaidEditing
     }
 
     /// <summary>Types <paramref name="text"/> wherever the caret is, and lets the editor catch up.</summary>
-    protected static void Write(MarkdownSurface editor, string text)
+    protected static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.Type(editor, text);
         MarkdownEditorHarness.Pump();

@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Nexaflow.IO.Documents;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Export;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Export;
 
@@ -40,7 +41,7 @@ public partial class MarkdownHtmlSpecTests
 
         foreach (var example in MarkdownSpecs.Names.SelectMany(MarkdownSpecs.Examples))
         {
-            var written = writer.Written(LayoutExport.Exported(example.Markdown, new ExportOccasion()));
+            var written = writer.Written(LayoutExport.Exported(example.Markdown, new ExportOccasion { Style = WpfStyles.Light }, WpfMedium.OnThisThread));
             if (Normalised(written) == Normalised(example.Html)) continue;
 
             found.Add(example.Id);

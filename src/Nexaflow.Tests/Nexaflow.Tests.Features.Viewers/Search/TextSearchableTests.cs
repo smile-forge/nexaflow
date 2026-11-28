@@ -41,7 +41,7 @@ public sealed class TextSearchableTests : SearchableContentConformanceTests
     [TestCleanup]
     public void Cleanup()
     {
-        foreach (var vm in _extraVms) vm.Dispose();   // a large file keeps its overlay handle open
+        foreach (var vm in _extraVms) vm.Dispose();   // a page keeps its file open
         if (_path is not null && File.Exists(_path)) File.Delete(_path);
         foreach (var p in _extra) if (File.Exists(p)) File.Delete(p);
     }
@@ -110,15 +110,30 @@ public sealed class TextSearchableTests : SearchableContentConformanceTests
     // A body with the standalone word and the longer word on separate lines.
     private const string NeedleBody = "a needle here\nthis is needless\nNeedless again\n";
 
-    private async Task<TextViewModel> OpenAsync(string content)
+    private async Task<TextViewModel> OpenAsync(string content, int window = int.MaxValue)
     {
         var p = Path.Combine(TestTemp.Root, "nexaneedle_" + Guid.NewGuid().ToString("N") + ".txt");
         File.WriteAllText(p, content);
         _extra.Add(p);
-        var vm = new TextViewModel(p, Substitute.For<IShellServices>(), VirtualFileSystem.Instance) { IsMonitoring = false };
+        var vm = new TextViewModel(p, Substitute.For<IShellServices>(), VirtualFileSystem.Instance, window) { IsMonitoring = false };
         await vm.LoadAsync(CancellationToken.None);
         _extraVms.Add(vm);
         return vm;
+    }
+
+    /// <summary>A window far shorter than <see cref="Spread"/>'s file, so stepping between its matches has to move it.</summary>
+    private const int SmallWindow = 100_000;
+
+    /// <summary>Nine thousand lines of some 45 characters, a needle on each line <paramref name="at"/> names — far enough apart that no two share a <see cref="SmallWindow"/>.</summary>
+    private static string Spread(params int[] at) => string.Join("\n", Enumerable.Range(0, 9000)
+        .Select(i => at.Contains(i) ? $"the needle at marker{i} of the streaming fixture" : $"filler line {i} of the streaming fixture text")) + "\n";
+
+    /// <summary>What is written on the line the caret is on.</summary>
+    private static string CaretLineText(TextViewModel vm)
+    {
+        var document = vm.Document.Current;
+        var (start, end) = document.LineAt(vm.Editor.Caret);
+        return document.Slice(start, end - start);
     }
 
     private readonly List<string> _extra = [];
@@ -177,107 +192,91 @@ public sealed class TextSearchableTests : SearchableContentConformanceTests
     [TestMethod]
     public void StreamingFile_OpensAndPopulatesTheFindBar() => WithPage(async _ =>
     {
-        // A file past the streaming threshold (100 KB) with the match near the end.
-        var big = string.Concat(Enumerable.Repeat("filler line of text\n", 8000)) + "the needle is here\n";
-        var vm  = await OpenAsync(big);
-        Assert.IsTrue(vm.IsLargeFile, "the fixture must exceed the streaming threshold");
+        // A file too long for its window, with the match near the end.
+        var vm = await OpenAsync(Spread(8999), SmallWindow);
+        Assert.IsTrue(vm.IsLargeFile, "the fixture must be longer than its window");
 
         await vm.SearchAsync(SearchSyntax.ParseRequest("needle"), display: true, default);
 
-        Assert.IsTrue(vm.IsFindBarOpen, "the reported bug: a streaming file didn't open/populate the find bar");
+        Assert.IsTrue(vm.IsFindBarOpen, "a streaming file opens and populates the find bar");
         Assert.AreEqual("needle", vm.FindText);
         Assert.AreEqual(1, vm.SearchMatchCount);
+        StringAssert.Contains(CaretLineText(vm), "marker8999", "the search went to the match, the window brought there");
     });
 
     [TestMethod]
     public void StreamingFile_FindNextPrevious_CyclesEveryMatch_AcrossWindows() => WithPage(async _ =>
     {
-        // Matches spread far enough apart that no two share a resident window — so stepping MUST slide the
-        // window each time. This is the case that used to circle only the on-screen matches.
-        int[] at = [1000, 4000, 8000];
-        var lines = Enumerable.Range(0, 9000)
-            .Select(i => at.Contains(i) ? $"the needle at marker{i}" : $"filler line {i}");
-        var vm = await OpenAsync(string.Join("\n", lines) + "\n");
+        // Matches far enough apart that no two share a window — so stepping has to move it each time.
+        var vm = await OpenAsync(Spread(1000, 4000, 8000), SmallWindow);
         Assert.IsTrue(vm.IsLargeFile);
 
         await vm.SearchAsync(SearchSyntax.ParseRequest("needle"), display: true, default);
         Assert.AreEqual(3, vm.SearchMatchCount);
-        StringAssert.Contains(vm.Document.Text, "marker1000", "the search lands on the first match");
+        StringAssert.Contains(CaretLineText(vm), "marker1000", "the search lands on the first match");
 
-        // Next reaches every later match, sliding the window each time…
-        await vm.FindNextCommand.ExecuteAsync(null);
-        StringAssert.Contains(vm.Document.Text, "marker4000", "Find Next → second match");
-        await vm.FindNextCommand.ExecuteAsync(null);
-        StringAssert.Contains(vm.Document.Text, "marker8000", "Find Next → third match");
+        // Next reaches every later match, moving the window each time…
+        vm.FindNextCommand.Execute(null);
+        StringAssert.Contains(CaretLineText(vm), "marker4000", "Find Next → second match");
+        vm.FindNextCommand.Execute(null);
+        StringAssert.Contains(CaretLineText(vm), "marker8000", "Find Next → third match");
         // …and wraps to the first.
-        await vm.FindNextCommand.ExecuteAsync(null);
-        StringAssert.Contains(vm.Document.Text, "marker1000", "Find Next wraps to the first match");
+        vm.FindNextCommand.Execute(null);
+        StringAssert.Contains(CaretLineText(vm), "marker1000", "Find Next wraps to the first match");
 
-        // Previous from the first wraps to the LAST, then keeps stepping backwards through the file —
-        // the case that used to do nothing because the previous match was outside the window.
-        await vm.FindPreviousCommand.ExecuteAsync(null);
-        StringAssert.Contains(vm.Document.Text, "marker8000", "Find Previous wraps to the last match");
-        await vm.FindPreviousCommand.ExecuteAsync(null);
-        StringAssert.Contains(vm.Document.Text, "marker4000",
-            "Find Previous keeps going back even when the previous match is outside the window");
+        // Previous from the first wraps to the last, then keeps stepping backwards through the file.
+        vm.FindPreviousCommand.Execute(null);
+        StringAssert.Contains(CaretLineText(vm), "marker8000", "Find Previous wraps to the last match");
+        vm.FindPreviousCommand.Execute(null);
+        StringAssert.Contains(CaretLineText(vm), "marker4000", "Find Previous keeps going back when the previous match is outside the window");
     });
 
     [TestMethod]
-    public void StreamingFile_WindowSlide_KeepsTheCaretPut_SoStepsKeepAdvancing() => WithPage(async _ =>
+    public void StreamingFile_WindowMove_KeepsTheCaretPut_SoStepsKeepAdvancing() => WithPage(async _ =>
     {
-        // The reported bug. In the app each jump scrolls, the scroll slides the window, and recomposing the
-        // document RESETS the editor caret — which the view echoes straight back as the search cursor. The
-        // cursor landed at the window start, so "next" kept finding the window's first match forever.
-        int[] at = [1000, 1100, 1200, 8000];
-        var lines = Enumerable.Range(0, 9000)
-            .Select(i => at.Contains(i) ? $"the needle at marker{i}" : $"filler line {i}");
-        var vm = await OpenAsync(string.Join("\n", lines) + "\n");
+        // Scrolling moves the window under the caret; the caret has to stay on its own line through that, or "next" steps from wherever it
+        // was left and finds the same match again.
+        var vm = await OpenAsync(Spread(3000, 3100, 3200, 8000), SmallWindow);
         Assert.IsTrue(vm.IsLargeFile);
-
-        // Stand in for the view: a recomposition resets the editor caret to the window start, and the view's
-        // Caret.PositionChanged handler pushes that back into the view-model.
-        vm.Document.TextChanged += (_, _) => vm.CurrentCaretOffset = vm.LoadedRealStart;
 
         await vm.SearchAsync(SearchSyntax.ParseRequest("needle"), display: true, default);
         Assert.AreEqual(4, vm.SearchMatchCount);
 
-        await vm.FindNextCommand.ExecuteAsync(null);   // 1100
-        await vm.FindNextCommand.ExecuteAsync(null);   // 1200
-        await vm.FindNextCommand.ExecuteAsync(null);   // 8000 — far jump, slides the window
-        StringAssert.Contains(vm.Document.Text, "marker8000");
-        await vm.FindNextCommand.ExecuteAsync(null);   // wraps to 1000, slides back
-        StringAssert.Contains(vm.Document.Text, "marker1000");
+        vm.FindNextCommand.Execute(null);   // 3100
+        vm.FindNextCommand.Execute(null);   // 3200
+        vm.FindNextCommand.Execute(null);   // 8000 — far, moves the window
+        StringAssert.Contains(CaretLineText(vm), "marker8000");
+        vm.FindNextCommand.Execute(null);   // wraps to 3000, moves it back
+        StringAssert.Contains(CaretLineText(vm), "marker3000");
 
-        // The scroll that follows the jump slides the window again — the moment the caret used to be lost.
-        await vm.EnsureWindowAsync(970, 1030);
-        Assert.AreEqual(1001, vm.Document.GetLineByOffset(vm.CurrentCaretOffset).LineNumber,
-            "a window slide must leave the caret on its own line");
+        // The scroll that follows moves the window again, with the caret's line still inside it.
+        var window = vm.Document.Window!;
+        var before = window.Start;
+        window.MoveTo(window.OffsetOfLine(3000)!.Value - (window.Size / 3));
+        Assert.AreNotEqual(before, window.Start, "the window moved");
+        StringAssert.Contains(CaretLineText(vm), "marker3000", "moving the window leaves the caret on its own line");
 
-        await vm.FindNextCommand.ExecuteAsync(null);
-        StringAssert.Contains(vm.Document.Text, "marker1100",
-            "the next step advances to the following match, not back to the window's first match");
+        vm.FindNextCommand.Execute(null);
+        StringAssert.Contains(CaretLineText(vm), "marker3100", "the next step advances to the following match");
     });
 
     [TestMethod]
     public void StreamingFile_FindNext_StartsFromTheCaret_NotTheLastMatch() => WithPage(async _ =>
     {
-        int[] at = [1000, 4000, 8000];
-        var lines = Enumerable.Range(0, 9000)
-            .Select(i => at.Contains(i) ? $"the needle at marker{i}" : $"filler line {i}");
-        var vm = await OpenAsync(string.Join("\n", lines) + "\n");
+        var vm = await OpenAsync(Spread(1000, 4000, 8000), SmallWindow);
 
         await vm.SearchAsync(SearchSyntax.ParseRequest("needle"), display: true, default);
-        StringAssert.Contains(vm.Document.Text, "marker1000", "starts on the first match");
+        StringAssert.Contains(CaretLineText(vm), "marker1000", "starts on the first match");
 
-        // The user clicks somewhere between the 2nd and 3rd match (line 6000 is resident after the search's
-        // slide brought the region into view — or a later navigation would; here it stays near the start, so
-        // put the caret at a resident filler line just after the first match instead).
-        var caretLine = vm.Document.GetLineByNumber(2000);   // between match 1 (1000) and match 2 (4000)
-        vm.CurrentCaretOffset = caretLine.Offset;
+        // The reader clicks between the 2nd and 3rd match.
+        var window = vm.Document.Window!;
+        var at = window.OffsetOfLine(6000)!.Value;
+        window.Reach(at, at);
+        vm.Editor.MoveCaretTo((int)(at - window.Start));
+        StringAssert.Contains(CaretLineText(vm), "filler line 6000");
 
-        await vm.FindNextCommand.ExecuteAsync(null);
-        StringAssert.Contains(vm.Document.Text, "marker4000",
-            "Find Next steps from the caret's line, landing on the next match after it — not last+1");
+        vm.FindNextCommand.Execute(null);
+        StringAssert.Contains(CaretLineText(vm), "marker8000", "Find Next steps from the caret's line, landing on the next match after it — not last+1");
     });
 
     [TestMethod]

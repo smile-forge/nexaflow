@@ -33,7 +33,7 @@ public class PacketEditingTests
     private const string Header = "0-7: \"Flags\"\n8-15: \"Length\"";
 
     /// <summary>The packet inside a document, fenced as itself, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string packet = Header) =>
+    private static void InADocument(Action<NexaTextSurface, DocumentBlock> test, string packet = Header) =>
         MarkdownEditorHarness.Run("Header:\n\n```packet\n" + packet + "\n```\n", editor =>
         {
             var block = MarkdownEditorHarness.Block(editor);
@@ -53,7 +53,7 @@ public class PacketEditingTests
         packet.EndPointerSelect();
     }
 
-    private static void Write(MarkdownSurface editor, string text)
+    private static void Write(NexaTextSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
@@ -446,14 +446,14 @@ public class PacketEditingTests
         Assert.IsTrue(packet.SelectionLength > 0, $"pressing {label}'s box chooses its field");
     }
 
-    private static void Press(MarkdownSurface editor, Key key)
+    private static void Press(NexaTextSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
     /// <summary>The ribbon a right-click in the middle of <paramref name="over"/> opens.</summary>
-    private static DiagramRibbon Ribbon(MarkdownSurface editor, Rect over)
+    private static DiagramRibbon Ribbon(NexaTextSurface editor, Rect over)
     {
         var ribbon = editor.Shown.BuildRibbon(Middle(over)) as DiagramRibbon;
         Assert.IsNotNull(ribbon, "a right-click opens the ribbon");

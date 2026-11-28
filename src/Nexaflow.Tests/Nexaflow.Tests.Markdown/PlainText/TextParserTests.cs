@@ -27,15 +27,14 @@ public class TextParserTests
     }
 
     [TestMethod]
-    public void ALineIsItsWordsAndTheSpacesBetweenThem_ItsLineEndAPieceOfItsOwn()
+    public void ALineIsOneRunOfWhatIsWrittenOnIt_ItsLineEndAPieceOfItsOwn()
     {
         var lines = Lines("one  two\tthree\r\nfour");
 
         Assert.AreEqual(2, lines.Count);
-        CollectionAssert.AreEqual(new[] { "one", "  ", "two", "\t", "three", "\r\n" }, lines[0].Children.Select(piece => piece.Text).ToArray(),
+        CollectionAssert.AreEqual(new[] { "one  two\tthree", "\r\n" }, lines[0].Children.Select(piece => piece.Text).ToArray(),
             "a return before a line feed is the line end's");
-        CollectionAssert.AreEqual(new[] { TextKinds.Word, Kinds.Space, TextKinds.Word, Kinds.Space, TextKinds.Word, LineKinds.LineEnd },
-            lines[0].Children.Select(piece => piece.Kind).ToArray());
+        CollectionAssert.AreEqual(new[] { Kinds.Words, LineKinds.LineEnd }, lines[0].Children.Select(piece => piece.Kind).ToArray());
         CollectionAssert.AreEqual(new[] { "four" }, lines[1].Children.Select(piece => piece.Text).ToArray(), "the last line has no line end to hold");
     }
 

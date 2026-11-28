@@ -45,7 +45,7 @@ public class BlockCornerTests
     public void OverABlockItsButtonsStandInItsCorner_AndPressingOneTellsTheHostWhichBlock() => UiThread.Run(() =>
     {
         var asked = new List<LayoutAct>();
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(Document, WpfStyles.Dark, new Keeper(asked), engine);
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
@@ -87,7 +87,7 @@ public class BlockCornerTests
         // The corner is worked out inside laying out but past the catch that covers it, and worked out again on every
         // hover, out of code the language wrote. Moving the pointer must not be able to cost the reader the document.
         var document = $"Pets:\n\n```{HandLaid.Uncornering}\nx\n```\n\nThe end.\n";
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(document, WpfStyles.Dark, engine: engine);
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
@@ -233,7 +233,7 @@ public class BlockCornerTests
         // the block the corner belongs to or over the corner itself, so the corner has to survive all of them — arriving on
         // a button without having travelled there is not something a hand can do.
         var asked = new List<LayoutAct>();
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(Document, WpfStyles.Dark, new Keeper(asked), engine);
         element.Measure(new Size(600, double.PositiveInfinity));
         element.Arrange(new Rect(element.DesiredSize));
@@ -264,7 +264,7 @@ public class BlockCornerTests
     {
         // Whether the corner is faint is the whole corner's business and the element draws it. Which of its buttons a press
         // would answer is a different question, and marking them all would answer it wrongly for every button but one.
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(Document, WpfStyles.Dark, engine: engine);
         element.Measure(new Size(900, double.PositiveInfinity));
         element.Arrange(new Rect(new Size(900, element.DesiredSize.Height)));
@@ -293,7 +293,7 @@ public class BlockCornerTests
         // The empty corners of a diagram's card — the ones a pie's disc never reaches — have nothing of the diagram drawn
         // in them, so the piece nearest them is the paragraph above or below. A reader crossing one of those corners on the
         // way to the buttons has not left the diagram, and must not lose them.
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(Document, WpfStyles.Dark, engine: engine);
         element.Measure(new Size(900, double.PositiveInfinity));
         element.Arrange(new Rect(new Size(1168, element.DesiredSize.Height)));
@@ -329,7 +329,7 @@ public class BlockCornerTests
         // would stand wherever the longest paragraph happened to reach, and would move when one was typed into.
         const double Panel = 1000;
 
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(Document, WpfStyles.Dark, engine: engine);
         element.Measure(new Size(Panel, double.PositiveInfinity));
         element.Arrange(new Rect(new Size(Panel, element.DesiredSize.Height)));
@@ -353,7 +353,7 @@ public class BlockCornerTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     /// <summary>Where the <paramref name="index"/>th block of another language came out on the page.</summary>
-    private static LayoutRect Box(MarkdownSurface editor, int index)
+    private static LayoutRect Box(NexaTextSurface editor, int index)
     {
         var block = MarkdownEditorHarness.Blocks(editor)[index];
         var rects = editor.Shown.Laid.Root.RangeRects(block.Start, block.Length);
@@ -381,7 +381,7 @@ public class BlockCornerTests
     /// <summary>A document laid out as a reader is shown it, with the engine that laid it ready to be pointed at.</summary>
     private static ContentEngine LaidOut(string document, ILayoutActions? host = null)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         var element = new MarkdownElement(document, WpfStyles.Dark, host, engine);
 
         element.Measure(new Size(600, double.PositiveInfinity));

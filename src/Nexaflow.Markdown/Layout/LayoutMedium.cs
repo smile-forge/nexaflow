@@ -1,3 +1,5 @@
+using Nexaflow.Markdown.Prose;
+
 namespace Nexaflow.Markdown.Layout;
 
 /// <summary>
@@ -59,6 +61,20 @@ public interface ILayoutMedium
     /// wherever this medium keeps such files.
     /// </summary>
     LayoutFace Font(string file);
+
+    /// <summary>
+    /// A picture written into the source as its own bytes (<see cref="EmbeddedPicture"/>), decoded and drawn at the size its writer asked
+    /// for — measured in the size ordinary text is drawn at, <paramref name="textSize"/> — or at its own size where they said none; null where
+    /// its bytes are no picture this medium reads. The same picture at the same size is the same handle, however often it is asked for.
+    /// </summary>
+    LayoutPicture? Decoded(EmbeddedPicture picture, double textSize);
+
+    /// <summary>
+    /// What <paramref name="laid"/> paints over <paramref name="area"/>, as a PNG of <paramref name="scale"/> pixels to each of the
+    /// layout's — words that carry no ink of their own in <paramref name="text"/> — or null where nothing could be painted. What an
+    /// export keeps of a picture another language drew, for a format that cannot draw the language.
+    /// </summary>
+    byte[]? PaintedPng(LayoutPiece laid, LayoutRect area, double scale, LayoutInk text);
 
     /// <summary>
     /// The glyph <paramref name="character"/> is drawn with in <paramref name="face"/>, set at <paramref name="size"/> with the left

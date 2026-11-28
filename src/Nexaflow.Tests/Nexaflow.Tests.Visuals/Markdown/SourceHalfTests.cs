@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -141,7 +142,7 @@ public class SourceHalfTests
     });
 
     /// <summary>Whether line <paramref name="number"/> stands half way down <paramref name="source"/>'s page, give or take a row.</summary>
-    private static void AssertHalfWayDown(MarkdownSurface source, int number)
+    private static void AssertHalfWayDown(NexaTextSurface source, int number)
     {
         var lines = source.LinesShown();
         var line = lines.SingleOrDefault(shown => shown.Number == number);
@@ -193,7 +194,7 @@ public class SourceHalfTests
     {
         bool Offered(bool page)
         {
-            var engine = new ContentEngine { WrapsLines = page };
+            var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WrapsLines = page };
             engine.Show(ContentLanguages.AsTyped, Nexaflow.Visuals.Text.Painting.WpfStyles.Dark);
             engine.Start("one\ntwo\n");
             engine.Fit(400);
@@ -212,11 +213,11 @@ public class SourceHalfTests
     /// <paramref name="text"/> in one document shown in a window as two halves — rendered, and as typed with its lines wrapped, as the
     /// page holding its source shows it — and <paramref name="test"/> run on them.
     /// </summary>
-    private static void Halves(string text, Action<MarkdownSurface, MarkdownSurface> test)
+    private static void Halves(string text, Action<NexaTextSurface, NexaTextSurface> test)
     {
         var document = new EditedDocument(text);
-        var rendered = new MarkdownSurface { IsReadOnly = false, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var source = new MarkdownSurface
+        var rendered = new NexaTextSurface { IsReadOnly = false, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var source = new NexaTextSurface
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,

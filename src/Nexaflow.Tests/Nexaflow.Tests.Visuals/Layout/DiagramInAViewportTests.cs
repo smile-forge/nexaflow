@@ -37,9 +37,9 @@ public class DiagramInAViewportTests
     /// The diagram on a viewport the size of a modest panel, measured, arranged and fitted — written in alone, with its width
     /// unlimited, as a host that is nothing but the viewport shows one.
     /// </summary>
-    private static (PanZoomSurface Viewport, MarkdownSurface Diagram) Shown(string diagram, Action<MarkdownSurface>? host = null)
+    private static (PanZoomSurface Viewport, NexaTextSurface Diagram) Shown(string diagram, Action<NexaTextSurface>? host = null)
     {
-        var surface = new MarkdownSurface { WrittenIn = "mermaid", UnlimitedWidth = true };
+        var surface = new NexaTextSurface { WrittenIn = "mermaid", UnlimitedWidth = true };
         host?.Invoke(surface);
         surface.Document.Load(diagram);
 

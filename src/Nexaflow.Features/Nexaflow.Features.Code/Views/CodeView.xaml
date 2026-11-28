@@ -46,7 +46,7 @@
                     </Button>
                 </Grid>
 
-                <md:MarkdownSurface x:Name="Md" Grid.Row="1"
+                <md:NexaTextSurface x:Name="Md" Grid.Row="1"
                                            AutomationProperties.AutomationId="Code_Map"
                                            Margin="10,0,10,10"
                                            VerticalScrollBarVisibility="Auto"

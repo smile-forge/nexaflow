@@ -72,7 +72,7 @@ public class MatrixMoveTests
     // ── Harness ─────────────────────────────────────────────────────────────
 
     /// <summary>Runs <paramref name="test"/> against a surface holding <paramref name="latex"/> as its one formula.</summary>
-    private static void InFormula(string latex, Action<MarkdownSurface, DocumentBlock> test) =>
+    private static void InFormula(string latex, Action<NexaTextSurface, DocumentBlock> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(latex,
                                                      editor => test(editor, MarkdownEditorHarness.Block(editor)),
                                                      editor => editor.WrittenIn = "latex"));

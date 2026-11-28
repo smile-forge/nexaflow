@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Automation;
@@ -10,13 +8,11 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
-using Nexaflow.Icons;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Localization;
-using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Layout;
-using Nexaflow.Markdown.Layout.Prose;
+using Nexaflow.Visuals.Text.Painting;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -375,23 +371,23 @@ internal sealed class DiagramRibbon : UserControl
         return new TextBlock { Text = option.Name, FontSize = 12 };
     }
 
-    /// <summary>A shape in the box a button gives a picture, filled in the button's own ink.</summary>
-    private static UIElement Pictured(Geometry shape, Button button)
+    /// <summary>A shape the content's medium drew in the box a button gives a picture, filled in the button's own ink.</summary>
+    private static UIElement Pictured(LayoutShape shape, Button button)
     {
-        var path = new System.Windows.Shapes.Path { Data = shape, Width = Side, Height = Side, Stretch = Stretch.None };
+        var path = new System.Windows.Shapes.Path { Data = ((WpfShape)shape).Geometry, Width = Side, Height = Side, Stretch = Stretch.None };
         path.SetBinding(System.Windows.Shapes.Shape.FillProperty, new System.Windows.Data.Binding(nameof(Foreground)) { Source = button });
         return path;
     }
 
     /// <summary>A colour drawn as itself — and a clear one, which is a colour too, as the square crossed through that says so.</summary>
-    private static UIElement Swatched(Color shade)
+    private static UIElement Swatched(LayoutColor shade)
     {
         var square = new Border
         {
             Width = Side,
             Height = Side,
             CornerRadius = new CornerRadius(3),
-            Background = new SolidColorBrush(shade),
+            Background = new SolidColorBrush(Color.FromArgb(shade.A, shade.R, shade.G, shade.B)),
             BorderBrush = Brush("BorderBrush", Colors.Gray),
             BorderThickness = new Thickness(1),
         };
@@ -417,7 +413,10 @@ internal sealed class DiagramRibbon : UserControl
 
     /// <summary>The mark that says a button drops something down.</summary>
     private static TextBlock Chevron() =>
-        new() { Text = "", FontFamily = IconFont, FontSize = 10, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        new() { Text = "", FontFamily = MarkFont, FontSize = 10, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+
+    /// <summary>The face the chevron is drawn in: the one the renderer's own marks are.</summary>
+    private static readonly FontFamily MarkFont = new(RibbonMarks.IconFont);
 
     /// <summary>What drops down under <paramref name="under"/>, closing itself when the reader presses anywhere else.</summary>
     private static Popup Dropped(UIElement under) => new()
@@ -502,76 +501,6 @@ internal sealed class DiagramRibbon : UserControl
         Margin = new Thickness(0, 6, 0, 6),
         Background = Brush("BorderBrush", Colors.Gray),
     };
-
-    // ── What the renderer's own verbs are called and drawn as ───────────────
-
-    /// <summary>
-    /// What an intent is called where a reader has to read it. The verbs the renderer knows are named here so every
-    /// diagram words them the same way; anything else says what it said for itself, and falls back to its verb.
-    /// </summary>
-    public static string Names(LayoutIntent intent) => intent.Verb switch
-    {
-        LayoutVerbs.Navigate => Str.Get("Text.Ribbon.OpenLink"),
-        LayoutVerbs.Expand => Str.Get("Text.Ribbon.Expand"),
-        LayoutVerbs.Collapse => Str.Get("Text.Ribbon.Collapse"),
-        LayoutVerbs.Copy => Str.Get("Text.Ribbon.Copy"),
-        LayoutVerbs.Cut => Str.Get("Text.Ribbon.Cut"),
-        LayoutVerbs.Paste => Str.Get("Text.Ribbon.Paste"),
-        LayoutVerbs.Save => Str.Get("Text.Ribbon.SavePicture"),
-        _ => intent.Tip is { Length: > 0 } said ? said : intent.Verb,
-    };
-
-    /// <summary>
-    /// The mark an intent is drawn as where there is room only for a mark — a block's corner, a ribbon's button — or null where it
-    /// has none and is named instead. Segoe MDL2 Assets, which every Windows the app runs on carries.
-    /// </summary>
-    public static string? Icon(LayoutIntent intent) => intent.Verb switch
-    {
-        LayoutVerbs.Copy => "",
-        LayoutVerbs.Save => "",
-        LayoutVerbs.Navigate => "",
-        LayoutVerbs.Paste => "",
-        LayoutVerbs.Cut => "",
-        _ => null,
-    };
-
-    /// <summary>The face the marks are drawn in.</summary>
-    public static FontFamily IconFont { get; } = new("Segoe MDL2 Assets");
-
-    /// <summary>
-    /// <paramref name="intent"/>'s mark (<see cref="Icon"/>) as a shape in a button's box, or null where it has none — how a ribbon
-    /// button for one of the renderer's own verbs is drawn. Each is made once.
-    /// </summary>
-    internal static Geometry? Marked(LayoutIntent intent) =>
-        Icon(intent) is { } mark ? Marks.GetOrAdd(mark, static mark => Outlined(mark, IconFont)) : null;
-
-    /// <summary>Every mark drawn so far.</summary>
-    private static readonly ConcurrentDictionary<string, Geometry?> Marks = new();
-
-    /// <summary>
-    /// <paramref name="icon"/> as a shape in the ribbon's box — its glyph's outline, centred — or null where the font has no such icon and
-    /// the control is named instead: how a language draws a control of its own as an icon. Each is made once.
-    /// </summary>
-    internal static Geometry? Drawn(IconRef icon) => Shapes.GetOrAdd(icon, static icon =>
-        icon.IsEmpty || !IconCatalog.Contains(icon) || IconFonts.FontFor(icon) is not { } font ? null : Outlined(IconCatalog.GlyphFor(icon), font));
-
-    /// <summary>Every icon drawn so far.</summary>
-    private static readonly ConcurrentDictionary<IconRef, Geometry?> Shapes = new();
-
-    /// <summary>A glyph's outline, centred in a button's box — or null where it draws nothing.</summary>
-    private static Geometry? Outlined(string glyph, FontFamily font)
-    {
-        var face = new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-        var outline = new FormattedText(glyph, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, Side, Brushes.Black, 1.0)
-            .BuildGeometry(new Point(0, 0));
-
-        var bounds = outline.Bounds;
-        if (bounds.IsEmpty) return null;
-
-        outline.Transform = new TranslateTransform((Side - bounds.Width) / 2 - bounds.X, (Side - bounds.Height) / 2 - bounds.Y);
-        outline.Freeze();
-        return outline;
-    }
 
     private static Brush Brush(string key, Color fallback) =>
         Application.Current?.TryFindResource(key) as Brush ?? new SolidColorBrush(fallback);

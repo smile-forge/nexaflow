@@ -70,7 +70,7 @@ public class DiagramKeyTests
         {
             var what = Path.GetFileName(path);
             var document = File.ReadAllText(path).Replace("\r\n", "\n");
-            var laid = new ContentEngine().Lay(null, EditState.For(document), WpfStyles.Dark, Room, readOnly: false);
+            var laid = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Lay(null, EditState.For(document), WpfStyles.Dark, Room, readOnly: false);
             var held = Held(document);
 
             // Only the stops inside a diagram: what a key does in the document's own prose is a different question.
@@ -130,7 +130,7 @@ public class DiagramKeyTests
 
     /// <summary>Where each diagram's own characters stand in <paramref name="document"/>.</summary>
     private static List<(int Start, int End)> Diagrams(string document) =>
-        [.. new ContentEngine().Read(null, document).Root.SelfAndDescendants()
+        [.. new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark).Read(null, document).Root.SelfAndDescendants()
                 .Where(part => ContentNested.Language(part) == "mermaid" && part.Part(Roles.Body) is not null)
                 .Select(part => ContentNested.Own(part.Part(Roles.Body)!))
                 .Select(span => (span.Start, span.Start + span.Length))];

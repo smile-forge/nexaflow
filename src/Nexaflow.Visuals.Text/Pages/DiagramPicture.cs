@@ -40,7 +40,7 @@ public static class DiagramPicture
     /// </summary>
     public static Task<byte[]> SideBySideAsync(byte[] figure, string mermaid) => OnThreadOfItsOwn(() => SideBySide(figure, Laid(mermaid)));
 
-    private static Laid Laid(string mermaid) => new ContentEngine().Lay("mermaid", EditState.For(mermaid), WpfStyles.Light, Room, readOnly: true);
+    private static Laid Laid(string mermaid) => new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Light).Lay("mermaid", EditState.For(mermaid), WpfStyles.Light, Room, readOnly: true);
 
     private static IReadOnlyList<string> Words(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == MermaidPiece.Words && piece.Words is not null).Select(piece => piece.Words!.Glyphs.Text)];

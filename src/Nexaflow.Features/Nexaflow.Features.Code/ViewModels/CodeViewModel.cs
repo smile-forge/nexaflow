@@ -5,7 +5,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
 using Nexaflow.Syntax;
 using Nexaflow.Visuals.Text.Editor;
-using Nexaflow.Visuals.Text.Editor.Highlighting;
+
 
 namespace Nexaflow.Features.Code.ViewModels;
 
@@ -14,9 +14,9 @@ namespace Nexaflow.Features.Code.ViewModels;
 /// plus a markdown <b>code-intelligence panel</b> built from the file's structure — dependency links and a
 /// clickable class diagram whose members jump to their definition line.
 ///
-/// Structure is extracted on the live editor buffer (so it tracks edits) by <see cref="CodeStructureExtractor"/>.
-/// Member links carry an AST path; <see cref="NavigateToAst"/> resolves it against the current text and asks the
-/// view to scroll there via <see cref="NavigateToLineRequested"/> (the only editor-control coupling).
+/// Structure is extracted on the live document (so it tracks edits) by <see cref="CodeStructureExtractor"/>.
+/// Member links carry an AST path; <see cref="NavigateToAst"/> resolves it against the current text and puts the
+/// caret on that line (<see cref="FileTextEditorViewModel.MoveCaretToLine"/>).
 /// </summary>
 public sealed partial class CodeViewModel : FileTextEditorViewModel
 {
@@ -27,7 +27,7 @@ public sealed partial class CodeViewModel : FileTextEditorViewModel
         : base(filePath, shell, vfs, maxEditableBytes)
     {
         _pendingAst = initialAst;
-        GrammarId = HighlightingRegistry.Resolve(FileName).TreeSitterLanguage;
+        GrammarId = TreeSitterLanguages.ForEdit(FileName);
     }
 
     /// <summary>The tree-sitter grammar id for this file, or null when the file has no code grammar (the panel
@@ -53,19 +53,20 @@ public sealed partial class CodeViewModel : FileTextEditorViewModel
     [RelayCommand]
     private void TogglePanel() => IsPanelOpen = !IsPanelOpen;
 
-    /// <summary>Re-extracts the structure from the current buffer and rebuilds the panel markdown. Cheap (one
+    /// <summary>Re-extracts the structure from the current document and rebuilds the panel markdown. Cheap (one
     /// tree-sitter parse); called debounced on edit. Only reassigns the markdown when it actually changed, so a
-    /// keystroke pause inside a method body doesn't rebuild the flow document.</summary>
+    /// keystroke pause inside a method body doesn't rebuild the flow document. A file read over its blocks, never made
+    /// one string, has no map.</summary>
     public void RegenerateIntelligence()
     {
-        if (GrammarId is not { } grammar)
+        if (GrammarId is not { } grammar || WholeText() is not { } text)
         {
             HasIntelligence = false;
             return;
         }
 
         var dir = Path.GetDirectoryName(FilePath);
-        var outline = _extractor.Extract(grammar, Document.Text, dir);
+        var outline = _extractor.Extract(grammar, text, dir);
         if (!outline.HasContent)
         {
             HasIntelligence = false;
@@ -81,16 +82,16 @@ public sealed partial class CodeViewModel : FileTextEditorViewModel
         if (_pendingAst is { } ast)
         {
             _pendingAst = null;
-            if (_extractor.ResolveLine(grammar, Document.Text, ast, dir) is int line) RequestScrollToLine(line);
+            if (_extractor.ResolveLine(grammar, text, ast, dir) is int line) MoveCaretToLine(line);
         }
     }
 
-    /// <summary>Resolves an AST path against the current buffer and scrolls there (for same-file member links).</summary>
+    /// <summary>Resolves an AST path against the current document and puts the caret there (for same-file member links).</summary>
     public void NavigateToAst(string astPath)
     {
-        if (GrammarId is not { } grammar) return;
+        if (GrammarId is not { } grammar || WholeText() is not { } text) return;
         var dir = Path.GetDirectoryName(FilePath);
-        if (_extractor.ResolveLine(grammar, Document.Text, astPath, dir) is int line) RequestScrollToLine(line);
+        if (_extractor.ResolveLine(grammar, text, astPath, dir) is int line) MoveCaretToLine(line);
     }
 
     /// <summary>Opens another file As Code in a new tab (for dependency / cross-file links).</summary>

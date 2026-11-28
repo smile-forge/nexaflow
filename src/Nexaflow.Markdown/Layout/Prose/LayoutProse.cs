@@ -65,6 +65,12 @@ public sealed record LayoutStyle
     public required IReadOnlyDictionary<string, LayoutInk> Elements { get; init; }
 
     /// <summary>
+    /// The colours a reader is offered to paint something with — the host's shared bank as its theme tunes it, asked each time they are
+    /// offered, so a theme retuning the bank retunes what is offered without the style being made again.
+    /// </summary>
+    public required Func<IReadOnlyList<LayoutSwatch>> Swatches { get; init; }
+
+    /// <summary>
     /// The colours a theme names for C4's levels — a person, a system, a container, a component, a deployment node, something somebody
     /// else's — and its boundaries, each null where the theme names none and C4 grades from the accent instead.
     /// </summary>
@@ -115,7 +121,26 @@ public sealed record LayoutStyle
 
         return _known.GetOrAdd((family, weight, italic), _faces(family, weight, italic));
     }
+
+    /// <summary>How many characters' advance apart the tab stops of content laid line by line stand — code, text shown as typed.</summary>
+    public int TabWidth { get; init; } = 4;
+
+    /// <summary>Whether the spaces, tabs and line ends of content laid line by line are drawn, as faint marks standing for none of it.</summary>
+    public bool ShowsWhitespace { get; init; }
+
+    /// <summary>
+    /// How long one of the screen's pixels is, in the layout's units — what content laid a line under a line puts a whole number of between
+    /// its lines, so every line stands the same number of pixels below the one before rather than each being rounded to the pixel grid on its
+    /// own, a pixel more every few lines. One where nothing says, as at a density of one.
+    /// </summary>
+    public double DevicePixel { get; init; } = 1;
 }
+
+/// <summary>
+/// A colour of the bank a reader paints with (<see cref="LayoutStyle.Swatches"/>): the invariant name a choice of it is keyed by, so two
+/// a theme happens to tune alike are still two choices; the label a reader sees; and the colour itself.
+/// </summary>
+public sealed record LayoutSwatch(string Name, string Label, LayoutColor Shade);
 
 /// <summary>Where content stands in what holds it.</summary>
 public enum LayoutStanding
@@ -175,10 +200,11 @@ public sealed record LayoutInset(Laid Laid)
 }
 
 /// <summary>
-/// What <paramref name="holder"/> holds in another language, laid out at <paramref name="room"/> standing as
-/// <paramref name="standing"/> says — or null where nothing read it. The one thing a builder asks of the engine.
+/// Lays out what <paramref name="holder"/> holds in another language, at <paramref name="room"/> — the language its body is written in being
+/// the one the holder names, or <paramref name="writtenIn"/> where it names none and the builder knows what its own body is: a document's own
+/// code, set as plain text. Null where there is nothing another language can lay.
 /// </summary>
-public delegate LayoutInset? LayoutNesting(ContentPart holder, double room, LayoutStanding standing);
+public delegate LayoutInset? LayoutNesting(ContentPart holder, double room, LayoutStanding standing, string? writtenIn);
 
 /// <summary>What a piece of a laid-out markdown document is.</summary>
 public static class LayoutPieces

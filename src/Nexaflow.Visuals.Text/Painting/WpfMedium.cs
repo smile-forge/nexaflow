@@ -12,6 +12,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Visuals.Text.Painting;
 
@@ -316,9 +317,11 @@ public sealed class WpfMedium : ILayoutMedium
     public LayoutGuides Guides(double[] across, double[] down) => new WpfGuides(new GuidelineSet(across, down));
 
     /// <summary>A picture a host handed over — the same handle each time it is handed the same picture.</summary>
-    public LayoutPicture Picture(ImageSource picture) => _pictures.GetValue(picture, static source => new WpfPicture(source));
+    public LayoutPicture Picture(ImageSource picture) => WpfPicture.Of(picture);
 
-    private readonly ConditionalWeakTable<ImageSource, WpfPicture> _pictures = [];
+    /// <inheritdoc/>
+    public LayoutPicture? Decoded(EmbeddedPicture picture, double textSize) =>
+        EmbeddedPictures.Drawn(picture, textSize) is { } drawn ? WpfPicture.Of(drawn) : null;
 
     /// <summary>How many device pixels a unit of the layout is drawn across — one, since a layout is measured where it is shown.</summary>
     public const double Density = 1.0;
@@ -372,6 +375,10 @@ public sealed class WpfMedium : ILayoutMedium
 
         return figures;
     }
+
+    /// <inheritdoc/>
+    public byte[]? PaintedPng(LayoutPiece laid, LayoutRect area, double scale, LayoutInk text) =>
+        WpfPainter.Painted(laid, area.ToWpf(), scale, text.Brush(), null) is { } painted ? WpfPainter.Png(painted) : null;
 }
 
 /// <summary>The renderer-free layout's values said in WPF's terms, and back.</summary>
@@ -656,6 +663,17 @@ public sealed class WpfPicture(ImageSource picture) : LayoutPicture
 
         return new LayoutPixels(pixels, square.PixelWidth, square.PixelHeight);
     }
+
+    /// <summary>
+    /// <paramref name="picture"/> as the engine holds a picture — the one handle for it, whichever thread asks, so what was laid out with it
+    /// is known to be laid out with the same picture again.
+    /// </summary>
+    public static WpfPicture Of(ImageSource picture) => Held.GetValue(picture, static source => new WpfPicture(source));
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ImageSource, WpfPicture> Held = [];
+
+    /// <summary>Where a picture is found, as the engine holds a picture: <paramref name="find"/>'s image, handed over as one.</summary>
+    public static Func<string, LayoutPicture?> Finding(Func<string, ImageSource?> find) => named => find(named) is { } picture ? Of(picture) : null;
 }
 
 /// <summary>

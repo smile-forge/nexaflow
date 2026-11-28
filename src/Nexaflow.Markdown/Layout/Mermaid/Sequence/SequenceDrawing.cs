@@ -75,7 +75,7 @@ internal sealed partial class SequenceDrawing
 
     /// <summary>
     /// How big the page sets body text, against the size the lengths above are written at. One at the reader's
-    /// default, and what the zoom chip moves (TextZoom.FontSize, MarkdownSurface.BaseFontSize, LayoutStyle.TextSize).
+    /// default, and what the zoom chip moves (TextZoom.FontSize, NexaTextSurface.BaseFontSize, LayoutStyle.TextSize).
     ///
     /// <para>
     /// Prose works every length it draws out from the body size — its gaps, indents, pads and rules are all multiples

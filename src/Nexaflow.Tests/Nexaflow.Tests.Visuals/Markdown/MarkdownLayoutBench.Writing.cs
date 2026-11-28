@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 
 using System.Windows.Media;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Layout;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
@@ -194,7 +195,7 @@ public partial class MarkdownLayoutBench
                                                                                                                                                                 Action<string> said, out TimeSpan opened, out (int Offset, double Ms)? farthest,
                                                                                                             (int Start, int End)? past = null)
     {
-        var surface = new MarkdownSurface
+        var surface = new NexaTextSurface
         {
             IsReadOnly = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -304,7 +305,7 @@ foreach (var (place, at) in places)
             if (past is var (from, to))
             {
                 said($"{name}: scrolling past");
-                var scroller = Scroller(surface);
+                var scroller = surface;
 
                 Assert.IsTrue(surface.ShowFrom(to), "There is nowhere on the page past it.");
                 Settle();
@@ -357,7 +358,7 @@ foreach (var (place, at) in places)
 
     said($"{name}: pasting {PasteSize / 1024} KB");
             surface.Pasting += Supplied;
-            row["paste"] = Taken(Pastes, () => engine.History.Break(), () => engine.Input(new ContentKey(Key.V, ModifierKeys.Control)), Source, Undo);
+            row["paste"] = Taken(Pastes, () => engine.History.Break(), () => engine.Input(new ContentKey(EditingKey.V, HeldKeys.Control)), Source, Undo);
             surface.Pasting -= Supplied;
 
     said($"{name}: carrying a word");
@@ -366,7 +367,7 @@ foreach (var (place, at) in places)
 
             return row;
 
-    void Undo() => engine.Input(new ContentKey(Key.Z, ModifierKeys.Control));
+    void Undo() => engine.Input(new ContentKey(EditingKey.Z, HeldKeys.Control));
 
             // The version written to: every change makes another, so a step changed the document where the version is another one —
             // asked without building the characters, which for a long document would be what the steps were timed paying for.
@@ -380,36 +381,20 @@ foreach (var (place, at) in places)
         }
     }
 
-    /// <summary>What scrolls <paramref name="surface"/>'s page, as the reader's scrollbar does.</summary>
-    private static ScrollViewer Scroller(MarkdownSurface surface)
-    {
-        ScrollViewer? found = null;
-        Looked(surface);
-
-        return found ?? throw new InvalidOperationException("The surface holds nothing that scrolls.");
-
-        void Looked(DependencyObject at)
-        {
-            if (at is ScrollViewer scroller) { found = scroller; return; }
-
-            for (var child = 0; child < VisualTreeHelper.GetChildrenCount(at) && found is null; child++) Looked(VisualTreeHelper.GetChild(at, child));
-        }
-    }
-
     /// <summary>
     /// A word on the first screen carried down it and let go: each move timed, since each lays the content out as it would read with
     /// the word let go there — then taken back. On the first screen because that is laid from opening, so what is timed is carrying,
     /// not laying the document down to wherever the word is; a jump down a long document is the reading bench's to time. Says whether
     /// the press picked the word up, since a press that does not drags out a selection instead, and what that costs is not this.
     /// </summary>
-    private static object Carried(MarkdownSurface surface)
+    private static object Carried(NexaTextSurface surface)
     {
         var engine = surface.Engine;
 
-        To(surface.Scroller, 0);
+        To(surface, 0);
 
         var source = engine.State.Document.ToString();
-        var middle = engine.Laid.Root.OffsetAt(new Point(120, surface.Scroller.VerticalOffset + (Screen.Height / 3)).ToLayout());
+        var middle = engine.Laid.Root.OffsetAt(new Point(120, surface.VerticalOffset + (Screen.Height / 3)).ToLayout());
 
         var start = middle;
         while (start > 0 && !char.IsWhiteSpace(source[start - 1])) start--;
@@ -439,7 +424,7 @@ foreach (var (place, at) in places)
         Settle();
 
         var picked = !ReferenceEquals(engine.State.Document.ToString(), source);
-        if (picked) engine.Input(new ContentKey(Key.Z, ModifierKeys.Control));
+        if (picked) engine.Input(new ContentKey(EditingKey.Z, HeldKeys.Control));
 
         Settle();
 

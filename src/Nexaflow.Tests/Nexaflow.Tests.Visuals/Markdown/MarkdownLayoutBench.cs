@@ -136,7 +136,7 @@ public partial class MarkdownLayoutBench
                                                        Dictionary<string, (int Count, double Ms, double Kb)> stages,
                                                        Dictionary<string, (int Count, double Ms, double Kb)> kinds)
     {
-        var (open, openKb) = Cost(() => new ContentEngine(inputs).Lay(language, EditState.For(text), style, Room, false));
+        var (open, openKb) = Cost(() => new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs).Lay(language, EditState.For(text), style, Room, false));
 
         // Opening it as a page does: shown at the room with a screen of it on screen, which for a document long enough to be
         // shown a stretch at a time lays only as far as that — and what the page holds once the rest has been read behind it.
@@ -146,7 +146,7 @@ public partial class MarkdownLayoutBench
 
         // A keystroke: the same content, laid again with one more character in the middle — a different one each time,
         // so nothing laid before is the answer.
-        var content = new ContentEngine(inputs);
+        var content = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs);
         content.Lay(language, EditState.For(text), style, Room, false);
         var middle = Middle(text);
         var typed = 0;
@@ -228,7 +228,7 @@ public partial class MarkdownLayoutBench
 
         // Painting what a keystroke laid, where the page was painted before it: what was kept of the blocks nobody typed in
         // is drawn as it was, and only the block typed in is painted.
-        var painter = new ContentEngine(inputs);
+        var painter = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs);
         Painted(painter.Lay(language, EditState.For(text), style, Room, false), style);
         var retyped = 0;
         var (editPaint, editPaintKb) = Timed(() => painter.Lay(language, EditState.For(text.Insert(middle, new string('x', ++retyped))), style, Room, false),
@@ -238,7 +238,7 @@ public partial class MarkdownLayoutBench
         // and the reading kept so the next keystroke knows which blocks it has not touched.
         var retained = Retained(() =>
         {
-            var held = new ContentEngine(inputs);
+            var held = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs);
             var shown = held.Lay(language, EditState.For(text), style, Room, false);
             Painted(shown, style);
 
@@ -247,7 +247,7 @@ public partial class MarkdownLayoutBench
 
         var retainedShown = Retained(() =>
         {
-            var held = new ContentEngine(inputs);
+            var held = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs);
             var shown = held.Lay(language, EditState.For(text), style, Room, false);
             Painted(shown, style, Screen);
 
@@ -345,7 +345,7 @@ public partial class MarkdownLayoutBench
 
     private static ContentEngine Shown(string text, string? language, LayoutStyle style, ContentInputs inputs)
     {
-        var engine = new ContentEngine(inputs);
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs);
         engine.Show(language, style);
         engine.OnScreen = Screen.ToLayout();
         engine.Start(text);
@@ -581,7 +581,7 @@ public partial class MarkdownLayoutBench
         }
 
         // Every cache warmed first, so what is held is what the document holds.
-        Paint(new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false));
+        Paint(new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs).Lay(null, EditState.For(text), style, Room, false));
 
         static long Heap() => GC.GetTotalMemory(forceFullCollection: true);
 
@@ -611,14 +611,14 @@ public partial class MarkdownLayoutBench
         Thread.Sleep(500);
 
         var middle = Middle(text);
-        var typing = new ContentEngine(inputs);
+        var typing = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs);
         typing.Lay(null, EditState.For(text), style, Room, false);
         var typed = 0;
 
         return new Dictionary<string, object>
         {
             ["held"] = held,
-            ["openByType"] = allocations.Sampled(() => new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false), 5),
+            ["openByType"] = allocations.Sampled(() => new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark, inputs).Lay(null, EditState.For(text), style, Room, false), 5),
             ["editByType"] = allocations.Sampled(() => typing.Lay(null, EditState.For(text.Insert(middle, new string('x', ++typed))), style, Room, false), 10),
         };
     }

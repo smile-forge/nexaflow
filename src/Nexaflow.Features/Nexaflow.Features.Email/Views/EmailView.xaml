@@ -203,7 +203,7 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                     CornerRadius="6" Margin="16,8,16,8">
                 <Grid>
-                    <md:MarkdownSurface x:Name="MarkdownBody"
+                    <md:NexaTextSurface x:Name="MarkdownBody"
                                                WrittenIn="{Binding RenderedLanguage}"
                                                Document="{Binding RenderedMarkdown, Converter={x:Static md:AsEditedDocument.Instance}}"
                                                VerticalScrollBarVisibility="Auto"

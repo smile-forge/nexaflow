@@ -11,7 +11,7 @@ namespace Nexaflow.Features.Markdown.Views;
 [ViewFor(typeof(MarkdownContextPreview))]
 public sealed class MarkdownContextPreviewView : ContentControl
 {
-    public MarkdownContextPreviewView(MarkdownContextPreview preview) => Content = new MarkdownSurface
+    public MarkdownContextPreviewView(MarkdownContextPreview preview) => Content = new NexaTextSurface
     {
         Document                    = new EditedDocument(preview.Markdown),
         BaseDirectory               = preview.Folder,

@@ -115,7 +115,7 @@ public class WindowedLayoutTests
     public void CodeWrittenIn_IsLaidAsTheCodeItBecameLaidWhole()
     {
         var text = MarkdownLayoutBench.GeneratedCode(24 * 1024);
-        var engine = Shown(text, NoGrammar, new ContentEngine { WindowedFrom = 0, StretchLength = 1024 });
+        var engine = Shown(text, NoGrammar, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WindowedFrom = 0, StretchLength = 1024 });
         ToTheEnd(engine);
 
         var lines = Enumerable.Range(0, text.Length).Where(at => at == 0 || text[at - 1] == '\n').ToList();
@@ -137,7 +137,7 @@ public class WindowedLayoutTests
     public void AKeystrokeInCode_LaysTheLineItWasTypedOn_AndSetsDownEveryOtherAsItWasLaid()
     {
         var text = MarkdownLayoutBench.GeneratedCode(8 * 1024);
-        var engine = Shown(text, NoGrammar, new ContentEngine());
+        var engine = Shown(text, NoGrammar, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var before = Lines(engine.Laid);
 
         var at = text.IndexOf('\n', text.Length / 2) + 1;
@@ -158,7 +158,7 @@ public class WindowedLayoutTests
         // A comment opened, a string opened and each closed again, far from most of what they colour: every unit the change reaches
         // in the syntax is coloured again, not only the one written in.
         var text = MarkdownLayoutBench.GeneratedCode(16 * 1024);
-        var engine = Shown(text, "csharp", new ContentEngine { WindowedFrom = 0, StretchLength = 1024 });
+        var engine = Shown(text, "csharp", new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WindowedFrom = 0, StretchLength = 1024 });
         ToTheEnd(engine);
 
         var middle = text.IndexOf('\n', text.Length / 3) + 1;
@@ -178,7 +178,7 @@ public class WindowedLayoutTests
     public void LongCodeWrittenIn_KeepsItsColours_UntilTypingPauses()
     {
         var text = MarkdownLayoutBench.GeneratedCode(200 * 1024);
-        var engine = Shown(text, "csharp", new ContentEngine());
+        var engine = Shown(text, "csharp", new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         Settled(engine);
 
         var at = text.IndexOf('\n', 2000) + 1;
@@ -209,7 +209,7 @@ public class WindowedLayoutTests
     public void LongCode_StandsAsTallAsItIs_BeforeAnyMoreOfItIsLaid()
     {
         var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
-        var engine = Shown(text, NoGrammar, new ContentEngine());
+        var engine = Shown(text, NoGrammar, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
 
         Assert.IsTrue(engine.ReadingRest.Wait(Patience), "The rest was never read.");
         engine.Relay();
@@ -223,7 +223,7 @@ public class WindowedLayoutTests
     public void LongCode_LaysOnlyTheLinesTheScreenReaches_OfAUnitThousandsOfLinesLong()
     {
         var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
-        var engine = Shown(text, NoGrammar, new ContentEngine());
+        var engine = Shown(text, NoGrammar, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
 
         Assert.IsTrue(engine.ReadingRest.Wait(Patience), "The rest was never read.");
         engine.Relay();
@@ -261,7 +261,7 @@ public class WindowedLayoutTests
     public void ScrollingWithinAUnitOfCode_LaysWhatComesOnScreen_AndSetsDownEveryLineLaidAsItWas()
     {
         var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
-    var engine = Shown(text, NoGrammar, new ContentEngine());
+    var engine = Shown(text, NoGrammar, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
 
         // Further down the first unit, past every line laid for the first screen.
         var line = text.IndexOf('\n', 24 * 1024) + 1;
@@ -289,7 +289,7 @@ public class WindowedLayoutTests
     public void ACaretSentToALineOfAUnitNotLaidThere_IsLaidThere_AndThenBroughtOntoThePage()
     {
         var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
-        var engine = Shown(text, NoGrammar, new ContentEngine());
+        var engine = Shown(text, NoGrammar, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var brought = new List<LayoutRect>();
         engine.Revealing += (_, at) => brought.Add(at);
 
@@ -310,11 +310,11 @@ public class WindowedLayoutTests
     {
         foreach (var (text, named) in new[] { (Paragraphs(4000), (string?)null), (MarkdownLayoutBench.GeneratedCode(400 * 1024), NoGrammar) })
         {
-            var engine = Shown(text, named, new ContentEngine());
+            var engine = Shown(text, named, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
             engine.OnScreen = new LayoutRect(0, 0, Room, 400);
             engine.Relay();
 
-            engine.Input(new ContentKey(System.Windows.Input.Key.End, System.Windows.Input.ModifierKeys.Control));
+            engine.Input(new ContentKey(EditingKey.End, HeldKeys.Control));
 
             Assert.IsTrue(text.Length - engine.State.Caret < 3, $"{named ?? "markdown"}: the caret stopped at {engine.State.Caret} of {text.Length}, at the end of what was laid");
 
@@ -330,7 +330,7 @@ public class WindowedLayoutTests
     public void TheScreenMovingWithinAUnitLaidInPart_AsksForMore_AndOnceItIsLaidAsksNoMore()
     {
         var text = MarkdownLayoutBench.GeneratedCode(400 * 1024);
-        var engine = Shown(text, NoGrammar, new ContentEngine());
+        var engine = Shown(text, NoGrammar, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         engine.OnScreen = new LayoutRect(0, 0, Room, 400);
         for (var pass = 0; pass < 20; pass++) engine.Relay();
 
@@ -385,7 +385,7 @@ public class WindowedLayoutTests
     public void ALongDocument_IsLaidOnlyAsFarAsTheReaderHasLooked_OnAPageAsLongAsAllOfIt()
     {
         var text = Paragraphs(4000);
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var whole = Whole(text, null);
 
         Assert.IsTrue(engine.Unlaid, "All of it was laid.");
@@ -400,7 +400,7 @@ public class WindowedLayoutTests
     [CoversNode("windowed-reading")]
     public void TheReaderComingNearWhatIsNotLaid_AsksForMore_AndMoreIsLaid()
     {
-        var engine = Shown(Paragraphs(4000), null, new ContentEngine());
+        var engine = Shown(Paragraphs(4000), null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var grew = 0;
         engine.Grew += (_, _) => Interlocked.Increment(ref grew);
 
@@ -420,7 +420,7 @@ public class WindowedLayoutTests
     public void ACaretSentToTheEnd_IsLaidThere_AndNothingBetween()
     {
         var text = Paragraphs(4000);
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
 
         engine.Apply(engine.State.MoveCaretTo(text.Length), notify: false);
         for (var pass = 0; pass < 10_000 && engine.UnlaidTop(text.Length) is not null; pass++) engine.Relay();
@@ -436,7 +436,7 @@ public class WindowedLayoutTests
     public void WhatTheReaderIsLookingAt_StaysStill_AsWhatStandsAboveItIsLaid()
     {
         var text = Paragraphs(4000);
-        var engine = Shown(text, null, new ContentEngine { StretchLength = 1024 });
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { StretchLength = 1024 });
         var far = text.IndexOf("Paragraph 3501 ", StringComparison.Ordinal);
 
         Assert.IsTrue(engine.Uncover(far), "It was laid already.");
@@ -464,7 +464,7 @@ public class WindowedLayoutTests
     public void TheOutlineOfALongDocument_HoldsEveryHeading_WithOnlyTheFirstScreenLaid()
     {
         var text = Paragraphs(4000);
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
 
         for (var round = 0; round < 3; round++)
         {
@@ -480,7 +480,7 @@ public class WindowedLayoutTests
     [CoversNode("windowed-reading")]
     public void ASlowerReadingLanding_LaysAgainOnlyTheUnitThatAskedForIt()
     {
-        var engine = new ContentEngine { WindowedFrom = 0, StretchLength = 512 };
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WindowedFrom = 0, StretchLength = 512 };
         Shown(Paragraphs(60), null, engine);
         engine.OnScreen = new LayoutRect(0, 0, Room, 1e12);
         Settled(engine);
@@ -526,7 +526,7 @@ public class WindowedLayoutTests
     public void ALongRtfDocument_OpensAStretchAtATime_AndLaidToItsEndIsItLaidWhole()
     {
         var text = RtfParagraphs(3000);
-        var engine = Shown(text, RtfParser.Language, new ContentEngine());
+        var engine = Shown(text, RtfParser.Language, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
 
         Assert.IsTrue(engine.Unlaid, "All of it was laid.");
 
@@ -541,7 +541,7 @@ public class WindowedLayoutTests
     {
         var path = Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md"));
         var text = File.ReadAllText(path);
-        var engine = new ContentEngine { WindowedFrom = 0, StretchLength = 1024 };
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WindowedFrom = 0, StretchLength = 1024 };
         Shown(text, null, engine);
         ToTheEnd(engine);
 
@@ -568,7 +568,7 @@ public class WindowedLayoutTests
 
             // Every reading at every depth read a few dozen characters at a time: a unit only ever stops where a line starts, so writing
             // at every line, and a character into it, writes at every unit boundary of every level.
-            var engine = Shown(text, null, new ContentEngine { WindowedFrom = 0, StretchLength = 64 });
+            var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WindowedFrom = 0, StretchLength = 64 });
             ToTheEnd(engine);
 
             var lines = Enumerable.Range(0, text.Length).Where(at => at == 0 || text[at - 1] == '\n').ToList();
@@ -597,7 +597,7 @@ public class WindowedLayoutTests
     public void ALongRtfDocumentWrittenIn_IsLaidAsTheDocumentItBecameLaidWhole()
     {
         var text = RtfParagraphs(1500);
-        var engine = Shown(text, RtfParser.Language, new ContentEngine { StretchLength = 4096 });
+        var engine = Shown(text, RtfParser.Language, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { StretchLength = 4096 });
         ToTheEnd(engine);
 
         var middle = text.IndexOf("Paragraph 700 ", StringComparison.Ordinal);
@@ -613,7 +613,7 @@ public class WindowedLayoutTests
     public void AWordInTheLastParagraphOfALongRtfDocument_IsFound_WithOnlyTheFirstScreenLaid()
     {
         var text = RtfParagraphs(3000);
-        var engine = Shown(text, RtfParser.Language, new ContentEngine());
+        var engine = Shown(text, RtfParser.Language, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
 
         var found = MarkdownFind.Drawn(engine.DrawnWords, "Paragraph 2999");
         var whole = MarkdownFind.Drawn(DrawnText.Of(RtfParser.Parse(text)), "Paragraph 2999");
@@ -628,7 +628,7 @@ public class WindowedLayoutTests
     public void ACaretSentPastWhatIsLaid_IsLaidTo_AndThenBroughtOntoThePage()
     {
         var text = Paragraphs(4000);
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var brought = new List<LayoutRect>();
         engine.Revealing += (_, at) => brought.Add(at);
 
@@ -648,7 +648,7 @@ public class WindowedLayoutTests
     public void ALinkDefinedAtTheEndOfALongDocument_IsALinkAtItsTop_BeforeTheEndIsLaid()
     {
         var text = "See [the site][site] first.\n\n" + Paragraphs(4000) + "[site]: https://example.com/site\n";
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
 
         Assert.IsTrue(engine.ReadingRest.Wait(Patience), "The rest was never read.");
         engine.Relay();
@@ -665,7 +665,7 @@ public class WindowedLayoutTests
     public void ALongFence_IsLaidOnlyWhereTheReaderIs_StandingAsTallAsAllOfIt()
     {
         var text = Fence(512 * 1024);
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var whole = Whole(text, null);
 
         var (laid, all) = (Lines(engine.Laid), Lines(whole));
@@ -678,7 +678,7 @@ public class WindowedLayoutTests
     public void AKeystrokeInALongFence_LaysTheUnitOfItTypedIn_AndSetsDownEveryOtherAsItWasLaid()
     {
         var text = Fence(512 * 1024);
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var at = text.IndexOf('\n', 2000) + 1;
 
         // The caret in the fence first, so what it wants laid round it is laid before the keystroke as after.
@@ -699,7 +699,7 @@ public class WindowedLayoutTests
     public void ACaretSentIntoTheMiddleOfALongFence_IsLaidThere_AndThenBroughtOntoThePage()
     {
         var text = Fence(512 * 1024);
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var brought = new List<LayoutRect>();
         engine.Revealing += (_, at) => brought.Add(at);
 
@@ -717,7 +717,7 @@ public class WindowedLayoutTests
     public void TheReaderScrollingIntoALongFence_LaysWhatComesOnScreen_AndNothingBetween()
     {
         var text = Fence(512 * 1024);
-        var engine = Shown(text, null, new ContentEngine());
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark));
         var middle = text.IndexOf('\n', text.Length / 2) + 1;
 
         // Where the middle of the fence stands, going by the lines above it, which say how tall they are laid or not.
@@ -734,7 +734,7 @@ public class WindowedLayoutTests
     public void WhatTheReaderIsLookingAt_InsideALongFence_StaysStill_AsWhatStandsAboveItInTheFenceIsLaid()
     {
         var text = $"# Top\n\nSome words first.\n\n````{WindowedProse}\n" + Paragraphs(4000) + "````\n";
-        var engine = Shown(text, null, new ContentEngine { StretchLength = 1024 });
+        var engine = Shown(text, null, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { StretchLength = 1024 });
         var far = text.IndexOf("Paragraph 3501 ", StringComparison.Ordinal);
 
         Assert.IsTrue(engine.Uncover(far), "It was laid already.");
@@ -796,7 +796,7 @@ public class WindowedLayoutTests
     /// <summary><paramref name="text"/> laid whole, with every slower reading of it landed.</summary>
     private static Laid Whole(string text, string? named)
     {
-        var engine = new ContentEngine();
+        var engine = new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark);
         using var landed = new ManualResetEventSlim();
         engine.Reread += (_, _) => landed.Set();
 
@@ -816,7 +816,7 @@ public class WindowedLayoutTests
 
     /// <summary><paramref name="text"/> shown a stretch at a time, however short — stretches about <paramref name="length"/> long — and laid to its end.</summary>
     private static Laid Stretched(string text, string? named, int length) =>
-        ToTheEnd(Shown(text, named, new ContentEngine { WindowedFrom = 0, StretchLength = length }));
+        ToTheEnd(Shown(text, named, new ContentEngine(WpfMedium.OnThisThread, WpfStyles.Dark) { WindowedFrom = 0, StretchLength = length }));
 
     /// <summary><paramref name="engine"/> showing <paramref name="text"/> at the room, as an element showing it does.</summary>
     private static ContentEngine Shown(string text, string? named, ContentEngine engine)
