@@ -1652,6 +1652,18 @@
       }
     },
     "text-viewer-search-indicator": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/Views/TextView.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "RunSearchAsync"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -1664,6 +1676,18 @@
       }
     },
     "text-viewer-status-matchcount": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "RunSearchAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/Views/TextView.xaml"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -2017,6 +2041,24 @@
       }
     },
     "log-viewer-time-apply": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "ApplyTimeFilter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "GoToFirstLineInRangeAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/Views/LogView.xaml"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -3786,10 +3828,186 @@
           "method": "ToggleNotifications"
         }
       ]
+    },
+    "log-viewer-filter-clear": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "ClearFilter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/Views/LogView.xaml"
+        }
+      ]
+    },
+    "log-viewer-ai-act-highlight-levels": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "log-viewer-ai-act-read-lines": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "log-viewer-ai-act-read-selected-lines": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "log-viewer-ai-act-read-tail": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "log-viewer-ai-act-set-regex-filter": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "log-viewer-ai-act-set-tail-paused": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "log-viewer-ai-act-set-time-filter": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Tools.cs",
+          "class": "LogViewModel",
+          "method": "GetClientTools"
+        }
+      ]
+    },
+    "log-viewer-status-filter": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "OnFilterRegexChanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/Views/LogView.xaml"
+        }
+      ]
+    },
+    "log-viewer-time-clear": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "ClearTimeFilter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/Views/LogView.xaml"
+        }
+      ]
+    },
+    "log-viewer-timestamps": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "DetectTimestamps"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.Lines.cs",
+          "class": "LogViewModel",
+          "method": "ScanForTimeRange"
+        }
+      ]
+    },
+    "log-viewer-status-lines": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "method": "Recounted"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/Views/LogView.xaml"
+        }
+      ]
+    },
+    "log-viewer-status-loading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "method": "ReadHistoryAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/Views/LogView.xaml"
+        }
+      ]
+    },
+    "text-viewer-clear-search": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "CloseFindBar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.Find.cs",
+          "class": "TextViewModel",
+          "method": "CancelSearch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/Views/TextView.xaml"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 186,
+  "changed_sets": 203,
   "touched_nodes": [
     "abbreviations",
     "abc-editing",
@@ -3848,18 +4066,31 @@
     "latex-palette-wrap",
     "latex-selection",
     "latex-writable-ast",
+    "log-viewer-ai-act-highlight-levels",
+    "log-viewer-ai-act-read-lines",
+    "log-viewer-ai-act-read-selected-lines",
+    "log-viewer-ai-act-read-tail",
+    "log-viewer-ai-act-set-regex-filter",
+    "log-viewer-ai-act-set-tail-paused",
+    "log-viewer-ai-act-set-time-filter",
     "log-viewer-ai-context",
     "log-viewer-ai-preview",
     "log-viewer-copy-selected",
     "log-viewer-custom-term",
     "log-viewer-encoding",
     "log-viewer-filter",
+    "log-viewer-filter-clear",
     "log-viewer-level-highlight",
     "log-viewer-line-select",
     "log-viewer-search",
+    "log-viewer-status-filter",
+    "log-viewer-status-lines",
+    "log-viewer-status-loading",
     "log-viewer-tail-streaming",
     "log-viewer-time-apply",
+    "log-viewer-time-clear",
     "log-viewer-time-filter",
+    "log-viewer-timestamps",
     "log-viewer-watch",
     "markdown-always-drawn",
     "markdown-anchors",
@@ -3920,6 +4151,7 @@
     "solver-source-toggle",
     "sr-selection",
     "text-viewer-ai-act-find-text",
+    "text-viewer-clear-search",
     "text-viewer-editing-toggle",
     "text-viewer-find",
     "text-viewer-find-nav",
